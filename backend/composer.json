@@ -1,0 +1,19 @@
+{
+    "name":  "3devs/backend",
+    "description":  "Backend del sistema contable de 3devs Solutions",
+    "license":  "proprietary",
+    "type":  "project",
+    "require-dev":  {
+                        "phpunit/phpunit":  "^12.0",
+                        "phpstan/phpstan":  "^2.1",
+                        "friendsofphp/php-cs-fixer":  "^3.93"
+                    },
+    "scripts":  {
+                    "test":  "php vendor/bin/phpunit --configuration phpunit.xml"
+                },
+    "require": {
+        "vlucas/phpdotenv": "^5.6",
+        "google/cloud-vision": "^2.2",
+        "aws/aws-sdk-php": "^3.378"
+    }
+}

@@ -1,0 +1,654 @@
+/* =========================================================
+   MODAL CARGA INDIVIDUAL — CSS MEJORADO
+   Reemplaza las secciones cmi-* en ModalCargaMasiva.css
+   Compatible con variables --nv-* y --mi-* del sistema
+   ========================================================= */
+
+/* ── Contenedor floating field ── */
+.cmi-floatingField {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Label flotante — siempre activa ── */
+.cmi-floatingLabel {
+  position: absolute;
+  left: 12px;
+  top: 0;
+  transform: translateY(-50%);
+  font-size: 10.5px;
+
+  color: var(--nv-action, #0055BB);
+  pointer-events: none;
+  background: var(--nv-bg, #fff);
+  padding: 0 5px;
+  margin-left: -5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+html[data-theme="oscuro"] .cmi-floatingLabel {
+  color: rgba(140, 190, 255, 0.92);
+  background: rgba(6, 18, 28, 0.96);
+}
+
+/* ── Input base ── */
+.cmi-input {
+  width: 100%;
+  padding: 13px 12px 13px;
+  border-radius: 10px;
+  border: 1.5px solid var(--nv-border-md, rgba(10, 37, 64, 0.14));
+  background: var(--nv-bg, #fff);
+  outline: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--nv-text, #0A2540);
+  font-family: inherit;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+  box-sizing: border-box;
+  line-height: 1.4;
+}
+
+.cmi-input:hover {
+  border-color: var(--nv-border-strong, rgba(10, 37, 64, 0.28));
+}
+
+.cmi-input:focus {
+  border-color: rgba(0, 85, 187, 0.60);
+  box-shadow: 0 0 0 3.5px rgba(0, 85, 187, 0.12);
+  background: #fafcff;
+}
+
+html[data-theme="oscuro"] .cmi-input {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+html[data-theme="oscuro"] .cmi-input:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+html[data-theme="oscuro"] .cmi-input:focus {
+  border-color: rgba(0, 85, 187, 0.70);
+  box-shadow: 0 0 0 3px rgba(0, 85, 187, 0.20);
+  background: rgba(0, 85, 187, 0.07);
+}
+
+.cmi-input::placeholder {
+  color: var(--nv-placeholder, rgba(66, 84, 102, 0.45));
+  font-weight: 400;
+}
+
+.cmi-input:disabled {
+  opacity: 0.50;
+  cursor: not-allowed;
+  background: rgba(241, 245, 249, 0.6);
+}
+
+html[data-theme="oscuro"] .cmi-input:disabled {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── Textarea ── */
+.cmi-input.cmi-textarea {
+  min-height: 90px;
+  padding-top: 14px;
+  resize: vertical;
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+/* ── Select ── */
+.cmi-input.cmi-select {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7' viewBox='0 0 11 7'%3E%3Cpath d='M1 1l4.5 4.5L10 1' stroke='%230055BB' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+  padding-right: 34px;
+}
+
+html[data-theme="oscuro"] .cmi-input.cmi-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7' viewBox='0 0 11 7'%3E%3Cpath d='M1 1l4.5 4.5L10 1' stroke='%2385B7EB' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+html[data-theme="oscuro"] .cmi-input.cmi-select option {
+  background: #071a2c;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+/* ── Grid de dos columnas ── */
+.fl-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+/* =========================================================
+   BLOQUE DE PRECIOS
+   ========================================================= */
+.cmi-priceBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 1.5px solid var(--nv-border-md, rgba(10, 37, 64, 0.14));
+  border-radius: 14px;
+  padding: 16px;
+  background: linear-gradient(145deg, var(--nv-bg, #fff) 0%, var(--nv-surface, #F7F9FC) 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.cmi-priceBlock::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #0055BB 0%, #00C9A7 100%);
+  border-radius: 14px 14px 0 0;
+}
+
+html[data-theme="oscuro"] .cmi-priceBlock {
+  background: linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.cmi-priceBlock__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--nv-midnight, #0A2540);
+  padding-top: 2px;
+}
+
+html[data-theme="oscuro"] .cmi-priceBlock__title {
+  color: rgba(255, 255, 255, 0.90);
+}
+
+.cmi-priceBlock__title svg,
+.cmi-priceBlock__title .svg-inline--fa {
+  color: var(--nv-action, #0055BB);
+  font-size: 13px;
+}
+
+.cmi-priceBlock__subtitle {
+  font-size: 12px;
+  color: var(--nv-muted, #5A6A7E);
+  margin-top: -8px;
+  line-height: 1.5;
+}
+
+html[data-theme="oscuro"] .cmi-priceBlock__subtitle {
+  color: rgba(210, 220, 235, 0.65);
+}
+
+/* Separador visual entre precio venta y promo */
+.cmi-priceBlock__divider {
+  height: 1px;
+  background: var(--nv-border, rgba(15, 23, 42, 0.10));
+  margin: 0 -16px;
+}
+
+html[data-theme="oscuro"] .cmi-priceBlock__divider {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* =========================================================
+   TARJETA TIPO DE PRECIO EXTRA
+   ========================================================= */
+.cmi-extraPriceCard {
+  border: 1.5px solid var(--nv-border-md, rgba(10, 37, 64, 0.14));
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--nv-surface, #F7F9FC);
+  position: relative;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+  overflow: hidden;
+}
+
+.cmi-extraPriceCard::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, #0055BB 0%, #00C9A7 100%);
+  border-radius: 12px 0 0 12px;
+}
+
+.cmi-extraPriceCard:hover {
+  border-color: rgba(0, 85, 187, 0.30);
+  box-shadow: 0 2px 10px rgba(0, 85, 187, 0.08);
+}
+
+html[data-theme="oscuro"] .cmi-extraPriceCard {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+html[data-theme="oscuro"] .cmi-extraPriceCard:hover {
+  border-color: rgba(0, 85, 187, 0.40);
+  box-shadow: 0 2px 10px rgba(0, 85, 187, 0.12);
+}
+
+.cmi-extraPriceCard__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.cmi-extraPriceCard__title {
+  font-size: 12.5px;
+  color: var(--nv-text, #0A2540);
+  letter-spacing: 0.01em;
+}
+
+html[data-theme="oscuro"] .cmi-extraPriceCard__title {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+/* =========================================================
+   UPLOAD BOX — IMAGEN DEL PRODUCTO
+   ========================================================= */
+.cmi-uploadBox {
+  border: 1.5px dashed var(--nv-border-md, rgba(10, 37, 64, 0.18));
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--nv-surface, #F7F9FC);
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.cmi-uploadBox:hover {
+  border-color: rgba(0, 85, 187, 0.35);
+  background: rgba(0, 85, 187, 0.025);
+}
+
+html[data-theme="oscuro"] .cmi-uploadBox {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+html[data-theme="oscuro"] .cmi-uploadBox:hover {
+  border-color: rgba(0, 85, 187, 0.50);
+  background: rgba(0, 85, 187, 0.06);
+}
+
+.cmi-uploadBox__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+
+  letter-spacing: 0.07em;
+  color: var(--nv-midnight, #0A2540);
+}
+
+html[data-theme="oscuro"] .cmi-uploadBox__title {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.cmi-uploadBox__title .svg-inline--fa {
+  color: var(--nv-action, #0055BB);
+  font-size: 13px;
+}
+
+/* ── Resumen de archivo seleccionado ── */
+.cmi-fileResume {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1.5px solid var(--nv-border, rgba(15, 23, 42, 0.10));
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--nv-bg, #fff);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme="oscuro"] .cmi-fileResume {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+.cmi-fileResume__left {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cmi-fileResume__icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 85, 187, 0.10);
+  color: var(--nv-action, #0055BB);
+  border: 1.5px solid rgba(0, 85, 187, 0.18);
+  font-size: 16px;
+}
+
+.cmi-fileResume__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.cmi-fileResume__name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--nv-text, #0A2540);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 360px;
+}
+
+html[data-theme="oscuro"] .cmi-fileResume__name {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.cmi-fileActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   BADGES
+   ========================================================= */
+.cmi-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+
+  border: 1.5px solid transparent;
+}
+
+.cmi-badge--img {
+  background: rgba(59, 130, 246, 0.10);
+  color: #1d4ed8;
+  border-color: rgba(59, 130, 246, 0.24);
+}
+
+.cmi-badge--none {
+  background: rgba(107, 114, 128, 0.10);
+  color: #4b5563;
+  border-color: rgba(107, 114, 128, 0.22);
+}
+
+.cmi-badge--csv {
+  background: rgba(16, 185, 129, 0.10);
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.24);
+}
+
+.cmi-badge--pdf {
+  background: rgba(239, 68, 68, 0.10);
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.22);
+}
+
+/* =========================================================
+   MINI MODAL
+   ========================================================= */
+.cmi-miniOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 16, 30, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999999999;
+  padding: 16px;
+  animation: nv-fade 0.15s ease;
+}
+
+html[data-theme="oscuro"] .cmi-miniOverlay {
+  background: rgba(0, 0, 0, 0.68);
+}
+
+.cmi-miniModal {
+  width: min(480px, 96vw);
+  background: var(--nv-bg, #fff);
+  border-radius: 18px;
+  box-shadow: 0 32px 80px rgba(10, 37, 64, 0.28),
+              0 0 0 1px var(--nv-border, rgba(15, 23, 42, 0.10));
+  overflow: hidden;
+  animation: mi-modal-pop-min 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+html[data-theme="oscuro"] .cmi-miniModal {
+  background: rgba(6, 18, 28, 0.98);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55),
+              0 0 0 1px rgba(255, 255, 255, 0.10);
+}
+
+.cmi-miniModal__head {
+  padding: 16px 18px 14px;
+  background: var(--nv-midnight, #0A2540);
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.cmi-miniModal__body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--nv-surface, #F7F9FC);
+}
+
+html[data-theme="oscuro"] .cmi-miniModal__body {
+  background: rgba(6, 18, 28, 0.98);
+}
+
+.cmi-miniModal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+/* =========================================================
+   FOOTER DEL MODAL
+   ========================================================= */
+.cmi-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1.5px solid var(--nv-border-md, rgba(10, 37, 64, 0.14));
+  background: var(--nv-bg, #fff);
+  flex-shrink: 0;
+}
+
+html[data-theme="oscuro"] .cmi-footer {
+  background: rgba(6, 18, 28, 0.96);
+  border-top-color: rgba(255, 255, 255, 0.10);
+}
+
+.cmi-footer__hint {
+  flex: 1 1 260px;
+  font-size: 12px;
+  color: var(--nv-muted, #5A6A7E);
+  line-height: 1.4;
+}
+
+html[data-theme="oscuro"] .cmi-footer__hint {
+  color: rgba(210, 220, 235, 0.65);
+}
+
+.cmi-footer__btns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   BOTONES DENTRO DEL MODAL
+   ========================================================= */
+.mit-btn--ghost {
+  padding: 8px 14px;
+  font-size: 13px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: all 0.15s ease;
+}
+
+.mit-btn--solid {
+  padding: 10px 18px;
+  font-size: 13.5px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  box-shadow: 0 4px 14px rgba(10, 37, 64, 0.22);
+  transition: all 0.15s ease;
+}
+
+.mit-btn--solid:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(10, 37, 64, 0.30);
+  transform: translateY(-1px);
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+@media (max-width: 640px) {
+  .fl-row {
+    grid-template-columns: 1fr;
+  }
+
+  .cmi-fileResume {
+    align-items: flex-start;
+  }
+
+  .cmi-fileResume__name {
+    max-width: 100%;
+  }
+
+  .cmi-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cmi-footer__btns {
+    justify-content: flex-end;
+  }
+}
+.cmi-uploadActions{
+  display: flex;
+  gap: 10px;
+}.cmi-deleteWarn {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(239, 68, 68, 0.30);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+html[data-theme="oscuro"] .cmi-deleteWarn {
+  background: rgba(239, 68, 68, 0.10);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.cmi-deleteWarn__icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  font-size: 15px;
+  border: 1.5px solid rgba(239, 68, 68, 0.25);
+}
+
+.cmi-deleteWarn__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cmi-deleteWarn__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+html[data-theme="oscuro"] .cmi-deleteWarn__title {
+  color: #fca5a5;
+}
+
+.cmi-deleteWarn__desc {
+  font-size: 12px;
+  color: #7f1d1d;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+html[data-theme="oscuro"] .cmi-deleteWarn__desc {
+  color: #fecaca;
+  opacity: 0.75;
+}@media (max-width: 640px) {
+  .cmi-deleteWarn {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cmi-deleteWarn__left {
+    align-items: flex-start;
+  }
+
+  .cmi-deleteWarn__actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+}
+.cmi-deleteWarn__left{display: flex; gap: 10px;}
+.cmi-deleteWarn__actions{display: flex; gap: 10px; margin-left: auto;}
