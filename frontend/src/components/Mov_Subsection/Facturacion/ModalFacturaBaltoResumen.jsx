@@ -260,6 +260,59 @@ function onlyDigits(v) {
   return String(v ?? "").replace(/\D/g, "");
 }
 
+
+function normalizeCbtesAsocFrontend(items, facturaOriginal = null) {
+  const source = Array.isArray(items) && items.length ? items : facturaOriginal ? [facturaOriginal] : [];
+  const out = [];
+  const seen = new Set();
+
+  source.forEach((row) => {
+    if (!row || typeof row !== "object") return;
+
+    const tipo = Number(
+      row.tipo ??
+        row.Tipo ??
+        row.cbte_tipo ??
+        row.CbteTipo ??
+        row.comprobante_tipo ??
+        0
+    );
+    const ptoVta = Number(
+      row.pto_vta ??
+        row.PtoVta ??
+        row.ptoVta ??
+        row.punto_venta ??
+        row.PuntoVenta ??
+        0
+    );
+    const nro = Number(
+      row.nro ??
+        row.Nro ??
+        row.cbte_nro ??
+        row.CbteNro ??
+        row.numero ??
+        row.CbteDesde ??
+        0
+    );
+
+    if (!tipo || !ptoVta || !nro) return;
+
+    const item = { tipo, pto_vta: ptoVta, nro };
+    const cuit = onlyDigits(row.cuit ?? row.Cuit ?? row.cuit_emisor ?? row.CuitEmisor ?? "");
+    const fecha = isoToYmd8(row.fecha ?? row.cbte_fch ?? row.CbteFch ?? row.fecha_cbte ?? "");
+
+    if (cuit) item.cuit = cuit;
+    if (fecha) item.fecha = fecha;
+
+    const key = `${item.tipo}-${item.pto_vta}-${item.nro}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(item);
+  });
+
+  return out;
+}
+
 function configFacturacionId(cfg) {
   return Number(cfg?.id_config_facturacion || cfg?.idConfigFacturacion || 0) || 0;
 }
@@ -558,6 +611,7 @@ export default function ModalFacturaBaltoResumen({
     idConfigFacturacion: configFacturacionId(configSeleccionada) || null,
     cbte_tipo: cbteTipoEfectivo,
     pto_vta: ptoVtaEfectivo,
+    cbtes_asoc: normalizeCbtesAsocFrontend(data?.cbtes_asoc || data?.CbtesAsoc || data?.cbtesAsoc || [], data?.factura_original || null),
     emisor_nombre: pickText(configSeleccionada?.razon_social, data?.emisor_nombre),
     emisor_domicilio: pickText(configSeleccionada?.domicilio_comercial, data?.emisor_domicilio),
     cuit_emisor: pickText(configSeleccionada?.cuit, data?.cuit_emisor),
@@ -1267,7 +1321,7 @@ useEffect(() => {
           config_facturacion: configSeleccionada || dataFacturacion?.config_facturacion || null,
           emisor: emisorInfo?.emisor || null,
 
-          cbtes_asoc: Array.isArray(dataFacturacion?.cbtes_asoc) ? dataFacturacion.cbtes_asoc : [],
+          cbtes_asoc: normalizeCbtesAsocFrontend(dataFacturacion?.cbtes_asoc || [], dataFacturacion?.factura_original || null),
 
           emisor_nombre: emisorNombre || null,
           emisor_domicilio: emisorDomicilio || null,

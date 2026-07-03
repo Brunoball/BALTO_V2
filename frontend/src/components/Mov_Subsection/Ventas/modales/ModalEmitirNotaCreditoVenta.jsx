@@ -17,6 +17,48 @@ function safeStr(v) {
   return String(v ?? "").trim();
 }
 
+
+function onlyDigits(v) {
+  return String(v ?? "").replace(/\D/g, "");
+}
+
+function ymd8FromAny(v) {
+  const s = safeStr(v);
+  if (/^\d{8}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s.replaceAll("-", "");
+  return onlyDigits(s).slice(0, 8);
+}
+
+function normalizeCbtesAsocNC(items, facturaOriginal = null) {
+  const source = Array.isArray(items) && items.length ? items : facturaOriginal ? [facturaOriginal] : [];
+  const out = [];
+  const seen = new Set();
+
+  source.forEach((row) => {
+    if (!row || typeof row !== "object") return;
+
+    const tipo = Number(row.tipo ?? row.Tipo ?? row.cbte_tipo ?? row.CbteTipo ?? 0);
+    const ptoVta = Number(row.pto_vta ?? row.PtoVta ?? row.ptoVta ?? row.punto_venta ?? 0);
+    const nro = Number(row.nro ?? row.Nro ?? row.cbte_nro ?? row.CbteNro ?? row.numero ?? 0);
+
+    if (!tipo || !ptoVta || !nro) return;
+
+    const item = { tipo, pto_vta: ptoVta, nro };
+    const cuit = onlyDigits(row.cuit ?? row.Cuit ?? row.cuit_emisor ?? row.CuitEmisor ?? "");
+    const fecha = ymd8FromAny(row.fecha ?? row.cbte_fch ?? row.CbteFch ?? row.fecha_cbte ?? "");
+
+    if (cuit) item.cuit = cuit;
+    if (/^\d{8}$/.test(fecha)) item.fecha = fecha;
+
+    const key = `${item.tipo}-${item.pto_vta}-${item.nro}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(item);
+  });
+
+  return out;
+}
+
 function getAuthInfo() {
   const token = (localStorage.getItem("token") || "").trim();
   const sessionKey = (
@@ -239,7 +281,7 @@ useEffect(() => {
         contexto?.config_facturacion?.id_config_facturacion ||
         null,
       emisor: contexto?.config_facturacion || null,
-      cbtes_asoc: Array.isArray(contexto?.cbtes_asoc) ? contexto.cbtes_asoc : [],
+      cbtes_asoc: normalizeCbtesAsocNC(contexto?.cbtes_asoc || [], contexto?.factura_original || null),
       factura_original: contexto?.factura_original || null,
       emisor_nombre: safeStr(
         contexto?.config_facturacion?.razon_social ||
@@ -351,7 +393,7 @@ useEffect(() => {
               null,
             fecha_cbte: payload?.fecha_cbte ?? todayISO(),
             motivo,
-            cbtes_asoc: resumenData?.cbtes_asoc ?? [],
+            cbtes_asoc: normalizeCbtesAsocNC(resumenData?.cbtes_asoc || [], contexto?.factura_original || null),
             factura_origen: contexto?.factura_original ?? null,
           })
         );

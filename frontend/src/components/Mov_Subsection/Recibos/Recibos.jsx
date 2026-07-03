@@ -30,7 +30,7 @@ import {
 import * as XLSX from "xlsx";
 import { useListas } from "../../../context/ListasContext.jsx";
 import { useDateRange } from "../../../context/DateRangeContext.jsx";
-import { getDetalleMovimiento } from "../_shared/detalleMovimiento.js";
+import { getResumenProductosMovimiento } from "../_shared/detalleMovimiento.js";
 
 /* =========================
    PERF
@@ -122,7 +122,7 @@ function getMontoVisibleRecibo(row) {
   return getSaldoPendienteRow(row);
 }
 function productosLabel(row) {
-  return getDetalleMovimiento(row);
+  return getResumenProductosMovimiento(row);
 }
 
 function enriquecerDeudaConRowCompleta(deuda, rowCompleta) {

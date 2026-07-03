@@ -991,7 +991,7 @@ function ChequeResumen({ cheque, tipoCheque }) {
 /* ================================================================
    MP ROW
 ================================================================ */
-function MpRowVenta({ row, mediosPagoList, totalCompra, sumaMediosPago, onUpdate, onRemove, showToast }) {
+function MpRowVenta({ row, mediosFilas = [], mediosPagoList, totalCompra, sumaMediosPago, onUpdate, onRemove, showToast }) {
   const [openChequeModal, setOpenChequeModal] = useState(false);
 
   const mpSeleccionado = useMemo(
@@ -1060,6 +1060,21 @@ function MpRowVenta({ row, mediosPagoList, totalCompra, sumaMediosPago, onUpdate
         };
       }
 
+      const duplicadoEnFormulario = Array.isArray(mediosFilas) && mediosFilas.some((mp) => {
+        if (!mp || String(mp.id) === String(row.id)) return false;
+        const numero = onlyDigits(mp?.cheque?.numero_cheque);
+        return numero && numero === numeroCheque;
+      });
+
+      if (duplicadoEnFormulario) {
+        return {
+          ok: false,
+          tipo: "error",
+          mensaje: `Ya cargaste otro cheque/eCheq con el número ${numeroCheque} en esta venta.`,
+          duracion: 4600,
+        };
+      }
+
       const params = new URLSearchParams();
       params.set("numero_cheque", numeroCheque);
       params.set("tipo", String(tipoCheque || "cheque"));
@@ -1086,7 +1101,7 @@ function MpRowVenta({ row, mediosPagoList, totalCompra, sumaMediosPago, onUpdate
       }
       return { ok: true };
     },
-    [row?.cheque?.id_cheque]
+    [mediosFilas, row.id, row?.cheque?.id_cheque]
   );
 
   return (
@@ -1256,6 +1271,7 @@ export function PanelMediosPagoInlineVenta({
         <MpRowVenta
           key={mp.id}
           row={mp}
+          mediosFilas={filas}
           mediosPagoList={mediosPagoList}
           totalCompra={totalCompra}
           sumaMediosPago={sumaMediosPago}

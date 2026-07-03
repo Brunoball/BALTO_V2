@@ -1547,8 +1547,10 @@ export default function ModalEditarEgreso({
 
         const totalMedios = mediosPagoPayload.reduce((acc, mp) => acc + safeNumber(mp.monto), 0);
         const totalItems = sumTotalItems(items);
-        if (totalMedios > totalItems + 0.05) {
-          throw new Error(`La suma de los medios de pago (${moneyARS(totalMedios)}) no puede superar el total del egreso (${moneyARS(totalItems)}).`);
+        // Otros egresos es contado: debe quedar pagado como mínimo por el total.
+        // Se permite superar el total cuando el usuario usa un cheque/eCheq de mayor importe.
+        if (totalMedios + 0.05 < totalItems) {
+          throw new Error(`La suma de los medios de pago (${moneyARS(totalMedios)}) debe cubrir el total del egreso (${moneyARS(totalItems)}).`);
         }
 
         const primerMedio = mediosPagoPayload[0] || null;

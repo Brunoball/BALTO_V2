@@ -37,10 +37,40 @@ function buildDetalleItemsText(items) {
   return [...new Set(values)].join(", ");
 }
 
+function getItemsArray(row) {
+  const candidates = [row?.items_detalle, row?.itemsDetalle, row?.items, row?.productos];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+  }
+  return [];
+}
+
+function getCantidadProductos(row) {
+  const items = getItemsArray(row);
+  if (items.length > 0) return items.length;
+
+  const cantidadItems = Number(row?.cantidad_items ?? row?.cantidadItems ?? row?.productos_count ?? row?.productosCount ?? 0);
+  if (Number.isFinite(cantidadItems) && cantidadItems > 0) return Math.trunc(cantidadItems);
+
+  const resumenOriginal = safeStr(row?.detalle || row?.descripcion || row?.concepto || row?.nombre);
+  const resumen = resumenOriginal.toUpperCase();
+  const match = resumen.match(/^(\d+)\s+PRODUCTO(S)?$/);
+  if (match) return Number(match[1]);
+
+  const tieneProducto = safeStr(row?.id_stock_producto || row?.idStockProducto || row?.producto_nombre || row?.stock_producto_nombre);
+  if (tieneProducto) return 1;
+
+  if (resumenOriginal && !isResumenProductosText(resumenOriginal) && resumenOriginal !== "Producto / Servicio") return 1;
+
+  return 0;
+}
+
+export function getResumenProductosMovimiento(row) {
+  return detalleProductosLabel(getCantidadProductos(row));
+}
+
 export function getDetalleMovimiento(row) {
-  const itemsText = buildDetalleItemsText(
-    row?.items_detalle || row?.itemsDetalle || row?.items || row?.productos
-  );
+  const itemsText = buildDetalleItemsText(getItemsArray(row));
   if (itemsText) return itemsText;
 
   const original = safeStr(
@@ -55,13 +85,5 @@ export function getDetalleMovimiento(row) {
   const detalle = safeStr(row?.detalle || row?.descripcion || row?.concepto || row?.nombre);
   if (detalle && !isResumenProductosText(detalle) && detalle !== "Producto / Servicio") return detalle;
 
-  const cantidad = Number(
-    row?.cantidad_items ??
-      row?.items_detalle?.length ??
-      row?.itemsDetalle?.length ??
-      row?.items?.length ??
-      row?.productos?.length ??
-      0
-  );
-  return detalleProductosLabel(Number.isFinite(cantidad) ? cantidad : 0);
+  return getResumenProductosMovimiento(row);
 }

@@ -480,8 +480,8 @@ export default function ModalCobrarOtrosIngresos({
 
     if (suma <= 0.009) return "El importe a cobrar debe ser mayor a 0.";
 
-    if (suma > totalSeleccionado + 0.05) {
-      return `La suma de los medios de pago (${moneyARS(suma)}) no puede superar el saldo a cobrar (${moneyARS(totalSeleccionado)}).`;
+    if (suma + 0.05 < totalSeleccionado) {
+      return `La suma de los medios de pago (${moneyARS(suma)}) debe cubrir el saldo a cobrar (${moneyARS(totalSeleccionado)}).`;
     }
 
     return "";

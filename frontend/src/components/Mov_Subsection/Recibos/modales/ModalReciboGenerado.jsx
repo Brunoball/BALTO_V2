@@ -351,6 +351,7 @@ export default function ModalReciboGenerado({
   title = "Recibo",
   onToast,
   idsMovimientos = [],
+  idsPagos = [],
   idCobro = null,
 }) {
   const firstFocusRef = useRef(null);
@@ -389,6 +390,14 @@ export default function ModalReciboGenerado({
       .filter((x) => Number.isFinite(x) && x > 0);
   }, [idsMovimientos]);
 
+  const idsPagosOk = useMemo(() => {
+    const arr = Array.isArray(idsPagos) ? idsPagos : [idsPagos];
+
+    return arr
+      .map((x) => Number(x || 0))
+      .filter((x) => Number.isFinite(x) && x > 0);
+  }, [idsPagos]);
+
   const pendingKey = useMemo(
     () =>
       buildPendingKey({
@@ -415,10 +424,11 @@ export default function ModalReciboGenerado({
       title,
       html,
       idsMovimientos: idsMovs,
+      idsPago: idsPagosOk,
       idCobro: Number(idCobro || 0),
       status: "pending",
     });
-  }, [open, pendingKey, title, html, idsMovs, idCobro]);
+  }, [open, pendingKey, title, html, idsMovs, idsPagosOk, idCobro]);
 
   useEffect(() => {
     if (!open) {
@@ -630,7 +640,14 @@ export default function ModalReciboGenerado({
 
       if (Number.isFinite(cob) && cob > 0) {
         fd.append("id_cobro", String(cob));
+        fd.append("id_pago", String(cob));
       }
+
+      idsPagosOk.forEach((id) => {
+        fd.append("ids_pago[]", String(id));
+        fd.append("ids_cobro[]", String(id));
+        fd.append("ids_movimiento_medio_pago[]", String(id));
+      });
 
       fd.append("archivo", file);
 
@@ -688,10 +705,10 @@ export default function ModalReciboGenerado({
         id_comprobante: idComp,
       };
     },
-    [title, idsMovs, idCobro]
+    [title, idsMovs, idsPagosOk, idCobro]
   );
 
-  const asociarComprobanteAMovimientos = useCallback(async (idComprobante, ids) => {
+  const asociarComprobanteAMovimientos = useCallback(async (idComprobante, ids, idsPago = []) => {
     const sessionKey = getSessionKey();
 
     if (!sessionKey) {
@@ -701,8 +718,11 @@ export default function ModalReciboGenerado({
     const idsOk = (Array.isArray(ids) ? ids : [])
       .map((x) => Number(x || 0))
       .filter(Boolean);
+    const idsPagoOk = (Array.isArray(idsPago) ? idsPago : [])
+      .map((x) => Number(x || 0))
+      .filter(Boolean);
 
-    if (!idsOk.length) {
+    if (!idsOk.length && !idsPagoOk.length) {
       return { exito: true };
     }
 
@@ -719,6 +739,9 @@ export default function ModalReciboGenerado({
         body: JSON.stringify({
           id_comprobante: Number(idComprobante),
           ids_movimiento: idsOk,
+          ids_pago: idsPagoOk,
+          ids_cobro: idsPagoOk,
+          ids_movimiento_medio_pago: idsPagoOk,
         }),
       },
       PDF_SAVE_TIMEOUT
@@ -779,22 +802,31 @@ export default function ModalReciboGenerado({
           const up = await uploadPdfToServer(pdfBlob);
           const idComp = extractIdComprobante(up);
 
-          const idsDevueltos = Array.isArray(up?.ids_movimiento)
+          const idsDevueltos = Array.isArray(up?.ids_movimiento_vinculados)
+            ? up.ids_movimiento_vinculados.map((x) => Number(x || 0)).filter(Boolean)
+            : Array.isArray(up?.ids_movimiento)
             ? up.ids_movimiento.map((x) => Number(x || 0)).filter(Boolean)
             : [];
+          const idsPagoDevueltos = Array.isArray(up?.ids_pago_vinculados)
+            ? up.ids_pago_vinculados.map((x) => Number(x || 0)).filter(Boolean)
+            : Array.isArray(up?.ids_movimiento_medio_pago_vinculados)
+            ? up.ids_movimiento_medio_pago_vinculados.map((x) => Number(x || 0)).filter(Boolean)
+            : [];
 
-          const yaAsocioTodo =
-            idsDevueltos.length > 0 &&
-            idsMovs.every((id) => idsDevueltos.includes(Number(id)));
+          const yaAsocioMovimientos =
+            idsMovs.length > 0 && idsMovs.every((id) => idsDevueltos.includes(Number(id)));
+          const yaAsocioPagos =
+            idsPagosOk.length === 0 || idsPagosOk.every((id) => idsPagoDevueltos.includes(Number(id)));
 
-          if (!yaAsocioTodo) {
-            await asociarComprobanteAMovimientos(idComp, idsMovs);
+          if (!yaAsocioMovimientos || !yaAsocioPagos) {
+            await asociarComprobanteAMovimientos(idComp, idsMovs, idsPagosOk);
           }
 
           const finalSaved = {
             ...up,
             id_comprobante: idComp,
             ids_movimiento: idsMovs,
+            ids_pago: idsPagosOk,
           };
 
           return finalSaved;
@@ -826,6 +858,7 @@ export default function ModalReciboGenerado({
           title,
           html,
           idsMovimientos: idsMovs,
+          idsPago: idsPagosOk,
           idCobro: Number(idCobro || 0),
           status: "error",
           error: msg,
@@ -842,6 +875,7 @@ export default function ModalReciboGenerado({
     return await task;
   }, [
     idsMovs,
+    idsPagosOk,
     generatePdfBlob,
     uploadPdfToServer,
     asociarComprobanteAMovimientos,

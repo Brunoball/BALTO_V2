@@ -48,6 +48,80 @@ function formatFechaDMY(v) {
   return s;
 }
 
+function firstText(...values) {
+  for (const value of values) {
+    const s = String(value ?? "").trim();
+    if (s) return s;
+  }
+  return "";
+}
+
+function toFiniteNumber(value) {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getChequeNumero(item) {
+  return firstText(
+    item?.cheque_numero,
+    item?.numero_cheque,
+    item?.cheque?.numero_cheque,
+    item?.cheque?.numero,
+    item?.id_cheque
+  );
+}
+
+function getChequeEmisor(item) {
+  return firstText(item?.cheque_emisor, item?.emisor, item?.cheque?.emisor);
+}
+
+function getChequeFechaEmision(item) {
+  return firstText(item?.cheque_fecha_emision, item?.fecha_emision, item?.cheque?.fecha_emision);
+}
+
+function getChequeFechaPago(item) {
+  return firstText(
+    item?.cheque_fecha_pago,
+    item?.cheque_fecha_vencimiento,
+    item?.cheque?.fecha_pago,
+    item?.cheque?.fecha_vencimiento,
+    item?.fecha_vencimiento,
+    item?.fecha_pago
+  );
+}
+
+function getChequeImporteReal(item) {
+  const candidates = [
+    item?.cheque_importe,
+    item?.importe_cheque,
+    item?.cheque?.importe,
+    item?.cheque_monto,
+  ];
+
+  for (const value of candidates) {
+    const n = toFiniteNumber(value);
+    if (n > 0) return n;
+  }
+
+  return toFiniteNumber(item?.monto);
+}
+
+function getMedioMontoAplicado(item) {
+  const n = toFiniteNumber(item?.monto_aplicado ?? item?.monto);
+  return n > 0 ? n : 0;
+}
+
+function getMedioMontoVisible(item) {
+  return item?.id_cheque ? getChequeImporteReal(item) : getMedioMontoAplicado(item);
+}
+
+function shouldShowMontoAplicado(item) {
+  if (!item?.id_cheque) return false;
+  const aplicado = getMedioMontoAplicado(item);
+  const real = getChequeImporteReal(item);
+  return aplicado > 0 && real > 0 && Math.abs(real - aplicado) > 0.009;
+}
+
 function getDetalleList(row) {
   if (Array.isArray(row?.medios_pago_detalle)) return row.medios_pago_detalle;
 
@@ -113,7 +187,7 @@ function ChequeDetalle({ item }) {
         <div className="cheque-card__header-right">
           <span className="cheque-card__num-label">N°</span>
           <span className="cheque-card__num-value">
-            {safeText(item?.numero_cheque)}
+            {safeText(getChequeNumero(item))}
           </span>
         </div>
 
@@ -125,14 +199,14 @@ function ChequeDetalle({ item }) {
           <div className="cheque-card__field cheque-card__field--wide">
             <span className="cheque-card__field-label">Emisor</span>
             <div className="cheque-card__field-line">
-              {safeText(item?.emisor)}
+              {safeText(getChequeEmisor(item))}
             </div>
           </div>
 
           <div className="cheque-card__field">
             <span className="cheque-card__field-label">F. emisión</span>
             <div className="cheque-card__field-line cheque-card__field-line--mono">
-              {formatFechaDMY(item?.fecha_emision)}
+              {formatFechaDMY(getChequeFechaEmision(item))}
             </div>
           </div>
         </div>
@@ -148,7 +222,7 @@ function ChequeDetalle({ item }) {
           <div className="cheque-card__importe-box">
             <span className="cheque-card__importe-symbol">$</span>
             <span className="cheque-card__importe-value">
-              {moneyARS(item?.cheque_importe || item?.monto || 0)}
+              {moneyARS(getChequeImporteReal(item))}
             </span>
           </div>
         </div>
@@ -157,7 +231,7 @@ function ChequeDetalle({ item }) {
           <div className="cheque-card__field">
             <span className="cheque-card__field-label">F. pago</span>
             <div className="cheque-card__field-line cheque-card__field-line--mono">
-              {formatFechaDMY(item?.fecha_pago)}
+              {formatFechaDMY(getChequeFechaPago(item))}
             </div>
           </div>
 
@@ -170,6 +244,17 @@ function ChequeDetalle({ item }) {
             </div>
           </div>
         </div>
+
+        {shouldShowMontoAplicado(item) ? (
+          <div className="cheque-card__row">
+            <div className="cheque-card__field cheque-card__field--wide">
+              <span className="cheque-card__field-label">Aplicado al movimiento</span>
+              <div className="cheque-card__field-line cheque-card__field-line--mono">
+                {moneyARS(getMedioMontoAplicado(item))}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="cheque-card__micr">
@@ -219,7 +304,7 @@ function MedioGenericoDetalle({ item }) {
       </div>
 
       <div className="mdp-medio-card__monto">
-        {moneyARS(item?.monto || 0)}
+        {moneyARS(getMedioMontoVisible(item))}
       </div>
     </div>
   );
@@ -239,7 +324,7 @@ export default function ModalDetalleMediosPago({
   const detalle = useMemo(() => getDetalleList(row), [row]);
 
   const total = useMemo(
-    () => detalle.reduce((acc, item) => acc + Number(item?.monto || 0), 0),
+    () => detalle.reduce((acc, item) => acc + getMedioMontoVisible(item), 0),
     [detalle]
   );
 

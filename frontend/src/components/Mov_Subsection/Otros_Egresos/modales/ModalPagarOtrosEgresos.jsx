@@ -480,8 +480,8 @@ export default function ModalPagarOtrosEgresos({
 
     if (suma <= 0.009) return "El importe a pagar debe ser mayor a 0.";
 
-    if (suma > totalSeleccionado + 0.05) {
-      return `La suma de los medios de pago (${moneyARS(suma)}) no puede superar el saldo a pagar (${moneyARS(totalSeleccionado)}).`;
+    if (suma + 0.05 < totalSeleccionado) {
+      return `La suma de los medios de pago (${moneyARS(suma)}) debe cubrir el saldo a pagar (${moneyARS(totalSeleccionado)}).`;
     }
 
     return "";

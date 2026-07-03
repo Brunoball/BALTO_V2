@@ -1,4 +1,3 @@
-// src/components/Movimientos/modales/ModalEditarRecibo.jsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/Global_Modals.css";
@@ -14,6 +13,12 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 const NULL_OPTION = "";
+const IVA_OPTIONS = [
+  { value: "0", label: "0 %" },
+  { value: "10.5", label: "10,5 %" },
+  { value: "21", label: "21 %" },
+  { value: "27", label: "27 %" },
+];
 
 /* =========================
    Helpers
@@ -21,6 +26,14 @@ const NULL_OPTION = "";
 function safeNumber(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+function round2(v) {
+  return Math.round(safeNumber(v) * 100) / 100;
+}
+
+function round3(v) {
+  return Math.round(safeNumber(v) * 1000) / 1000;
 }
 
 function moneyARS(v) {
@@ -38,55 +51,46 @@ function moneyARS(v) {
 
 function todayISO() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function periodoToMMYYYY(input) {
   const s = String(input ?? "").trim();
   if (!s) return "";
-
   if (/^\d{4}-\d{1,2}$/.test(s)) {
     const [yyyy, mmRaw] = s.split("-");
     const mm = String(Number(mmRaw)).padStart(2, "0");
     return `${mm}-${yyyy}`;
   }
-
   if (/^\d{1,2}-\d{4}$/.test(s)) {
     const [mmRaw, yyyy] = s.split("-");
     const mm = String(Number(mmRaw)).padStart(2, "0");
     return `${mm}-${yyyy}`;
   }
-
   return s;
 }
 
 function periodoToYYYYMM(input) {
   const s = String(input ?? "").trim();
   if (!s) return "";
-
   if (/^\d{1,2}-\d{4}$/.test(s)) {
     const [mmRaw, yyyy] = s.split("-");
     const mm = String(Number(mmRaw)).padStart(2, "0");
     return `${yyyy}-${mm}`;
   }
-
   if (/^\d{4}-\d{1,2}$/.test(s)) {
     const [yyyy, mmRaw] = s.split("-");
     const mm = String(Number(mmRaw)).padStart(2, "0");
     return `${yyyy}-${mm}`;
   }
-
   return s;
 }
 
 function periodoFromISODate(iso) {
   const s = String(iso ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
-
-  const [y, m] = s.split("-");
-  return `${m}-${y}`;
+  const [, m] = s.split("-");
+  return `${m}-${s.slice(0, 4)}`;
 }
 
 function normalizeSearchText(v) {
@@ -101,27 +105,23 @@ function normalizeSearchText(v) {
 function isDarkEnabled(darkProp) {
   if (darkProp === true) return true;
   if (typeof document === "undefined") return false;
-
   const byAttr = document.documentElement.getAttribute("data-theme") === "oscuro";
   const byBody = document.body?.classList?.contains("dark");
-
   return Boolean(byAttr || byBody);
 }
 
 function getAuthInfo() {
   const token = localStorage.getItem("token") || "";
-
   const sessionKey =
     localStorage.getItem("session_key") ||
     localStorage.getItem("sessionKey") ||
     localStorage.getItem("X-Session") ||
+    localStorage.getItem("x_session") ||
     "";
 
   let idUsuario = 0;
-
   try {
     const u = JSON.parse(localStorage.getItem("usuario") || "null");
-
     const cand =
       u?.idUsuarioMaster ??
       u?.idUsuario ??
@@ -129,7 +129,6 @@ function getAuthInfo() {
       u?.id ??
       u?.user_id ??
       0;
-
     if (Number.isFinite(Number(cand))) idUsuario = Number(cand);
   } catch {}
 
@@ -138,15 +137,13 @@ function getAuthInfo() {
 
 async function parseJsonOrThrow(res) {
   const text = await res.text();
-
   if (!text) throw new Error("Respuesta vacía del servidor.");
 
   let data = null;
-
   try {
     data = JSON.parse(text);
   } catch {
-    const preview = text.length > 600 ? text.slice(0, 600) + "..." : text;
+    const preview = text.length > 600 ? `${text.slice(0, 600)}...` : text;
     throw new Error(`Respuesta inválida (no JSON). HTTP ${res.status}\n${preview}`);
   }
 
@@ -160,17 +157,11 @@ async function parseJsonOrThrow(res) {
 
 async function apiGetJson(url) {
   const { token, sessionKey } = getAuthInfo();
-
   const headers = {};
-
   if (sessionKey) headers["X-Session"] = sessionKey;
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(url, {
-    method: "GET",
-    headers,
-  });
-
+  const res = await fetch(url, { method: "GET", headers });
   return await parseJsonOrThrow(res);
 }
 
@@ -178,33 +169,48 @@ function getArr(x) {
   return Array.isArray(x) ? x : [];
 }
 
-function getIdGeneric(x) {
+function getProductoId(x) {
   const cand =
-    x?.id ??
     x?.id_stock_producto ??
     x?.idStockProducto ??
     x?.stock_producto_id ??
-    x?.id_detalle ??
-    x?.idDetalle ??
-    x?.detalle_id ??
+    x?.id_producto ??
+    x?.idProducto ??
+    x?.producto_id ??
+    x?.idProductoStock ??
+    x?.id_stock ??
+    x?.id ??
+    x?.ID ??
     0;
   const n = Number(cand);
-
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-function getIdCliente(x) {
-  const cand = x?.id ?? x?.id_cliente ?? x?.idCliente ?? x?.cliente_id ?? 0;
+function getClienteId(x) {
+  const cand = x?.id_cliente ?? x?.idCliente ?? x?.cliente_id ?? x?.id ?? 0;
   const n = Number(cand);
-
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-function getReciboItemsDetalle(row) {
+function getProductoNombre(x) {
+  return String(
+    x?.producto_nombre ??
+      x?.stock_producto_nombre ??
+      x?.nombre_producto ??
+      x?.detalle_nombre ??
+      x?.nombre ??
+      x?.descripcion ??
+      ""
+  ).trim();
+}
+
+function getClienteNombre(x) {
+  return String(x?.cliente_nombre ?? x?.cliente ?? x?.nombre ?? x?.razon_social ?? x?.razon_social_cliente ?? "").trim();
+}
+
+function getMovimientoItems(row) {
   const raw = row?.items_detalle ?? row?.itemsDetalle ?? row?.items ?? row?.productos ?? [];
-
   if (Array.isArray(raw)) return raw.filter(Boolean);
-
   if (typeof raw === "string") {
     try {
       const parsed = JSON.parse(raw);
@@ -213,74 +219,58 @@ function getReciboItemsDetalle(row) {
       return [];
     }
   }
-
   return [];
 }
 
-function getPrimerItemRecibo(row) {
-  const items = getReciboItemsDetalle(row);
+function getPrimerItem(row) {
+  const items = getMovimientoItems(row);
   return items.length ? items[0] : null;
 }
 
-function getProductoIdFromRecibo(row) {
-  const item = getPrimerItemRecibo(row);
-  const cand =
-    item?.id_stock_producto ??
-    item?.idStockProducto ??
-    item?.stock_producto_id ??
-    item?.id_detalle ??
-    item?.idDetalle ??
-    row?.id_stock_producto ??
-    row?.idStockProducto ??
-    row?.stock_producto_id ??
-    row?.id_detalle ??
-    row?.idDetalle ??
-    null;
-
-  const n = Number(cand);
-  return Number.isFinite(n) && n > 0 ? String(n) : NULL_OPTION;
+function calcTotals(cantidad, precio, ivaPct) {
+  const c = Math.max(0, safeNumber(cantidad));
+  const p = Math.max(0, safeNumber(precio));
+  const iva = Math.max(0, safeNumber(ivaPct));
+  const subtotal = round2(c * p);
+  const iva_monto = round2(subtotal * iva / 100);
+  const total = round2(subtotal + iva_monto);
+  return { subtotal, iva_monto, total };
 }
 
-function isResumenProductosLabel(value) {
-  const s = normalizeSearchText(value);
-  return (
-    s === "sin productos" ||
-    /^\d+\s+producto(s)?$/.test(s) ||
-    /^producto(s)?\s*:\s*\d+$/.test(s)
-  );
+function nameById(arr, id, getId, getName) {
+  const sid = String(id ?? "").trim();
+  if (!sid) return "";
+  const found = getArr(arr).find((x) => String(getId(x)) === sid);
+  return found ? getName(found) : "";
 }
 
-function getProductoNombreFromRecibo(row) {
-  const item = getPrimerItemRecibo(row);
-  const fromItem = String(
-    item?.producto_nombre ??
-      item?.stock_producto_nombre ??
-      item?.detalle_nombre ??
-      item?.nombre ??
-      item?.descripcion ??
-      ""
-  ).trim();
-  if (fromItem) return fromItem;
-
-  const original = String(
-    row?.detalle_original ?? row?.producto_nombre ?? row?.stock_producto_nombre ?? ""
-  ).trim();
-  if (original) return original.split("|")[0].trim();
-
-  const detalle = String(row?.detalle ?? row?.descripcion ?? row?.concepto ?? "").trim();
-  return detalle && !isResumenProductosLabel(detalle) ? detalle : "";
-}
-
+/* =========================
+   Lists normalize
+========================= */
 function normalizeLists(lists) {
   const src = lists && typeof lists === "object" ? lists : {};
   const l = src.listas && typeof src.listas === "object" ? src.listas : src;
 
+  const productos =
+    Array.isArray(l.productos) && l.productos.length
+      ? l.productos
+      : Array.isArray(l.stockProductos) && l.stockProductos.length
+      ? l.stockProductos
+      : Array.isArray(l.stock_productos) && l.stock_productos.length
+      ? l.stock_productos
+      : Array.isArray(l.detalles)
+      ? l.detalles
+      : [];
+
   return {
-    detalles: Array.isArray(l.detalles) ? l.detalles : [],
+    productos,
     clientes: Array.isArray(l.clientes) ? l.clientes : [],
   };
 }
 
+/* =========================
+   Modal
+========================= */
 export default function ModalEditarRecibo({
   open,
   row,
@@ -298,51 +288,54 @@ export default function ModalEditarRecibo({
 
   const [saving, setSaving] = useState(false);
   const [localLists, setLocalLists] = useState(() => normalizeLists(lists));
-
-  const [form, setForm] = useState({
-    id_movimiento: null,
-    fecha: "",
-    periodo: "",
-    id_cliente: NULL_OPTION,
-    clienteInput: "",
-    id_detalle: NULL_OPTION,
-    detalleInput: "",
-    monto_total: "",
-  });
-
-  const [detalleFocus, setDetalleFocus] = useState(false);
-  const [detalleArmed, setDetalleArmed] = useState(false);
+  const [productoFocus, setProductoFocus] = useState(false);
+  const [productoArmed, setProductoArmed] = useState(false);
   const [clienteFocus, setClienteFocus] = useState(false);
   const [clienteArmed, setClienteArmed] = useState(false);
 
   const closeBtnRef = useRef(null);
   const fechaInputRef = useRef(null);
 
-  const openNativeDatePicker = useCallback(
-    (input) => {
-      if (!input || saving) return;
+  useEffect(() => setLocalLists(normalizeLists(lists)), [lists]);
 
-      input.focus();
+  const refreshLists = useCallback(async () => {
+    const data = await apiGetJson(API_LISTS);
+    const normalized = normalizeLists(data);
+    setLocalLists((prev) => ({
+      productos: normalized.productos?.length ? normalized.productos : prev.productos,
+      clientes: normalized.clientes?.length ? normalized.clientes : prev.clientes,
+    }));
+  }, [API_LISTS]);
 
-      if (typeof input.showPicker === "function") {
-        try {
-          input.showPicker();
-        } catch {}
-      }
-    },
-    [saving]
-  );
+  const defaultsRef = useRef({
+    fecha: "",
+    periodoMMYYYY: "",
+    id_cliente: NULL_OPTION,
+    clienteTxt: "",
+    id_stock_producto: NULL_OPTION,
+    productoTxt: "",
+    cantidad: 1,
+    precio: 0,
+    iva_pct: 0,
+  });
 
-  useEffect(() => {
-    setLocalLists(normalizeLists(lists));
-  }, [lists]);
+  const [form, setForm] = useState(() => ({
+    id_movimiento: null,
+    fecha: "",
+    periodo: "",
+    id_cliente: NULL_OPTION,
+    clienteInput: "",
+    id_stock_producto: NULL_OPTION,
+    productoInput: "",
+    cantidad: "1",
+    precio: "",
+    iva_pct: "0",
+  }));
 
   useEffect(() => {
     if (!open) return;
-
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-
     return () => {
       document.body.style.overflow = prev;
     };
@@ -351,247 +344,257 @@ export default function ModalEditarRecibo({
   useEffect(() => {
     if (!open) return;
 
-    const handleEscKey = (e) => {
-      if (e.key === "Escape") {
-        if (!saving) onClose?.();
-      }
-    };
-
-    document.addEventListener("keydown", handleEscKey);
-
-    return () => document.removeEventListener("keydown", handleEscKey);
-  }, [open, saving, onClose]);
-
-  const refreshLists = useCallback(async () => {
-    const data = await apiGetJson(API_LISTS);
-    const normalized = normalizeLists(data);
-
-    setLocalLists((prev) => ({
-      detalles: normalized.detalles?.length ? normalized.detalles : prev.detalles,
-      clientes: normalized.clientes?.length ? normalized.clientes : prev.clientes,
-    }));
-  }, [API_LISTS]);
-
-  useEffect(() => {
-    if (!open) return;
-
     refreshLists().catch(() => {});
 
     const r = row || {};
+    const item = getPrimerItem(r) || {};
     const fecha = String(r.fecha || "").slice(0, 10);
-
     const perRow = periodoToMMYYYY(r.periodo);
     const perDef = periodoToMMYYYY(periodoDefault);
     const perAuto = periodoFromISODate(fecha);
 
     const idCliente = r.id_cliente ?? r.cliente_id ?? r.idCliente ?? NULL_OPTION;
+    const idProd =
+      item?.id_stock_producto ??
+      item?.idStockProducto ??
+      item?.stock_producto_id ??
+      r.id_stock_producto ??
+      r.idStockProducto ??
+      r.stock_producto_id ??
+      NULL_OPTION;
 
-    const clienteTxt = String(
-      r.cliente ?? r.nombre_cliente ?? r.razon_social_cliente ?? ""
-    ).trim();
+    const cliNameFromList = nameById(localLists.clientes, idCliente, getClienteId, getClienteNombre);
+    const productoNameFromList = nameById(localLists.productos, idProd, getProductoId, getProductoNombre);
 
-    // La tabla muestra "1 PRODUCTO" como resumen, pero para editar necesitamos
-    // el producto real guardado en movimientos_items / detalle_original.
-    const idDetalle = getProductoIdFromRecibo(r);
-    const productoTxt = getProductoNombreFromRecibo(r);
-    const detFallback = productoTxt || "";
+    const clienteFallback = String(r.cliente ?? r.cliente_nombre ?? "").trim();
+    const productoFallback =
+      getProductoNombre(item) ||
+      String(r.producto_nombre ?? r.stock_producto_nombre ?? r.detalle_original ?? "").split("|")[0].trim() ||
+      String(r.detalle ?? r.descripcion ?? "").replace(/^\s*\d+(?:[.,]\d+)?\s*x\s*/i, "").trim();
 
-    const cliName = String(
-      getArr(localLists.clientes).find(
-        (c) => String(getIdCliente(c)) === String(idCliente)
-      )?.nombre ??
-        getArr(localLists.clientes).find(
-          (c) => String(getIdCliente(c)) === String(idCliente)
-        )?.razon_social ??
-        ""
-    ).trim();
+    const cantidad = Math.max(0, safeNumber(item?.cantidad ?? r.cantidad ?? 1)) || 1;
+    const precio = Math.max(0, safeNumber(item?.precio ?? r.precio ?? (safeNumber(r.monto_total ?? r.total) / cantidad)));
+    const ivaPct = Math.max(0, safeNumber(item?.iva_pct ?? item?.ivaPct ?? r.iva_pct ?? 0));
 
-    const detName = String(
-      getArr(localLists.detalles).find(
-        (d) => String(getIdGeneric(d)) === String(idDetalle)
-      )?.nombre ?? ""
-    ).trim();
+    defaultsRef.current = {
+      fecha: fecha || "",
+      periodoMMYYYY: perRow || perDef || perAuto || "",
+      id_cliente: String(idCliente ?? NULL_OPTION),
+      clienteTxt: (cliNameFromList || clienteFallback || "").trim(),
+      id_stock_producto: String(idProd ?? NULL_OPTION),
+      productoTxt: (productoNameFromList || productoFallback || "").trim(),
+      cantidad: round3(cantidad),
+      precio: round2(precio),
+      iva_pct: round2(ivaPct),
+    };
 
     setSaving(false);
-    setDetalleFocus(false);
-    setDetalleArmed(false);
+    setProductoFocus(false);
+    setProductoArmed(false);
     setClienteFocus(false);
     setClienteArmed(false);
 
     setForm({
-      id_movimiento: safeNumber(r.id_movimiento) || null,
-      fecha: fecha || "",
-      periodo: perRow || perDef || perAuto || "",
-      id_cliente: String(idCliente ?? NULL_OPTION),
-      clienteInput: cliName || clienteTxt || "",
-      id_detalle: String(idDetalle ?? NULL_OPTION),
-      detalleInput: detFallback || detName || "",
-      monto_total: safeNumber(r.monto_total ?? r.total ?? 0),
+      id_movimiento: safeNumber(r.id_movimiento ?? r.id) || null,
+      fecha: defaultsRef.current.fecha,
+      periodo: defaultsRef.current.periodoMMYYYY,
+      id_cliente: defaultsRef.current.id_cliente,
+      clienteInput: defaultsRef.current.clienteTxt,
+      id_stock_producto: defaultsRef.current.id_stock_producto,
+      productoInput: defaultsRef.current.productoTxt,
+      cantidad: String(defaultsRef.current.cantidad || 1),
+      precio: defaultsRef.current.precio ? String(defaultsRef.current.precio) : "",
+      iva_pct: String(defaultsRef.current.iva_pct || 0),
     });
 
     setTimeout(() => closeBtnRef.current?.focus(), 0);
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, row, periodoDefault]);
 
-  const filteredDetalles = useMemo(() => {
-    const all = getArr(localLists.detalles);
-    const q = normalizeSearchText(form.detalleInput);
+  useEffect(() => {
+    if (!open || saving) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose?.();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [open, saving, onClose]);
 
-    if (!detalleFocus || !detalleArmed || q.length < 1) return [];
+  const openNativeDatePicker = useCallback(
+    (input) => {
+      if (!input || saving) return;
+      input.focus();
+      if (typeof input.showPicker === "function") {
+        try { input.showPicker(); } catch {}
+      }
+    },
+    [saving]
+  );
 
-    return all.filter((d) => normalizeSearchText(d?.nombre).includes(q)).slice(0, 25);
-  }, [localLists.detalles, form.detalleInput, detalleFocus, detalleArmed]);
+  const filteredProductos = useMemo(() => {
+    const all = getArr(localLists.productos);
+    const q = normalizeSearchText(form.productoInput);
+    if (!productoFocus || !productoArmed || q.length < 1) return [];
+    return all.filter((p) => normalizeSearchText(getProductoNombre(p)).includes(q)).slice(0, 25);
+  }, [localLists.productos, form.productoInput, productoFocus, productoArmed]);
 
   const filteredClientes = useMemo(() => {
     const all = getArr(localLists.clientes);
     const q = normalizeSearchText(form.clienteInput);
-
     if (!clienteFocus || !clienteArmed || q.length < 1) return [];
-
-    return all
-      .filter((c) =>
-        normalizeSearchText(c?.nombre ?? c?.razon_social ?? c?.cliente).includes(q)
-      )
-      .slice(0, 25);
+    return all.filter((p) => normalizeSearchText(getClienteNombre(p)).includes(q)).slice(0, 25);
   }, [localLists.clientes, form.clienteInput, clienteFocus, clienteArmed]);
 
-  const handleDetalleInputChange = (e) => {
+  const findExactProducto = useCallback((value) => {
+    const q = normalizeSearchText(value);
+    if (!q) return null;
+    return getArr(localLists.productos).find((p) => normalizeSearchText(getProductoNombre(p)) === q) || null;
+  }, [localLists.productos]);
+
+  const findExactCliente = useCallback((value) => {
+    const q = normalizeSearchText(value);
+    if (!q) return null;
+    return getArr(localLists.clientes).find((p) => normalizeSearchText(getClienteNombre(p)) === q) || null;
+  }, [localLists.clientes]);
+
+  const handleProductoInputChange = (e) => {
     const value = e.target.value;
-
-    setDetalleArmed(true);
-
+    const exact = findExactProducto(value);
+    setProductoArmed(true);
     setForm((p) => ({
       ...p,
-      detalleInput: value,
-      id_detalle: NULL_OPTION,
+      productoInput: value,
+      id_stock_producto: exact ? String(getProductoId(exact)) : NULL_OPTION,
     }));
   };
 
-  const handleSelectDetalle = (det) => {
-    const nombre = String(det?.nombre ?? "").trim();
-    const did = getIdGeneric(det) || det?.id;
-
-    setForm((p) => ({
-      ...p,
-      detalleInput: nombre,
-      id_detalle: String(did ?? NULL_OPTION),
-    }));
-
-    setDetalleFocus(false);
-    setDetalleArmed(false);
+  const handleSelectProducto = (prod) => {
+    const nombre = getProductoNombre(prod);
+    const id = getProductoId(prod);
+    setForm((p) => ({ ...p, productoInput: nombre, id_stock_producto: String(id || NULL_OPTION) }));
+    setProductoFocus(false);
+    setProductoArmed(false);
   };
 
   const handleClienteInputChange = (e) => {
     const value = e.target.value;
-
+    const exact = findExactCliente(value);
     setClienteArmed(true);
-
     setForm((p) => ({
       ...p,
       clienteInput: value,
-      id_cliente: NULL_OPTION,
+      id_cliente: exact ? String(getClienteId(exact)) : NULL_OPTION,
     }));
   };
 
   const handleSelectCliente = (cli) => {
-    const nombre = String(cli?.nombre ?? cli?.razon_social ?? cli?.cliente ?? "").trim();
-    const cid = getIdCliente(cli) || cli?.id;
-
-    setForm((p) => ({
-      ...p,
-      clienteInput: nombre,
-      id_cliente: String(cid ?? NULL_OPTION),
-    }));
-
+    const nombre = getClienteNombre(cli);
+    const id = getClienteId(cli);
+    setForm((p) => ({ ...p, clienteInput: nombre, id_cliente: String(id || NULL_OPTION) }));
     setClienteFocus(false);
     setClienteArmed(false);
   };
 
-  const handleFechaChange = useCallback(
-    (e) => {
-      const nuevaFecha = e.target.value;
+  const handleFechaChange = useCallback((e) => {
+    const nuevaFecha = e.target.value;
+    if (nuevaFecha && nuevaFecha > todayISO()) {
+      showToast("advertencia", "No podés seleccionar una fecha posterior al día actual.");
+      return;
+    }
+    setForm((p) => ({
+      ...p,
+      fecha: nuevaFecha,
+      periodo: periodoFromISODate(nuevaFecha) || p.periodo,
+    }));
+  }, [showToast]);
 
-      if (nuevaFecha && nuevaFecha > todayISO()) {
-        showToast("advertencia", "No podés seleccionar una fecha posterior al día actual.");
-        return;
-      }
+  const totals = useMemo(() => calcTotals(form.cantidad, form.precio, form.iva_pct), [form.cantidad, form.precio, form.iva_pct]);
 
-      setForm((p) => ({
-        ...p,
-        fecha: nuevaFecha,
-        periodo: periodoFromISODate(nuevaFecha) || p.periodo,
-      }));
-    },
-    [showToast]
-  );
-
-  const resumen = useMemo(() => {
-    const monto = Math.max(0, safeNumber(form.monto_total));
-
-    return {
-      total: monto,
-      cliente: String(form.clienteInput || "").trim() || "Sin cliente",
-      detalle: String(form.detalleInput || "").trim() || "Sin detalle",
-      periodo: String(form.periodo || "").trim() || "--",
-    };
-  }, [form]);
+  const resumen = useMemo(() => ({
+    total: totals.total,
+    cliente: String(form.clienteInput || "").trim() || "Sin cliente",
+    producto: String(form.productoInput || "").trim() || "Sin producto",
+    cantidad: Math.max(0, safeNumber(form.cantidad)),
+    precio: Math.max(0, safeNumber(form.precio)),
+    periodo: String(form.periodo || "").trim() || "--",
+  }), [form, totals.total]);
 
   const submit = async (e) => {
-    e?.preventDefault?.();
-
-    if (saving) return;
+    e.preventDefault();
+    setSaving(true);
+    showToast("cargando", "Guardando cambios…");
 
     try {
-      setSaving(true);
+      const fechaFinal = String(form.fecha || defaultsRef.current.fecha || "").trim();
+      if (!fechaFinal || !/^\d{4}-\d{2}-\d{2}$/.test(fechaFinal)) throw new Error("Fecha inválida.");
+      if (fechaFinal > todayISO()) throw new Error("La fecha no puede ser posterior al día actual.");
 
-      if (!String(form.fecha || "").trim()) {
-        throw new Error("Completá la fecha.");
+      let clienteId = form.id_cliente && form.id_cliente !== NULL_OPTION ? Number(form.id_cliente) : null;
+      if (!clienteId) {
+        const exactCliente = findExactCliente(form.clienteInput);
+        clienteId = exactCliente ? getClienteId(exactCliente) : null;
+      }
+      if (!clienteId) throw new Error("Seleccioná un cliente válido de la lista.");
+
+      let productoId = form.id_stock_producto && form.id_stock_producto !== NULL_OPTION ? Number(form.id_stock_producto) : null;
+      if (!productoId) {
+        const exactProducto = findExactProducto(form.productoInput);
+        productoId = exactProducto ? getProductoId(exactProducto) : null;
       }
 
-      if (form.fecha > todayISO()) {
-        throw new Error("La fecha no puede ser posterior al día actual.");
+      const textoActual = normalizeSearchText(defaultsRef.current.productoTxt);
+      const textoNuevo = normalizeSearchText(form.productoInput);
+      if (!productoId && textoNuevo && textoNuevo === textoActual) {
+        productoId = Number(defaultsRef.current.id_stock_producto || 0) || null;
       }
 
-      const perUI = periodoToMMYYYY(form.periodo) || periodoFromISODate(form.fecha);
-      const perAPI = periodoToYYYYMM(perUI);
+      if (!productoId) throw new Error("Seleccioná un producto válido de stock. No se guarda como detalle para evitar cambiar el producto equivocado.");
 
-      if (!perAPI) {
-        throw new Error("No se pudo calcular el período desde la fecha.");
-      }
+      const cantidad = round3(Math.max(0, safeNumber(form.cantidad)));
+      const precio = round2(Math.max(0, safeNumber(form.precio)));
+      const ivaPct = round2(Math.max(0, safeNumber(form.iva_pct)));
+      if (!(cantidad > 0)) throw new Error("La cantidad debe ser mayor a 0.");
+      if (!(precio > 0)) throw new Error("El precio unitario debe ser mayor a 0.");
 
-      const idDet =
-        form.id_detalle && form.id_detalle !== NULL_OPTION ? Number(form.id_detalle) : null;
+      const t = calcTotals(cantidad, precio, ivaPct);
+      const perUI = periodoToMMYYYY(form.periodo) || defaultsRef.current.periodoMMYYYY || periodoFromISODate(fechaFinal) || "";
+      const perAPI = perUI ? periodoToYYYYMM(perUI) : "";
 
-      if (!idDet) {
-        throw new Error("Seleccioná un detalle.");
-      }
-
-      const montoFinal = Math.max(0, Math.round(safeNumber(form.monto_total) * 100) / 100);
-
-      if (!(montoFinal > 0)) {
-        throw new Error("Ingresá un monto válido mayor a 0.");
-      }
+      const item = {
+        id_stock_producto: Number(productoId),
+        id_detalle: null,
+        cantidad,
+        precio,
+        iva_pct: ivaPct,
+        subtotal: t.subtotal,
+        iva_monto: t.iva_monto,
+        total: t.total,
+      };
 
       const payloadFinal = {
         id_movimiento: form.id_movimiento,
-        fecha: form.fecha,
+        fecha: fechaFinal,
         periodo: perAPI,
-        id_cliente:
-          form.id_cliente && form.id_cliente !== NULL_OPTION
-            ? Number(form.id_cliente)
-            : null,
+        id_cliente: Number(clienteId),
         cliente: String(form.clienteInput || "").trim(),
-        // Compatibilidad: el backend nuevo usa id_stock_producto; id_detalle queda como alias
-        // porque varios componentes todavía nombran al producto como "detalle".
-        id_stock_producto: idDet,
-        id_detalle: idDet,
-        detalle: String(form.detalleInput || "").trim(),
-        monto_total: montoFinal,
+        id_stock_producto: Number(productoId),
+        id_detalle: null,
+        producto: String(form.productoInput || "").trim(),
+        cantidad,
+        precio,
+        iva_pct: ivaPct,
+        subtotal: t.subtotal,
+        iva_monto: t.iva_monto,
+        total: t.total,
+        monto_total: t.total,
+        items: [item],
       };
 
       await onSave?.(payloadFinal);
-
       showToast("exito", "Recibo actualizado.");
       onClose?.();
     } catch (err) {
@@ -613,14 +616,12 @@ export default function ModalEditarRecibo({
           onMouseDown={(e) => e.stopPropagation()}
         >
           <div className="mi-modal__header">
-            <div className="mi-modal__head-icon">
-              <FontAwesomeIcon icon={faReceipt} />
-            </div>
+            <div className="mi-modal__head-icon"><FontAwesomeIcon icon={faReceipt} /></div>
 
             <div className="mi-modal__head-left">
               <h2 className="mi-modal__title">Editar recibo</h2>
               <p className="mi-modal__subtitle">
-                Modificá fecha, cliente, detalle y monto con la misma estética de Nueva Compra.
+                Modificá la venta de cuenta corriente: fecha, cliente, producto, cantidad y precio.
               </p>
             </div>
 
@@ -640,77 +641,35 @@ export default function ModalEditarRecibo({
               <section className="mi-er-main">
                 <form onSubmit={submit} className="mi-er-form">
                   <div className="nc-section">
-                    <div className="nc-section-head">
-                      <div className="nc-section-dot" />
-                      <span>Monto</span>
-                    </div>
-
-                    <div className="nc-section-body">
-                      <div className="nc-field">
-                        <input
-                          className="nc-input"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder=" "
-                          value={form.monto_total}
-                          onChange={(e) =>
-                            setForm((p) => ({
-                              ...p,
-                              monto_total: e.target.value,
-                            }))
-                          }
-                          disabled={saving}
-                        />
-
-                        <label className="nc-label">Monto total</label>
-                      </div>
-
-                      <div className="nc-cc-info">
-                        <b>Total actual:</b> {moneyARS(form.monto_total || 0)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="nc-section">
-                    <div className="nc-section-head">
-                      <div className="nc-section-dot" />
-                      <span>Detalle</span>
-                    </div>
-
+                    <div className="nc-section-head"><div className="nc-section-dot" /><span>Producto</span></div>
                     <div className="nc-section-body">
                       <div className="mi-er-rel">
                         <div className="nc-field">
                           <input
                             className="nc-input"
                             placeholder=" "
-                            value={form.detalleInput}
-                            onChange={handleDetalleInputChange}
-                            onFocus={() => {
-                              setDetalleFocus(true);
-                              setDetalleArmed(true);
-                            }}
-                            onBlur={() => setTimeout(() => setDetalleFocus(false), 120)}
+                            value={form.productoInput}
+                            onChange={handleProductoInputChange}
+                            onFocus={() => { setProductoFocus(true); setProductoArmed(true); }}
+                            onBlur={() => setTimeout(() => setProductoFocus(false), 120)}
                             disabled={saving}
                             autoComplete="off"
                           />
-
-                          <label className="nc-label">Detalle *</label>
+                          <label className="nc-label">Producto de stock</label>
                         </div>
 
-                        {!!filteredDetalles.length && (
+                        {!!filteredProductos.length && (
                           <div className="mi-er-autocomplete">
-                            {filteredDetalles.map((det) => {
-                              const id = getIdGeneric(det);
-                              const nombre = String(det?.nombre ?? "").trim();
-
+                            {filteredProductos.map((prod) => {
+                              const id = getProductoId(prod);
+                              const nombre = getProductoNombre(prod);
                               return (
                                 <button
-                                  key={`det-${id}-${nombre}`}
+                                  key={`prod-${id}-${nombre}`}
                                   type="button"
                                   className="mi-er-autocomplete__item"
                                   onMouseDown={(e) => e.preventDefault()}
-                                  onClick={() => handleSelectDetalle(det)}
+                                  onClick={() => handleSelectProducto(prod)}
                                 >
                                   {nombre}
                                 </button>
@@ -723,11 +682,62 @@ export default function ModalEditarRecibo({
                   </div>
 
                   <div className="nc-section">
-                    <div className="nc-section-head">
-                      <div className="nc-section-dot" />
-                      <span>Cliente</span>
-                    </div>
+                    <div className="nc-section-head"><div className="nc-section-dot" /><span>Cantidad y precio</span></div>
+                    <div className="nc-section-body">
+                      <div className="mi-er-grid-3">
+                        <div className="nc-field">
+                          <input
+                            className="nc-input"
+                            type="number"
+                            step="0.001"
+                            min="0"
+                            placeholder=" "
+                            value={form.cantidad}
+                            onChange={(e) => setForm((p) => ({ ...p, cantidad: e.target.value }))}
+                            disabled={saving}
+                          />
+                          <label className="nc-label">Cantidad</label>
+                        </div>
 
+                        <div className="nc-field">
+                          <input
+                            className="nc-input"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder=" "
+                            value={form.precio}
+                            onChange={(e) => setForm((p) => ({ ...p, precio: e.target.value }))}
+                            disabled={saving}
+                          />
+                          <label className="nc-label">Precio unitario</label>
+                        </div>
+
+                        <div className="nc-field">
+                          <select
+                            className="nc-input"
+                            value={form.iva_pct}
+                            onChange={(e) => setForm((p) => ({ ...p, iva_pct: e.target.value }))}
+                            disabled={saving}
+                          >
+                            {IVA_OPTIONS.map((op) => (
+                              <option key={op.value} value={op.value}>
+                                {op.label}
+                              </option>
+                            ))}
+                          </select>
+                          <label className="nc-label">IVA %</label>
+                        </div>
+                      </div>
+
+                      <div className="nc-cc-info">
+                        <b>Subtotal:</b> {moneyARS(totals.subtotal)} · <b>IVA:</b> {moneyARS(totals.iva_monto)} · <b>Total:</b> {moneyARS(totals.total)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="nc-section">
+                    <div className="nc-section-head"><div className="nc-section-dot" /><span>Cliente</span></div>
                     <div className="nc-section-body">
                       <div className="mi-er-rel">
                         <div className="nc-field">
@@ -736,27 +746,19 @@ export default function ModalEditarRecibo({
                             placeholder=" "
                             value={form.clienteInput}
                             onChange={handleClienteInputChange}
-                            onFocus={() => {
-                              setClienteFocus(true);
-                              setClienteArmed(true);
-                            }}
+                            onFocus={() => { setClienteFocus(true); setClienteArmed(true); }}
                             onBlur={() => setTimeout(() => setClienteFocus(false), 120)}
                             disabled={saving}
                             autoComplete="off"
                           />
-
                           <label className="nc-label">Cliente</label>
                         </div>
 
                         {!!filteredClientes.length && (
                           <div className="mi-er-autocomplete">
                             {filteredClientes.map((cli) => {
-                              const id = getIdCliente(cli);
-
-                              const nombre = String(
-                                cli?.nombre ?? cli?.razon_social ?? cli?.cliente ?? ""
-                              ).trim();
-
+                              const id = getClienteId(cli);
+                              const nombre = getClienteNombre(cli);
                               return (
                                 <button
                                   key={`cli-${id}-${nombre}`}
@@ -779,21 +781,9 @@ export default function ModalEditarRecibo({
 
               <aside className="nc-aside">
                 <div className="nc-section">
-                  <div className="nc-section-head">
-                    <div className="nc-section-dot" />
-                    <span>Fecha</span>
-                  </div>
-
+                  <div className="nc-section-head"><div className="nc-section-dot" /><span>Fecha</span></div>
                   <div className="nc-section-body">
-                    <div
-                      className="nc-field"
-                      onMouseDown={(e) => {
-                        if (saving) return;
-
-                        e.preventDefault();
-                        openNativeDatePicker(fechaInputRef.current);
-                      }}
-                    >
+                    <div className="nc-field" onClick={() => openNativeDatePicker(fechaInputRef.current)}>
                       <input
                         ref={fechaInputRef}
                         className="nc-input"
@@ -801,65 +791,29 @@ export default function ModalEditarRecibo({
                         placeholder=" "
                         value={form.fecha}
                         max={todayISO()}
+                        onMouseDown={(e) => {
+                          if (saving) return;
+                          e.preventDefault();
+                          openNativeDatePicker(e.currentTarget);
+                        }}
+                        onClick={(e) => openNativeDatePicker(e.currentTarget)}
                         onChange={handleFechaChange}
-                        onClick={(e) => {
-                          if (saving) return;
-                          openNativeDatePicker(e.currentTarget);
-                        }}
-                        onFocus={(e) => {
-                          if (saving) return;
-                          openNativeDatePicker(e.currentTarget);
-                        }}
                         disabled={saving}
                       />
-
                       <label className="nc-label">Fecha</label>
                     </div>
                   </div>
                 </div>
 
                 <div className="nc-section">
-                  <div className="nc-section-head">
-                    <div className="nc-section-dot" />
-                    <span>Resumen del recibo</span>
-                  </div>
-
+                  <div className="nc-section-head"><div className="nc-section-dot" /><span>Resumen del recibo</span></div>
                   <div className="nc-section-body">
                     <div className="nc-cc-info">
-                      <div className="mi-er-summary-row">
-                        <FontAwesomeIcon icon={faCalendarDays} />
-                        <span>
-                          <b>Fecha:</b> {form.fecha || "--"}
-                        </span>
-                      </div>
-
-                      <div className="mi-er-summary-row">
-                        <FontAwesomeIcon icon={faUser} />
-                        <span>
-                          <b>Cliente:</b> {resumen.cliente}
-                        </span>
-                      </div>
-
-                      <div className="mi-er-summary-row">
-                        <FontAwesomeIcon icon={faBoxOpen} />
-                        <span>
-                          <b>Detalle:</b> {resumen.detalle}
-                        </span>
-                      </div>
-
-                      <div className="mi-er-summary-row">
-                        <FontAwesomeIcon icon={faReceipt} />
-                        <span>
-                          <b>Período:</b> {resumen.periodo}
-                        </span>
-                      </div>
-
-                      <div className="mi-er-summary-row">
-                        <FontAwesomeIcon icon={faDollarSign} />
-                        <span>
-                          <b>Total:</b> {moneyARS(resumen.total)}
-                        </span>
-                      </div>
+                      <div className="mi-er-summary-row"><FontAwesomeIcon icon={faCalendarDays} /><span><b>Fecha:</b> {form.fecha || "--"}</span></div>
+                      <div className="mi-er-summary-row"><FontAwesomeIcon icon={faUser} /><span><b>Cliente:</b> {resumen.cliente}</span></div>
+                      <div className="mi-er-summary-row"><FontAwesomeIcon icon={faBoxOpen} /><span><b>Producto:</b> {resumen.producto}</span></div>
+                      <div className="mi-er-summary-row"><FontAwesomeIcon icon={faReceipt} /><span><b>Cantidad:</b> {resumen.cantidad || "--"}</span></div>
+                      <div className="mi-er-summary-row"><FontAwesomeIcon icon={faDollarSign} /><span><b>Total:</b> {moneyARS(resumen.total)}</span></div>
                     </div>
                   </div>
                 </div>
@@ -890,7 +844,7 @@ export default function ModalEditarRecibo({
       </div>
 
       <style>{`
-        .mi-er-layout{
+        #mov--modaleditarrecibo .mi-er-layout{
           flex:1;
           min-height:0;
           display:grid;
@@ -899,7 +853,7 @@ export default function ModalEditarRecibo({
           overflow:hidden;
         }
 
-        .mi-er-main{
+        #mov--modaleditarrecibo .mi-er-main{
           min-width:0;
           min-height:0;
           border:1px solid var(--nv-border-md);
@@ -910,17 +864,17 @@ export default function ModalEditarRecibo({
           padding:16px;
         }
 
-        .mi-er-form{
+        #mov--modaleditarrecibo .mi-er-form{
           display:flex;
           flex-direction:column;
           gap:14px;
         }
 
-        .mi-er-rel{
+        #mov--modaleditarrecibo .mi-er-rel{
           position:relative;
         }
 
-        .mi-er-autocomplete{
+        #mov--modaleditarrecibo .mi-er-autocomplete{
           position:absolute;
           top:calc(100% + 6px);
           left:0;
@@ -935,7 +889,7 @@ export default function ModalEditarRecibo({
           overflow-y:auto;
         }
 
-        .mi-er-autocomplete__item{
+        #mov--modaleditarrecibo .mi-er-autocomplete__item{
           width:100%;
           border:none;
           background:transparent;
@@ -948,27 +902,36 @@ export default function ModalEditarRecibo({
           font-family:inherit;
         }
 
-        .mi-er-autocomplete__item:hover{
+        #mov--modaleditarrecibo .mi-er-autocomplete__item:hover{
           background:var(--nv-row-hover);
         }
 
-        .mi-er-summary-row{
+        #mov--modaleditarrecibo .mi-er-grid-3{
+          display:grid;
+          grid-template-columns:1fr 1fr 1fr;
+          gap:12px;
+        }
+
+        #mov--modaleditarrecibo .mi-er-summary-row{
           display:flex;
           align-items:center;
           gap:10px;
           margin-bottom:12px;
         }
 
-        .mi-er-summary-row:last-child{
+        #mov--modaleditarrecibo .mi-er-summary-row:last-child{
           margin-bottom:0;
         }
 
-        .mi-er-action{
+        #mov--modaleditarrecibo .mi-er-action{
           flex:1;
         }
 
         @media (max-width: 1100px){
-          .mi-er-layout{
+          #mov--modaleditarrecibo .mi-er-layout{
+            grid-template-columns:1fr;
+          }
+          #mov--modaleditarrecibo .mi-er-grid-3{
             grid-template-columns:1fr;
           }
         }

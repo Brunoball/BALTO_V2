@@ -293,6 +293,7 @@ function MedioPagoRow({
   saving,
   showToast,
   apiCheckNumero,
+  mediosFilas = [],
 }) {
   const [openChequeModal, setOpenChequeModal] = useState(false);
 
@@ -369,6 +370,20 @@ function MedioPagoRow({
           mensaje: "Ingresá el número de cheque antes de confirmar.",
         };
       }
+      const duplicadoEnFormulario = Array.isArray(mediosFilas) && mediosFilas.some((mp) => {
+        if (!mp || String(mp.id) === String(row.id)) return false;
+        const numero = String(mp?.cheque?.numero_cheque ?? "").replace(/\D/g, "");
+        return numero && numero === numeroCheque;
+      });
+
+      if (duplicadoEnFormulario) {
+        return {
+          ok: false,
+          tipo: "error",
+          mensaje: `Ya cargaste otro cheque/eCheq con el número ${numeroCheque} en este ingreso.`,
+        };
+      }
+
       const params = new URLSearchParams();
       params.set("numero_cheque", numeroCheque);
       params.set("tipo", String(tc || "cheque"));
@@ -391,7 +406,7 @@ function MedioPagoRow({
       }
       return { ok: true };
     },
-    [apiCheckNumero, row?.cheque?.id_cheque]
+    [apiCheckNumero, mediosFilas, row.id, row?.cheque?.id_cheque]
   );
 
   return (
@@ -596,6 +611,7 @@ function PanelMediosPago({
           saving={saving}
           showToast={showToast}
           apiCheckNumero={apiCheckNumero}
+          mediosFilas={filas}
         />
       ))}
 
@@ -637,7 +653,7 @@ export default function ModalNuevoIngreso({
   onSaved,
 }) {
   const API_UPLOAD = `${BASE_URL}/api.php?action=otros_ingresos_comprobantes_vincular_movimiento_upload`;
-  const API_CHEQUES_GUARDAR = `${BASE_URL}/api.php?action=mov_global_cheques_guardar`;
+  const API_CHEQUES_ACTUALIZAR = `${BASE_URL}/api.php?action=mov_global_cheques_actualizar`;
   const API_DETALLES_CREAR = `${BASE_URL}/api.php?action=otros_ingresos_detalles_crear`;
   const API_CHECK_NUMERO = `${BASE_URL}/api.php?action=mov_global_cheques_obtener&modo=verificar_numero`;
 
@@ -972,12 +988,12 @@ export default function ModalNuevoIngreso({
       }
     }
 
-    // Única validación del cobro inicial: no puede superar el total del ingreso.
-    // No se exige que cubra el total, porque el saldo puede quedar pendiente.
-    if (sumaMediosPago > resumen.total + 0.05 && resumen.total > 0)
+    // Otros ingresos es contado: debe quedar cobrado como mínimo por el total.
+    // Se permite superar el total cuando el usuario usa un cheque/eCheq de mayor importe.
+    if (sumaMediosPago + 0.05 < resumen.total && resumen.total > 0)
       return {
         ok: false,
-        msg: `La suma de los medios de pago (${moneyARS(sumaMediosPago)}) no puede superar el total del ingreso (${moneyARS(resumen.total)}).`,
+        msg: `La suma de los medios de pago (${moneyARS(sumaMediosPago)}) debe cubrir el total del ingreso (${moneyARS(resumen.total)}).`,
       };
 
     const problems = [];
@@ -1038,12 +1054,30 @@ export default function ModalNuevoIngreso({
     const totalFinal = usableRows.reduce((acc, x) => acc + safeNumber(x.total), 0);
     const mediosPayload = mediosFilas
       .filter((mp) => Number(mp.id_medio_pago || 0) > 0 && safeNumber(mp.cheque?.importe ?? mp.monto) > 0)
-      .map((mp, index) => ({
-        id_medio_pago: Number(mp.id_medio_pago),
-        monto: safeNumber(mp.cheque?.importe ?? mp.monto),
-        cheque_tipo: mp.cheque?.tipo || null,
-        original_index: index,
-      }));
+      .map((mp, index) => {
+        const cheque = mp.cheque
+          ? {
+              tipo: mp.cheque.tipo || mp.cheque.tipo_cheque || mp.cheque.cheque_tipo || null,
+              fecha_emision: mp.cheque.fecha_emision || null,
+              emisor: mp.cheque.emisor || "",
+              numero_cheque: mp.cheque.numero_cheque || "",
+              importe: safeNumber(mp.cheque.importe),
+              fecha_pago: mp.cheque.fecha_pago || null,
+              observaciones: mp.cheque.observaciones || "",
+              archivo_nombre:
+                mp.cheque.archivo_nombre ||
+                (mp.cheque.archivo instanceof File ? mp.cheque.archivo.name : ""),
+            }
+          : null;
+        return {
+          frontend_row_uid: mp.id,
+          id_medio_pago: Number(mp.id_medio_pago),
+          monto: safeNumber(mp.cheque?.importe ?? mp.monto),
+          cheque_tipo: cheque?.tipo || null,
+          original_index: index,
+          ...(cheque ? { cheque } : {}),
+        };
+      });
     return {
       fecha: safeStr(fecha).slice(0, 10),
       id_medio_pago: mediosPayload[0]?.id_medio_pago || null,
@@ -1094,37 +1128,46 @@ export default function ModalNuevoIngreso({
     [API_UPLOAD]
   );
 
-  const guardarChequeEnBackend = useCallback(
-    async (idMovimiento, medioDetalle, chequeData) => {
-      if (!chequeData) return null;
+  const actualizarChequeConArchivo = useCallback(
+    async ({ idCheque, cheque }) => {
+      if (!idCheque || !(cheque?.archivo instanceof File)) return null;
       const fd = new FormData();
-      const { token, sessionKey, idUsuario, idUsuarioMaster } = getAuthInfo();
-      fd.append("id_movimiento", String(idMovimiento));
-      fd.append("id_movimiento_medio_pago", String(Number(medioDetalle?.id_movimiento_medio_pago || 0)));
-      fd.append("id_medio_pago", String(Number(medioDetalle?.id_medio_pago || 0)));
-      fd.append("tipo", chequeData.tipo || chequeData.tipo_cheque || "cheque");
-      fd.append("fecha_emision", chequeData.fecha_emision || todayISO());
-      fd.append("emisor", chequeData.emisor || "");
-      fd.append("numero_cheque", chequeData.numero_cheque || "");
-      fd.append("importe", String(chequeData.importe || 0));
-      fd.append("fecha_pago", chequeData.fecha_pago || todayISO());
-      fd.append("observaciones", chequeData.observaciones || "");
-      fd.append("idUsuario", String(idUsuario || 0));
-      fd.append("idUsuarioMaster", String(idUsuarioMaster || 0));
-      if (chequeData.archivo instanceof File)
-        fd.append(
-          "archivo",
-          chequeData.archivo,
-          chequeData.archivo_nombre || chequeData.archivo.name || "adjunto"
-        );
+      const { token, sessionKey } = getAuthInfo();
+      fd.append("id_cheque", String(idCheque));
+      fd.append("tipo", cheque.tipo === "echeq" || cheque.tipo_cheque === "echeq" ? "ECHEQ_IMAGEN" : "CHEQUE_IMAGEN");
+      fd.append("archivo", cheque.archivo, cheque.archivo_nombre || cheque.archivo.name || "adjunto");
       const headers = {};
       if (sessionKey) headers["X-Session"] = sessionKey;
       if (token) headers.Authorization = `Bearer ${token}`;
       return await parseJsonOrThrow(
-        await fetch(API_CHEQUES_GUARDAR, { method: "POST", headers, body: fd })
+        await fetch(API_CHEQUES_ACTUALIZAR, { method: "POST", headers, body: fd })
       );
     },
-    [API_CHEQUES_GUARDAR]
+    [API_CHEQUES_ACTUALIZAR]
+  );
+
+  const subirArchivosChequesCreados = useCallback(
+    async (info) => {
+      const warnings = [];
+      const creados = Array.isArray(info?.cheques_creados) ? info.cheques_creados : [];
+      if (!creados.length) return warnings;
+
+      const filasCheque = mediosFilas.filter((mp) => mp?.cheque?.archivo instanceof File);
+      for (const mp of filasCheque) {
+        const backendCheque = creados.find((x) => String(x?.frontend_row_uid || "") === String(mp.id));
+        if (!backendCheque?.id_cheque) {
+          warnings.push(`No se pudo vincular el archivo del cheque ${mp?.cheque?.numero_cheque || ""}.`);
+          continue;
+        }
+        try {
+          await actualizarChequeConArchivo({ idCheque: backendCheque.id_cheque, cheque: mp.cheque });
+        } catch (e) {
+          warnings.push(e?.message || `No se pudo adjuntar el archivo del cheque ${mp?.cheque?.numero_cheque || ""}.`);
+        }
+      }
+      return warnings;
+    },
+    [mediosFilas, actualizarChequeConArchivo]
   );
 
   // ─── Submit ───────────────────────────────────────────────────────────────────
@@ -1160,21 +1203,12 @@ export default function ModalNuevoIngreso({
         }
       }
 
-      const mediosDetalle = Array.isArray(data?.medios_pago_detalle) ? data.medios_pago_detalle : [];
-      for (let index = 0; index < mediosFilas.length; index++) {
-        const row = mediosFilas[index];
-        if (!row.cheque) continue;
-        const detalleMp =
-          mediosDetalle.find((x) => Number(x?.original_index) === index) ||
-          mediosDetalle[index] ||
-          null;
-        try {
-          await guardarChequeEnBackend(idMovimientoFinal, detalleMp, row.cheque);
-        } catch (eCheque) {
-          showToast(
-            "advertencia",
-            `Ingreso guardado, pero no se pudo guardar un cheque: ${eCheque?.message || "error"}`);
-        }
+      const warningsCheques = await subirArchivosChequesCreados(data);
+      if (warningsCheques.length) {
+        showToast(
+          "advertencia",
+          `Ingreso guardado, pero hubo problemas con archivo/s de cheque: ${warningsCheques.join(" | ")}`
+        );
       }
 
       if (warningArchivo)
@@ -1190,7 +1224,7 @@ export default function ModalNuevoIngreso({
     }
   }, [
     saving, onSubmit, validate, buildPayload, mode, onSaved,
-    showToast, initialData, archivoAdjunto, subirArchivo, mediosFilas, guardarChequeEnBackend,
+    showToast, initialData, archivoAdjunto, subirArchivo, subirArchivosChequesCreados,
   ]);
 
   const btnLabel = saving ? "Guardando..." : mode === "edit" ? "Guardar cambios" : "Guardar ingreso";

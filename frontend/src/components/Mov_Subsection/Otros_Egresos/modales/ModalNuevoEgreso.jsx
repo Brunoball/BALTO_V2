@@ -1078,10 +1078,12 @@ export default function ModalNuevoEgreso({
           };
       }
     }
-    if (sumaMediosPago > resumen.total + 0.05 && resumen.total > 0)
+    // Otros egresos es contado: debe quedar pagado como mínimo por el total.
+    // Se permite superar el total cuando el usuario usa un cheque/eCheq de mayor importe.
+    if (sumaMediosPago + 0.05 < resumen.total && resumen.total > 0)
       return {
         ok: false,
-        msg: `La suma de los medios de pago (${moneyARS(sumaMediosPago)}) no puede superar el total del egreso (${moneyARS(resumen.total)}).`,
+        msg: `La suma de los medios de pago (${moneyARS(sumaMediosPago)}) debe cubrir el total del egreso (${moneyARS(resumen.total)}).`,
       };
     const problems = [];
     rowsCalc.forEach((r, i) => {

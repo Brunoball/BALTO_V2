@@ -1056,17 +1056,26 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
       activo: 1,
     });
 
-    if (!saved?.exito || !saved?.proveedor || !saved?.cliente_fiscal) {
+    const payload = saved?.data && typeof saved.data === "object" ? saved.data : saved;
+    const proveedor = saved?.proveedor || payload?.proveedor || payload?.item || null;
+    const proveedorFiscal =
+      saved?.proveedor_fiscal ||
+      payload?.proveedor_fiscal ||
+      saved?.cliente_fiscal ||
+      payload?.cliente_fiscal ||
+      null;
+
+    if (!saved?.exito || !proveedor || !proveedorFiscal) {
       throw new Error(saved?.mensaje || "No se pudo guardar el proveedor fiscal.");
     }
 
-    const result = registrarProveedorLocal(saved.proveedor, saved.cliente_fiscal);
+    const result = registrarProveedorLocal(proveedor, proveedorFiscal);
     return {
       proveedor: result.proveedor,
       proveedor_fiscal: result.fiscal,
-      ya_existia: !!saved?.ya_existia,
-      sin_cambios: !!saved?.sin_cambios,
-      mensaje: saved?.mensaje || "",
+      ya_existia: !!(saved?.ya_existia ?? payload?.ya_existia),
+      sin_cambios: !!(saved?.sin_cambios ?? payload?.sin_cambios),
+      mensaje: saved?.mensaje || saved?.message || "",
     };
   }, [API_SAVE_PROVEEDOR_DESDE_ARCA, registrarProveedorLocal]);
 
@@ -1397,7 +1406,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
       if (!archivo || !idsMovimientos?.length) return null;
       const fd = new FormData();
       fd.append("archivo", archivo);
-      fd.append("tipo", "FACTURA");
+      fd.append("tipo", "COMPRA");
       fd.append("force", "0");
       fd.append("ids_movimiento", JSON.stringify(idsMovimientos));
       return await apiPostForm(API_UPLOAD_LINK, fd);

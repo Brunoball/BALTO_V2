@@ -30,14 +30,12 @@ import {
   faBoxOpen,
   faEye,
   faInfoCircle,
-  faMoneyBill1Wave,
 } from "@fortawesome/free-solid-svg-icons";
 
 import * as XLSX from "xlsx";
 import { useListas } from "../../../context/ListasContext.jsx";
 import { useDateRange } from "../../../context/DateRangeContext.jsx";
 import { readMovPerfCache, writeMovPerfCache, clearMovPerfCache } from "../_shared/performanceCache.js";
-import { getDetalleMovimiento } from "../_shared/detalleMovimiento.js";
 
 const MIN_LOADING_MS = 0;
 const FORCE_SHOW_LOADER_DEV = false;
@@ -58,8 +56,29 @@ function safeText(v) {
   const s = String(v ?? "").trim();
   return s ? s : "—";
 }
+function cantidadDetallesMovimiento(row) {
+  const arrays = [row?.items_detalle, row?.itemsDetalle, row?.items, row?.detalles];
+  for (const arr of arrays) {
+    if (Array.isArray(arr) && arr.length > 0) return arr.length;
+  }
+
+  const n = Number(
+    row?.cantidad_items ??
+      row?.cantidadItems ??
+      row?.detalles_count ??
+      row?.detallesCount ??
+      row?.cantidad_detalles ??
+      row?.cantidadDetalles ??
+      0
+  );
+  if (Number.isFinite(n) && n > 0) return Math.trunc(n);
+
+  return 1;
+}
+
 function productosLabel(row) {
-  return getDetalleMovimiento(row);
+  const n = cantidadDetallesMovimiento(row);
+  return n === 1 ? "1 DETALLE" : `${n} DETALLES`;
 }
 
 function normalizeSearchText(v) {
@@ -362,9 +381,6 @@ function buildExportRows(rows) {
     FECHA: safeText(formatFechaDMY(r?.fecha)),
     DESCRIPCION: productosLabel(r),
     TOTAL: Number(r?.monto_total ?? r?.total ?? r?.total_general ?? 0) || 0,
-    COBRADO: getOtroIngresoCobrado(r),
-    SALDO: getOtroIngresoSaldo(r),
-    ESTADO: getOtroIngresoEstadoLabel(r),
   }));
 }
 
@@ -840,26 +856,8 @@ export default function OtrosIngresos() {
         fr: 1.05,
         align: "right",
         render: (r) => (
-          <span className="fc-num fc-in">
+          <span className="fc-num">
             {moneyARS(r.monto_total ?? r.total ?? r.total_general ?? 0)}
-          </span>
-        ),
-      },
-      {
-        key: "saldo_pendiente",
-        label: "SALDO",
-        fr: 1.05,
-        align: "right",
-        render: (r) => <span className="fc-num">{moneyARS(getOtroIngresoSaldo(r))}</span>,
-      },
-      {
-        key: "estado_pago",
-        label: "ESTADO",
-        fr: 1.15,
-        align: "center",
-        render: (r) => (
-          <span className={getOtroIngresoEstadoChipClass(r)}>
-            {getOtroIngresoEstadoLabel(r)}
           </span>
         ),
       },
@@ -1608,15 +1606,6 @@ export default function OtrosIngresos() {
                                   <FontAwesomeIcon icon={faInfoCircle} />
                                 </button>
 
-                                <button
-                                  type="button"
-                                  className={`mov-iconBtn ${isOtroIngresoPagado(r) ? "is-disabled" : ""}`}
-                                  title={isOtroIngresoPagado(r) ? "Ingreso cobrado" : "Cobrar saldo pendiente"}
-                                  onClick={() => handleOpenCobrar(r)}
-                                  disabled={isAnyLoading || loadingListsCtx || isOtroIngresoPagado(r)}
-                                >
-                                  <FontAwesomeIcon icon={faMoneyBill1Wave} />
-                                </button>
 
                                 <button
                                   type="button"

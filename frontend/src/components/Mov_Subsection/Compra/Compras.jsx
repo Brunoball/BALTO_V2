@@ -36,7 +36,7 @@ import * as XLSX from "xlsx";
 import { useListas } from "../../../context/ListasContext.jsx";
 import { useDateRange } from "../../../context/DateRangeContext.jsx";
 import { readMovPerfCache, writeMovPerfCache, clearMovPerfCache } from "../_shared/performanceCache.js";
-import { getDetalleMovimiento } from "../_shared/detalleMovimiento.js";
+import { getResumenProductosMovimiento } from "../_shared/detalleMovimiento.js";
 
 /* =========================
    PERF: paginado
@@ -95,7 +95,7 @@ function safeText(v) {
   return s ? s : "—";
 }
 function productosLabel(row) {
-  return getDetalleMovimiento(row);
+  return getResumenProductosMovimiento(row);
 }
 
 function numOrZero(v) {

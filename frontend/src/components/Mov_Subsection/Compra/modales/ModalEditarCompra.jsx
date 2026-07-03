@@ -901,6 +901,33 @@ function buildFormFromRowCompra(row, fixedLocal) {
     total: Math.max(0, Math.round(total * 100) / 100),
   };
 }
+
+function compraPayloadCoincideConRow(payload, row) {
+  if (!payload || !row) return false;
+  const original = buildFormFromRowCompra(row, {});
+  const id = (v) => {
+    if (v === NULL_OPTION || v === ADD_OPTION || v == null || v === "") return 0;
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  const moneyEq = (a, b, tolerance = 0.01) => Math.abs(safeNumber(a) - safeNumber(b)) <= tolerance;
+  const qtyEq = (a, b) => Math.abs(safeNumber(a) - safeNumber(b)) <= 0.001;
+
+  const payloadProductoId = id(payload.id_stock_producto ?? payload.id_detalle);
+
+  return (
+    String(payload.fecha || "").slice(0, 10) === String(original.fecha || "").slice(0, 10) &&
+    id(payload.id_tipo_venta) === id(original.id_tipo_venta) &&
+    id(payload.id_proveedor) === id(original.id_proveedor) &&
+    payloadProductoId === id(original.id_detalle) &&
+    qtyEq(payload.cantidad, original.cantidad) &&
+    moneyEq(payload.precio, original.precio) &&
+    moneyEq(payload.iva_pct, original.iva_pct) &&
+    moneyEq(payload.subtotal, original.subtotal) &&
+    moneyEq(payload.iva_monto, original.iva_monto) &&
+    moneyEq(payload.total ?? payload.monto_total, original.total)
+  );
+}
 function buildMediosFromRowCompra(row, mediosPagoList) {
   const list = Array.isArray(row?.medios_pago_detalle) ? row.medios_pago_detalle : [];
   const out = [];
@@ -1631,7 +1658,7 @@ export default function ModalEditarCompra({
     if (!idMovimiento || !archivo) return null;
     const fd = new FormData();
     fd.append("archivo", archivo);
-    fd.append("tipo", "FACTURA");
+    fd.append("tipo", "COMPRA");
     fd.append("force", "0");
     fd.append("ids_movimiento", JSON.stringify([Number(idMovimiento)]));
     const data = await apiPostForm(ENDPOINT_UPLOAD_LINK, fd);
@@ -1863,14 +1890,22 @@ export default function ModalEditarCompra({
         id_detalle: Number(detalleId),
         id_stock_producto: Number(detalleId),
       };
-      await onSave?.(payloadFinal);
 
       const habiaArchivo = Boolean(archivoActualUrl || archivoActualId);
       const quiereQuitar = Boolean(quitarArchivoActual);
       const quiereSubirNuevo = Boolean(archivoNuevo);
+      const soloCambioArchivo =
+        (quiereQuitar || quiereSubirNuevo) &&
+        compraPayloadCoincideConRow(payloadFinal, rowRef.current);
 
       if (archivoNuevo && !isAllowedComprobanteFile(archivoNuevo)) {
         throw new Error("Archivo inválido. Solo se permiten imágenes o archivos PDF.");
+      }
+
+      // Si el usuario sólo adjunta/reemplaza/quita comprobante, NO se toca la compra.
+      // Antes esto disparaba compras_actualizar y podía borrar pagos ya imputados por Órdenes de Pago.
+      if (!soloCambioArchivo) {
+        await onSave?.(payloadFinal);
       }
 
       if (habiaArchivo && (quiereQuitar || quiereSubirNuevo)) {

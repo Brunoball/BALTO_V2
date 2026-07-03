@@ -238,22 +238,48 @@ function cleanInfoText(v) {
   return s && s !== "-" && s !== "—" ? s : "";
 }
 
-function getMovimientoOperacionLabel(row) {
+function isCuentaCorrienteMovimiento(row) {
+  const idTipoVenta = Number(row?.id_tipo_venta ?? row?.idTipoVenta ?? 0);
+  if (idTipoVenta === 2) return true;
+
+  const tipoVenta = normalizeComparableText(
+    row?.tipo_venta ??
+      row?.pago_tipo_venta ??
+      row?.tipo_venta_nombre ??
+      row?.forma_pago ??
+      ""
+  );
+
+  return tipoVenta.includes("CUENTA CORRIENTE");
+}
+
+function getMovimientoTipoLabel(row) {
+  const fromBackend =
+    cleanInfoText(row?.tipo_movimiento_general) ||
+    cleanInfoText(row?.tipo_general) ||
+    cleanInfoText(row?.tipo_visual) ||
+    cleanInfoText(row?.tipo_label);
+
+  if (fromBackend) return fromBackend.toUpperCase();
+
+  const idTipo = Number(row?.id_tipo_operacion ?? row?.id_tipo_movimiento ?? 0);
+  if (idTipo === 1) return isCuentaCorrienteMovimiento(row) ? "RECIBO" : "VENTA";
+  if (idTipo === 2) return isCuentaCorrienteMovimiento(row) ? "ORDEN DE PAGO" : "COMPRA";
+  if (idTipo === 3) return "OTROS INGRESOS";
+  if (idTipo === 4) return "OTROS EGRESOS";
+  if (idTipo === 5) return "PRESUPUESTO";
+
   const raw =
     cleanInfoText(row?.operacion) ||
     cleanInfoText(row?.tipo_operacion) ||
     cleanInfoText(row?.tipo_operacion_nombre) ||
     cleanInfoText(row?.tipo_movimiento);
 
-  if (raw) return raw;
+  return raw ? raw.toUpperCase() : "MOVIMIENTO";
+}
 
-  const idTipo = Number(row?.id_tipo_operacion ?? row?.id_tipo_movimiento ?? 0);
-  if (idTipo === 1) return "VENTA";
-  if (idTipo === 2) return "COMPRA";
-  if (idTipo === 3) return "OTROS INGRESOS";
-  if (idTipo === 4) return "OTROS EGRESOS";
-  if (idTipo === 5) return "PRESUPUESTO";
-  return "MOVIMIENTO";
+function getMovimientoOperacionLabel(row) {
+  return getMovimientoTipoLabel(row);
 }
 
 function getTerceroInfoValue(row) {
@@ -306,7 +332,7 @@ function normalizeRowForInfoModal(row) {
   return next;
 }
 
-function productosLabel(row) {
+function detallesLabel(row) {
   const depositoLabel = getDepositoChequeLabel(row);
   if (depositoLabel) return depositoLabel;
 
@@ -314,9 +340,9 @@ function productosLabel(row) {
   const cantidadDesdeItems = Array.isArray(row?.items_detalle) ? row.items_detalle.length : 0;
   const cantidad = cantidadDesdeCampo > 0 ? cantidadDesdeCampo : cantidadDesdeItems;
 
-  if (cantidad <= 0) return "SIN PRODUCTOS";
-  if (cantidad === 1) return "1 PRODUCTO";
-  return `${cantidad} PRODUCTOS`;
+  if (cantidad <= 0) return "SIN DETALLES";
+  if (cantidad === 1) return "1 DETALLE";
+  return `${cantidad} DETALLES`;
 }
 
 function numOrZero(v) {
@@ -445,8 +471,8 @@ function buildExportRows(rows) {
     const total = pick(r, ["monto_total", "total", "importe_total", "monto", "importe"], 0);
     return {
       FECHA: safeText(formatFechaDMY(pick(r, ["fecha", "fecha_movimiento", "created_at"], ""))),
-      DESCRIPCION: productosLabel(r),
-      OPERACION: safeText(pick(r, ["operacion"], "")),
+      TIPO: getMovimientoTipoLabel(r),
+      DESCRIPCION: detallesLabel(r),
       "CLIENTE/PROVEEDOR": clienteProveedorLabel(r),
       MONTO: numOrZero(total),
     };
@@ -833,7 +859,9 @@ export default function Movimientos() {
         modulos.includes("ventas") ||
         modulos.includes("compras") ||
         modulos.includes("recibos") ||
-        modulos.includes("ordenes_pago");
+        modulos.includes("ordenes_pago") ||
+        modulos.includes("presupuestos") ||
+        modulos.includes("documentos_comerciales");
 
       if (!afectaMovimientos) return;
 
@@ -1000,28 +1028,28 @@ export default function Movimientos() {
         key: "fecha",
         label: "FECHA",
         align: "left",
-        fr: 1.1,
+        fr: 1.0,
         render: (r) => safeText(formatFechaDMY(pick(r, ["fecha", "created_at"], ""))),
+      },
+      {
+        key: "tipo",
+        label: "TIPO",
+        align: "left",
+        fr: 1.25,
+        render: (r) => getMovimientoTipoLabel(r),
       },
       {
         key: "descripcion",
         label: "DESCRIPCIÓN",
         align: "left",
-        fr: 2.2,
-        render: (r) => productosLabel(r),
-      },
-      {
-        key: "operacion",
-        label: "OPERACIÓN",
-        align: "center",
-        fr: 1.3,
-        render: (r) => safeText(pick(r, ["operacion"], "")),
+        fr: 2.0,
+        render: (r) => detallesLabel(r),
       },
       {
         key: "tercero",
         label: "CLIENTE/PROVEEDOR",
         align: "left",
-        fr: 1.8,
+        fr: 2.0,
         render: (r) => clienteProveedorLabel(r),
       },
       {
@@ -1084,8 +1112,8 @@ export default function Movimientos() {
       return [
         `REGISTRO ${index + 1}`,
         `FECHA: ${row.FECHA ?? ""}`,
+        `TIPO: ${row.TIPO ?? ""}`,
         `DESCRIPCION: ${row.DESCRIPCION ?? ""}`,
-        `OPERACION: ${row.OPERACION ?? ""}`,
         `CLIENTE/PROVEEDOR: ${row["CLIENTE/PROVEEDOR"] ?? ""}`,
         `MONTO: ${row.MONTO ?? ""}`,
         "----------------------------------------",
@@ -1136,8 +1164,8 @@ export default function Movimientos() {
   const skelWidths = useMemo(
     () => ({
       fecha: ["55%", "48%", "52%", "46%"],
+      tipo: ["72%", "62%", "68%", "58%"],
       descripcion: ["72%", "58%", "66%", "48%"],
-      operacion: ["44%", "34%", "40%", "30%"],
       tercero: ["62%", "54%", "46%", "58%"],
       monto: ["38%", "30%", "34%", "28%"],
       acciones: ["34%", "30%", "38%", "32%"],
@@ -1228,7 +1256,7 @@ export default function Movimientos() {
             <div className="title-mov">
               <div className="mov-card__title">Movimientos</div>
               <div className="mov-card__hint">
-                Mostrando <b>{filteredRows.length}</b> registros
+                Mostrando <b>{filteredRows.length}</b> movimientos
                 {hasMore ? " (hay más por cargar)" : ""}
               </div>
             </div>
@@ -1296,7 +1324,7 @@ export default function Movimientos() {
                               } catch {}
                             }
                           }}
-                          placeholder="Buscar por descripción, operación, cliente, proveedor..."
+                          placeholder="Buscar por descripción, cliente, proveedor, medio de pago..."
                           disabled={loadingListsCtx || loadingMore}
                           autoComplete="off"
                         />

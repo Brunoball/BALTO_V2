@@ -77,6 +77,80 @@ function formatNumber(value) {
   });
 }
 
+function firstText(...values) {
+  for (const value of values) {
+    const s = String(value ?? "").trim();
+    if (s) return s;
+  }
+  return "";
+}
+
+function toFiniteNumber(value) {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getChequeNumero(medio) {
+  return firstText(
+    medio?.cheque_numero,
+    medio?.numero_cheque,
+    medio?.cheque?.numero_cheque,
+    medio?.cheque?.numero,
+    medio?.id_cheque
+  );
+}
+
+function getChequeEmisor(medio) {
+  return firstText(medio?.cheque_emisor, medio?.emisor, medio?.cheque?.emisor);
+}
+
+function getChequeFechaEmision(medio) {
+  return firstText(medio?.cheque_fecha_emision, medio?.fecha_emision, medio?.cheque?.fecha_emision);
+}
+
+function getChequeFechaPago(medio) {
+  return firstText(
+    medio?.cheque_fecha_pago,
+    medio?.cheque_fecha_vencimiento,
+    medio?.cheque?.fecha_pago,
+    medio?.cheque?.fecha_vencimiento,
+    medio?.fecha_vencimiento,
+    medio?.fecha_pago
+  );
+}
+
+function getChequeImporteReal(medio) {
+  const candidates = [
+    medio?.cheque_importe,
+    medio?.importe_cheque,
+    medio?.cheque?.importe,
+    medio?.cheque_monto,
+  ];
+
+  for (const value of candidates) {
+    const n = toFiniteNumber(value);
+    if (n > 0) return n;
+  }
+
+  return toFiniteNumber(medio?.monto);
+}
+
+function getMedioMontoAplicado(medio) {
+  const n = toFiniteNumber(medio?.monto_aplicado ?? medio?.monto);
+  return n > 0 ? n : 0;
+}
+
+function getMedioMontoVisible(medio) {
+  return medio?.id_cheque ? getChequeImporteReal(medio) : getMedioMontoAplicado(medio);
+}
+
+function shouldShowMontoAplicado(medio) {
+  if (!medio?.id_cheque) return false;
+  const aplicado = getMedioMontoAplicado(medio);
+  const real = getChequeImporteReal(medio);
+  return aplicado > 0 && real > 0 && Math.abs(real - aplicado) > 0.009;
+}
+
 function InfoPill({ label, value, strong = false }) {
   return (
     <div className="mdm-info-pill">
@@ -192,7 +266,7 @@ export default function ModalDetalleMovimiento({
   const totalItems = resumenItems.total;
 
   const totalMedios = useMemo(
-    () => medios.reduce((acc, item) => acc + Number(item?.monto || 0), 0),
+    () => medios.reduce((acc, item) => acc + getMedioMontoVisible(item), 0),
     [medios]
   );
 
@@ -369,19 +443,22 @@ export default function ModalDetalleMovimiento({
                           <span className="mdm-medio-card__sub">
                             {medio?.id_cheque
                               ? `${safeText(medio?.cheque_tipo)} · cheque #${safeText(
-                                  medio?.numero_cheque || medio?.id_cheque
+                                  getChequeNumero(medio)
                                 )}`
                               : "Pago registrado"}
                           </span>
-                          <span className="mdm-medio-card__amount">{moneyARS(medio?.monto)}</span>
+                          <span className="mdm-medio-card__amount">{moneyARS(getMedioMontoVisible(medio))}</span>
                         </span>
                       </div>
 
                       {medio?.id_cheque ? (
                         <div className="mdm-cheque-extra">
-                          <span>Emisor: {safeText(medio?.emisor)}</span>
-                          <span>F. emisión: {formatFechaDMY(medio?.fecha_emision)}</span>
-                          <span>F. pago: {formatFechaDMY(medio?.fecha_pago)}</span>
+                          <span>Emisor: {safeText(getChequeEmisor(medio))}</span>
+                          <span>F. emisión: {formatFechaDMY(getChequeFechaEmision(medio))}</span>
+                          <span>F. pago: {formatFechaDMY(getChequeFechaPago(medio))}</span>
+                          {shouldShowMontoAplicado(medio) ? (
+                            <span>Aplicado al movimiento: {moneyARS(getMedioMontoAplicado(medio))}</span>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>

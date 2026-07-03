@@ -1099,10 +1099,12 @@ export default function ModalEditarIngreso({
       }
     }
 
-    if (sumaMediosPago > totalGeneral + 0.05 && totalGeneral > 0)
+    // Otros ingresos es contado: debe quedar cobrado como mínimo por el total.
+    // Se permite superar el total cuando el usuario usa un cheque/eCheq de mayor importe.
+    if (sumaMediosPago + 0.05 < totalGeneral && totalGeneral > 0)
       return {
         ok: false,
-        msg: `La suma de los medios de pago (${moneyARS(sumaMediosPago)}) no puede superar el total del ingreso (${moneyARS(totalGeneral)}).`,
+        msg: `La suma de los medios de pago (${moneyARS(sumaMediosPago)}) debe cubrir el total del ingreso (${moneyARS(totalGeneral)}).`,
       };
 
     const items = (form.items || [])
@@ -1157,13 +1159,31 @@ export default function ModalEditarIngreso({
         monto_total: sumTotalItems(items),
         medios_pago: (form.medios || [])
           .filter((mp) => Number(mp.id_medio_pago || 0) > 0 && safeNumber(mp.cheque?.importe ?? mp.monto) > 0)
-          .map((mp) => ({
-            id_movimiento_medio_pago: mp.id_movimiento_medio_pago || null,
-            id_medio_pago: Number(mp.id_medio_pago || 0),
-            monto: safeNumber(mp.cheque?.importe ?? mp.monto),
-            id_cheque: mp.id_cheque || null,
-            cheque_tipo: mp.cheque?.tipo_cheque || null,
-          })),
+          .map((mp) => {
+            const cheque = mp.cheque && !Number(mp.id_cheque || mp.cheque?.id_cheque || 0)
+              ? {
+                  tipo: mp.cheque.tipo || mp.cheque.tipo_cheque || mp.cheque.cheque_tipo || null,
+                  fecha_emision: mp.cheque.fecha_emision || null,
+                  emisor: mp.cheque.emisor || "",
+                  numero_cheque: mp.cheque.numero_cheque || "",
+                  importe: safeNumber(mp.cheque.importe),
+                  fecha_pago: mp.cheque.fecha_pago || null,
+                  observaciones: mp.cheque.observaciones || "",
+                  archivo_nombre:
+                    mp.cheque.archivo_nombre ||
+                    (mp.cheque.archivo instanceof File ? mp.cheque.archivo.name : ""),
+                }
+              : null;
+            return {
+              frontend_row_uid: mp.id,
+              id_movimiento_medio_pago: mp.id_movimiento_medio_pago || null,
+              id_medio_pago: Number(mp.id_medio_pago || 0),
+              monto: safeNumber(mp.cheque?.importe ?? mp.monto),
+              id_cheque: mp.id_cheque || mp.cheque?.id_cheque || null,
+              cheque_tipo: mp.cheque?.tipo || mp.cheque?.tipo_cheque || mp.cheque?.cheque_tipo || null,
+              ...(cheque ? { cheque } : {}),
+            };
+          }),
         items,
       };
 

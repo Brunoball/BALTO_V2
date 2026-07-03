@@ -34,7 +34,7 @@ import * as XLSX from "xlsx";
 import { useListas } from "../../../context/ListasContext.jsx";
 import { useDateRange } from "../../../context/DateRangeContext";
 import { readMovPerfCache, writeMovPerfCache, clearMovPerfCache } from "../_shared/performanceCache.js";
-import { getDetalleMovimiento } from "../_shared/detalleMovimiento.js";
+import { getResumenProductosMovimiento } from "../_shared/detalleMovimiento.js";
 
 const MIN_LOADING_MS = 0;
 const FORCE_SHOW_LOADER_DEV = false;
@@ -44,11 +44,12 @@ const SKELETON_ROWS = 10;
 const LIVE_POLL_MS = 5000;
 const PREWARM_BATCH_SIZE = 8;
 const PREWARM_DELAY_MS = 60;
+const VENTAS_LIST_CACHE_KEY = "ventas:listar:cc-medios-r2-v5";
 
 function moneyARS(v) { const n = Number(v || 0); try { return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" }); } catch { return `$${n.toFixed(2)}`; } }
 function safeText(v) { const s = String(v ?? "").trim(); return s ? s : "—"; }
 function productosLabel(row) {
-  return getDetalleMovimiento(row);
+  return getResumenProductosMovimiento(row);
 }
 function normalizeSearchText(v) { return String(v ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim(); }
 function formatFechaDMY(v) {
@@ -106,24 +107,100 @@ function getRowKey(r) {
   const m = String(Number(r?.monto_total ?? r?.total ?? r?.total_general ?? 0) || 0);
   return `fx:${f}|${c}|${d}|${m}`;
 }
-function getFacturaIdComprobante(row) { const n = Number(row?.factura_id_comprobante ?? row?.id_comprobante ?? row?.comprobante_id ?? 0); return Number.isFinite(n) && n > 0 ? n : null; }
+function normalizeComprobanteDocs(row) {
+  const arr = Array.isArray(row?.comprobantes_detalle) ? row.comprobantes_detalle : [];
+  return arr
+    .map((doc) => {
+      const id = Number(doc?.id_comprobante ?? doc?.id_archivo ?? doc?.id ?? 0);
+      if (!Number.isFinite(id) || id <= 0) return null;
+      const tipo = String(doc?.tipo ?? doc?.comprobante_tipo ?? "").trim().toUpperCase();
+      const key = String(doc?.key ?? "").trim().toLowerCase();
+      const label = String(doc?.label ?? doc?.title ?? (tipo === "REMITO" ? "Remito" : tipo === "VENTA_NO_FACTURADA" ? "Venta no facturada" : "Factura")).trim();
+      return {
+        ...doc,
+        id_comprobante: id,
+        id_archivo: id,
+        tipo,
+        key: key || (tipo === "REMITO" ? "remito" : "factura"),
+        label,
+        title: String(doc?.title ?? label).trim() || label,
+        mime: String(doc?.mime ?? doc?.archivo_mime ?? "application/pdf").trim() || "application/pdf",
+        archivo_path: String(doc?.archivo_path ?? "").trim(),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      const rank = (d) => {
+        if (String(d?.tipo || "").toUpperCase() === "REMITO" || String(d?.key || "").toLowerCase() === "remito") return 2;
+        return 1;
+      };
+      const ra = rank(a), rb = rank(b);
+      if (ra !== rb) return ra - rb;
+      return Number(a.id_comprobante || 0) - Number(b.id_comprobante || 0);
+    });
+}
+function getFacturaDoc(row) {
+  const docs = normalizeComprobanteDocs(row);
+  return docs.find((d) => ["VENTA_NO_FACTURADA", "FACTURA_INTERNA", "FACTURA", "FACTURA_FISCAL"].includes(String(d?.tipo || "").toUpperCase()) || String(d?.key || "").toLowerCase().includes("factura")) || null;
+}
+function getRemitoDoc(row) {
+  const docs = normalizeComprobanteDocs(row);
+  return docs.find((d) => String(d?.tipo || "").toUpperCase() === "REMITO" || String(d?.key || "").toLowerCase() === "remito") || null;
+}
+function getFacturaIdComprobante(row) { const doc = getFacturaDoc(row); const n = Number(doc?.id_comprobante ?? row?.factura_id_comprobante ?? row?.id_comprobante ?? row?.comprobante_id ?? 0); return Number.isFinite(n) && n > 0 ? n : null; }
 function getFacturaMime(row) {
+  const doc = getFacturaDoc(row);
   return String(
     row?.factura_comprobante_mime ??
+      doc?.mime ??
+      doc?.archivo_mime ??
       row?.archivo_mime ??
       row?.comprobante_mime ??
       row?.mime_type ??
       row?.content_type ??
-      ""
+      "application/pdf"
   ).trim();
 }
-function getRemitoIdComprobante(row) { const n = Number(row?.remito_id_comprobante ?? row?.id_comprobante_remito ?? row?.remito_comprobante_id ?? 0); return Number.isFinite(n) && n > 0 ? n : null; }
+function getRemitoIdComprobante(row) { const doc = getRemitoDoc(row); const n = Number(doc?.id_comprobante ?? row?.remito_id_comprobante ?? row?.id_comprobante_remito ?? row?.remito_comprobante_id ?? 0); return Number.isFinite(n) && n > 0 ? n : null; }
 function getRemitoMime(row) {
+  const doc = getRemitoDoc(row);
   return String(
     row?.remito_comprobante_mime ??
+      doc?.mime ??
+      doc?.archivo_mime ??
       row?.remito_mime ??
-      ""
+      "application/pdf"
   ).trim();
+}
+function getComprobanteCacheSalt(doc) {
+  return String(doc?.archivo_path ?? doc?.tipo ?? doc?.key ?? doc?.id_comprobante ?? "").trim();
+}
+function buildComprobanteCandidatesFromRow(row) {
+  const docsDetalle = normalizeComprobanteDocs(row);
+  if (docsDetalle.length) {
+    return docsDetalle.map((doc) => ({
+      key: `${doc.key || doc.tipo || "archivo"}-${doc.id_comprobante}`,
+      label: doc.label || (doc.tipo === "REMITO" ? "Remito" : "Factura"),
+      title: doc.title || doc.label || "Comprobante",
+      id_comprobante: doc.id_comprobante,
+      mime: doc.mime || doc.archivo_mime || "application/pdf",
+      fileName: `${String(doc.label || doc.tipo || "comprobante").toLowerCase().replace(/\s+/g, "_")}.pdf`,
+      cacheSalt: getComprobanteCacheSalt(doc),
+    }));
+  }
+
+  const facturaId = getFacturaIdComprobante(row);
+  const remitoId = getRemitoIdComprobante(row);
+  const facturaTipo = String(row?.factura_comprobante_tipo || "").toUpperCase();
+  const facturaLabel = facturaTipo === "VENTA_NO_FACTURADA" ? "Venta no facturada" : "Factura";
+  const candidates = [];
+  if (facturaId) {
+    candidates.push({ key: `factura-${facturaId}`, label: facturaLabel, title: facturaLabel, id_comprobante: facturaId, mime: getFacturaMime(row) || "application/pdf", fileName: `${facturaLabel.toLowerCase().replace(/\s+/g, "_")}.pdf`, cacheSalt: String(row?.factura_comprobante_path ?? facturaTipo ?? facturaId) });
+  }
+  if (remitoId) {
+    candidates.push({ key: `remito-${remitoId}`, label: "Remito", title: "Remito", id_comprobante: remitoId, mime: getRemitoMime(row) || "application/pdf", fileName: "remito.pdf", cacheSalt: String(row?.remito_comprobante_path ?? "REMITO") });
+  }
+  return candidates;
 }
 function hasCliente(r) { const idCli = Number(r?.id_cliente ?? 0); if (Number.isFinite(idCli) && idCli > 0) return true; return String(r?.cliente ?? "").trim().length > 0; }
 function hasTipoVentaText(r) { return String(r?.pago_tipo_venta ?? r?.tipo_venta ?? "").trim().length > 0; }
@@ -146,6 +223,7 @@ function normalizeVentaRow(r) {
   const tipoVentaTxt = r?.pago_tipo_venta ?? r?.tipo_venta ?? "";
   const medioPagoNombre = r?.medio_pago_nombre ?? r?.medio_pago ?? r?.pago_medio_pago ?? "";
   const idMov = getMovimientoId(r);
+  const docsDetalle = normalizeComprobanteDocs(r);
   const facturaId = getFacturaIdComprobante(r);
   const facturaMime = getFacturaMime(r);
   const facturaTipo = String(r?.factura_comprobante_tipo ?? r?.comprobante_tipo ?? r?.tipo_comprobante ?? "").trim();
@@ -178,6 +256,7 @@ function normalizeVentaRow(r) {
     medios_pago_detalle: Array.isArray(r?.medios_pago_detalle) ? r.medios_pago_detalle : [],
     cantidad_items: Number(r?.cantidad_items || 0),
     items_detalle: Array.isArray(r?.items_detalle) ? r.items_detalle : [],
+    comprobantes_detalle: docsDetalle,
   };
 }
 function rowMatchesQuery(row, query) {
@@ -245,14 +324,17 @@ export default function Ventas() {
   const liveTokenRef = useRef(null);
   const liveToastCooldownRef = useRef(0);
   useEffect(() => () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); if (liveTimerRef.current) clearTimeout(liveTimerRef.current); prewarmCancelRef.current = true; }, []);
+  useEffect(() => {
+    ["ventas:listar:cc-medios-v2", "ventas:listar:cc-medios-v3", "ventas:listar:cc-medios-r2-v4"].forEach((key) => clearMovPerfCache(key));
+  }, []);
   const buildHeadersGET = useCallback(() => { const { token, sessionKey } = getAuthInfo(); const h = {}; if (sessionKey) h["X-Session"] = sessionKey; if (token) h.Authorization = `Bearer ${token}`; return h; }, []);
   const buildHeadersPOST = useCallback(() => { const { token, sessionKey } = getAuthInfo(); const h = { "Content-Type": "application/json" }; if (sessionKey) h["X-Session"] = sessionKey; if (token) h.Authorization = `Bearer ${token}`; return h; }, []);
   const parseJsonOrThrow = useCallback(async (res) => { const text = await res.text(); if (!text) throw new Error("Respuesta vacía del servidor."); try { return JSON.parse(text); } catch { const preview = text.length > 600 ? text.slice(0, 600) + "..." : text; throw new Error(`Respuesta inválida (no es JSON). HTTP ${res.status}\n${preview}`); } }, []);
   const apiGet = useCallback(async (url) => { const res = await fetch(url, { method: "GET", headers: buildHeadersGET() }); return await parseJsonOrThrow(res); }, [buildHeadersGET, parseJsonOrThrow]);
   const apiPostJson = useCallback(async (url, payload) => { const res = await fetch(url, { method: "POST", headers: buildHeadersPOST(), body: JSON.stringify(payload ?? {}) }); return await parseJsonOrThrow(res); }, [buildHeadersPOST, parseJsonOrThrow]);
-  const getComprobanteSignedUrl = useCallback(async (idComprobante) => {
+  const getComprobanteSignedUrl = useCallback(async (idComprobante, cacheSalt = "") => {
     const id = Number(idComprobante || 0); if (!id) return "";
-    const cacheKey = String(id);
+    const cacheKey = `${id}:${String(cacheSalt || "")}`;
     if (signedUrlCacheRef.current.has(cacheKey)) return signedUrlCacheRef.current.get(cacheKey) || "";
     if (signedUrlInFlightRef.current.has(cacheKey)) {
       return await new Promise((resolve, reject) => {
@@ -265,7 +347,7 @@ export default function Ventas() {
     }
     signedUrlInFlightRef.current.add(cacheKey);
     try {
-      const sp = new URLSearchParams(); sp.set("action", "ventas_comprobantes_descargar"); sp.set("id_comprobante", String(id));
+      const sp = new URLSearchParams(); sp.set("action", "ventas_comprobantes_descargar"); sp.set("id_comprobante", String(id)); sp.set("_", String(Date.now()));
       const data = await apiGet(`${API}?${sp.toString()}`);
       if (!data?.exito) throw new Error(data?.mensaje || "No se pudo obtener el comprobante.");
       const finalUrl = String(data?.url || "").trim(); if (!finalUrl) throw new Error("El backend no devolvió la URL del comprobante.");
@@ -274,20 +356,21 @@ export default function Ventas() {
   }, [API, apiGet]);
   const prewarmAllComprobantes = useCallback(async (rowsToWarm) => {
     prewarmCancelRef.current = true; await new Promise((r) => setTimeout(r, 0)); prewarmCancelRef.current = false;
-    const ids = [];
+    const docs = [];
     for (const row of rowsToWarm) {
-      const facturaId = getFacturaIdComprobante(row);
-      const remitoId = getRemitoIdComprobante(row);
-      if (facturaId && !signedUrlCacheRef.current.has(String(facturaId))) ids.push(facturaId);
-      if (remitoId && !signedUrlCacheRef.current.has(String(remitoId))) ids.push(remitoId);
+      for (const doc of buildComprobanteCandidatesFromRow(row)) {
+        const cacheKey = `${doc.id_comprobante}:${String(doc.cacheSalt || "")}`;
+        if (doc.id_comprobante && !signedUrlCacheRef.current.has(cacheKey)) docs.push(doc);
+      }
     }
-    const uniqueIds = Array.from(new Set(ids));
-    if (!uniqueIds.length) return;
-    for (let i = 0; i < uniqueIds.length; i += PREWARM_BATCH_SIZE) {
+    const seen = new Set();
+    const uniqueDocs = docs.filter((doc) => { const k = `${doc.id_comprobante}:${String(doc.cacheSalt || "")}`; if (seen.has(k)) return false; seen.add(k); return true; });
+    if (!uniqueDocs.length) return;
+    for (let i = 0; i < uniqueDocs.length; i += PREWARM_BATCH_SIZE) {
       if (prewarmCancelRef.current) return;
-      const batch = uniqueIds.slice(i, i + PREWARM_BATCH_SIZE);
-      await Promise.allSettled(batch.map((id) => getComprobanteSignedUrl(id).catch(() => {})));
-      if (i + PREWARM_BATCH_SIZE < uniqueIds.length && !prewarmCancelRef.current) await new Promise((r) => setTimeout(r, PREWARM_DELAY_MS));
+      const batch = uniqueDocs.slice(i, i + PREWARM_BATCH_SIZE);
+      await Promise.allSettled(batch.map((doc) => getComprobanteSignedUrl(doc.id_comprobante, doc.cacheSalt).catch(() => {})));
+      if (i + PREWARM_BATCH_SIZE < uniqueDocs.length && !prewarmCancelRef.current) await new Promise((r) => setTimeout(r, PREWARM_DELAY_MS));
     }
   }, [getComprobanteSignedUrl]);
   const refreshPeriodos = useCallback(async () => { try { await refreshLists(); } catch {} }, [refreshLists]);
@@ -309,7 +392,7 @@ export default function Ventas() {
     const fromAPI = dateToAPI(fromDate); const toAPI = dateToAPI(toDate); const qKey = (qLocal || "").trim();
     const cacheKey = `${fromAPI}|${toAPI}|${qKey}`; const myReqId = ++reqIdRef.current; const start = Date.now();
     if (!bypassCache && !append && offset === 0 && !cacheRef.current.has(cacheKey)) {
-      const persisted = readMovPerfCache("ventas:listar:cc-medios-v2", cacheKey);
+      const persisted = readMovPerfCache(VENTAS_LIST_CACHE_KEY, cacheKey);
       if (persisted?.rows) cacheRef.current.set(cacheKey, persisted);
     }
     if (!append) { rowsReqIdRef.current = myReqId; setLoadingRows(true); } else { moreReqIdRef.current = myReqId; setLoadingMore(true); }
@@ -344,7 +427,7 @@ export default function Ventas() {
             rowsRef.current = page; setRows(page); setHasMore(newHasMore); setNextOffset(newNextOffset); if (offset === 0) {
               const cachePayload = { rows: page, hasMore: newHasMore, nextOffset: newNextOffset };
               cacheRef.current.set(cacheKey, cachePayload);
-              writeMovPerfCache("ventas:listar:cc-medios-v2", cacheKey, cachePayload);
+              writeMovPerfCache(VENTAS_LIST_CACHE_KEY, cacheKey, cachePayload);
             } if (rowsReqIdRef.current === myReqId) setLoadingRows(false); prewarmAllComprobantes(page);
           }
           resolve({ hasMore: newHasMore, nextOffset: newNextOffset, received: page.length });
@@ -377,7 +460,7 @@ export default function Ventas() {
   }, [q, dateRange]); // eslint-disable-line
   const handleDateRangeChange = useCallback(async (newRange) => {
     if (!newRange.from && !newRange.to) return;
-    setDateRange(newRange); cacheRef.current.clear(); clearMovPerfCache("ventas:listar:cc-medios-v2"); skipSearchRef.current = true; liveTokenRef.current = null; if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    setDateRange(newRange); cacheRef.current.clear(); clearMovPerfCache(VENTAS_LIST_CACHE_KEY); skipSearchRef.current = true; liveTokenRef.current = null; if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     await loadRows({ from: newRange.from, to: newRange.to, q, offset: 0, append: false });
     try { const token = await fetchLiveToken(newRange.from, newRange.to, q); liveTokenRef.current = token; } catch {}
   }, [setDateRange, loadRows, q, fetchLiveToken]);
@@ -428,37 +511,11 @@ export default function Ventas() {
     { key: "csv", label: "Exportar CSV (.csv)", onClick: () => handleExport("csv") },
     { key: "txt", label: "Exportar TXT (.txt)", onClick: () => handleExport("txt") },
   ], [handleExport]);
-  const reloadVista = useCallback(async () => { cacheRef.current.clear(); clearMovPerfCache("ventas:listar:cc-medios-v2"); signedUrlCacheRef.current.clear(); signedUrlInFlightRef.current.clear(); await loadRows({ from: dateRange.from, to: dateRange.to, q, offset: 0, append: false, bypassCache: true }); try { const token = await fetchLiveToken(dateRange.from, dateRange.to, q); liveTokenRef.current = token; } catch {} }, [dateRange.from, dateRange.to, loadRows, q, fetchLiveToken]);
-  const confirmDelete = async () => { if (!selectedRow?.id_movimiento) return; const id = selectedRow.id_movimiento; setDeletingId(id); setError(""); try { const { idUsuario } = getAuthInfo(); const sp = new URLSearchParams(); sp.set("action", "ventas_eliminar"); sp.set("id_movimiento", String(id)); const data = await apiPostJson(`${API}?${sp.toString()}`, { idUsuario }); if (!data?.exito) throw new Error(data?.mensaje || "No se pudo eliminar."); setOpenDel(false); setSelectedRow(null); await reloadVista(); await refreshPeriodos(); } catch (e) { setError(e.message || "Error eliminando venta."); throw e; } finally { setDeletingId(null); } };
+  const reloadVista = useCallback(async () => { cacheRef.current.clear(); clearMovPerfCache(VENTAS_LIST_CACHE_KEY); signedUrlCacheRef.current.clear(); signedUrlInFlightRef.current.clear(); await loadRows({ from: dateRange.from, to: dateRange.to, q, offset: 0, append: false, bypassCache: true }); try { const token = await fetchLiveToken(dateRange.from, dateRange.to, q); liveTokenRef.current = token; } catch {} }, [dateRange.from, dateRange.to, loadRows, q, fetchLiveToken]);
+  const confirmDelete = async () => { if (!selectedRow?.id_movimiento) return; const id = selectedRow.id_movimiento; setDeletingId(id); setError(""); try { const { idUsuario } = getAuthInfo(); const sp = new URLSearchParams(); sp.set("action", "ventas_eliminar"); sp.set("id_movimiento", String(id)); const data = await apiPostJson(`${API}?${sp.toString()}`, { idUsuario }); if (!data?.exito) throw new Error(data?.mensaje || "No se pudo eliminar."); ["presupuestos:listar:v2", "presupuestos:listar:v3"].forEach((scope) => clearMovPerfCache(scope)); setOpenDel(false); setSelectedRow(null); await reloadVista(); await refreshPeriodos(); } catch (e) { setError(e.message || "Error eliminando venta."); throw e; } finally { setDeletingId(null); } };
   const handleLoadMore = useCallback(async () => { if (!hasMore || loadingMore || loadingRows || loadingListsCtx || nextOffset === null) return; try { await loadRows({ from: dateRange.from, to: dateRange.to, q: (q || "").trim(), offset: nextOffset, append: true }); try { const token = await fetchLiveToken(dateRange.from, dateRange.to, q); liveTokenRef.current = token; } catch {} } catch (e) { showToast("error", e?.message || "Error cargando más ventas.", 4200); } }, [hasMore, loadingMore, loadingRows, loadingListsCtx, nextOffset, dateRange, q, loadRows, showToast, fetchLiveToken]);
   const handleVerComprobante = useCallback(async (r) => {
-    const facturaId = getFacturaIdComprobante(r);
-    const remitoId = getRemitoIdComprobante(r);
-
-    const facturaTipo = String(r?.factura_comprobante_tipo || "").toUpperCase();
-    const facturaLabel = facturaTipo === "VENTA_NO_FACTURADA" ? "Venta no facturada" : "Factura";
-
-    const candidates = [];
-    if (facturaId) {
-      candidates.push({
-        key: "factura",
-        label: facturaLabel,
-        title: facturaLabel,
-        id_comprobante: facturaId,
-        mime: getFacturaMime(r) || "application/pdf",
-        fileName: `${facturaLabel.toLowerCase().replace(/\s+/g, "_")}.pdf`,
-      });
-    }
-    if (remitoId) {
-      candidates.push({
-        key: "remito",
-        label: "Remito",
-        title: "Remito",
-        id_comprobante: remitoId,
-        mime: getRemitoMime(r) || "application/pdf",
-        fileName: "remito.pdf",
-      });
-    }
+    const candidates = buildComprobanteCandidatesFromRow(r);
 
     if (!candidates.length) {
       showToast("error", "No se encontraron comprobantes para esta venta.", 3000);
@@ -470,7 +527,7 @@ export default function Ventas() {
         await Promise.all(
           candidates.map(async (doc) => ({
             ...doc,
-            url: await getComprobanteSignedUrl(doc.id_comprobante),
+            url: await getComprobanteSignedUrl(doc.id_comprobante, doc.cacheSalt),
           }))
         )
       ).filter((doc) => String(doc.url || "").trim());
@@ -489,8 +546,7 @@ export default function Ventas() {
     }
   }, [getComprobanteSignedUrl, showToast]);
   const handlePrewarmComprobante = useCallback(async (r) => {
-    const ids = [getFacturaIdComprobante(r), getRemitoIdComprobante(r)].filter(Boolean);
-    ids.forEach((idComprobante) => getComprobanteSignedUrl(idComprobante).catch(() => {}));
+    buildComprobanteCandidatesFromRow(r).forEach((doc) => getComprobanteSignedUrl(doc.id_comprobante, doc.cacheSalt).catch(() => {}));
   }, [getComprobanteSignedUrl]);
   const requiereNC = useMemo(() => Number(selectedRow?.factura_emitida_en_arca || 0) === 1 && Number(selectedRow?.factura_tiene_nota_credito || 0) !== 1, [selectedRow]);
   const yaTieneNC = useMemo(() => Number(selectedRow?.factura_emitida_en_arca || 0) === 1 && Number(selectedRow?.factura_tiene_nota_credito || 0) === 1, [selectedRow]);

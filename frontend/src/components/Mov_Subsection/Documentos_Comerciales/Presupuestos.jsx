@@ -81,7 +81,8 @@ const PAGE_SIZE = 100;
 const PROBE_LIMIT = PAGE_SIZE + 1;
 const SKELETON_ROWS = 10;
 const LIVE_POLL_MS = 6000;
-const PRESUPUESTOS_CACHE_NS = "presupuestos:listar:v2";
+const PRESUPUESTOS_CACHE_NS = "presupuestos:listar:v3";
+const PRESUPUESTOS_CACHE_OLD_NS = ["presupuestos:listar:v2"];
 
 function moneyARS(v) {
   const n = Number(v || 0);
@@ -569,18 +570,18 @@ export default function Presupuestos() {
     return String(data?.token || "");
   }, [API, apiGet]);
 
-  const loadRows = useCallback(async ({ from = dateRange.from, to = dateRange.to, query = q, offset = 0, append = false } = {}) => {
+  const loadRows = useCallback(async ({ from = dateRange.from, to = dateRange.to, query = q, offset = 0, append = false, bypassCache = false } = {}) => {
     const fromAPI = dateToAPI(from);
     const toAPI = dateToAPI(to);
     const qKey = String(query || "").trim();
     const cacheKey = `${fromAPI}|${toAPI}|${qKey}`;
 
-    if (!append && offset === 0 && !cacheRef.current.has(cacheKey)) {
+    if (!bypassCache && !append && offset === 0 && !cacheRef.current.has(cacheKey)) {
       const persisted = readMovPerfCache(PRESUPUESTOS_CACHE_NS, cacheKey);
       if (persisted?.rows) cacheRef.current.set(cacheKey, persisted);
     }
 
-    if (!append && offset === 0 && cacheRef.current.has(cacheKey)) {
+    if (!bypassCache && !append && offset === 0 && cacheRef.current.has(cacheKey)) {
       const cached = cacheRef.current.get(cacheKey);
       const cachedRows = Array.isArray(cached?.rows) ? cached.rows : [];
       setRows(cachedRows);
@@ -632,6 +633,7 @@ export default function Presupuestos() {
         await ensureListsLoaded?.({ force: false, background: true });
       } catch {}
       if (!alive) return;
+      PRESUPUESTOS_CACHE_OLD_NS.forEach((scope) => clearMovPerfCache(scope));
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -644,7 +646,7 @@ export default function Presupuestos() {
     const delay = queryChanged ? 300 : 0;
 
     searchTimerRef.current = setTimeout(async () => {
-      await loadRows({ from: dateRange.from, to: dateRange.to, query: q, offset: 0, append: false });
+      await loadRows({ from: dateRange.from, to: dateRange.to, query: q, offset: 0, append: false, bypassCache: true });
       hasLoadedRowsRef.current = true;
       lastQueryRef.current = q;
       try { liveTokenRef.current = await fetchLiveToken(dateRange.from, dateRange.to, q); } catch {}
@@ -663,7 +665,7 @@ export default function Presupuestos() {
         const token = await fetchLiveToken(dateRange.from, dateRange.to, q);
         if (!cancelled && token && liveTokenRef.current && token !== liveTokenRef.current) {
           liveTokenRef.current = token;
-          await loadRows({ from: dateRange.from, to: dateRange.to, query: q, offset: 0, append: false });
+          await loadRows({ from: dateRange.from, to: dateRange.to, query: q, offset: 0, append: false, bypassCache: true });
         } else if (!cancelled && token && !liveTokenRef.current) {
           liveTokenRef.current = token;
         }
@@ -686,7 +688,7 @@ export default function Presupuestos() {
     cacheRef.current.clear();
     clearMovPerfCache(PRESUPUESTOS_CACHE_NS);
     signedUrlCacheRef.current.clear();
-    await loadRows({ from: dateRange.from, to: dateRange.to, query: q, offset: 0, append: false });
+    await loadRows({ from: dateRange.from, to: dateRange.to, query: q, offset: 0, append: false, bypassCache: true });
     try { liveTokenRef.current = await fetchLiveToken(dateRange.from, dateRange.to, q); } catch {}
   }, [dateRange.from, dateRange.to, fetchLiveToken, loadRows, q]);
 
@@ -1273,7 +1275,12 @@ export default function Presupuestos() {
         onSaved={async (data) => {
           // La conversión presupuesto → venta crea un movimiento nuevo fuera de la sección Ventas.
           // Invalidamos el cache persistente de Ventas para que aparezca al primer ingreso.
-          clearMovPerfCache("ventas:listar:cc-medios-v2");
+          [
+            "ventas:listar:cc-medios-v2",
+            "ventas:listar:cc-medios-v3",
+            "ventas:listar:cc-medios-r2-v4",
+            "ventas:listar:cc-medios-r2-v5",
+          ].forEach((scope) => clearMovPerfCache(scope));
           const idVenta = Number(data?.id_venta || data?.id_movimiento || data?.ids?.[0] || data?.ids_movimiento?.[0] || 0);
           if (selectedRow?.id_movimiento && idVenta) {
             marcarPresupuestoConvertido(selectedRow.id_movimiento, idVenta, data?.conversion?.fecha_conversion || "");

@@ -215,6 +215,7 @@ export default function ModalOrdenPagoGenerada({
   title = "Orden de Pago",
   onToast,
   idsMovimientos = [],
+  idsPagos = [],
   idCobro = null,
 }) {
   const firstFocusRef = useRef(null);
@@ -248,6 +249,13 @@ export default function ModalOrdenPagoGenerada({
       .filter((x) => Number.isFinite(x) && x > 0);
   }, [idsMovimientos]);
 
+  const idsPagosOk = useMemo(() => {
+    const arr = Array.isArray(idsPagos) ? idsPagos : [idsPagos];
+    return arr
+      .map((x) => Number(x || 0))
+      .filter((x) => Number.isFinite(x) && x > 0);
+  }, [idsPagos]);
+
   const pendingKey = useMemo(
     () => buildPendingKey({ idsMovs, idCobro, title }),
     [idsMovs, idCobro, title]
@@ -267,10 +275,11 @@ export default function ModalOrdenPagoGenerada({
       title,
       html,
       idsMovimientos: idsMovs,
+      idsPago: idsPagosOk,
       idCobro: Number(idCobro || 0),
       status: "pending",
     });
-  }, [open, pendingKey, title, html, idsMovs, idCobro]);
+  }, [open, pendingKey, title, html, idsMovs, idsPagosOk, idCobro]);
 
   useEffect(() => {
     if (!open) {
@@ -434,12 +443,23 @@ export default function ModalOrdenPagoGenerada({
 
       const fd = new FormData();
       fd.append("action", "ordenes_pago_comprobante_subir_y_vincular");
+      fd.append("tipo", "ORDEN_PAGO");
       fd.append("titulo", String(title || "Orden de Pago"));
       fd.append("force", "0");
       idsMovs.forEach((id) => fd.append("ids_movimiento[]", String(id)));
+      const cob = Number(idCobro);
+      if (Number.isFinite(cob) && cob > 0) {
+        fd.append("id_pago", String(cob));
+        fd.append("id_cobro", String(cob));
+      }
+      idsPagosOk.forEach((id) => {
+        fd.append("ids_pago[]", String(id));
+        fd.append("ids_cobro[]", String(id));
+        fd.append("ids_movimiento_medio_pago[]", String(id));
+      });
       fd.append("archivo", file);
 
-      const url = getApiPhpUrl();
+      const url = `${getApiPhpUrl()}?action=ordenes_pago_comprobante_subir_y_vincular`;
 
       const res = await fetchWithTimeout(
         url,
@@ -484,7 +504,7 @@ export default function ModalOrdenPagoGenerada({
 
       return { ...data, id_comprobante: idComp };
     },
-    [idsMovs, title]
+    [idsMovs, idsPagosOk, idCobro, title]
   );
 
   const ensureSaved = useCallback(async () => {
@@ -509,6 +529,7 @@ export default function ModalOrdenPagoGenerada({
             ...up,
             id_comprobante: Number(up?.id_comprobante || 0),
             ids_movimiento: idsMovs,
+            ids_pago: idsPagosOk,
           };
 
           return finalSaved;
@@ -527,6 +548,7 @@ export default function ModalOrdenPagoGenerada({
           title,
           html,
           idsMovimientos: idsMovs,
+          idsPago: idsPagosOk,
           idCobro: Number(idCobro || 0),
           status: "error",
           error: msg,

@@ -22,7 +22,7 @@ import ModalReciboGenerado from "./ModalReciboGenerado";
 import ModalNuevoCheque from "../../../Global/Modales/ModalNuevoCheque.jsx";
 import ModalDetalleMovimiento from "../../../Global/Modales/ModalDetalleMovimiento.jsx";
 import { buildReciboHTML } from "../../../../utils/reciboTemplate";
-import { getDetalleMovimiento } from "../../_shared/detalleMovimiento.js";
+import { getResumenProductosMovimiento } from "../../_shared/detalleMovimiento.js";
 
 const API_CHECK_NUMERO_CHEQUE = `${BASE_URL}/api.php?action=mov_global_cheques_obtener&modo=verificar_numero`;
 const API_CHEQUES_ACTUALIZAR = `${BASE_URL}/api.php?action=mov_global_cheques_actualizar`;
@@ -45,7 +45,7 @@ function safeText(v) {
 }
 
 function productosLabel(row) {
-  return getDetalleMovimiento(row);
+  return getResumenProductosMovimiento(row);
 }
 
 function formatFechaDMY(v) {
@@ -807,6 +807,7 @@ export default function ModalPagarRecibos({
   const [reciboHtml, setReciboHtml] = useState("");
   const [reciboTitle, setReciboTitle] = useState("Recibo");
   const [idsMovimientosPagados, setIdsMovimientosPagados] = useState([]);
+  const [idsPagosGenerados, setIdsPagosGenerados] = useState([]);
   const [ultimoCobroId, setUltimoCobroId] = useState(null);
 
   /* =========================
@@ -985,15 +986,14 @@ export default function ModalPagarRecibos({
         const ch = mp.chequeData;
         if (!ch) return false;
         const numero = onlyDigits(ch.numero_cheque);
-        const tipo = String(ch.tipo || ch.tipo_cheque || "cheque").toLowerCase() === "echeq" ? "echeq" : "cheque";
-        return numero && numero === numeroCheque && tipo === tipoNormalizado;
+        return numero && numero === numeroCheque;
       });
 
       if (duplicadoEnModal) {
         return {
           ok: false,
           tipo: "error",
-          mensaje: `Ya cargaste otro ${tipoNormalizado === "echeq" ? "eCheq" : "cheque"} con el número ${numeroCheque} en este cobro.`,
+          mensaje: `Ya cargaste otro cheque/eCheq con el número ${numeroCheque} en este cobro.`,
           duracion: 4600,
         };
       }
@@ -1136,14 +1136,9 @@ export default function ModalPagarRecibos({
       };
     }
 
-    if (totalSeleccionado > 0 && sumaMediosPago > totalSeleccionado + 0.05) {
-      return {
-        ok: false,
-        msg: `La suma de los medios de pago (${moneyARS(
-          sumaMediosPago
-        )}) no puede superar el saldo adeudado (${moneyARS(totalSeleccionado)}).`,
-      };
-    }
+    // Permitimos que el importe del medio de pago supere el saldo seleccionado.
+    // Ejemplo: cheque/eCheq de $2.000 para cancelar un saldo de $1.500.
+    // El backend imputa sólo el saldo real y conserva el importe real del cheque.
 
     return { ok: true };
   }, [
@@ -1397,16 +1392,25 @@ export default function ModalPagarRecibos({
 
       const warningsArchivosCheque = await subirArchivosChequesCreados(resp);
 
+      const idsPagoResp = Array.isArray(resp?.ids_pago)
+        ? resp.ids_pago.map((x) => Number(x || 0)).filter(Boolean)
+        : [];
       const idsCobroResp = Array.isArray(resp?.ids_cobro)
         ? resp.ids_cobro.map((x) => Number(x || 0)).filter(Boolean)
         : [];
+      const idsPagoFinales = idsPagoResp.length ? idsPagoResp : idsCobroResp;
 
       setIdsMovimientosPagados(ids);
+      setIdsPagosGenerados(idsPagoFinales);
       setUltimoCobroId(
-        Number(idsCobroResp?.[0] || resp?.id_cobro || 0) || null
+        Number(idsPagoFinales?.[0] || resp?.id_cobro || 0) || null
       );
 
-      let restantePagoLocal = Math.max(0, safeNumber(sumaMediosPago));
+      const montoAplicadoFinal = safeNumber(
+        resp?.total_pagado ?? resp?.monto_pagado ?? resp?.monto_cobrado ?? Math.min(sumaMediosPago, totalSeleccionado)
+      );
+
+      let restantePagoLocal = Math.max(0, montoAplicadoFinal);
       setRows((prev) =>
         (Array.isArray(prev) ? prev : []).map((r) => {
           const id = Number(r?.id_movimiento || 0);
@@ -1431,7 +1435,7 @@ export default function ModalPagarRecibos({
       onAfterPaid?.(ids, {
         nombre: mpNombre,
         seleccion,
-        montoCobrado: sumaMediosPago,
+        montoCobrado: montoAplicadoFinal,
       });
 
       const built = buildReciboFromSeleccion({
@@ -1441,7 +1445,7 @@ export default function ModalPagarRecibos({
         },
         mpNombre,
         seleccion,
-        montoCobrado: sumaMediosPago,
+        montoCobrado: montoAplicadoFinal,
       });
 
       setReciboHtml(built.html);
@@ -1820,10 +1824,12 @@ export default function ModalPagarRecibos({
           onClose?.();
         }}
         idsMovimientos={idsMovimientosPagados}
+        idsPagos={idsPagosGenerados}
         idCobro={ultimoCobroId}
         onFinalizar={(saved) => {
           onReciboFinalizado?.(saved, {
             idsMovimiento: idsMovimientosPagados,
+            idsPago: idsPagosGenerados,
             idCobro: ultimoCobroId,
           });
           setOpenRecibo(false);

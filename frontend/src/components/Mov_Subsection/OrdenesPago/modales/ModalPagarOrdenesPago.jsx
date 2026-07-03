@@ -21,7 +21,7 @@ import {
 import ModalOrdenPagoGenerada from "./ModalOrdenPagoGenerada";
 import ModalDetalleMovimiento from "../../../Global/Modales/ModalDetalleMovimiento.jsx";
 import { buildOrdenPagoHTML } from "../../../../utils/ordenPagoTemplate";
-import { getDetalleMovimiento } from "../../_shared/detalleMovimiento.js";
+import { getResumenProductosMovimiento } from "../../_shared/detalleMovimiento.js";
 
 /* =========================
    Helpers
@@ -41,7 +41,7 @@ function safeText(v) {
 }
 
 function productosLabel(row) {
-  return getDetalleMovimiento(row);
+  return getResumenProductosMovimiento(row);
 }
 
 function formatFechaDMY(v) {
@@ -787,6 +787,7 @@ export default function ModalPagarOrdenesPago({
   const [ordenTitle, setOrdenTitle] = useState("Orden de Pago");
   const [idsMovimientosPagados, setIdsMovimientosPagados] = useState([]);
   const [ultimoCobroId, setUltimoCobroId] = useState(null);
+  const [idsPagosGenerados, setIdsPagosGenerados] = useState([]);
 
   const showToast = useCallback(
     (tipo, mensaje) => onToast?.(tipo, mensaje),
@@ -822,6 +823,7 @@ export default function ModalPagarOrdenesPago({
     setOrdenTitle("Orden de Pago");
     setIdsMovimientosPagados([]);
     setUltimoCobroId(null);
+    setIdsPagosGenerados([]);
     setMediosFilas([buildEmptyMedioPago()]);
 
     if (mediosPagoFromContext.length > 0) {
@@ -1059,12 +1061,9 @@ export default function ModalPagarOrdenesPago({
       };
     }
 
-    if (totalSeleccionado > 0 && sumaMediosPago > totalSeleccionado + 0.05) {
-      return {
-        ok: false,
-        msg: `La suma de los medios de pago (${moneyARS(sumaMediosPago)}) no puede superar el saldo adeudado (${moneyARS(totalSeleccionado)}).`,
-      };
-    }
+    // Permitimos que el importe del medio de pago supere el saldo seleccionado.
+    // Ejemplo: cheque/eCheq de $2.000 para cancelar un saldo de $1.500.
+    // El backend imputa sólo el saldo real y egresa el cheque completo de cartera.
 
     return { ok: true };
   }, [deudasOrdenadas, selectedIds, mediosFilas, mediosPago, sumaMediosPago, totalSeleccionado]);
@@ -1125,14 +1124,23 @@ export default function ModalPagarOrdenesPago({
         });
       }
 
+      const idsPagoResp = Array.isArray(resp?.ids_pago)
+        ? resp.ids_pago.map((x) => Number(x || 0)).filter(Boolean)
+        : [];
       const idsCobroResp = Array.isArray(resp?.ids_cobro)
         ? resp.ids_cobro.map((x) => Number(x || 0)).filter(Boolean)
         : [];
+      const idsPagoFinales = idsPagoResp.length ? idsPagoResp : idsCobroResp;
 
       setIdsMovimientosPagados(ids);
-      setUltimoCobroId(Number(idsCobroResp?.[0] || resp?.id_cobro || 0) || null);
+      setIdsPagosGenerados(idsPagoFinales);
+      setUltimoCobroId(Number(idsPagoFinales?.[0] || resp?.id_pago || resp?.id_cobro || 0) || null);
 
-      let restantePagoLocal = Math.max(0, safeNumber(sumaMediosPago));
+      const montoAplicadoFinal = safeNumber(
+        resp?.total_pagado ?? resp?.monto_pagado ?? resp?.monto_cobrado ?? Math.min(sumaMediosPago, totalSeleccionado)
+      );
+
+      let restantePagoLocal = Math.max(0, montoAplicadoFinal);
       setRows((prev) =>
         (Array.isArray(prev) ? prev : []).map((r) => {
           const id = Number(r?.id_movimiento || 0);
@@ -1156,7 +1164,7 @@ export default function ModalPagarOrdenesPago({
 
       onAfterPaid?.(ids, {
         seleccion,
-        montoPagado: sumaMediosPago,
+        montoPagado: montoAplicadoFinal,
       });
 
       const built = buildOrdenFromSeleccion({
@@ -1166,7 +1174,7 @@ export default function ModalPagarOrdenesPago({
         },
         mediosPagoInfo,
         seleccion,
-        montoPagado: sumaMediosPago,
+        montoPagado: montoAplicadoFinal,
       });
 
       setOrdenHtml(built.html);
@@ -1443,11 +1451,13 @@ export default function ModalPagarOrdenesPago({
           onClose?.();
         }}
         idsMovimientos={idsMovimientosPagados}
+        idsPagos={idsPagosGenerados}
         idCobro={ultimoCobroId}
         onFinalizar={(saved) => {
           onOrdenPagoFinalizado?.(saved, {
             idsMovimiento: idsMovimientosPagados,
             idCobro: ultimoCobroId,
+            idsPago: idsPagosGenerados,
           });
           setOpenOrden(false);
           onClose?.();
