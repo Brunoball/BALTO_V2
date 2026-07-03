@@ -1,208 +1,11 @@
-/* src/components/Movimientos/movimientos.css */
-/* =========================================================
-   BALTO — Movimientos (rediseño)
-   Paleta (Excel):
-   - Azul Medianoche: #0A2540
-   - Azul Acción:     #0055BB
-   - Fondo App:       #F6F9FC
-   - Gris Texto:      #425466
-   - Blanco:          #FFFFFF
-   - Verde Éxito:     #22AD5C
-   - Rojo Alerta:     #E13D45
-   ========================================================= */
-
-:root{
-  --balto-ink:#0A2540;
-  --balto-action:#0055BB;
-  --balto-bg:#F6F9FC;
-  --balto-text:#425466;
-  --balto-white:#FFFFFF;
-  --balto-success:#22AD5C;
-  --balto-danger:#E13D45;
-
-  --mov-text: color-mix(in srgb, var(--balto-ink) 86%, #000);
-  --mov-muted: color-mix(in srgb, var(--balto-text) 82%, #fff);
-  --mov-border: color-mix(in srgb, var(--balto-ink) 14%, #fff);
-
-  --mov-card: var(--balto-white);
-  --mov-radius: 16px;
-
-  --mov-shadow-sm: 0 1px 2px rgba(10,37,64,.06);
-  --mov-shadow-md: 0 14px 34px -22px rgba(10,37,64,.28);
-
-  --mov-focus: 0 0 0 4px rgba(0,85,187,.12);
-  --mov-trans: 160ms cubic-bezier(.4,0,.2,1);
-}
-
-/* =========================================================
-   MOVIMIENTOS — DARK MODE (override)
-   Pegalo AL FINAL del archivo movimientos.css
-========================================================= */
-html[data-theme="oscuro"] .mov-page{
-  background: #0B1220 !important;
-  color: rgba(226,232,240,.92) !important;
-}
-
-/* Alert en oscuro */
-html[data-theme="oscuro"] .mov-page .mov-alert{
-  background: rgba(225,61,69,.12) !important;
-  border-color: rgba(225,61,69,.24) !important;
-  color: rgba(255,255,255,.92) !important;
-}
-
-/* Card general */
-html[data-theme="oscuro"] .mov-page .mov-card{
-  background: rgba(15,23,42,.62) !important;
-  border-color: rgba(148,163,184,.14) !important;
-  box-shadow: 0 16px 40px -26px rgba(0,0,0,.62) !important;
-}
-
-/* Head (titulo+filtros) */
-html[data-theme="oscuro"] .mov-page .mov-card__head{
-  background:
-    radial-gradient(900px 180px at 0% 0%, rgba(78,161,255,.12), transparent 55%),
-    linear-gradient(180deg, rgba(15,23,42,.85), rgba(15,23,42,.62)) !important;
-  border-bottom-color: rgba(148,163,184,.12) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-card__title{
-  color: rgba(226,232,240,.92) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-card__hint{
-  color: rgba(226,232,240,.62) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-card__hint b{
-  color: rgba(226,232,240,.92) !important;
-}
-
-/* Labels + iconos dentro de labels */
-html[data-theme="oscuro"] .mov-page .mov-filter label,
-html[data-theme="oscuro"] .mov-page .mov-search label{
-  color: rgba(226,232,240,.72) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-filter label svg,
-html[data-theme="oscuro"] .mov-page .mov-search label svg{
-  color: rgba(226,232,240,.85) !important;
-}
-
-/* Inputs / Select */
-html[data-theme="oscuro"] .mov-page .mov-search input,
-html[data-theme="oscuro"] .mov-page .mov-filter select{
-  background: rgba(15,23,42,.88) !important;
-  color: rgba(226,232,240,.92) !important;
-  border-color: rgba(148,163,184,.18) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-search input::placeholder{
-  color: rgba(226,232,240,.45) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-filter select:focus,
-html[data-theme="oscuro"] .mov-page .mov-search input:focus{
-  background: rgba(15,23,42,.96) !important;
-  border-color: rgba(78,161,255,.45) !important;
-  box-shadow: 0 0 0 4px rgba(78,161,255,.18) !important;
-}
-
-/* Botón X limpiar búsqueda */
-html[data-theme="oscuro"] .mov-page .mov-clearSearch{
-  background: rgba(15,23,42,.95) !important;
-  color: rgba(226,232,240,.85) !important;
-  border-color: rgba(148,163,184,.18) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-clearSearch:hover{
-  background: rgba(78,161,255,.12) !important;
-  border-color: rgba(78,161,255,.25) !important;
-  color: rgba(226,232,240,.95) !important;
-}
-
-/* Botones */
-html[data-theme="oscuro"] .mov-page .mov-btn{
-  background: rgba(15,23,42,.78) !important;
-  color: rgba(226,232,240,.92) !important;
-  border-color: rgba(148,163,184,.18) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-btn:hover{
-  background: rgba(78,161,255,.10) !important;
-  border-color: rgba(78,161,255,.22) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-btn--ghost{
-  background: rgba(15,23,42,.68) !important;
-}
-
-/* Botón primary (azul) */
-html[data-theme="oscuro"] .mov-page .mov-btn--primary{
-  background: rgba(78,161,255,.92) !important;
-  border-color: rgba(78,161,255,.52) !important;
-  color: #071018 !important;
-  box-shadow: 0 14px 28px rgba(78,161,255,.18) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-btn--primary:hover{
-  background: rgba(78,161,255,1) !important;
-}
-
-/* Botón excel */
-html[data-theme="oscuro"] .mov-page .mov-btn--excel{
-  background: rgba(34,173,92,.92) !important;
-  border-color: rgba(34,173,92,.50) !important;
-  color: #071018 !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-btn--excel:hover{
-  background: rgba(34,173,92,1) !important;
-}
-
-/* Header tabla */
-html[data-theme="oscuro"] .mov-page .mov-gridTable--head{
-  background: rgba(15,23,42,.95) !important;
-  border-bottom-color: rgba(148,163,184,.14) !important;
-  color: rgba(226,232,240,.92) !important;
-}
-
-/* Filas tabla */
-html[data-theme="oscuro"] .mov-page .mov-gridTable--row{
-  background: rgba(15,23,42,.40) !important;
-  border-bottom-color: rgba(148,163,184,.12) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-gridTable--row:hover{
-  background: rgba(78,161,255,.10) !important;
-}
-
-/* Celdas */
-html[data-theme="oscuro"] .mov-page .mov-gridCell{
-  color: rgba(226,232,240,.86) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-ellipsissss{
-  color: rgba(226,232,240,.86) !important;
-}
-
-/* Icon buttons (acciones) */
-html[data-theme="oscuro"] .mov-page .mov-iconBtn{
-  background: rgba(15,23,42,.80) !important;
-  color: rgba(226,232,240,.92) !important;
-  border-color: rgba(148,163,184,.18) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-iconBtn:hover{
-  background: rgba(78,161,255,.12) !important;
-  border-color: rgba(78,161,255,.25) !important;
-  color: rgba(226,232,240,.98) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-iconBtn--danger{
-  border-color: rgba(225,61,69,.28) !important;
-  color: rgba(255,255,255,.92) !important;
-}
-html[data-theme="oscuro"] .mov-page .mov-iconBtn--danger:hover{
-  background: rgba(225,61,69,.14) !important;
-  border-color: rgba(225,61,69,.35) !important;
-  color: rgba(255,255,255,.98) !important;
-}
-
-/* Empty row */
-html[data-theme="oscuro"] .mov-page .mov-emptyRow{
-  color: rgba(226,232,240,.65) !important;
-}
 
 
 /* =========================
    BASE
 ========================= */
+
 *{ box-sizing: border-box; }
+
 .mov-page{
   width: 100%;
   min-height: 100%;
@@ -214,6 +17,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 /* =========================
    Alert
 ========================= */
+
 .mov-alert{
   margin: 0 18px 12px;
   padding: 10px 12px;
@@ -227,6 +31,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 /* =========================
    CARD (Tabla)
 ========================= */
+
 .mov-card{
   background: var(--mov-card);
   border: 1px solid var(--mov-border);
@@ -243,6 +48,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 /* =========================
    HEAD (título + filtros + acciones)
 ========================= */
+
 .mov-card__head{
   padding: 16px 20px;
   display: flex;
@@ -273,6 +79,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
   color: var(--mov-muted);
   font-weight: 460;
 }
+
 .mov-card__hint b{ font-weight: 620; color: var(--balto-ink); }
 
 .mov-card__actions{
@@ -284,6 +91,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 /* =========================
    FILTERS
 ========================= */
+
 .mov-headFilters{
   display: flex;
   align-items: flex-end;
@@ -335,12 +143,9 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
   box-shadow: var(--mov-focus);
 }
 
-
-
 /* =========================
    SEARCH: X (limpiar)
 ========================= */
-.mov-searchInput{ position: relative; width: 100%; }
 
 .mov-clearSearch{
   position:absolute;
@@ -367,11 +172,13 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
   transform: translateY(-50%) translateY(-1px);
   box-shadow: var(--mov-shadow-sm);
 }
+
 .mov-clearSearch:active{ transform: translateY(-50%); box-shadow: none; }
 
 /* =========================
    BUTTONS
 ========================= */
+
 .mov-btn{
   height: 44px;
   border-radius: 12px;
@@ -411,10 +218,12 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
   color: #fff;
   box-shadow: 0 10px 22px rgba(0,85,187,.18);
 }
+
 .mov-btn--primary:hover{
   background: color-mix(in srgb, var(--balto-action) 88%, #000);
   box-shadow: 0 14px 26px rgba(0,85,187,.22);
 }
+
 .mov-btn--primary:focus-visible{
   outline: none;
   box-shadow: 0 0 0 4px rgba(0,85,187,.18), 0 10px 22px rgba(0,85,187,.18);
@@ -426,6 +235,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
   color: #fff;
   font-weight: 580;
 }
+
 .mov-btn--excel:hover{
   background: #fff;
   color: var(--balto-success);
@@ -435,6 +245,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 /* =========================
    TABS BAR
 ========================= */
+
 .mov-tabsBar{
   display:flex;
   align-items:center;
@@ -489,6 +300,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 }
 
 /* CTA a la derecha */
+
 .mov-tabsCta{
   flex: 0 0 auto;
   white-space: nowrap;
@@ -498,6 +310,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 /* =========================
    TABLE WRAP (scroll)
 ========================= */
+
 .mov-tableWrap{
   flex: 1;
   min-height: 0;
@@ -506,27 +319,20 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
   max-height: calc(100vh - 240px);
   min-height: calc(100vh - 240px);
 }
+
 .mov-tableWrap--mov{
     max-height: calc(100vh - 240px)  !important;
     min-height: calc(100vh - 240px)  !important
 }
-/* header sticky */
-.mov-gridTable--head{
-  position: sticky;
-  top: 0;
-  z-index: 10;
 
-  background: var(--balto-ink);
-  color: rgba(255,255,255,.92);
-  border-bottom: 1px solid rgba(255,255,255,.10);
-  overflow: auto;
-  scrollbar-gutter: stable;
-}
+/* header sticky */
 
 /* contenedor */
+
 .mov-gridTable{display:grid;}
 
 /* celdas: centrado vertical global */
+
 .mov-gridCell,
 .mov-gridCell--head{
   display:flex;
@@ -536,6 +342,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 }
 
 /* celdas */
+
 .mov-gridCell{
   padding: 10px 12px;
   color: color-mix(in srgb, var(--balto-ink) 78%, #000);
@@ -558,6 +365,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 }
 
 /* filas */
+
 .mov-gridTable--row{
   background: #fff;
   border-bottom: 1px solid color-mix(in srgb, var(--mov-border) 60%, #fff);
@@ -569,16 +377,20 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 }
 
 /* helpers alineación */
+
 .is-right{ justify-content:flex-end; text-align:right; }
+
 .is-center{ justify-content:center; text-align:center; }
 
 /* “strong” pero sin negrita exagerada */
+
 .is-strong{
   font-weight: 560;         /* ✅ */
   color: var(--balto-ink);
 }
 
 /* acciones */
+
 .mov-gridCell--actions{
   overflow: visible;
   text-overflow: clip;
@@ -634,6 +446,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 }
 
 /* vacío */
+
 .mov-emptyRow{
   padding: 22px 12px;
   text-align:center;
@@ -642,6 +455,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 }
 
 /* ellipsis interno (tu <span>) */
+
 .mov-ellipsissss{
   display:block;
   min-width:0;
@@ -652,29 +466,17 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
   font-weight: 420 !important; /* ✅ bien fino */
 }
 
-/* =========================
-   RESPONSIVE
-========================= */
-@media (max-width: 1000px){
-  .mov-filter, .mov-search{ width: 100%; }
-  .mov-card__head{ flex-direction: column; align-items: stretch; }
-  .mov-card__actions{ justify-content: flex-end; }
-}
-
-@media (max-width: 720px){
-  .mov-tabsBar{ flex-direction: column; align-items: stretch; }
-  .mov-tabsCta{ width: 100%; }
-}
 .mov-tabsBar--mov{
   margin-left: auto;
 }
 
-
 /* agregalo a src/components/Movimientos/movimientos.css */
+
 .mov-gridBody--relative{
   position: relative;
   height: calc(100vh - 250px);
 }
+
 /* =========================================================
    MOV — Scroll estable (aunque no haya scroll)
    - Reserva gutter del scrollbar para evitar saltos
@@ -682,6 +484,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 ========================================================= */
 
 /* ✅ El que realmente scrollea */
+
 .mov-tableWrap,
 .mov-tableWrap--mov{
   overflow: auto;      
@@ -689,16 +492,21 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
   scrollbar-gutter: stable;       /* reserva espacio aunque no haya scroll */
 }
 
-
-
 /* ✅ Si tenés scroll horizontal a veces, esto ayuda */
+
 .mov-gridTable--head{
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--balto-ink);
+  color: rgba(255,255,255,.92);
+  border-bottom: 1px solid rgba(255,255,255,.10);
   overflow: auto;
   scrollbar-gutter: stable;
 }
 
-
 /* Chips de estado (tabla) */
+
 .mov-chip {
   display: inline-flex;
   align-items: center;
@@ -712,72 +520,20 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
   user-select: none;
 }
 
-.mov-chip--ok {
-  background: rgba(46, 204, 113, .16);
-  color: #16a34a;
-  border-color: rgba(46, 204, 113, .25);
-}
-
-.mov-chip--warn {
-  background: rgba(241, 196, 15, .14);
-  color: #ffc200;
-  border-color: rgba(241, 196, 15, .25);
-}
-
 /* opcional: fila pagada un poquito más “suave” */
+
 .mov-row--paid {
   opacity: .92;
 }
-/* =========================
-   RESPONSIVE Movimientos
-   - Desktop: grilla normal
-   - Mobile: filas tipo "card" con labels
-========================= */
 
 /* Ajustes generales en pantallas medianas */
-@media (max-width: 980px) {
-  .mov-card__head {
-    align-items: flex-start;
-    gap: 12px;
-  }
 
-  .mov-card__headLeft {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .mov-headFilters {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .mov-filter select {
-    width: 100%;
-  }
-
-  .mov-searchInput {
-    width: 100%;
-  }
-
-  .mov-card__actions {
-    width: 100%;
-    justify-content: flex-start !important;
-    flex-wrap: wrap;
-  }
-
-  .mov-card__actions .mov-btn {
-    flex: 1 1 220px;
-  }
-}
 .Margen-top{
   margin-top: 12px;
 }
 
 /* Efecto mínimo mientras carga rápido (sin spinner) */
+
 .mov-softLoading {
   opacity: 0.82;
   filter: blur(0.3px);
@@ -785,21 +541,20 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
   pointer-events: none; /* evita clicks mientras actualiza */
 }
 
-
-
-
 /* =========================================================
    MOVIMIENTOS — Skeleton Shimmer (Stripe-like)
    Pegalo AL FINAL de movimientos.css
 ========================================================= */
 
 /* wrapper general skeleton */
+
 .mov-skeletonWrap,
 .mov-skeletonMore{
   width: 100%;
 }
 
 /* fila skeleton (mantiene misma estructura) */
+
 .mov-row--skeleton{
   pointer-events: none;
 }
@@ -810,6 +565,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 }
 
 /* barrita skeleton */
+
 .mov-skeletonBar{
   display: block;
   height: 12px;
@@ -823,6 +579,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 }
 
 /* shimmer */
+
 .mov-skeletonBar::after{
   content:"";
   position:absolute;
@@ -838,6 +595,7 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 }
 
 /* skeleton icons (acciones) */
+
 .mov-skelActions{
   display:inline-flex;
   gap: 10px;
@@ -870,43 +628,21 @@ html[data-theme="oscuro"] .mov-page .mov-emptyRow{
 }
 
 /* zona skeleton "cargar más" abajo */
+
 .mov-skeletonMore{
   margin-top: 10px;
   opacity: .92;
 }
 
 /* anim */
+
 @keyframes movShimmer{
   0%   { transform: translateX(-120%); }
   100% { transform: translateX(120%); }
 }
 
 /* accesibilidad */
-@media (prefers-reduced-motion: reduce){
-  .mov-skeletonBar::after,
-  .mov-skelIcon::after{
-    animation: none !important;
-  }
-}
 
-/* =========================================================
-   DARK MODE: skeleton adaptado
-========================================================= */
-html[data-theme="oscuro"] .mov-skeletonBar,
-html[data-theme="oscuro"] .mov-skelIcon{
-  background: rgba(148,163,184,.14) !important;
-  border-color: rgba(148,163,184,.16) !important;
-}
-
-html[data-theme="oscuro"] .mov-skeletonBar::after,
-html[data-theme="oscuro"] .mov-skelIcon::after{
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255,255,255,.12),
-    transparent
-  ) !important;
-}
 /* =========================================================
    ✅ Botón "Cargar todos" (Movimientos)
 ========================================================= */
@@ -949,32 +685,14 @@ html[data-theme="oscuro"] .mov-skelIcon::after{
 }
 
 /* ✅ Disabled / Loading */
+
 .mov-btn--loadAll:disabled{
   opacity: .55;
   cursor: not-allowed;
   transform: none;
 }
 
-/* =========================================================
-   🌙 Dark mode (si usás body.dark)
-========================================================= */
-body.dark .mov-btn--loadAll{
-  background: rgba(0,85,187,.18);
-  border-color: rgba(255,255,255,.16);
-  color: rgba(255,255,255,.90);
-  box-shadow: 0 14px 26px rgba(0,0,0,.35);
-}
-
-body.dark .mov-btn--loadAll:hover{
-  background: rgba(0,85,187,.28);
-  border-color: rgba(255,255,255,.22);
-}
-
-/* =========================================================
-   Mobile: acortar textos de botones en header
-========================================================= */
 .mov-btnText--mobile { display: none; }
-
 
 .title-mov{
   display: flex;
@@ -982,7 +700,6 @@ body.dark .mov-btn--loadAll:hover{
   gap: 0;
 
 }
-
 
 /* =============================================
    Agregar al final del CSS de Movimientos
@@ -992,8 +709,6 @@ body.dark .mov-btn--loadAll:hover{
 .mov-filter--cal {
   position: relative;
 }
-
-
 
 .mov-calTrigger:hover:not(:disabled) {
   border-color: rgba(10, 37, 64, 0.45);
@@ -1029,7 +744,6 @@ body.dark .mov-btn--loadAll:hover{
   from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
 
 .floatingField{
   position: relative;
@@ -1069,29 +783,6 @@ body.dark .mov-btn--loadAll:hover{
   background: #fafcff;
 }
 
-.floatingLabel{
-  position: absolute;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 13px;
-  font-weight: 500;
-  color: rgba(66, 84, 102, 0.76);
-  pointer-events: none;
-  background: #fff;
-  padding: 0 6px;
-  margin-left: -6px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  z-index: 2;
-  transition:
-    top 150ms ease,
-    transform 150ms ease,
-    font-size 150ms ease,
-    color 150ms ease;
-}
-
 .floatingField.is-active .floatingLabel,
 .floatingField:focus-within .floatingLabel,
 .mov-input--floating:not(:placeholder-shown) + .floatingLabel{
@@ -1110,6 +801,7 @@ body.dark .mov-btn--loadAll:hover{
   transform: translateY(-50%);
   z-index: 3;
 }
+
 .floatingLabel{
   position: absolute;
   left: 14px;
@@ -1122,14 +814,17 @@ body.dark .mov-btn--loadAll:hover{
   background: #fff;
   padding: 0 6px;
   margin-left: -6px;
-  transition:
-    top 150ms ease,
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 2;
+  transition: top 150ms ease,
     transform 150ms ease,
     font-size 150ms ease,
     color 150ms ease,
     opacity 150ms ease;
-  z-index: 2;
 }
+
 .floatingLabel--active{
   top: 0;
   transform: translateY(-50%);
@@ -1138,6 +833,7 @@ body.dark .mov-btn--loadAll:hover{
   color: var(--b-action);
   letter-spacing: 0.02em;
 }
+
 .mov-calTrigger{
   display: inline-flex;
   align-items: center;
@@ -1156,10 +852,12 @@ body.dark .mov-btn--loadAll:hover{
   min-width: 200px;
   font-family: inherit;
 }
+
 #vents-comppr-wit{
 min-width: 250px;
 max-width: 250px;
 }
+
 .mi-date-field{
   cursor: pointer;
 }
@@ -1167,21 +865,25 @@ max-width: 250px;
 .mi-date-field .fl-input{
   cursor: pointer;
 }
+
 /* OK (verde) */
-.mov-chip--ok {
+
+.mov-chip--ok{
   background: rgba(34, 197, 94, 0.14);
   color: #16a34a;
   border-color: rgba(34, 197, 94, 0.22);
 }
 
 /* WARN (amarillo/naranja) */
-.mov-chip--warn {
+
+.mov-chip--warn{
   background: rgba(245, 158, 11, 0.14);
   color: #f59e0b;
   border-color: rgba(245, 158, 11, 0.22);
 }
 
 /* DANGER (rojo) */
+
 .mov-chip--danger {
   background: rgba(220, 38, 38, 0.14);
   color: #dc2626;
@@ -1189,6 +891,7 @@ max-width: 250px;
 }
 
 /* INFO (azul - para depósito) */
+
 .mov-chip--info {
   background: rgba(59, 130, 246, 0.14);
   color: #3b82f6;
@@ -1196,14 +899,17 @@ max-width: 250px;
 }
 
 /* NEUTRO (gris) */
+
 .mov-chip--neutral {
   background: rgba(148, 163, 184, 0.14);
   color: #64748b;
   border-color: rgba(148, 163, 184, 0.22);
 }
+
 /* =========================================================
    COLORES SEMÁNTICOS DE IMPORTES (igual que Flujo de Caja)
 ========================================================= */
+
 .fc-num {
   font-weight: 520;
   font-size: 13px;
@@ -1235,12 +941,14 @@ max-width: 250px;
 ========================================================= */
 
 /* Base del chip */
+
 .flujo-badge {
   gap: 6px;
   font-weight: 560;
 }
 
 /* INGRESO A CARTERA — Verde */
+
 .flujo-badge.mov-chip--ok {
   background: rgba(34, 173, 92, 0.13);
   color: #16864a;
@@ -1248,6 +956,7 @@ max-width: 250px;
 }
 
 /* DEPOSITADO EN BANCO — Azul */
+
 .flujo-badge.mov-chip--info {
   background: rgba(0, 85, 187, 0.12);
   color: #0055bb;
@@ -1255,6 +964,7 @@ max-width: 250px;
 }
 
 /* USADO COMO PAGO — Naranja */
+
 .flujo-badge.mov-chip--warn {
   background: rgba(245, 158, 11, 0.15);
   color: #b86b00;
@@ -1262,6 +972,7 @@ max-width: 250px;
 }
 
 /* DEVUELTO — Violeta grisáceo */
+
 .flujo-badge.mov-chip--neutral {
   background: rgba(124, 58, 237, 0.12);
   color: #6d28d9;
@@ -1269,93 +980,24 @@ max-width: 250px;
 }
 
 /* EGRESO / ANULACIÓN — Rojo */
+
 .flujo-badge.mov-chip--danger {
   background: rgba(225, 61, 69, 0.13);
   color: #c92f38;
   border-color: rgba(225, 61, 69, 0.28);
-}html[data-theme="oscuro"] .flujo-badge.mov-chip--ok {
-  background: rgba(34, 173, 92, 0.17) !important;
-  color: #74e0a3 !important;
-  border-color: rgba(34, 173, 92, 0.30) !important;
-}
-
-html[data-theme="oscuro"] .flujo-badge.mov-chip--info {
-  background: rgba(78, 161, 255, 0.16) !important;
-  color: #8fc5ff !important;
-  border-color: rgba(78, 161, 255, 0.30) !important;
-}
-
-html[data-theme="oscuro"] .flujo-badge.mov-chip--warn {
-  background: rgba(245, 158, 11, 0.17) !important;
-  color: #fbbf24 !important;
-  border-color: rgba(245, 158, 11, 0.32) !important;
-}
-
-html[data-theme="oscuro"] .flujo-badge.mov-chip--neutral {
-  background: rgba(167, 139, 250, 0.16) !important;
-  color: #c4b5fd !important;
-  border-color: rgba(167, 139, 250, 0.30) !important;
-}
-
-html[data-theme="oscuro"] .flujo-badge.mov-chip--danger {
-  background: rgba(225, 61, 69, 0.17) !important;
-  color: #ff8b92 !important;
-  border-color: rgba(225, 61, 69, 0.32) !important;
-}/* =========================================================
-   DARK MODE — Chips Flujo de Cheques visibles
-   Compatible con html[data-theme="oscuro"] y body.dark
-========================================================= */
-
-html[data-theme="oscuro"] .mov-page .mov-chip,
-body.dark .mov-page .mov-chip {
-  border-width: 1px !important;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.03) !important;
-}
-
-html[data-theme="oscuro"] .mov-page .flujo-badge svg,
-body.dark .mov-page .flujo-badge svg {
-  color: currentColor !important;
 }
 
 /* INGRESO A CARTERA — Verde */
-html[data-theme="oscuro"] .mov-page .flujo-badge.mov-chip--ok,
-body.dark .mov-page .flujo-badge.mov-chip--ok {
-  background: rgba(34, 197, 94, .18) !important;
-  color: #86efac !important;
-  border-color: rgba(34, 197, 94, .36) !important;
-}
 
 /* DEPOSITADO EN BANCO — Azul */
-html[data-theme="oscuro"] .mov-page .flujo-badge.mov-chip--info,
-body.dark .mov-page .flujo-badge.mov-chip--info {
-  background: rgba(59, 130, 246, .20) !important;
-  color: #93c5fd !important;
-  border-color: rgba(59, 130, 246, .38) !important;
-}
 
 /* USADO COMO PAGO — Amarillo/Naranja */
-html[data-theme="oscuro"] .mov-page .flujo-badge.mov-chip--warn,
-body.dark .mov-page .flujo-badge.mov-chip--warn {
-  background: rgba(245, 158, 11, .20) !important;
-  color: #fcd34d !important;
-  border-color: rgba(245, 158, 11, .40) !important;
-}
 
 /* DEVUELTO — Violeta */
-html[data-theme="oscuro"] .mov-page .flujo-badge.mov-chip--neutral,
-body.dark .mov-page .flujo-badge.mov-chip--neutral {
-  background: rgba(139, 92, 246, .20) !important;
-  color: #c4b5fd !important;
-  border-color: rgba(139, 92, 246, .38) !important;
-}
 
 /* EGRESO / ANULACIÓN — Rojo */
-html[data-theme="oscuro"] .mov-page .flujo-badge.mov-chip--danger,
-body.dark .mov-page .flujo-badge.mov-chip--danger {
-  background: rgba(239, 68, 68, .20) !important;
-  color: #fca5a5 !important;
-  border-color: rgba(239, 68, 68, .40) !important;
-}/* =====================================================
+
+/* =====================================================
    cc_header_filters.css
    Estilos del área de cabecera / barra de filtros
    (Head, Filters, Tabs, Búsqueda, Calendario trigger)
@@ -1365,6 +1007,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
 /* =========================
    Head
 ========================= */
+
 .cc-card__head{
   display: flex;
   align-items: flex-end;
@@ -1415,6 +1058,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
 /* =========================
    Filters
 ========================= */
+
 .cc-headFilters{
   display: flex;
   align-items: flex-end;
@@ -1492,6 +1136,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
 }
 
 /* Botón estándar */
+
 .cc-btn{
   height: 40px;
   padding: 0 16px;
@@ -1528,6 +1173,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
 /* =========================
    Tabs — estilo Google
 ========================= */
+
 .cc-headFilters--tabs{
   display: inline-flex;
   align-items: flex-end;
@@ -1591,6 +1237,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
 /* =========================
    Botón Exportar Excel
 ========================= */
+
 .cc-btn--excel{
   height: 40px;
   padding: 0 16px;
@@ -1634,6 +1281,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
 /* =========================
    Buscador / Clear
 ========================= */
+
 .cc-searchInput{
   position: relative;
   width: 100%;
@@ -1697,6 +1345,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
 /* =========================
    Suggestions
 ========================= */
+
 .cc-suggestions{
   position: absolute;
   left: 0;
@@ -1733,6 +1382,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
 /* =========================
    Calendario trigger
 ========================= */
+
 .cc-filter--cal{
   position: relative;
 }
@@ -1804,6 +1454,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
 /* =========================
    Floating label
 ========================= */
+
 .cc-floatingField{
   position: relative;
   min-width: 0;
@@ -1850,6 +1501,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
 /* =========================
    Search floating
 ========================= */
+
 .cc-floatingField--search{
   width: 100%;
 }
@@ -1872,6 +1524,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
 /* =========================
    Calendar floating
 ========================= */
+
 .cc-floatingField--calendar{
   min-width: 100%;
 }
@@ -1883,6 +1536,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
 /* =========================
    Ajustes visuales inputs en floatingField
 ========================= */
+
 .cc-floatingField .cc-input:hover,
 .cc-floatingField .cc-calTrigger:hover{
   border-color: rgba(10, 37, 64, 0.28);
@@ -1903,6 +1557,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
 /* =========================
    Fila clientes + exportar
 ========================= */
+
 .cc-row-actions{
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -1937,172 +1592,7 @@ body.dark .mov-page .flujo-badge.mov-chip--danger {
   grid-template-columns: 1fr 1fr;
 }
 
-/* =========================
-   Responsive — Head / Filters
-========================= */
-@media (max-width: 980px){
-  .mov-card__head,
-  .cc-card__head{
-    padding: 14px;
-  }
-
-  .mov-card__headLeft,
-  .cc-card__headLeft{
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-
-  .mov-headFilters,
-  .cc-headFilters{
-    width: 100%;
-    flex-wrap: wrap;
-    align-items: stretch;
-    gap: 10px;
-  }
-
-  .cc-filter,
-  .cc-filter--search,
-  .cc-filter--cal,
-  .cc-floatingField,
-  .cc-floatingField--search,
-  .cc-floatingField--calendar{
-    width: 100%;
-    min-width: 0;
-  }
-
-  .cc-searchInput,
-  .cc-searchInput__fieldWrap{
-    width: 100%;
-  }
-
-  .cc-input,
-  .cc-calTrigger,
-  .cc-filter select{
-    width: 100%;
-    min-width: 0;
-  }
-
-  .mov-btn,
-  .cc-btn,
-  .cc-btn--excel{
-    min-height: 42px;
-  }
-}
-
-@media (max-width: 820px){
-  .cc-headFilters--tabs{
-    width: fit-content;
-    max-width: 100%;
-    align-self: flex-start;
-  }
-
-  .cc-btnex.cc-btnex--tab{
-    height: 40px;
-    padding: 0 14px;
-    font-size: 13px;
-  }
-
-  .cc-filter--search{
-    width: 100%;
-    flex: 0 0 100%;
-  }
-
-  .cc-filter--clientes,
-  .cc-exportWrap{
-    flex: 1 1 calc(50% - 5px);
-    min-width: 0;
-  }
-
-  .cc-exportWrap{
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .cc-exportWrap .cc-btn,
-  .cc-exportWrap .mov-btn{
-    width: 100%;
-    justify-content: center;
-  }
-
-  .cc-row-actions{
-    grid-template-columns: 1fr 1fr 1fr;
-    width: 100%;
-  }
-
-  .cc-row-actions .mov-btn,
-  .cc-row-actions .cc-btn{
-    min-height: 44px;
-  }
-}
-
-@media (max-width: 720px){
-  .cc-card__headLeft{
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .cc-filter select,
-  .cc-input{
-    min-width: 0;
-    width: 100%;
-  }
-
-  .cc-btn--excel{
-    width: 100%;
-    justify-content: center;
-  }
-
-  .cc-calTrigger{
-    min-width: 160px;
-    font-size: 12.5px;
-  }
-}
-
-@media (max-width: 640px){
-  .cc-calDropdown{
-    left: 0 !important;
-    right: auto;
-    transform: none !important;
-    max-width: calc(100vw - 24px);
-  }
-
-  .cc-clearSearch{
-    width: 30px;
-    height: 30px;
-  }
-}
-
-@media (max-width: 480px){
-  .mov-card__head,
-  .cc-card__head{
-    padding: 12px;
-  }
-
-  .mov-btn,
-  .cc-btn,
-  .cc-btn--excel{
-    width: 100%;
-    justify-content: center;
-  }
-
-  .cc-row-actions{
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 8px;
-  }
-
-  .cc-row-actions .mov-btn span{
-    display: none;
-  }
-}
-
 #vents-comppr-wits{
   min-width: 200px;
   max-width: 200px;
-}
-
-@media (max-width: 820px){
-  #vents-comppr-wits{
-    min-width: 100%;
-  }
 }
