@@ -1189,21 +1189,20 @@ export default function ModalPagarRecibos({
   const buildReciboFromSeleccion = useCallback(
     ({ clienteInfo, mpNombre, seleccion, montoCobrado }) => {
       let restante = Math.max(0, safeNumber(montoCobrado));
-      const items = seleccion
+      const items = (Array.isArray(seleccion) ? seleccion : [])
         .map((r) => {
           const saldo = getSaldoPendienteRow(r);
           const aplicado = Math.min(saldo, restante);
           restante = Math.max(0, restante - aplicado);
           return {
-            id_movimiento: r?.id_movimiento,
-            fecha: r?.fecha,
-            descripcion: r?.detalle ?? r?.descripcion ?? r?.concepto,
-            monto: aplicado,
+            ...r,
+            monto_aplicado: aplicado,
+            importe_aplicado: aplicado,
           };
         })
-        .filter((it) => Number(it.monto || 0) > 0.009);
+        .filter((it) => Number(it.monto_aplicado || 0) > 0.009);
       const total = items.reduce(
-        (acc, it) => acc + (Number(it.monto) || 0),
+        (acc, it) => acc + (Number(it.monto_aplicado) || 0),
         0
       );
       const payload = {

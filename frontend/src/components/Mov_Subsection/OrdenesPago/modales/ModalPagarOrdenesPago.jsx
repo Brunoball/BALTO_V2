@@ -990,12 +990,27 @@ export default function ModalPagarOrdenesPago({
           ? mediosPagoInfo[0].nombre
           : mediosPagoInfo.map((x) => x.nombre).join(" + ");
 
+      let restante = Math.max(0, total);
+      const seleccionConImportes = (Array.isArray(seleccion) ? seleccion : [])
+        .map((r) => {
+          const saldo = getSaldoPendienteRow(r);
+          const aplicado = Math.min(saldo, restante);
+          restante = Math.max(0, restante - aplicado);
+
+          return {
+            ...r,
+            monto_aplicado: aplicado,
+            importe_aplicado: aplicado,
+          };
+        })
+        .filter((it) => Number(it.monto_aplicado || 0) > 0.009);
+
       const html = buildOrdenPagoHTML({
         proveedorNombre: proveedorInfo?.nombre ?? proveedor?.proveedor ?? "",
         proveedorId: proveedorInfo?.id_proveedor ?? proveedor?.id_proveedor ?? "",
         medioPagoNombre: mpNombre,
         total,
-        seleccion,
+        seleccion: seleccionConImportes,
         fechaPago: new Date(),
       });
 

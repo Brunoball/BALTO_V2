@@ -57,6 +57,198 @@ function todayDMY() {
   return formatFechaDMY(new Date());
 }
 
+function toNumber(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function firstValue(obj, keys) {
+  const raw = obj && typeof obj === "object" ? obj : {};
+  for (const key of keys) {
+    const value = raw[key];
+    if (value !== undefined && value !== null && String(value).trim() !== "") return value;
+  }
+  return "";
+}
+
+function isGenericDescription(value) {
+  const text = String(value ?? "")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  return (
+    !text ||
+    text === "SIN PRODUCTOS" ||
+    text === "1 CONCEPTO" ||
+    text === "PRODUCTO / SERVICIO" ||
+    /^\d+\s+PRODUCTO(S)?$/.test(text)
+  );
+}
+
+function cleanDescription(value) {
+  const text = String(value ?? "").trim();
+  return text && !isGenericDescription(text) ? text : "";
+}
+
+function parseCantidadDescripcion(value) {
+  const text = cleanDescription(value);
+  if (!text) return { cantidad: 1, descripcion: "Item" };
+
+  const match = text.match(/^([0-9]+(?:[\.,][0-9]+)?)\s*x\s*(.+)$/i);
+  if (!match) return { cantidad: 1, descripcion: text };
+
+  const cantidad = toNumber(match[1].replace(",", "."), 1);
+  const descripcion = cleanDescription(match[2]) || text;
+  return { cantidad: cantidad > 0 ? cantidad : 1, descripcion };
+}
+
+function formatCantidad(v) {
+  const n = toNumber(v, 0);
+  const cantidad = n > 0 ? n : 1;
+  try {
+    return cantidad.toLocaleString("es-AR", { maximumFractionDigits: 2 });
+  } catch {
+    return String(cantidad);
+  }
+}
+
+function getMovimientoItems(movimiento) {
+  const candidates = [
+    movimiento?.items_detalle,
+    movimiento?.itemsDetalle,
+    movimiento?.items,
+    movimiento?.productos,
+    movimiento?.detalles,
+  ];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate) && candidate.length > 0) return candidate;
+  }
+  return [];
+}
+
+function getItemDescription(item, movimiento = {}) {
+  return (
+    cleanDescription(firstValue(item, [
+      "stock_producto_nombre",
+      "producto_nombre",
+      "detalle_nombre",
+      "nombre",
+      "producto",
+      "descripcion",
+      "detalle",
+      "concepto",
+    ])) ||
+    cleanDescription(firstValue(movimiento, [
+      "detalle_original",
+      "descripcion_original",
+      "concepto_original",
+      "stock_producto_nombre",
+      "producto_nombre",
+      "detalle",
+      "descripcion",
+      "concepto",
+      "nombre",
+    ])) ||
+    "Item"
+  );
+}
+
+function getItemCantidad(item, movimiento = {}) {
+  const cantidad = toNumber(firstValue(item, ["cantidad", "qty", "unidades"]), 0);
+  if (cantidad > 0) return cantidad;
+  const parsed = parseCantidadDescripcion(
+    firstValue(item, ["descripcion", "detalle", "nombre"]) ||
+      firstValue(movimiento, ["detalle", "descripcion", "concepto"])
+  );
+  return parsed.cantidad;
+}
+
+function getItemImporte(item, fallback = 0) {
+  const amount = toNumber(firstValue(item, [
+    "monto_aplicado",
+    "importe_aplicado",
+    "monto",
+    "total",
+    "monto_total",
+    "total_item",
+    "subtotal",
+  ]), NaN);
+  if (Number.isFinite(amount) && amount > 0) return amount;
+
+  const cantidad = toNumber(firstValue(item, ["cantidad", "qty", "unidades"]), 0);
+  const precio = toNumber(firstValue(item, ["precio", "precio_unitario", "precioUnitario"]), 0);
+  if (cantidad > 0 && precio > 0) return cantidad * precio;
+
+  return fallback;
+}
+
+function getMovimientoImporte(movimiento) {
+  return toNumber(firstValue(movimiento, [
+    "monto_aplicado",
+    "importe_aplicado",
+    "monto",
+    "saldo_pendiente",
+    "saldo",
+    "monto_total",
+    "total",
+  ]), 0);
+}
+
+function buildDetalleRows(movimientos) {
+  const rows = [];
+  const src = Array.isArray(movimientos) ? movimientos : [];
+
+  src.forEach((movimiento) => {
+    const mov = movimiento && typeof movimiento === "object" ? movimiento : {};
+    const fecha = formatFechaDMY(mov?.fecha);
+    const importeMovimiento = getMovimientoImporte(mov);
+    const items = getMovimientoItems(mov);
+
+    if (items.length > 0) {
+      const itemAmounts = items.map((item) => getItemImporte(item, 0));
+      const itemTotal = itemAmounts.reduce((acc, n) => acc + (Number(n) || 0), 0);
+      let restante = importeMovimiento > 0 ? importeMovimiento : itemTotal;
+      const distribuirParcial = importeMovimiento > 0 && itemTotal > importeMovimiento + 0.009;
+
+      items.forEach((item, idx) => {
+        const baseImporte = itemAmounts[idx] > 0 ? itemAmounts[idx] : (importeMovimiento > 0 ? importeMovimiento / items.length : 0);
+        const importe = distribuirParcial ? Math.min(baseImporte, Math.max(0, restante)) : baseImporte;
+        restante = Math.max(0, restante - importe);
+
+        rows.push({
+          fecha,
+          cantidad: getItemCantidad(item, mov),
+          descripcion: getItemDescription(item, mov),
+          importe,
+        });
+      });
+      return;
+    }
+
+    const parsed = parseCantidadDescripcion(
+      firstValue(mov, [
+        "detalle_original",
+        "descripcion_original",
+        "concepto_original",
+        "detalle",
+        "descripcion",
+        "concepto",
+        "nombre",
+      ])
+    );
+
+    rows.push({
+      fecha,
+      cantidad: toNumber(firstValue(mov, ["cantidad", "qty", "unidades"]), parsed.cantidad),
+      descripcion: parsed.descripcion,
+      importe: importeMovimiento,
+    });
+  });
+
+  return rows.filter((row) => cleanDescription(row.descripcion) || toNumber(row.importe, 0) > 0);
+}
+
 export function buildOrdenPagoHTML({
   proveedorNombre,
   proveedorId,
@@ -67,6 +259,7 @@ export function buildOrdenPagoHTML({
   extra = {},
 } = {}) {
   const items = Array.isArray(seleccion) ? seleccion : [];
+  const detalleRows = buildDetalleRows(items);
 
   const fechaOrden = esc(formatFechaDMY(fechaPago || new Date()) || todayDMY());
   const proveedorNom = esc(proveedorNombre || "—");
@@ -77,32 +270,27 @@ export function buildOrdenPagoHTML({
   const totalOrden = moneyARS(total || 0);
   const cantidadItems = items.length;
 
-  const rows = items
+  const rows = detalleRows
     .map((r) => {
-      const idMov = Number(r?.id_movimiento || 0) || "—";
-      const fecha = esc(formatFechaDMY(r?.fecha));
-      const desc = esc(r?.detalle ?? r?.descripcion ?? r?.concepto ?? "—");
-      const monto = moneyARS(r?.monto_total ?? r?.total ?? 0);
-
       return `
         <tr>
-          <td class="c center">${safe(idMov)}</td>
-          <td class="c center">${fecha}</td>
-          <td class="c">${desc}</td>
-          <td class="c right">${monto}</td>
+          <td class="c center">${safe(r.fecha)}</td>
+          <td class="c center">${esc(formatCantidad(r.cantidad))}</td>
+          <td class="c">${safe(r.descripcion)}</td>
+          <td class="c right">${moneyARS(r.importe)}</td>
         </tr>
       `;
     })
     .join("");
 
   const itemsBlock =
-    items.length > 0
+    detalleRows.length > 0
       ? `
       <table class="tbl">
         <thead>
           <tr>
-            <th class="center" style="width:90px">Mov.</th>
             <th class="center" style="width:110px">Fecha</th>
+            <th class="center" style="width:95px">Cantidad</th>
             <th>Descripción</th>
             <th class="right" style="width:130px">Importe</th>
           </tr>
