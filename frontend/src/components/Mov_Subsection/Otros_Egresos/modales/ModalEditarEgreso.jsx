@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import BASE_URL from "../../../../config/config.jsx";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
 import "../../../Global/Global_css/Global_Modals.css";
+import "../../mov_subsection_modales.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalNuevoEgreso_extra.css";

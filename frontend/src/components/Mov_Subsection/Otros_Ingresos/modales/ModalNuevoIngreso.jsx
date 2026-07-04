@@ -9,6 +9,7 @@ import ModalNuevoCheque from "../../../Global/Modales/ModalNuevoCheque.jsx";
 import ModalNuevaDescripcion from "./ModalNuevaDescripcion.jsx";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import "../../../Global/Global_css/Global_Modals.css";
+import "../../mov_subsection_modales.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 

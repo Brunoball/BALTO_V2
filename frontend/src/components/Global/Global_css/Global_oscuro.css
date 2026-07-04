@@ -6,36 +6,14 @@
    - Azul Acción:     #0055BB
    ========================================================= */
 
-:root{
-  --balto-ink:#0A2540;
-  --balto-action:#0055BB;
-  --balto-bg:#F6F9FC;
-  --balto-text:#425466;
-  --balto-white:#FFFFFF;
-  --balto-success:#22AD5C;
-  --balto-danger:#E13D45;
-
-  --cmp-text: color-mix(in srgb, var(--balto-ink) 86%, #000);
-  --cmp-muted: color-mix(in srgb, var(--balto-text) 82%, #fff);
-  --cmp-border: color-mix(in srgb, var(--balto-ink) 14%, #fff);
-
-  --cmp-card: var(--balto-white);
-  --cmp-radius: 16px;
-
-  --cmp-shadow-sm: 0 1px 2px rgba(10,37,64,.06);
-  --cmp-shadow-md: 0 14px 34px -22px rgba(10,37,64,.28);
-
-  --cmp-focus: 0 0 0 4px rgba(0,85,187,.12);
-  --cmp-trans: 160ms cubic-bezier(.4,0,.2,1);
-}
 
 *{ box-sizing: border-box; }
 
 .cmp-page{
   width: 100%;
   min-height: 100%;
-  color: var(--cmp-text);
-  background: var(--balto-bg);
+  color: var(--color-text);
+  background: var(--color-bg-soft);
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
@@ -43,17 +21,17 @@
   margin: 0 18px 12px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--balto-danger) 10%, #fff);
-  border: 1px solid color-mix(in srgb, var(--balto-danger) 24%, #fff);
-  color: color-mix(in srgb, var(--balto-danger) 60%, var(--balto-ink));
+  background: color-mix(in srgb, var(--color-danger) 10%, #fff);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 24%, #fff);
+  color: color-mix(in srgb, var(--color-danger) 60%, var(--color-primary-strong));
   font-weight: 560;
 }
 
 .cmp-card{
-  background: var(--cmp-card);
-  border: 1px solid var(--cmp-border);
-  border-radius: var(--cmp-radius);
-  box-shadow: var(--cmp-shadow-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
@@ -69,7 +47,7 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--cmp-border) 70%, #fff);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 70%, #fff);
   background:
     radial-gradient(900px 180px at 0% 0%, rgba(0,85,187,.06), transparent 55%),
     linear-gradient(180deg, #fff, #fff);
@@ -87,16 +65,16 @@
   font-size: 15px;
   letter-spacing: -0.01em;
   font-weight: 620;
-  color: var(--balto-ink);
+  color: var(--color-primary-strong);
 }
 
 .cmp-card__hint{
   margin-top: 4px;
   font-size: 12px;
-  color: var(--cmp-muted);
+  color: var(--color-text-muted);
   font-weight: 460;
 }
-.cmp-card__hint b{ font-weight: 620; color: var(--balto-ink); }
+.cmp-card__hint b{ font-weight: 620; color: var(--color-primary-strong); }
 
 .cmp-card__actions{
   display:flex;
@@ -124,7 +102,7 @@
   display:block;
   font-size: 11px;
   font-weight: 600;
-  color: color-mix(in srgb, var(--balto-text) 86%, #000);
+  color: color-mix(in srgb, var(--color-text-muted) 86%, #000);
   letter-spacing: .06em;
   text-transform: uppercase;
 }
@@ -134,25 +112,25 @@
   width: 100%;
   height: 40px;
   border-radius: 12px;
-  border: 1px solid var(--cmp-border);
-  background: color-mix(in srgb, var(--balto-bg) 62%, #fff);
+  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-bg-soft) 62%, #fff);
   padding: 0 12px;
   outline: none;
-  color: var(--balto-ink);
+  color: var(--color-primary-strong);
   font-weight: 520;
-  transition: border-color var(--cmp-trans), box-shadow var(--cmp-trans), background var(--cmp-trans);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
 }
 
 .cmp-search input::placeholder{
-  color: color-mix(in srgb, var(--balto-text) 62%, #fff);
+  color: color-mix(in srgb, var(--color-text-muted) 62%, #fff);
   font-weight: 460;
 }
 
 .cmp-filter select:focus,
 .cmp-search input:focus{
   background: #fff;
-  border-color: color-mix(in srgb, var(--balto-action) 60%, #fff);
-  box-shadow: var(--cmp-focus);
+  border-color: color-mix(in srgb, var(--color-primary) 60%, #fff);
+  box-shadow: var(--focus-ring);
 }
 
 .cmp-filter{ width: 170px; }
@@ -169,22 +147,22 @@
   width: 30px;
   height: 26px;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--cmp-border) 70%, #fff);
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, #fff);
   background: #fff;
-  color: color-mix(in srgb, var(--balto-text) 70%, #000);
+  color: color-mix(in srgb, var(--color-text-muted) 70%, #000);
   cursor: pointer;
   display:inline-flex;
   align-items:center;
   justify-content:center;
   font-size: 18px;
   font-weight: 600;
-  transition: transform var(--cmp-trans), box-shadow var(--cmp-trans), background var(--cmp-trans);
+  transition: transform var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
 }
 
 .cmp-clearSearch:hover{
-  background: color-mix(in srgb, var(--balto-bg) 70%, #fff);
+  background: color-mix(in srgb, var(--color-bg-soft) 70%, #fff);
   transform: translateY(-50%) translateY(-1px);
-  box-shadow: var(--cmp-shadow-sm);
+  box-shadow: var(--shadow-sm);
 }
 .cmp-clearSearch:active{ transform: translateY(-50%); box-shadow: none; }
 
@@ -192,13 +170,13 @@
 .cmp-btn{
   height: 40px;
   border-radius: 12px;
-  border: 1px solid var(--cmp-border);
+  border: 1px solid var(--color-border);
   background: #fff;
   font-weight: 580;
   padding: 0 14px;
   cursor: pointer;
-  color: var(--balto-ink);
-  transition: transform var(--cmp-trans), box-shadow var(--cmp-trans), background var(--cmp-trans), border-color var(--cmp-trans);
+  color: var(--color-primary-strong);
+  transition: transform var(--transition-base), box-shadow var(--transition-base), background var(--transition-base), border-color var(--transition-base);
   display:inline-flex;
   align-items:center;
   justify-content:center;
@@ -207,8 +185,8 @@
 
 .cmp-btn:hover{
   transform: translateY(-1px);
-  box-shadow: var(--cmp-shadow-sm);
-  background: color-mix(in srgb, var(--balto-bg) 70%, #fff);
+  box-shadow: var(--shadow-sm);
+  background: color-mix(in srgb, var(--color-bg-soft) 70%, #fff);
 }
 
 .cmp-btn:disabled{
@@ -219,38 +197,38 @@
 }
 
 .cmp-btn--ghost{
-  background: color-mix(in srgb, var(--balto-bg) 65%, #fff);
+  background: color-mix(in srgb, var(--color-bg-soft) 65%, #fff);
 }
 
 .cmp-btn--primary{
-  background: var(--balto-action);
-  border-color: color-mix(in srgb, var(--balto-action) 60%, #fff);
+  background: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 60%, #fff);
   color: #fff;
   box-shadow: 0 10px 22px rgba(0,85,187,.18);
 }
 .cmp-btn--primary:hover{
-  background: color-mix(in srgb, var(--balto-action) 88%, #000);
+  background: color-mix(in srgb, var(--color-primary) 88%, #000);
   box-shadow: 0 14px 26px rgba(0,85,187,.22);
 }
 
 .cmp-btn--excel{
-  border: 1px solid color-mix(in srgb, var(--balto-success) 55%, #fff);
-  background: var(--balto-success);
+  border: 1px solid color-mix(in srgb, var(--color-success) 55%, #fff);
+  background: var(--color-success);
   color: #fff;
 }
 .cmp-btn--excel:hover{
   background: #fff;
-  color: var(--balto-success);
-  border-color: var(--balto-success);
+  color: var(--color-success);
+  border-color: var(--color-success);
 }
 
 .cmp-btn--danger{
-  border-color: color-mix(in srgb, var(--balto-danger) 40%, #fff);
-  background: var(--balto-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 40%, #fff);
+  background: var(--color-danger);
   color: #fff;
 }
 .cmp-btn--danger:hover{
-  background: color-mix(in srgb, var(--balto-danger) 86%, #000);
+  background: color-mix(in srgb, var(--color-danger) 86%, #000);
 }
 
 /* bar */
@@ -260,8 +238,8 @@
   justify-content: flex-end;
   gap: 14px;
   padding: 10px 12px;
-  background: linear-gradient(180deg, #fff, color-mix(in srgb, var(--balto-bg) 60%, #fff));
-  border-bottom: 1px solid color-mix(in srgb, var(--cmp-border) 70%, #fff);
+  background: linear-gradient(180deg, #fff, color-mix(in srgb, var(--color-bg-soft) 60%, #fff));
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 70%, #fff);
 }
 .cmp-tabsCta{ white-space: nowrap; padding: 0 16px; }
 
@@ -283,7 +261,7 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--balto-ink);
+  background: var(--color-primary-strong);
   color: rgba(255,255,255,.92);
   border-bottom: 1px solid rgba(255,255,255,.10);
   overflow: auto;
@@ -300,7 +278,7 @@
 
 .cmp-gridCell{
   padding: 10px 12px;
-  color: color-mix(in srgb, var(--balto-ink) 78%, #000);
+  color: color-mix(in srgb, var(--color-primary-strong) 78%, #000);
   font-size: 13px;
   font-weight: 440;
   overflow: hidden;
@@ -321,8 +299,8 @@
 
 .cmp-gridTable--row{
   background: #fff;
-  border-bottom: 1px solid color-mix(in srgb, var(--cmp-border) 60%, #fff);
-  transition: background var(--cmp-trans);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 60%, #fff);
+  transition: background var(--transition-base);
 }
 .cmp-gridTable--row:hover{ background: rgba(0,85,187,.05); }
 
@@ -331,7 +309,7 @@
 
 .is-strong{
   font-weight: 560;
-  color: var(--balto-ink);
+  color: var(--color-primary-strong);
 }
 
 .cmp-gridCell--actions{
@@ -352,37 +330,37 @@
   width: 36px;
   height: 34px;
   border-radius: 12px;
-  border: 1px solid var(--cmp-border);
+  border: 1px solid var(--color-border);
   background: #fff;
-  color: color-mix(in srgb, var(--balto-text) 80%, #000);
+  color: color-mix(in srgb, var(--color-text-muted) 80%, #000);
   cursor:pointer;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  transition: transform var(--cmp-trans), box-shadow var(--cmp-trans), background var(--cmp-trans), border-color var(--cmp-trans), color var(--cmp-trans);
+  transition: transform var(--transition-base), box-shadow var(--transition-base), background var(--transition-base), border-color var(--transition-base), color var(--transition-base);
 }
 .cmp-iconBtn:hover{
   transform: translateY(-1px);
-  box-shadow: var(--cmp-shadow-sm);
+  box-shadow: var(--shadow-sm);
   background: rgba(0,85,187,.08);
   border-color: rgba(0,85,187,.25);
-  color: var(--balto-action);
+  color: var(--color-primary);
 }
 
 .cmp-iconBtn--danger{
-  border-color: color-mix(in srgb, var(--balto-danger) 28%, #fff);
-  color: color-mix(in srgb, var(--balto-danger) 72%, #000);
+  border-color: color-mix(in srgb, var(--color-danger) 28%, #fff);
+  color: color-mix(in srgb, var(--color-danger) 72%, #000);
 }
 .cmp-iconBtn--danger:hover{
-  background: color-mix(in srgb, var(--balto-danger) 10%, #fff);
-  border-color: color-mix(in srgb, var(--balto-danger) 40%, #fff);
-  color: var(--balto-danger);
+  background: color-mix(in srgb, var(--color-danger) 10%, #fff);
+  border-color: color-mix(in srgb, var(--color-danger) 40%, #fff);
+  color: var(--color-danger);
 }
 
 .cmp-emptyRow{
   padding: 22px 12px;
   text-align:center;
-  color: var(--cmp-muted);
+  color: var(--color-text-muted);
   font-weight: 520;
 }
 
@@ -410,18 +388,18 @@
 .cmp-placeholder__box{
   width: min(680px, 100%);
   background: #fff;
-  border: 1px solid var(--cmp-border);
+  border: 1px solid var(--color-border);
   border-radius: 16px;
-  box-shadow: var(--cmp-shadow-md);
+  box-shadow: var(--shadow-md);
   padding: 16px;
 }
 .cmp-placeholder__title{
   font-weight: 620;
-  color: var(--balto-ink);
+  color: var(--color-primary-strong);
   margin-bottom: 8px;
 }
 .cmp-placeholder__text{
-  color: color-mix(in srgb, var(--balto-text) 88%, #000);
+  color: color-mix(in srgb, var(--color-text-muted) 88%, #000);
   font-weight: 460;
   line-height: 1.45;
   margin-bottom: 14px;
@@ -456,7 +434,7 @@
     display: block !important;     /* pisa el display:grid */
     padding: 12px;
     margin: 10px 0;
-    border: 1px solid color-mix(in srgb, var(--mov-border) 70%, #fff);
+    border: 1px solid color-mix(in srgb, var(--color-border) 70%, #fff);
     border-radius: 16px;
     background: #fff;
   }
@@ -481,7 +459,7 @@
     font-weight: 600;
     letter-spacing: .04em;
     text-transform: uppercase;
-    color: var(--mov-muted);
+    color: var(--color-text-muted);
     line-height: 1.2;
     padding-top: 2px;
   }
@@ -630,10 +608,10 @@ html[data-theme="oscuro"] .cal-wrap {
   --mi-primary-600: #5d9bff;
   --mi-shadow: 0 28px 64px -24px rgba(0, 0, 0, 0.55);
 
-  background: var(--mi-bg);
+  background: var(--color-bg);
   box-shadow:
-    0 0 0 1px var(--mi-border),
-    var(--mi-shadow);
+    0 0 0 1px var(--color-border),
+    var(--shadow-lg);
 }
 
 /* Header */
@@ -675,13 +653,13 @@ html[data-theme="oscuro"] .cal-clear:hover {
 
 /* Panels */
 html[data-theme="oscuro"] .cal-panels {
-  background: var(--mi-bg);
+  background: var(--color-bg);
 }
 
 /* Nav */
 html[data-theme="oscuro"] .cal-nav {
   background: #111b2a;
-  border-color: var(--mi-border);
+  border-color: var(--color-border);
   color: #c3d1e4;
 }
 
@@ -693,7 +671,7 @@ html[data-theme="oscuro"] .cal-nav:hover {
 
 /* Month */
 html[data-theme="oscuro"] .cal-month + .cal-month {
-  border-left: 1px solid var(--mi-border);
+  border-left: 1px solid var(--color-border);
 }
 
 html[data-theme="oscuro"] .cal-month__label {
@@ -702,12 +680,12 @@ html[data-theme="oscuro"] .cal-month__label {
 
 /* Grid / DOW */
 html[data-theme="oscuro"] .cal-dow {
-  color: var(--mi-muted);
+  color: var(--color-text-muted);
 }
 
 /* Días */
 html[data-theme="oscuro"] .cal-day {
-  color: var(--mi-text);
+  color: var(--color-text);
 }
 
 html[data-theme="oscuro"] .cal-day:hover:not(.cal-day--disabled):not(.cal-day--from):not(.cal-day--to) {
@@ -781,8 +759,8 @@ html[data-theme="oscuro"] .cal-day--disabled {
 /* Footer */
 html[data-theme="oscuro"] .cal-footer {
   background: #121c2b;
-  border-top: 1px solid var(--mi-border);
-  color: var(--mi-muted);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
 }
 
 html[data-theme="oscuro"] .cal-footer b {
@@ -792,7 +770,7 @@ html[data-theme="oscuro"] .cal-footer b {
 /* Responsive dark */
 @media (max-width: 560px) {
   html[data-theme="oscuro"] .cal-month + .cal-month {
-    border-top: 1px solid var(--mi-border);
+    border-top: 1px solid var(--color-border);
     border-left: none;
   }
 }
@@ -1923,12 +1901,12 @@ html[data-theme="oscuro"] .mi-modal__container{
   --nv-shadow-md: 0 6px 22px rgba(0,0,0,.32);
   --nv-shadow-lg: 0 28px 64px rgba(0,0,0,.55);
 
-  background: var(--nv-bg);
+  background: var(--color-bg);
   border: 1px solid rgba(255,255,255,.08);
 }
 
 html[data-theme="oscuro"] .mi-modal__content{
-  background: var(--nv-surface);
+  background: var(--color-surface);
 }
 
 html[data-theme="oscuro"] .mi-card{
@@ -1938,23 +1916,23 @@ html[data-theme="oscuro"] .mi-card{
 }
 
 html[data-theme="oscuro"] .mi-card__title{
-  color: var(--mi-text);
+  color: var(--color-text);
 }
 
 html[data-theme="oscuro"] .mi-card__hint{
-  color: var(--mi-muted);
+  color: var(--color-text-muted);
 }
 
 html[data-theme="oscuro"] .mi-detalle-title{
-  color: var(--mi-text);
+  color: var(--color-text);
 }
 
 html[data-theme="oscuro"] .mi-detalle-label{
-  color: var(--mi-muted);
+  color: var(--color-text-muted);
 }
 
 html[data-theme="oscuro"] .mi-detalle-value{
-  color: var(--mi-text);
+  color: var(--color-text);
 }
 
 html[data-theme="oscuro"] .mi-detalle-monto{
@@ -1978,7 +1956,7 @@ html[data-theme="oscuro"] .mi-detalle-block{
 .mi-detalle-label{
   font-size: 12.5px;
   font-weight: 400; /* 👈 liviano */
-  color: var(--mi-muted);
+  color: var(--color-text-muted);
   letter-spacing: 0.2px;
 }
 
@@ -1986,7 +1964,7 @@ html[data-theme="oscuro"] .mi-detalle-block{
 .mi-detalle-value{
   font-size: 13px;
   font-weight: 400; /* 👈 liviano */
-  color: var(--mi-text);
+  color: var(--color-text);
 }
 
 /* título del medio de pago */
@@ -1995,21 +1973,21 @@ html[data-theme="oscuro"] .mi-detalle-block{
   justify-content: space-between;
   font-size: 13.5px;
   font-weight: 500; /* 👈 apenas destacado */
-  color: var(--mi-text);
+  color: var(--color-text);
 }
 
 /* monto grande */
 .mi-detalle-monto{
   font-size: 17px;
   font-weight: 500; /* 👈 no bold */
-  color: var(--blue-action);
+  color: var(--color-primary);
 }
 
 /* bloque cheque */
 .mi-detalle-block{
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px dashed var(--mi-border);
+  border-top: 1px dashed var(--color-border);
 }/* =========================================
    MODO OSCURO - TABLA CLIENTES
    Uso: html[data-theme="oscuro"]
@@ -2033,8 +2011,8 @@ html[data-theme="oscuro"] {
 
 /* Contenedor principal de la tabla - Modo oscuro */
 html[data-theme="oscuro"] .cc-cliente-table {
-  background: var(--dark-card);
-  border-color: var(--dark-border);
+  background: var(--color-surface);
+  border-color: var(--color-border);
   box-shadow: 0 14px 34px -22px rgba(0, 0, 0, 0.5);
 }
 
@@ -2046,32 +2024,32 @@ html[data-theme="oscuro"] .cc-cliente-table__desktopHead {
 
 /* Celdas del header - Modo oscuro */
 html[data-theme="oscuro"] .cc-grid-header__cell {
-  color: var(--dark-text-secondary);
+  color: var(--color-text-muted);
 }
 
 /* Body de la tabla - Modo oscuro */
 html[data-theme="oscuro"] .cc-cliente-table__body {
-  background: var(--dark-card);
+  background: var(--color-surface);
 }
 
 /* Filas - Modo oscuro */
 html[data-theme="oscuro"] .cc-grid-row {
-  background: var(--dark-card);
+  background: var(--color-surface);
   border-bottom-color: rgba(51, 65, 85, 0.5);
 }
 
 html[data-theme="oscuro"] .cc-grid-row:hover {
-  background: var(--dark-hover);
+  background: var(--color-primary-soft);
 }
 
 /* Celdas - Modo oscuro */
 html[data-theme="oscuro"] .cc-grid-cell {
-  color: var(--dark-text-primary);
+  color: var(--color-text);
 }
 
 /* Primera columna - Nombre (modo oscuro) */
 html[data-theme="oscuro"] .cc-grid-cell:first-child {
-  color: var(--dark-text-primary);
+  color: var(--color-text);
 }
 
 /* Badge de estado - Modo oscuro */
@@ -2089,9 +2067,9 @@ html[data-theme="oscuro"] .cc-status-badge--inactive {
 
 /* Botones de acción - Modo oscuro */
 html[data-theme="oscuro"] .cc-action-btn {
-  background: var(--dark-bg-secondary);
-  border-color: var(--dark-border);
-  color: var(--dark-text-secondary);
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
 }
 
 html[data-theme="oscuro"] .cc-action-btn:hover:not(:disabled) {
@@ -2109,32 +2087,32 @@ html[data-theme="oscuro"] .cc-action-btn--danger:hover:not(:disabled) {
 /* Footer de la tabla - Modo oscuro */
 html[data-theme="oscuro"] .cc-cliente-table__footWrap {
   background: rgba(15, 23, 42, 0.8);
-  border-top-color: var(--dark-border);
+  border-top-color: var(--color-border);
 }
 
 html[data-theme="oscuro"] .cc-cliente-table__footWrap span {
-  color: var(--dark-text-secondary);
+  color: var(--color-text-muted);
 }
 
 /* Estados vacío y loading - Modo oscuro */
 html[data-theme="oscuro"] .cc-empty-state,
 html[data-theme="oscuro"] .cc-loading-state {
-  color: var(--dark-text-secondary);
+  color: var(--color-text-muted);
 }
 
 html[data-theme="oscuro"] .cc-empty-state svg,
 html[data-theme="oscuro"] .cc-loading-state svg {
-  color: var(--dark-text-secondary);
+  color: var(--color-text-muted);
   opacity: 0.6;
 }
 
 /* Scrollbar - Modo oscuro */
 html[data-theme="oscuro"] .cc-cliente-table__body::-webkit-scrollbar-track {
-  background: var(--dark-bg-primary);
+  background: var(--color-bg);
 }
 
 html[data-theme="oscuro"] .cc-cliente-table__body::-webkit-scrollbar-thumb {
-  background: var(--dark-border);
+  background: var(--color-border);
 }
 
 html[data-theme="oscuro"] .cc-cliente-table__body::-webkit-scrollbar-thumb:hover {
@@ -2147,68 +2125,68 @@ html[data-theme="oscuro"] .cc-cliente-table__body::-webkit-scrollbar-thumb:hover
 
 /* Panel de filtros lateral - Modo oscuro */
 html[data-theme="oscuro"] .mi-cr-filters {
-  background: var(--dark-card);
-  border-color: var(--dark-border);
+  background: var(--color-surface);
+  border-color: var(--color-border);
 }
 
 html[data-theme="oscuro"] .mi-cr-filters__top {
-  background: var(--dark-bg-secondary);
-  border-bottom-color: var(--dark-border);
-  color: var(--dark-text-primary);
+  background: var(--color-surface);
+  border-bottom-color: var(--color-border);
+  color: var(--color-text);
 }
 
 html[data-theme="oscuro"] .mi-cr-filters__title {
-  color: var(--dark-text-primary);
+  color: var(--color-text);
 }
 
 /* Campos de formulario - Modo oscuro */
 html[data-theme="oscuro"] .fl-input {
-  background: var(--dark-bg-secondary);
-  border-color: var(--dark-border);
-  color: var(--dark-text-primary);
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
 }
 
 html[data-theme="oscuro"] .fl-input:focus {
-  border-color: var(--dark-action);
-  background: var(--dark-bg-primary);
+  border-color: var(--color-primary);
+  background: var(--color-bg);
 }
 
 html[data-theme="oscuro"] .fl-label {
-  color: var(--dark-text-secondary);
+  color: var(--color-text-muted);
 }
 
 html[data-theme="oscuro"] .fl-input:focus + .fl-label,
 html[data-theme="oscuro"] .fl-input:not(:placeholder-shown) + .fl-label {
-  color: var(--dark-action);
+  color: var(--color-primary);
 }
 
 /* Select - Modo oscuro */
 html[data-theme="oscuro"] select.fl-input {
-  background: var(--dark-bg-secondary);
-  color: var(--dark-text-primary);
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 html[data-theme="oscuro"] select.fl-input option {
-  background: var(--dark-bg-secondary);
-  color: var(--dark-text-primary);
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 /* Botones - Modo oscuro */
 html[data-theme="oscuro"] .mit-btn--solid {
-  background: var(--dark-action);
+  background: var(--color-primary);
   color: white;
 }
 
 html[data-theme="oscuro"] .mit-btn--ghost {
   background: transparent;
-  border-color: var(--dark-border);
-  color: var(--dark-text-secondary);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
 }
 
 html[data-theme="oscuro"] .mit-btn--ghost:hover:not(:disabled) {
-  background: var(--dark-hover);
-  border-color: var(--dark-action);
-  color: var(--dark-action);
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 html[data-theme="oscuro"] .mit-btn:disabled {
@@ -2221,47 +2199,47 @@ html[data-theme="oscuro"] .mit-btn:disabled {
 
 /* Modal container - Modo oscuro */
 html[data-theme="oscuro"] .mi-modal__container {
-  background: var(--dark-bg-primary);
-  border: 1px solid var(--dark-border);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
 }
 
 /* Modal header - Modo oscuro */
 html[data-theme="oscuro"] .mi-modal__header {
-  background: var(--dark-bg-secondary);
-  border-bottom-color: var(--dark-border);
+  background: var(--color-surface);
+  border-bottom-color: var(--color-border);
 }
 
 html[data-theme="oscuro"] .mi-modal__title {
-  color: var(--dark-text-primary);
+  color: var(--color-text);
 }
 
 html[data-theme="oscuro"] .mi-modal__subtitle {
-  color: var(--dark-text-secondary);
+  color: var(--color-text-muted);
 }
 
 /* Modal close button - Modo oscuro */
 html[data-theme="oscuro"] .mi-modal__close {
-  color: var(--dark-text-secondary);
+  color: var(--color-text-muted);
 }
 
 html[data-theme="oscuro"] .mi-modal__close:hover:not(:disabled) {
-  background: var(--dark-hover);
-  color: var(--dark-text-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-text);
 }
 
 /* Modal content - Modo oscuro */
 html[data-theme="oscuro"] .mi-modal__content {
-  background: var(--dark-bg-primary);
+  background: var(--color-bg);
 }
 
 /* Modal footer actions - Modo oscuro */
 html[data-theme="oscuro"] .mit-actions {
-  border-top-color: var(--dark-border);
-  background: var(--dark-bg-secondary);
+  border-top-color: var(--color-border);
+  background: var(--color-surface);
 }
 
 html[data-theme="oscuro"] .mit-help {
-  color: var(--dark-text-secondary);
+  color: var(--color-text-muted);
 }
 
 /* =========================================
@@ -2269,19 +2247,19 @@ html[data-theme="oscuro"] .mit-help {
 ========================================= */
 
 html[data-theme="oscuro"] .mi-cr-table__foot--top .mit-btn--solid {
-  background: var(--dark-action);
+  background: var(--color-primary);
   color: white;
 }
 
 html[data-theme="oscuro"] .mi-cr-table__foot--top .mit-btn--ghost {
   background: transparent;
-  border-color: var(--dark-border);
-  color: var(--dark-text-secondary);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
 }
 
 html[data-theme="oscuro"] .mi-cr-table__foot--top .mit-btn--ghost:hover {
-  background: var(--dark-hover);
-  color: var(--dark-text-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-text);
 }
 
 /* =========================================
@@ -2289,15 +2267,15 @@ html[data-theme="oscuro"] .mi-cr-table__foot--top .mit-btn--ghost:hover {
 ========================================= */
 
 html[data-theme="oscuro"] .mi-cr-table__summary div {
-  color: var(--dark-text-primary);
+  color: var(--color-text);
 }
 
 html[data-theme="oscuro"] .mi-cr-table__summary div:last-child {
-  color: var(--dark-text-secondary);
+  color: var(--color-text-muted);
 }
 
 html[data-theme="oscuro"] .mi-cr-table__summary b {
-  color: var(--dark-text-primary);
+  color: var(--color-text);
 }
 
 /* Overlay del modal - Modo oscuro */
@@ -2311,21 +2289,21 @@ html[data-theme="oscuro"] .mi-modal__overlay {
 ========================================= */
 
 html[data-theme="oscuro"] .modal-accion-stock {
-  background: var(--dark-bg-primary);
-  border-color: var(--dark-border);
+  background: var(--color-bg);
+  border-color: var(--color-border);
 }
 
 html[data-theme="oscuro"] .modal-accion-stock__header {
-  background: var(--dark-bg-secondary);
-  border-bottom-color: var(--dark-border);
+  background: var(--color-surface);
+  border-bottom-color: var(--color-border);
 }
 
 html[data-theme="oscuro"] .modal-accion-stock__title {
-  color: var(--dark-text-primary);
+  color: var(--color-text);
 }
 
 html[data-theme="oscuro"] .modal-accion-stock__body {
-  color: var(--dark-text-primary);
+  color: var(--color-text);
 }
 
 html[data-theme="oscuro"] .modal-accion-stock__warning {
@@ -2335,38 +2313,38 @@ html[data-theme="oscuro"] .modal-accion-stock__warning {
 }
 
 html[data-theme="oscuro"] .modal-accion-stock__details {
-  background: var(--dark-bg-secondary);
-  border-color: var(--dark-border);
+  background: var(--color-surface);
+  border-color: var(--color-border);
 }
 
 html[data-theme="oscuro"] .modal-accion-stock__details-label {
-  color: var(--dark-text-secondary);
+  color: var(--color-text-muted);
 }
 
 html[data-theme="oscuro"] .modal-accion-stock__details-value {
-  color: var(--dark-text-primary);
+  color: var(--color-text);
 }
 
 /* Botones del modal de confirmación - Modo oscuro */
 html[data-theme="oscuro"] .modal-accion-stock__btn--confirm {
-  background: var(--dark-danger);
+  background: var(--color-danger);
   color: white;
 }
 
 html[data-theme="oscuro"] .modal-accion-stock__btn--confirm-success {
-  background: var(--dark-success);
+  background: var(--color-success);
   color: white;
 }
 
 html[data-theme="oscuro"] .modal-accion-stock__btn--cancel {
-  background: var(--dark-bg-secondary);
-  border-color: var(--dark-border);
-  color: var(--dark-text-secondary);
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
 }
 
 html[data-theme="oscuro"] .modal-accion-stock__btn--cancel:hover {
-  background: var(--dark-hover);
-  color: var(--dark-text-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-text);
 }
 
 /* =========================================

@@ -7,6 +7,7 @@ import Toast from "../../Global/Toast.jsx";
 
 import Calendario from "../../Global/Calendario/Calendario.jsx";
 import "../../Global/Calendario/calendario.css";
+import "../mov_subsection_modales.css";
 
 import ModalNuevaCompra from "./modales/ModalNuevaCompra.jsx";
 import ModalEditarCompra from "./modales/ModalEditarCompra.jsx";

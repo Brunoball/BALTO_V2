@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom";
 import BASE_URL from "../../../../config/config";
 import "../../cuentas_corrientes.css";
+import "../../cuentas_corrientes_modales.css";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faXmark,

@@ -7,6 +7,7 @@ import "../../Global/Global_css/Global_oscuro.css";
 import Toast from "../../Global/Toast.jsx";
 import Calendario from "../../Global/Calendario/Calendario.jsx";
 import "../../Global/Calendario/calendario.css";
+import "../mov_subsection_modales.css";
 
 import BotonExportar from "../../Global/Boton_Exportar/BotonExportar.jsx";
 import ModalVerComprobante from "../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";

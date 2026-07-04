@@ -400,7 +400,7 @@
   }
 
   .mi-modal__container.mi-modal--dark .mi-cr-filters__actions{
-    background: var(--balto-bg) !important;
+    background: var(--color-bg-soft) !important;
   }
 }/* =========================================================
    ✅ RESPONSIVE (SOLO MOBILE) — NO TOCA MONITOR
@@ -787,9 +787,9 @@
     display: block !important; /* ⚠️ cambia grid por block */
     padding: 6px;
     margin: 10px;
-    border: 1px solid var(--mi-border, rgba(255,255,255,0.08));
+    border: 1px solid var(--color-border, rgba(255,255,255,0.08));
     border-radius: 16px;
-    background: var(--mi-bg, #0e1a2b);
+    background: var(--color-bg, #0e1a2b);
 }
 
 
@@ -810,7 +810,7 @@
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.02em;
-    color: var(--mi-muted, #6b7280);
+    color: var(--color-text-muted, #6b7280);
     line-height: 1.2;
     padding-top: 2px;
   }
@@ -1368,10 +1368,10 @@
     min-height: auto;
     padding: 12px;
     margin-bottom: 10px;
-    border: 1px solid var(--nv-border-md);
+    border: 1px solid var(--color-border-strong);
     border-radius: 12px;
-    background: var(--nv-bg);
-    box-shadow: var(--nv-shadow-sm);
+    background: var(--color-bg);
+    box-shadow: var(--shadow-sm);
   }
   .mi-cr-totals{
     display: grid !important;
@@ -1412,7 +1412,7 @@ min-height: 40vh !important;
   .mi-cr-row > .mi-cr-cell::before{
     font-size: 11px;
     font-weight: 700;
-    color: var(--nv-muted);
+    color: var(--color-text-muted);
     letter-spacing: .02em;
   }
 
@@ -1476,8 +1476,8 @@ min-height: 40vh !important;
     height: 38px;
     font-size: 14px;
     padding: 0 10px;
-    border: 1px solid var(--nv-border-md);
-    background: var(--nv-bg);
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-bg);
     border-radius: 10px;
   }
 
@@ -1485,10 +1485,10 @@ min-height: 40vh !important;
   .mi-cr-cell--soft,
   .mi-cr-cell--total-val{
     min-height: 38px;
-    border: 1px solid var(--nv-border-md);
+    border: 1px solid var(--color-border-strong);
     border-radius: 10px;
     padding: 10px 12px;
-    background: var(--nv-surface);
+    background: var(--color-surface);
     justify-content: center;
   }
 

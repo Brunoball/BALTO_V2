@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FaSearch, FaCheck, FaTimes } from "react-icons/fa";
 import "./ModalFacturaBalto.css";
+import "../mov_subsection_modales.css";
 import ModalFacturaDatos from "./ModalFacturaDatos.jsx";
 import ModalFacturaBaltoResumen from "./ModalFacturaBaltoResumen.jsx";
 import BASE_URL from "../../../config/config";
