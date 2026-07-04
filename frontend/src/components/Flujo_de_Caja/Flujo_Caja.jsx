@@ -38,6 +38,15 @@ function moneyARS(v) {
     return `$${n.toFixed(2)}`;
   }
 }
+function moneyARSAbs(v) {
+  if (v == null || v === "") return "—";
+  const n = Math.abs(Number(v || 0));
+  try {
+    return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" });
+  } catch {
+    return `$${n.toFixed(2)}`;
+  }
+}
 function fmtDateES(iso) {
   if (!iso) return "—";
   const [y, m, d] = String(iso).split("-");
@@ -238,6 +247,7 @@ export default function Flujo_Caja() {
   }, [rows, selectedDate]);
 
   const selectedPaymentCards = selectedRow?.medios_pago || [];
+  const saldoBase = Number(bloque?.saldo_base ?? 0);
   const showing = rows.length;
 
   useEffect(() => {
@@ -500,7 +510,7 @@ export default function Flujo_Caja() {
             Detalle por caja / medio de pago •
             Caja diaria
             <span className="fc-subhead__meta">
-              &nbsp;•&nbsp;Saldo base: <b>{moneyARS(bloque?.saldo_base ?? 0)}</b>
+              &nbsp;•&nbsp;Saldo base: <b className={saldoBase < 0 ? "fc-saldo--neg" : "fc-saldo--pos"}>{moneyARSAbs(saldoBase)}</b>
             </span>
           </div>
         </div>
@@ -541,7 +551,7 @@ export default function Flujo_Caja() {
                       <div className="fc-payCard__titleWrap">
                         <div className="fc-payCard__title">{card.label}</div>
                         <div className={`fc-payCard__amount ${saldoNeg ? "is-negative" : "is-positive"}`}>
-                          {moneyARS(card.saldo)}
+                          {moneyARSAbs(card.saldo)}
                         </div>
                         <div className="fc-payCard__subtitle" title={paymentCardSubtitle(card)}>
                           {paymentCardSubtitle(card)}
@@ -552,11 +562,11 @@ export default function Flujo_Caja() {
                     <div className="fc-payCard__rows">
                       <div className="fc-payCard__row">
                         <span>Ingresos</span>
-                        <b className="fc-in">{moneyARS(card.ingresos)}</b>
+                        <b className="fc-in">{moneyARSAbs(card.ingresos)}</b>
                       </div>
                       <div className="fc-payCard__row">
                         <span>Egresos</span>
-                        <b className="fc-eg">{moneyARS(card.egresos)}</b>
+                        <b className="fc-eg">{moneyARSAbs(card.egresos)}</b>
                       </div>
                     </div>
                   </div>
@@ -619,18 +629,18 @@ export default function Flujo_Caja() {
 
                       {/* INGRESOS */}
                       <div className="mov-gridCell is-center" role="cell" data-label="INGRESOS">
-                        <span className="fc-num fc-in">{moneyARS(r.ingresos)}</span>
+                        <span className="fc-num fc-in">{moneyARSAbs(r.ingresos)}</span>
                       </div>
 
                       {/* EGRESOS */}
                       <div className="mov-gridCell is-center" role="cell" data-label="EGRESOS">
-                        <span className="fc-num fc-eg">{moneyARS(r.egresos)}</span>
+                        <span className="fc-num fc-eg">{moneyARSAbs(r.egresos)}</span>
                       </div>
 
                       {/* SALDO */}
                       <div className="mov-gridCell is-center" role="cell" data-label="SALDO">
                         <span className={`fc-num fc-saldo ${saldoNeg ? "fc-saldo--neg" : "fc-saldo--pos"}`}>
-                          {moneyARS(r.saldo)}
+                          {moneyARSAbs(r.saldo)}
                         </span>
                       </div>
                     </div>

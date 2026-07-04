@@ -2,7 +2,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import BASE_URL from "../config/config";
 
-const LISTS_TTL_MS = 10 * 60 * 1000;
+const LISTS_TTL_MS = 0;
 const CACHE_PREFIX = "balto_lists_cache_v1";
 
 function getSessionKey() {
@@ -105,6 +105,7 @@ export function ListasProvider({ children }) {
   const [lastUpdated, setLastUpdated] = useState(0);
 
   const inflightRef = useRef(null);
+  const requestSeqRef = useRef(0);
 
   const buildHeadersGET = useCallback(() => {
     const sk = getSessionKey();
@@ -127,7 +128,8 @@ export function ListasProvider({ children }) {
   }, []);
 
   const fetchLists = useCallback(async () => {
-    const res = await fetch(`${API}?action=global_obtener_listas`, {
+    const url = `${API}?action=global_obtener_listas&_ts=${Date.now()}`;
+    const res = await fetch(url, {
       method: "GET",
       headers: buildHeadersGET(),
     });
@@ -136,35 +138,26 @@ export function ListasProvider({ children }) {
     return normalizeLists(data);
   }, [API, buildHeadersGET, parseJsonOrThrow]);
 
-  const writeCache = useCallback((payload) => {
-    try {
-      const key = getCacheKey();
-      localStorage.setItem(
-        key,
-        JSON.stringify({
-          ts: Date.now(),
-          lists: payload,
-        })
-      );
-    } catch {}
+  const writeCache = useCallback((_payload) => {
+    // Las listas globales contienen entidades editables (clientes/proveedores/stock).
+    // No se persisten en localStorage para evitar que los selectores muestren datos viejos.
   }, []);
 
   const readCache = useCallback(() => {
-    try {
-      const key = getCacheKey();
-      const raw = localStorage.getItem(key);
-      const parsed = safeJsonParse(raw);
-      if (!parsed || !parsed.ts || !parsed.lists) return null;
-      return parsed;
-    } catch {
-      return null;
-    }
+    // Cache desactivada: cada carga real consulta al backend con timestamp para evitar datos viejos.
+    return null;
   }, []);
 
   const clearListsCache = useCallback(() => {
     try {
       const key = getCacheKey();
       localStorage.removeItem(key);
+      for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(`${CACHE_PREFIX}:`)) {
+          localStorage.removeItem(k);
+        }
+      }
     } catch {}
   }, []);
 
@@ -183,29 +176,35 @@ export function ListasProvider({ children }) {
         return cached.lists;
       }
 
-      if (inflightRef.current) {
+      if (inflightRef.current && !force) {
         return inflightRef.current;
       }
 
       const doRequest = (async () => {
+        const requestSeq = ++requestSeqRef.current;
         if (!background) setLoadingLists(true);
         setErrorLists("");
 
         try {
           const fresh = await fetchLists();
-          setLists(fresh);
-          setLastUpdated(Date.now());
-          writeCache(fresh);
+          if (requestSeq === requestSeqRef.current) {
+            setLists(fresh);
+            setLastUpdated(Date.now());
+            writeCache(fresh);
+          }
           return fresh;
         } catch (e) {
           const msg = e?.message || "Error cargando listas.";
-          setErrorLists(msg);
-
-          if (!cached?.lists) setLists(emptyLists);
+          if (requestSeq === requestSeqRef.current) {
+            setErrorLists(msg);
+            if (!cached?.lists) setLists(emptyLists);
+          }
           return cached?.lists || emptyLists;
         } finally {
-          if (!background) setLoadingLists(false);
-          inflightRef.current = null;
+          if (requestSeq === requestSeqRef.current) {
+            setLoadingLists(false);
+            inflightRef.current = null;
+          }
         }
       })();
 
@@ -232,8 +231,12 @@ export function ListasProvider({ children }) {
     };
 
     window.addEventListener("balto:listas-updated", handleListsUpdated);
+    window.addEventListener("balto:clientes-updated", handleListsUpdated);
+    window.addEventListener("balto:proveedores-updated", handleListsUpdated);
     return () => {
       window.removeEventListener("balto:listas-updated", handleListsUpdated);
+      window.removeEventListener("balto:clientes-updated", handleListsUpdated);
+      window.removeEventListener("balto:proveedores-updated", handleListsUpdated);
     };
   }, [clearListsCache, ensureListsLoaded]);
 

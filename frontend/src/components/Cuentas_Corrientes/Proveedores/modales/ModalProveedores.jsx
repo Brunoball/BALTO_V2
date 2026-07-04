@@ -24,6 +24,16 @@ import "../../../Global/Global_css/Global_oscuro.css";
 
 const API_URL = `${String(BASE_URL || "").replace(/\/+$/, "")}/api.php`;
 
+function notifyGlobalListasUpdated(kind = "listas") {
+  try {
+    window.dispatchEvent(new CustomEvent("balto:listas-updated", { detail: { kind } }));
+    if (kind === "clientes") window.dispatchEvent(new CustomEvent("balto:clientes-updated"));
+    if (kind === "proveedores") window.dispatchEvent(new CustomEvent("balto:proveedores-updated"));
+  } catch {
+    try { window.dispatchEvent(new Event("balto:listas-updated")); } catch {}
+  }
+}
+
 function isTemaOscuro() {
   return (
     document.documentElement.getAttribute("data-theme") === "oscuro" ||
@@ -873,6 +883,7 @@ export default function ModalProveedores({
         onToast?.("exito", data?.mensaje || "Proveedor actualizado correctamente.");
       }
 
+      notifyGlobalListasUpdated("proveedores");
       setPestana(tabDestino);
       await cargarProveedores(tabDestino);
       await onActualizado?.();
@@ -940,6 +951,7 @@ export default function ModalProveedores({
         resetForm();
       }
 
+      notifyGlobalListasUpdated("proveedores");
       await cargarProveedores(pestana);
       await onActualizado?.();
 

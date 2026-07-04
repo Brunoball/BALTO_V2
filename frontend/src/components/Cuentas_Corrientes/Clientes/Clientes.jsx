@@ -164,6 +164,16 @@ function withSessionKey(url) {
     const { sessionKey, token } = getAuthInfo();
     const u = new URL(base, window.location.origin);
 
+    // No tocar URLs firmadas de R2/S3: agregar session_key/token rompe la firma.
+    const isSignedObjectUrl =
+      u.searchParams.has("X-Amz-Signature") ||
+      u.searchParams.has("x-amz-signature") ||
+      /r2\.cloudflarestorage\.com$/i.test(u.hostname);
+
+    if (isSignedObjectUrl) {
+      return u.toString();
+    }
+
     if (sessionKey && !u.searchParams.has("session_key")) {
       u.searchParams.set("session_key", sessionKey);
     }
@@ -225,10 +235,86 @@ function prewarmComprobanteUrl(url, mime = "") {
   }
 }
 
+function comprobanteLabelFromTipo(tipo = "", fallback = "Comprobante") {
+  const t = safeText(tipo).toUpperCase();
+  if (t === "VENTA_NO_FACTURADA") return "Venta no facturada";
+  if (t === "FACTURA_INTERNA") return "Factura interna";
+  if (["FACTURA", "FACTURA_FISCAL", "COMPROBANTE_FISCAL"].includes(t)) return "Factura";
+  if (t === "REMITO") return "Remito";
+  if (t === "RECIBO") return "Recibo";
+  if (t === "ORDEN_PAGO") return "Orden de pago";
+  if (t === "NOTA_CREDITO") return "Nota de crédito";
+  if (t === "NOTA_DEBITO") return "Nota de débito";
+  return safeText(fallback) || "Comprobante";
+}
+
+function comprobanteRank(doc) {
+  const t = safeText(doc?.tipo || doc?.tipo_relacion || "").toUpperCase();
+  const k = safeText(doc?.key || "").toLowerCase();
+  if (["VENTA_NO_FACTURADA", "FACTURA_INTERNA", "FACTURA", "FACTURA_FISCAL", "COMPROBANTE_FISCAL"].includes(t) || k.includes("factura") || k.includes("venta_no_facturada")) return 10;
+  if (["NOTA_CREDITO", "NOTA_DEBITO"].includes(t)) return 15;
+  if (t === "REMITO" || k.includes("remito")) return 20;
+  return 30;
+}
+
+function normalizeCCComprobanteDocs(row) {
+  const rawDocs = Array.isArray(row?.comprobantes_detalle) ? row.comprobantes_detalle : [];
+  const docs = rawDocs
+    .map((doc, index) => {
+      const id = Number(doc?.id_comprobante ?? doc?.id_archivo ?? doc?.id ?? 0);
+      const rawUrl = safeText(doc?.url || doc?.archivo_url || doc?.comprobante_url || "");
+      if (!id && !rawUrl) return null;
+
+      const tipo = safeText(doc?.tipo || doc?.tipo_relacion || doc?.archivo_tipo || "").toUpperCase();
+      const label = safeText(doc?.label || doc?.title || comprobanteLabelFromTipo(tipo, `Comprobante ${index + 1}`));
+
+      return {
+        ...doc,
+        id_comprobante: Number.isFinite(id) && id > 0 ? id : null,
+        id_archivo: Number.isFinite(id) && id > 0 ? id : null,
+        tipo,
+        key: safeText(doc?.key || `${tipo || "comprobante"}_${id || index + 1}`).toLowerCase(),
+        label,
+        title: safeText(doc?.title || label),
+        mime: safeText(doc?.mime || doc?.archivo_mime || row?.comprobante_mime || "application/pdf") || "application/pdf",
+        fileName: safeText(doc?.fileName || doc?.filename || `${label.toLowerCase().replace(/\s+/g, "_")}.pdf`),
+        rawUrl,
+        cacheSalt: safeText(doc?.archivo_path || doc?.created_at || tipo || id || rawUrl),
+      };
+    })
+    .filter(Boolean);
+
+  if (!docs.length) {
+    const id = Number(row?.id_comprobante || 0);
+    const rawUrl = safeText(row?.comprobante_url || "");
+    if (id > 0 || rawUrl) {
+      const tipo = safeText(row?.tipo_relacion || row?.comprobante_tipo || "COMPROBANTE").toUpperCase();
+      const label = safeText(row?.comprobante || comprobanteLabelFromTipo(tipo, "Comprobante"));
+      docs.push({
+        id_comprobante: id > 0 ? id : null,
+        id_archivo: id > 0 ? id : null,
+        tipo,
+        key: `${tipo.toLowerCase()}_${id || 1}`,
+        label,
+        title: label,
+        mime: safeText(row?.comprobante_mime || "application/pdf") || "application/pdf",
+        fileName: `${label.toLowerCase().replace(/\s+/g, "_")}.pdf`,
+        rawUrl,
+        cacheSalt: safeText(row?.archivo_path || tipo || id || rawUrl),
+      });
+    }
+  }
+
+  return docs.sort((a, b) => {
+    const ra = comprobanteRank(a);
+    const rb = comprobanteRank(b);
+    if (ra !== rb) return ra - rb;
+    return Number(a?.id_comprobante || 0) - Number(b?.id_comprobante || 0);
+  });
+}
+
 function canPreviewComprobante(row) {
-  return (
-    safeText(row?.comprobante_url) !== "" || Number(row?.id_comprobante || 0) > 0
-  );
+  return normalizeCCComprobanteDocs(row).length > 0;
 }
 
 function canDeleteCobro(row) {
@@ -344,6 +430,7 @@ export default function ClientesCC() {
     url: "",
     mime: "",
     title: "Comprobante",
+    documents: [],
   });
 
   const [deleteState, setDeleteState] = useState({
@@ -586,63 +673,113 @@ export default function ClientesCC() {
     [handleExport]
   );
 
-  const buildFastComprobanteUrl = useCallback(
-    (row) => {
-      const idComp = Number(row?.id_comprobante || 0);
-      const rawBase = makeComprobanteAccessUrl(row, API);
-      const cacheKey = idComp > 0 ? `id:${idComp}` : `raw:${rawBase}`;
+  const getComprobanteResolvedUrl = useCallback(
+    async (doc) => {
+      const idComp = Number(doc?.id_comprobante || doc?.id_archivo || 0);
+      const rawUrl = safeText(doc?.rawUrl || doc?.url || doc?.archivo_url || doc?.comprobante_url || "");
 
+      if (idComp <= 0) {
+        return resolveFileUrl(rawUrl);
+      }
+
+      const cacheKey = `id:${idComp}:${safeText(doc?.cacheSalt || doc?.tipo || doc?.key || "")}`;
       if (comprobanteUrlCacheRef.current.has(cacheKey)) {
         return comprobanteUrlCacheRef.current.get(cacheKey) || "";
       }
 
-      const finalUrl = withSessionKey(rawBase);
-      if (finalUrl) {
-        comprobanteUrlCacheRef.current.set(cacheKey, finalUrl);
+      const data = await apiGet(`${API}?action=cc_comprobante_info&id_comprobante=${idComp}&_=${Date.now()}`);
+      if (!data || data.exito !== true) {
+        throw new Error(data?.mensaje || "No se pudo obtener el comprobante.");
       }
+
+      const payload = data?.data || {};
+      const finalUrl = safeText(
+        data?.url ||
+          data?.download_url ||
+          data?.archivo_url ||
+          payload?.url ||
+          payload?.download_url ||
+          payload?.archivo_url ||
+          payload?.cc_download_url ||
+          rawUrl
+      );
+
+      if (!finalUrl) {
+        throw new Error("El backend no devolvió la URL del comprobante.");
+      }
+
+      comprobanteUrlCacheRef.current.set(cacheKey, finalUrl);
       return finalUrl;
     },
     [API]
   );
 
+  const buildComprobantePreviewDocs = useCallback(
+    async (row) => {
+      const candidates = normalizeCCComprobanteDocs(row);
+      const docs = (
+        await Promise.all(
+          candidates.map(async (doc) => ({
+            ...doc,
+            url: await getComprobanteResolvedUrl(doc),
+          }))
+        )
+      ).filter((doc) => safeText(doc?.url) !== "");
+
+      return docs;
+    },
+    [getComprobanteResolvedUrl]
+  );
+
   const handlePrewarmComprobante = useCallback(
     (row) => {
-      const fastUrl = buildFastComprobanteUrl(row);
-      if (!fastUrl) return;
-      prewarmComprobanteUrl(fastUrl, safeText(row?.comprobante_mime));
+      normalizeCCComprobanteDocs(row).forEach((doc) => {
+        getComprobanteResolvedUrl(doc)
+          .then((url) => prewarmComprobanteUrl(url, safeText(doc?.mime || doc?.archivo_mime)))
+          .catch(() => {});
+      });
     },
-    [buildFastComprobanteUrl]
+    [getComprobanteResolvedUrl]
   );
 
   const openComprobante = useCallback(
-    (row) => {
-      const accessUrl = buildFastComprobanteUrl(row);
-      const mime = safeText(row?.comprobante_mime);
-
-      if (!accessUrl) {
+    async (row) => {
+      const candidates = normalizeCCComprobanteDocs(row);
+      if (!candidates.length) {
         showToast("advertencia", "Este registro no tiene comprobante asociado.", 2600);
         return;
       }
 
-      const isCobro = Number(row?.credito || 0) > 0;
-      const isMovimiento = Number(row?.debito || 0) > 0;
+      try {
+        const docs = await buildComprobantePreviewDocs(row);
+        if (!docs.length) {
+          showToast("advertencia", "Este registro no tiene comprobante asociado.", 2600);
+          return;
+        }
 
-      prewarmComprobanteUrl(accessUrl, mime);
+        docs.forEach((doc) => prewarmComprobanteUrl(doc.url, safeText(doc?.mime || doc?.archivo_mime)));
 
-      setPreviewComprobante({
-        open: true,
-        url: accessUrl,
-        mime,
-        title: isCobro
+        const isCobro = Number(row?.credito || 0) > 0;
+        const isMovimiento = Number(row?.debito || 0) > 0;
+
+        setPreviewComprobante({
+          open: true,
+          url: docs[0]?.url || "",
+          mime: docs[0]?.mime || docs[0]?.archivo_mime || safeText(row?.comprobante_mime) || "application/pdf",
+          title: isCobro
           ? row?.comprobante
             ? `Recibo · ${row.comprobante}`
             : "Recibo"
           : isMovimiento
-          ? row?.comprobante || "Movimiento"
+          ? "Comprobantes de Venta"
           : "Comprobante",
-      });
+          documents: docs,
+        });
+      } catch (e) {
+        showToast("error", e?.message || "No se pudieron abrir los comprobantes.", 3200);
+      }
     },
-    [buildFastComprobanteUrl, showToast]
+    [buildComprobantePreviewDocs, showToast]
   );
 
   const askDeleteCobro = useCallback((row) => {
@@ -739,6 +876,7 @@ export default function ClientesCC() {
         open={previewComprobante.open}
         url={previewComprobante.url}
         mime={previewComprobante.mime}
+        documents={previewComprobante.documents}
         title={previewComprobante.title}
         onClose={() =>
           setPreviewComprobante({
@@ -746,6 +884,7 @@ export default function ClientesCC() {
             url: "",
             mime: "",
             title: "Comprobante",
+            documents: [],
           })
         }
       />
