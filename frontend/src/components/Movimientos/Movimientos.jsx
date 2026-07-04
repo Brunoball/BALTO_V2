@@ -421,8 +421,8 @@ function sortMovimientosRecientes(list) {
     const fechaA = dateOnlyScore(pick(a, ["fecha", "fecha_movimiento", "created_at"], ""));
     if (fechaB !== fechaA) return fechaB - fechaA;
 
-    const createdB = dateTimeScore(pick(b, ["created_at", "fecha_creacion", "createdAt"], ""));
-    const createdA = dateTimeScore(pick(a, ["created_at", "fecha_creacion", "createdAt"], ""));
+    const createdB = dateTimeScore(pick(b, ["sort_updated", "fecha_accion", "orden_fecha", "updated_at", "created_at", "fecha_creacion", "createdAt"], ""));
+    const createdA = dateTimeScore(pick(a, ["sort_updated", "fecha_accion", "orden_fecha", "updated_at", "created_at", "fecha_creacion", "createdAt"], ""));
     if (createdB !== createdA) return createdB - createdA;
 
     const idB = Number(b?.id_movimiento ?? b?.id ?? 0);

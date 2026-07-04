@@ -348,6 +348,13 @@ function buildExportRows(rows) {
   }));
 }
 
+function buildProveedoresExportRows(rows) {
+  return (Array.isArray(rows) ? rows : []).map((r) => ({
+    PROVEEDOR: safeText(r.nombre || "-"),
+    "SALDO ACTUAL": Number(r.saldo || 0),
+  }));
+}
+
 /* =========================
    Auth
 ========================= */
@@ -468,11 +475,16 @@ export default function ProveedoresCC() {
   }, [dateRange]);
 
   const exportBaseName = useMemo(() => {
-    const safeName = String(queryUsed || "proveedor").replace(/[^\w.-]+/g, "_");
+    if (!selectedProveedor) {
+      const safeSearch = String(q || "").trim().replace(/[^\w.-]+/g, "_");
+      return safeSearch ? `cc_proveedores_${safeSearch}` : "cc_proveedores";
+    }
+
+    const safeName = String(queryUsed || selectedProveedor?.nombre || "proveedor").replace(/[^\w.-]+/g, "_");
     const from = formatDateISO(dateRange?.from);
     const to = formatDateISO(dateRange?.to || dateRange?.from);
     return `cc_proveedor_${safeName}_${from}_${to}`;
-  }, [queryUsed, dateRange]);
+  }, [selectedProveedor, q, queryUsed, dateRange]);
 
   const filteredSummaryRows = useMemo(() => {
     const needle = normLower(q);
@@ -569,26 +581,31 @@ export default function ProveedoresCC() {
   }, [loadSummary]);
 
   const getExportData = useCallback(() => {
-    const data = buildExportRows(rows);
+    const data = selectedProveedor ? buildExportRows(rows) : buildProveedoresExportRows(filteredSummaryRows);
     if (!data.length) throw new Error("No hay datos para exportar.");
     return data;
-  }, [rows]);
+  }, [selectedProveedor, rows, filteredSummaryRows]);
 
   const exportToExcel = useCallback(() => {
     const dataToExport = getExportData();
     const ws = XLSX.utils.json_to_sheet(dataToExport);
-    ws["!cols"] = [
-      { wch: 14 },
-      { wch: 28 },
-      { wch: 28 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 16 },
-    ];
+    ws["!cols"] = selectedProveedor
+      ? [
+          { wch: 14 },
+          { wch: 28 },
+          { wch: 28 },
+          { wch: 16 },
+          { wch: 16 },
+          { wch: 16 },
+        ]
+      : [
+          { wch: 42 },
+          { wch: 18 },
+        ];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Cuenta Corriente Proveedor");
+    XLSX.utils.book_append_sheet(wb, ws, selectedProveedor ? "Cuenta Corriente Proveedor" : "Proveedores");
     XLSX.writeFile(wb, `${exportBaseName}.xlsx`);
-  }, [getExportData, exportBaseName]);
+  }, [getExportData, exportBaseName, selectedProveedor]);
 
   const exportToCSV = useCallback(() => {
     const dataToExport = getExportData();
@@ -604,16 +621,8 @@ export default function ProveedoresCC() {
   const exportToTXT = useCallback(() => {
     const dataToExport = getExportData();
     const lines = dataToExport.map((row, index) => {
-      return [
-        `REGISTRO ${index + 1}`,
-        `FECHA: ${row.FECHA ?? ""}`,
-        `COMPROBANTE: ${row.COMPROBANTE ?? ""}`,
-        `DETALLE: ${row.DETALLE ?? ""}`,
-        `DÉBITO (DEBE): ${row["DÉBITO (DEBE)"] ?? ""}`,
-        `CRÉDITO (HABER): ${row["CRÉDITO (HABER)"] ?? ""}`,
-        `SALDO: ${row.SALDO ?? ""}`,
-        "----------------------------------------",
-      ].join("\n");
+      const rowLines = Object.entries(row).map(([key, value]) => `${key}: ${value ?? ""}`);
+      return [`REGISTRO ${index + 1}`, ...rowLines, "----------------------------------------"].join("\n");
     });
     downloadBlob(lines.join("\n"), `${exportBaseName}.txt`, "text/plain;charset=utf-8;");
   }, [getExportData, exportBaseName]);
@@ -642,14 +651,18 @@ export default function ProveedoresCC() {
     [exportToExcel, exportToCSV, exportToTXT, showToast]
   );
 
-  const exportOptions = useMemo(
-    () => [
-      {
-        key: "excel",
-        label: "Exportar Excel (.xlsx)",
-        icon: faFileExcel,
-        onClick: () => handleExport("excel"),
-      },
+  const exportOptions = useMemo(() => {
+    const excelOption = {
+      key: "excel",
+      label: selectedProveedor ? "Exportar Excel (.xlsx)" : "Exportar listado Excel (.xlsx)",
+      icon: faFileExcel,
+      onClick: () => handleExport("excel"),
+    };
+
+    if (!selectedProveedor) return [excelOption];
+
+    return [
+      excelOption,
       {
         key: "csv",
         label: "Exportar CSV (.csv)",
@@ -660,9 +673,8 @@ export default function ProveedoresCC() {
         label: "Exportar TXT (.txt)",
         onClick: () => handleExport("txt"),
       },
-    ],
-    [handleExport]
-  );
+    ];
+  }, [handleExport, selectedProveedor]);
 
   const getComprobanteResolvedUrl = useCallback(
     async (doc) => {
@@ -995,7 +1007,7 @@ export default function ProveedoresCC() {
 
               <div className="cc-row-actions__export">
                 <BotonExportar
-                  disabled={loading || !isDetailMode || rows.length === 0}
+                  disabled={loading || (isDetailMode ? rows.length === 0 : filteredSummaryRows.length === 0)}
                   loading={false}
                   label="Exportar"
                   opciones={exportOptions}
