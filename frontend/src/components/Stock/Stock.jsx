@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import ModalCargaMasiva from "./modales/ModalCargaMasiva";
 import ModalEditarProducto from "./modales/ModalEditarStock";
+import ModalAjustePrecios from "./modales/ModalAjustePrecios";
+import ModalHistorialPreciosProducto from "./modales/ModalHistorialPreciosProducto";
 import ModalEliminar from "../Global/Modales/ModalEliminar";
 import Toast from "../Global/Toast";
 import BASE_URL from "../../config/config";
@@ -16,6 +18,8 @@ import {
   faChevronDown,
   faSort,
   faLayerGroup,
+  faMoneyBillTrendUp,
+  faClockRotateLeft,
 } from "@fortawesome/free-solid-svg-icons";
 import "./Stock.css";
 import "../Global/Global_css/Global_Section.css";
@@ -172,13 +176,37 @@ function getProductoCategoriaId(prod) {
   );
 }
 
+function productoTieneCategoria(prod, categoriaId) {
+  const id = Number(categoriaId || 0);
+  if (!id) return true;
+  if (getProductoCategoriaId(prod) === id) return true;
+  const cats = Array.isArray(prod?.categorias) ? prod.categorias : [];
+  return cats.some((cat) => Number(cat?.id_stock_categoria ?? cat?.id ?? 0) === id);
+}
+
+function productoTieneCategoriaEnSet(prod, categoriaIds) {
+  if (!(categoriaIds instanceof Set) || categoriaIds.size === 0) return true;
+
+  const principal = getProductoCategoriaId(prod);
+  if (principal > 0 && categoriaIds.has(principal)) return true;
+
+  const cats = Array.isArray(prod?.categorias) ? prod.categorias : [];
+  return cats.some((cat) => {
+    const id = Number(cat?.id_stock_categoria ?? cat?.id ?? cat?.id_categoria_stock ?? 0);
+    return id > 0 && categoriaIds.has(id);
+  });
+}
+
 function normalizeCategoria(cat = {}) {
   const id = Number(cat?.id ?? cat?.id_stock_categoria ?? 0);
   return {
     ...cat,
     id,
     id_stock_categoria: id,
+    id_categoria_padre: Number(cat?.id_categoria_padre || 0) || null,
+    nivel: Number(cat?.nivel || 0),
     nombre: String(cat?.nombre ?? cat?.label ?? ""),
+    nombre_mostrar: String(cat?.nombre_mostrar ?? `${"— ".repeat(Number(cat?.nivel || 0))}${cat?.nombre ?? cat?.label ?? ""}`),
   };
 }
 
@@ -209,6 +237,9 @@ function normalizeProductoListItem(prod = {}) {
       Number(prod?.imagen_archivo_id ?? prod?.id_archivo_imagen ?? prod?.archivo_id ?? 0) || 0,
     id_stock_categoria: categoriaId || null,
     id_categoria_stock: categoriaId || null,
+    tiene_variantes: Number(prod?.tiene_variantes || 0) === 1,
+    cantidad_variantes: Number(prod?.cantidad_variantes || 0),
+    categorias: Array.isArray(prod?.categorias) ? prod.categorias : [],
     updated_at:
       prod?.updated_at ??
       prod?.updatedAt ??
@@ -219,6 +250,95 @@ function normalizeProductoListItem(prod = {}) {
       prod?.ultima_actualizacion ??
       "",
   };
+}
+
+
+function getVarianteId(variante) {
+  return Number(variante?.id ?? variante?.id_stock_variante ?? 0);
+}
+
+function getPrecioVariante(variante = {}, idTipo) {
+  const precios = Array.isArray(variante?.precios) ? variante.precios : [];
+  const item = precios.find((p) => Number(p?.id_tipo_precio_stock ?? p?.id_tipo ?? 0) === Number(idTipo));
+  const value = item?.monto ?? item?.precio ?? item?.importe ?? null;
+  return value === null || value === undefined || value === "" ? null : value;
+}
+
+function normalizeVarianteListItem(variante = {}) {
+  const id = getVarianteId(variante);
+  if (!id) return null;
+
+  return {
+    ...variante,
+    id,
+    id_stock_variante: Number(variante?.id_stock_variante ?? id),
+    nombre_variante: String(variante?.nombre_variante ?? variante?.nombre ?? ""),
+    sku: String(variante?.sku ?? ""),
+    stock: variante?.stock ?? 0,
+    precio_costo: variante?.precio_costo ?? getPrecioVariante(variante, 1),
+    precio: variante?.precio ?? getPrecioVariante(variante, 2),
+    precio_promo: variante?.precio_promo ?? getPrecioVariante(variante, 3),
+    precios_extra: (Array.isArray(variante?.precios) ? variante.precios : [])
+      .filter((p) => {
+        const idTipo = Number(p?.id_tipo_precio_stock ?? p?.id_tipo ?? 0);
+        return idTipo > 3;
+      })
+      .map((p) => ({
+        id_tipo_precio_stock: Number(p?.id_tipo_precio_stock ?? p?.id_tipo ?? 0),
+        tipo_nombre: String(p?.tipo_nombre ?? p?.nombre ?? ""),
+        precio: p?.monto ?? p?.precio ?? p?.importe ?? null,
+      })),
+    atributos: Array.isArray(variante?.atributos) ? variante.atributos : [],
+    categorias: Array.isArray(variante?.categorias) ? variante.categorias : [],
+    categorias_heredadas: !!variante?.categorias_heredadas,
+  };
+}
+
+function normalizeVariantesCollection(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => normalizeVarianteListItem(item))
+    .filter(Boolean);
+}
+
+function variantAttributesLabel(variante = {}) {
+  const attrs = Array.isArray(variante?.atributos) ? variante.atributos : [];
+  const label = attrs
+    .map((attr) => {
+      const nombre = String(attr?.atributo ?? attr?.nombre_atributo ?? attr?.nombre ?? "").trim();
+      const valor = String(attr?.valor ?? attr?.nombre_valor ?? "").trim();
+      if (nombre && valor) return `${nombre}: ${valor}`;
+      return nombre || valor;
+    })
+    .filter(Boolean)
+    .join(" · ");
+
+  return label || "Sin atributos";
+}
+
+function variantCategoriasLabel(variante = {}) {
+  const cats = Array.isArray(variante?.categorias) ? variante.categorias : [];
+  const label = cats
+    .map((cat) => String(cat?.nombre_mostrar ?? cat?.nombre ?? cat?.label ?? "").replace(/^—\s*/, "").trim())
+    .filter(Boolean)
+    .join(" · ");
+
+  return label || "Hereda categorías del producto";
+}
+
+function renderStockChip(value) {
+  const stockNum = Number(value || 0);
+  let stockClass = "mov-chip mov-chip--danger";
+  let stockLabel = "Sin stock";
+
+  if (stockNum > 10) {
+    stockClass = "mov-chip mov-chip--ok";
+    stockLabel = stockNum;
+  } else if (stockNum > 0 && stockNum <= 10) {
+    stockClass = "mov-chip mov-chip--warn";
+    stockLabel = stockNum;
+  }
+
+  return <span className={stockClass}>{stockLabel}</span>;
 }
 
 function mergeProductoEnLista(lista = [], producto = null) {
@@ -344,12 +464,16 @@ const Stock = () => {
 
   const [busqueda, setBusqueda] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
+  const [categoriaDropdownAbierto, setCategoriaDropdownAbierto] = useState(false);
+  const [categoriasFiltroExpandidas, setCategoriasFiltroExpandidas] = useState({});
   const [paginaActual, setPaginaActual] = useState(1);
   const [orden, setOrden] = useState({ campo: "nombre", dir: "ASC" });
 
   const [modalAbierto, setModalAbierto] = useState(false);
   const [modalEditarAbierto, setModalEditarAbierto] = useState(false);
   const [productoEditarId, setProductoEditarId] = useState(null);
+  const [modalAjustePreciosAbierto, setModalAjustePreciosAbierto] = useState(false);
+  const [productoHistorialPrecios, setProductoHistorialPrecios] = useState(null);
 
   const [modalEliminarAbierto, setModalEliminarAbierto] = useState(false);
   const [productoEliminar, setProductoEliminar] = useState(null);
@@ -362,9 +486,14 @@ const Stock = () => {
   const [versionImagenPorProducto, setVersionImagenPorProducto] = useState({});
   const [erroresImagenes, setErroresImagenes] = useState({});
   const [reintentosImagenes, setReintentosImagenes] = useState({});
+  const [variantesAbiertas, setVariantesAbiertas] = useState({});
+  const [variantesPorProducto, setVariantesPorProducto] = useState({});
+  const [loadingVariantesPorProducto, setLoadingVariantesPorProducto] = useState({});
+  const [errorVariantesPorProducto, setErrorVariantesPorProducto] = useState({});
 
   const refreshTimersRef = useRef([]);
   const impactoEliminarRequestRef = useRef(0);
+  const categoriaFiltroDropdownRef = useRef(null);
   const productosPorPagina = 20;
 
   const mostrarToast = useCallback((tipo, mensaje, duracion = 2500) => {
@@ -437,6 +566,7 @@ const Stock = () => {
           orden_campo: "nombre",
           orden_dir: "ASC",
         });
+        if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
 
         const data = await apiGet(`${API_URL}?${params.toString()}`);
         if (data?.exito === false) {
@@ -453,7 +583,7 @@ const Stock = () => {
           .filter((cat) => Number(cat.id_stock_categoria) > 0);
 
         return [...lista].sort((a, b) =>
-          String(a?.nombre || "").localeCompare(String(b?.nombre || ""), "es", {
+          String(a?.nombre_mostrar || a?.nombre || "").localeCompare(String(b?.nombre_mostrar || b?.nombre || ""), "es", {
             sensitivity: "base",
           })
         );
@@ -472,7 +602,7 @@ const Stock = () => {
     } else {
       setCategorias([]);
     }
-  }, []);
+  }, [categoriaFiltro]);
 
 
   const refrescarDespuesDeGuardar = useCallback(
@@ -482,6 +612,18 @@ const Stock = () => {
       if (productoGuardado) {
         setProductosRaw((prev) => mergeProductoEnLista(prev, productoGuardado));
         invalidarMiniaturaProducto(productoId);
+
+        if (productoId > 0 && Array.isArray(productoGuardado?.variantes)) {
+          setVariantesPorProducto((prev) => ({
+            ...prev,
+            [productoId]: normalizeVariantesCollection(productoGuardado.variantes),
+          }));
+          setErrorVariantesPorProducto((prev) => {
+            const next = { ...prev };
+            delete next[productoId];
+            return next;
+          });
+        }
       }
 
       try {
@@ -503,7 +645,7 @@ const Stock = () => {
 
       setCategorias(
         [...lista].sort((a, b) =>
-          String(a?.nombre || "").localeCompare(String(b?.nombre || ""), "es", {
+          String(a?.nombre_mostrar || a?.nombre || "").localeCompare(String(b?.nombre_mostrar || b?.nombre || ""), "es", {
             sensitivity: "base",
           })
         )
@@ -529,6 +671,7 @@ const Stock = () => {
         orden_campo: "nombre",
         orden_dir: "ASC",
       });
+      if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
 
       const data = await apiGet(`${API_URL}?${params.toString()}`);
       if (data.exito === false) {
@@ -542,7 +685,63 @@ const Stock = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [categoriaFiltro]);
+
+
+  const cargarVariantesProducto = useCallback(async (productoId) => {
+    const id = Number(productoId || 0);
+    if (!id) return;
+
+    setLoadingVariantesPorProducto((prev) => ({ ...prev, [id]: true }));
+    setErrorVariantesPorProducto((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+
+    try {
+      const params = new URLSearchParams({
+        action: "stock_variantes_listar",
+        id_stock_producto: String(id),
+      });
+      if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
+
+      const data = await apiGet(`${API_URL}?${params.toString()}`);
+      if (data?.exito === false) {
+        throw new Error(data?.mensaje || "No se pudieron cargar las variantes.");
+      }
+
+      const variantes = normalizeVariantesCollection(data?.variantes || data?.data?.variantes || []);
+      setVariantesPorProducto((prev) => ({ ...prev, [id]: variantes }));
+    } catch (err) {
+      setVariantesPorProducto((prev) => ({ ...prev, [id]: [] }));
+      setErrorVariantesPorProducto((prev) => ({
+        ...prev,
+        [id]: err?.message || "No se pudieron cargar las variantes.",
+      }));
+    } finally {
+      setLoadingVariantesPorProducto((prev) => ({ ...prev, [id]: false }));
+    }
+  }, [categoriaFiltro]);
+
+  const toggleVariantesProducto = useCallback((producto) => {
+    const id = getProductoId(producto);
+    if (!id) return;
+
+    const abierto = !!variantesAbiertas[id];
+    setVariantesAbiertas((prev) => ({ ...prev, [id]: !abierto }));
+
+    if (!abierto && !variantesPorProducto[id]) {
+      cargarVariantesProducto(id);
+    }
+  }, [cargarVariantesProducto, variantesAbiertas, variantesPorProducto]);
+
+  useEffect(() => {
+    setVariantesPorProducto({});
+    setErrorVariantesPorProducto({});
+    setLoadingVariantesPorProducto({});
+    setVariantesAbiertas({});
+  }, [categoriaFiltro]);
 
   useEffect(() => {
     fetchProductos();
@@ -576,19 +775,178 @@ const Stock = () => {
     };
   }, [fetchCategorias]);
 
+  const categoriasPorId = useMemo(() => {
+    const map = {};
+    categorias.forEach((cat) => {
+      const id = Number(cat?.id_stock_categoria ?? cat?.id ?? 0);
+      if (id > 0) map[id] = cat;
+    });
+    return map;
+  }, [categorias]);
+
+  const categoriasPorPadre = useMemo(() => {
+    const map = {};
+    categorias.forEach((cat) => {
+      const padre = Number(cat?.id_categoria_padre || 0);
+      if (!map[padre]) map[padre] = [];
+      map[padre].push(cat);
+    });
+
+    Object.keys(map).forEach((key) => {
+      map[key].sort((a, b) =>
+        String(a?.nombre ?? "").localeCompare(String(b?.nombre ?? ""), "es", {
+          numeric: true,
+          sensitivity: "base",
+        })
+      );
+    });
+
+    return map;
+  }, [categorias]);
+
+  const categoriaFiltroIds = useMemo(() => {
+    const id = Number(categoriaFiltro || 0);
+    const ids = new Set();
+    if (!id) return ids;
+
+    const agregarConHijas = (categoriaId) => {
+      const n = Number(categoriaId || 0);
+      if (!n || ids.has(n)) return;
+      ids.add(n);
+      (categoriasPorPadre[n] || []).forEach((hija) =>
+        agregarConHijas(hija?.id_stock_categoria ?? hija?.id)
+      );
+    };
+
+    agregarConHijas(id);
+    return ids;
+  }, [categoriaFiltro, categoriasPorPadre]);
+
+  const categoriaFiltroLabel = useMemo(() => {
+    const id = Number(categoriaFiltro || 0);
+    if (!id) return "Todas";
+
+    const partes = [];
+    let cursor = id;
+    let guard = 0;
+    while (cursor > 0 && categoriasPorId[cursor] && guard++ < 12) {
+      const cat = categoriasPorId[cursor];
+      partes.unshift(String(cat?.nombre ?? cat?.nombre_mostrar ?? "").replace(/^—\s*/g, "").trim());
+      cursor = Number(cat?.id_categoria_padre || 0);
+    }
+
+    return partes.filter(Boolean).join(" / ") || "Todas";
+  }, [categoriaFiltro, categoriasPorId]);
+
+  useEffect(() => {
+    if (!categoriaDropdownAbierto) return;
+
+    const handleClickOutside = (event) => {
+      if (categoriaFiltroDropdownRef.current && !categoriaFiltroDropdownRef.current.contains(event.target)) {
+        setCategoriaDropdownAbierto(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [categoriaDropdownAbierto]);
+
+  useEffect(() => {
+    const id = Number(categoriaFiltro || 0);
+    if (!id) return;
+
+    const expandidas = {};
+    let cursor = Number(categoriasPorId[id]?.id_categoria_padre || 0);
+    let guard = 0;
+    while (cursor > 0 && categoriasPorId[cursor] && guard++ < 12) {
+      expandidas[cursor] = true;
+      cursor = Number(categoriasPorId[cursor]?.id_categoria_padre || 0);
+    }
+
+    if (Object.keys(expandidas).length > 0) {
+      setCategoriasFiltroExpandidas((prev) => ({ ...prev, ...expandidas }));
+    }
+  }, [categoriaFiltro, categoriasPorId]);
+
+  const seleccionarCategoriaFiltro = useCallback((id) => {
+    setCategoriaFiltro(id ? String(id) : "");
+    setCategoriaDropdownAbierto(false);
+    setPaginaActual(1);
+  }, []);
+
+  const toggleCategoriaFiltroExpandida = useCallback((id) => {
+    const n = Number(id || 0);
+    if (!n) return;
+    setCategoriasFiltroExpandidas((prev) => ({ ...prev, [n]: !prev[n] }));
+  }, []);
+
+  const renderCategoriaFiltroItem = useCallback((cat, nivel = 0) => {
+    const id = Number(cat?.id_stock_categoria ?? cat?.id ?? 0);
+    if (!id) return null;
+
+    const hijas = categoriasPorPadre[id] || [];
+    const tieneHijas = hijas.length > 0;
+    const expandida = !!categoriasFiltroExpandidas[id];
+    const seleccionada = Number(categoriaFiltro || 0) === id;
+
+    return (
+      <div className="stock-catFilterNode" key={id}>
+        <div
+          className={[
+            "stock-catFilterOption",
+            seleccionada ? "is-selected" : "",
+            tieneHijas ? "has-children" : "",
+          ].join(" ")}
+          style={{ paddingLeft: 10 + nivel * 18 }}
+        >
+          {tieneHijas ? (
+            <button
+              type="button"
+              className="stock-catFilterExpand"
+              title={expandida ? "Ocultar subcategorías" : "Ver subcategorías"}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleCategoriaFiltroExpandida(id);
+              }}
+            >
+              <FontAwesomeIcon icon={expandida ? faChevronUp : faChevronDown} />
+            </button>
+          ) : (
+            <span className="stock-catFilterExpand stock-catFilterExpand--empty" />
+          )}
+
+          <button
+            type="button"
+            className="stock-catFilterLabel"
+            onClick={() => seleccionarCategoriaFiltro(id)}
+          >
+            {String(cat?.nombre ?? cat?.nombre_mostrar ?? "").replace(/^—\s*/g, "").trim()}
+          </button>
+        </div>
+
+        {tieneHijas && expandida ? (
+          <div className="stock-catFilterChildren">
+            {hijas.map((hija) => renderCategoriaFiltroItem(hija, nivel + 1))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }, [
+    categoriaFiltro,
+    categoriasFiltroExpandidas,
+    categoriasPorPadre,
+    seleccionarCategoriaFiltro,
+    toggleCategoriaFiltroExpandida,
+  ]);
+
   const productosFiltradosYOrdenados = useMemo(() => {
     let lista = Array.isArray(productosRaw) ? [...productosRaw] : [];
     const q = normalizeText(busqueda);
-    const categoriaId = Number(categoriaFiltro || 0);
-
     if (q) {
       lista = lista.filter(
         (p) => normalizeText(p.nombre).includes(q) || normalizeText(p.sku).includes(q)
       );
-    }
-
-    if (categoriaId > 0) {
-      lista = lista.filter((p) => getProductoCategoriaId(p) === categoriaId);
     }
 
     lista.sort((a, b) => {
@@ -597,7 +955,7 @@ const Stock = () => {
     });
 
     return lista;
-  }, [productosRaw, busqueda, categoriaFiltro, orden]);
+  }, [productosRaw, busqueda, orden]);
 
   const totalProductos = productosFiltradosYOrdenados.length;
   const totalPaginas = Math.max(1, Math.ceil(totalProductos / productosPorPagina));
@@ -626,8 +984,7 @@ const Stock = () => {
   };
 
   const handleCategoriaFiltro = (e) => {
-    setCategoriaFiltro(e.target.value);
-    setPaginaActual(1);
+    seleccionarCategoriaFiltro(e.target.value);
   };
 
   const handleOrden = (campo) => {
@@ -929,6 +1286,69 @@ const Stock = () => {
     </div>
   );
 
+
+  const renderVariantesProducto = (prod) => {
+    const productoId = getProductoId(prod);
+    const variantes = variantesPorProducto[productoId] || [];
+    const loadingVars = !!loadingVariantesPorProducto[productoId];
+    const errorVars = errorVariantesPorProducto[productoId];
+
+    return (
+      <div className="prod-variantsDetailRow" role="row">
+        <div className="prod-variantsPanel">
+          <div className="prod-variantsPanel__head">
+            <div>
+              <strong>Variantes de {prod.nombre}</strong>
+              <span>{loadingVars ? "Cargando variantes..." : `${variantes.length} registradas`}</span>
+            </div>
+          </div>
+
+          {errorVars ? (
+            <div className="prod-variantsPanel__empty">{errorVars}</div>
+          ) : loadingVars ? (
+            <div className="prod-variantsPanel__empty">Cargando información de variantes...</div>
+          ) : variantes.length === 0 ? (
+            <div className="prod-variantsPanel__empty">Este producto todavía no tiene variantes cargadas.</div>
+          ) : (
+            <div className="prod-variantsMiniTable">
+              <div className="prod-variantsMiniTable__head">
+                <span>Variante</span>
+                <span>SKU</span>
+                <span>Stock</span>
+                <span>Precio de costo</span>
+                <span>Precio de venta</span>
+                <span>Precio promocional</span>
+              </div>
+              {variantes.map((variant) => (
+                <div className="prod-variantsMiniTable__row" key={variant.id_stock_variante}>
+                  <span>
+                    <b>{variant.nombre_variante || `Variante #${variant.id_stock_variante}`}</b>
+                    <small>{variantAttributesLabel(variant)}</small>
+                    <small>{variantCategoriasLabel(variant)}</small>
+                  </span>
+                  <span className="prod-sku">{variant.sku || "—"}</span>
+                  <span>{renderStockChip(variant.stock)}</span>
+                  <span>{formatMoney(variant.precio_costo)}</span>
+                  <span>{formatMoney(variant.precio)}</span>
+                  <span className="prod-promo">{formatMoney(variant.precio_promo)}</span>
+                  {(variant.precios_extra || []).length > 0 ? (
+                    <span className="prod-variantExtraPrices">
+                      {(variant.precios_extra || []).map((item) => (
+                        <small key={`${variant.id_stock_variante}-${item.id_tipo_precio_stock}`}>
+                          {item.tipo_nombre || `Precio ${item.id_tipo_precio_stock}`}: {formatMoney(item.precio)}
+                        </small>
+                      ))}
+                    </span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <div className="mov-page">
@@ -990,29 +1410,67 @@ const Stock = () => {
                 </div>
 
                 <div className="cc-filter">
-                  <div className="cc-floatingField is-active">
-                    <select
-                      className="cc-input cc-input--floating"
-                      value={categoriaFiltro}
-                      onChange={handleCategoriaFiltro}
+                  <div
+                    className={[
+                      "cc-floatingField",
+                      "is-active",
+                      "stock-catFilter",
+                      categoriaDropdownAbierto ? "is-open" : "",
+                    ].join(" ")}
+                    ref={categoriaFiltroDropdownRef}
+                  >
+                    <button
+                      type="button"
+                      className="cc-input cc-input--floating stock-catFilterTrigger"
                       disabled={loading || loadingCategorias}
+                      onClick={() => setCategoriaDropdownAbierto((prev) => !prev)}
                     >
-                      <option value="">Todas</option>
-                      {categorias.map((cat) => (
-                        <option key={cat.id_stock_categoria} value={cat.id_stock_categoria}>
-                          {cat.nombre}
-                        </option>
-                      ))}
-                    </select>
+                      <span className="stock-catFilterTrigger__text">{categoriaFiltroLabel}</span>
+                      <FontAwesomeIcon icon={faChevronDown} className="stock-catFilterTrigger__icon" />
+                    </button>
+
                     <span className="cc-floatingLabel">
                       <FontAwesomeIcon icon={faLayerGroup} /> Categoría
                     </span>
+
+                    {categoriaDropdownAbierto ? (
+                      <div className="stock-catFilterPanel">
+                        <button
+                          type="button"
+                          className={[
+                            "stock-catFilterOption",
+                            "stock-catFilterOption--all",
+                            !categoriaFiltro ? "is-selected" : "",
+                          ].join(" ")}
+                          onClick={() => seleccionarCategoriaFiltro("")}
+                        >
+                          <span className="stock-catFilterExpand stock-catFilterExpand--empty" />
+                          <span className="stock-catFilterLabel">Todas</span>
+                        </button>
+
+                        {categorias.length === 0 ? (
+                          <div className="stock-catFilterEmpty">
+                            {loadingCategorias ? "Cargando categorías..." : "No hay categorías cargadas."}
+                          </div>
+                        ) : (
+                          (categoriasPorPadre[0] || []).map((cat) => renderCategoriaFiltroItem(cat, 0))
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="mov-card__actions" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="mov-btn mov-btn--ghost"
+                onClick={() => setModalAjustePreciosAbierto(true)}
+              >
+                <FontAwesomeIcon icon={faMoneyBillTrendUp} /> Ajustar precios
+              </button>
+
               <button
                 type="button"
                 className="mov-btn mov-btn--primary"
@@ -1087,14 +1545,27 @@ const Stock = () => {
                           : "";
 
                       return (
+                        <React.Fragment key={productoId}>
                         <div
-                          key={productoId}
                           className="mov-gridTable mov-gridTable--row"
                           style={{ gridTemplateColumns: GRID_COLS }}
                           role="row"
                         >
                           <div className="mov-gridCell is-strong" role="cell" data-label="PRODUCTO">
                             <div className="prod-productCell">
+                              {prod.tiene_variantes ? (
+                                <button
+                                  type="button"
+                                  className="prod-expandBtn"
+                                  title={variantesAbiertas[productoId] ? "Ocultar variantes" : "Ver variantes"}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleVariantesProducto(prod);
+                                  }}
+                                >
+                                  <FontAwesomeIcon icon={variantesAbiertas[productoId] ? faChevronUp : faChevronDown} />
+                                </button>
+                              ) : null}
                               <div className="prod-thumb">
                                 {archivoId > 0 && imageUrl && !imagenRota ? (
                                   <img
@@ -1131,6 +1602,9 @@ const Stock = () => {
                               </div>
 
                               <span className="mov-ellipsissss">{prod.nombre}</span>
+                              {prod.tiene_variantes ? (
+                                <span className="prod-variantBadge">{prod.cantidad_variantes || 0} variantes</span>
+                              ) : null}
                             </div>
                           </div>
 
@@ -1139,21 +1613,7 @@ const Stock = () => {
                           </div>
 
                           <div className="mov-gridCell is-center" role="cell" data-label="STOCK">
-                            {(() => {
-                              const stockNum = Number(prod.stock || 0);
-                              let stockClass = "mov-chip mov-chip--danger";
-                              let stockLabel = "Sin stock";
-
-                              if (stockNum > 10) {
-                                stockClass = "mov-chip mov-chip--ok";
-                                stockLabel = stockNum;
-                              } else if (stockNum > 0 && stockNum <= 10) {
-                                stockClass = "mov-chip mov-chip--warn";
-                                stockLabel = stockNum;
-                              }
-
-                              return <span className={stockClass}>{stockLabel}</span>;
-                            })()}
+                            {renderStockChip(prod.stock)}
                           </div>
 
                           <div
@@ -1190,6 +1650,15 @@ const Stock = () => {
                             <div className="mov-actionsInline">
                               <button
                                 type="button"
+                                title="Historial de precios"
+                                className="mov-iconBtn"
+                                onClick={() => setProductoHistorialPrecios(prod)}
+                              >
+                                <FontAwesomeIcon icon={faClockRotateLeft} />
+                              </button>
+
+                              <button
+                                type="button"
                                 title="Editar"
                                 className="mov-iconBtn"
                                 onClick={() => handleAbrirEditar(productoId)}
@@ -1208,6 +1677,8 @@ const Stock = () => {
                             </div>
                           </div>
                         </div>
+                        {variantesAbiertas[productoId] ? renderVariantesProducto(prod) : null}
+                        </React.Fragment>
                       );
                     })
                   )}
@@ -1261,6 +1732,30 @@ const Stock = () => {
           </div>
         )}
       </div>
+
+
+      {modalAjustePreciosAbierto && (
+        <ModalAjustePrecios
+          open={modalAjustePreciosAbierto}
+          onClose={() => setModalAjustePreciosAbierto(false)}
+          onToast={mostrarToast}
+          onGuardado={async () => {
+            await refrescarDespuesDeGuardar();
+            try {
+              window.dispatchEvent(new CustomEvent("balto:stock-updated"));
+            } catch {}
+          }}
+        />
+      )}
+
+      {productoHistorialPrecios && (
+        <ModalHistorialPreciosProducto
+          open={!!productoHistorialPrecios}
+          producto={productoHistorialPrecios}
+          onClose={() => setProductoHistorialPrecios(null)}
+          onToast={mostrarToast}
+        />
+      )}
 
       {modalAbierto && (
         <ModalCargaMasiva
