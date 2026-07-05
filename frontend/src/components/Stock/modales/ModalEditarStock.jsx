@@ -22,6 +22,7 @@ import {
   faLayerGroup,
   faTriangleExclamation,
   faImage,
+  faPlus,
 } from "@fortawesome/free-solid-svg-icons";
 import BASE_URL from "../../../config/config";
 
@@ -216,6 +217,30 @@ function formatNumberForApi(value) {
   if (num === null) return null;
 
   return Number(num.toFixed(2));
+}
+
+function normalizeMoneyInput(raw = "") {
+  let value = String(raw).replace(/\./g, ",").replace(/[^\d,]/g, "");
+  const firstComma = value.indexOf(",");
+  if (firstComma !== -1) {
+    value = value.slice(0, firstComma + 1) + value.slice(firstComma + 1).replace(/,/g, "");
+  }
+  const parts = value.split(",");
+  if (parts.length > 1) {
+    parts[1] = parts[1].slice(0, 2);
+    value = `${parts[0]},${parts[1]}`;
+  }
+  return value;
+}
+
+function formatPriceDisplay(value) {
+  const num = parseNumberFromInput(value);
+  if (num === null) return "";
+
+  return `$ ${num.toLocaleString("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function formatPricingResult(result, withCents = false) {
@@ -490,9 +515,11 @@ function findTipoPrecioByName(preciosPorTipo, names = []) {
 
 function normalizarProducto(data) {
   const p = data?.producto || data?.data || data || {};
-  const preciosPorTipo = Array.isArray(p.precios_por_tipo)
+  const preciosPorTipo = Array.isArray(p.precios_por_tipo) && p.precios_por_tipo.length > 0
     ? p.precios_por_tipo
-    : [];
+    : Array.isArray(p.precios)
+      ? p.precios
+      : [];
 
   const costoItem = findTipoPrecioByName(preciosPorTipo, ["PRECIO DE COSTO"]);
   const ventaItem = findTipoPrecioByName(preciosPorTipo, ["PRECIO DE VENTA"]);
@@ -548,7 +575,48 @@ function normalizarProducto(data) {
     descripcion: toUpperCaseValue(p.descripcion ?? ""),
     imagen_url: p.imagen_url ?? p.imagen ?? "",
     imagen_archivo_id: p.imagen_archivo_id ? Number(p.imagen_archivo_id) : null,
-    id_categoria_stock: normalizeCategoriaId(p.id_categoria_stock),
+    id_categoria_stock: normalizeCategoriaId(p.id_categoria_stock ?? p.id_stock_categoria ?? p.id_categoria),
+    categorias_ids: Array.isArray(p.categorias)
+      ? p.categorias
+          .map((cat) => normalizeCategoriaId(cat.id_stock_categoria ?? cat.id ?? cat.id_categoria))
+          .filter(Boolean)
+      : [],
+    tiene_variantes: Number(p.tiene_variantes || 0) === 1,
+    variantes: Array.isArray(p.variantes) && p.variantes.length > 0
+      ? p.variantes.map((variant) => {
+          const preciosVariante = mapPreciosByTipo(variant.precios || []);
+          return {
+            id_stock_variante: Number(variant.id_stock_variante || 0),
+            nombre_variante: toUpperCaseValue(variant.nombre_variante || variant.nombre || ""),
+            sku: toUpperCaseValue(variant.sku || ""),
+            stock: variant.stock !== null && variant.stock !== undefined ? String(variant.stock) : "0",
+            categorias_ids: Array.isArray(variant.categorias)
+              ? variant.categorias
+                  .map((cat) => normalizeCategoriaId(cat.id_stock_categoria ?? cat.id ?? cat.id_categoria))
+                  .filter(Boolean)
+              : [],
+            precio_costo: formatNumberForDisplay(preciosVariante[1]?.precio ?? preciosVariante[1]?.monto ?? ""),
+            precio: formatNumberForDisplay(preciosVariante[2]?.precio ?? preciosVariante[2]?.monto ?? ""),
+            precio_promo: formatNumberForDisplay(preciosVariante[3]?.precio ?? preciosVariante[3]?.monto ?? ""),
+            tipos_precio_extra: tiposExtra.map((tipo) => {
+              const idTipo = Number(tipo.id_tipo_precio_stock || 0);
+              const precioVariante = preciosVariante[idTipo] || {};
+              return normalizeVariantExtraPriceRow(tipo, {
+                ...tipo,
+                precio: formatNumberForDisplay(precioVariante?.precio ?? precioVariante?.monto ?? ""),
+                margen_porcentaje: formatNumberForDisplay(precioVariante?.margen_porcentaje ?? ""),
+                margen_valor: formatNumberForDisplay(precioVariante?.margen_valor ?? ""),
+              });
+            }),
+            atributos: Array.isArray(variant.atributos) && variant.atributos.length > 0
+              ? variant.atributos.map((attr) => ({
+                  atributo: toUpperCaseValue(attr.atributo || attr.nombre || attr.nombre_atributo || ""),
+                  valor: toUpperCaseValue(attr.valor || attr.nombre_valor || ""),
+                }))
+              : [emptyVariantAttr()],
+          };
+        })
+      : [emptyVariantRow()],
     tipos_precio_extra:
       Array.isArray(p.tipos_precio_extra) && p.tipos_precio_extra.length > 0
         ? p.tipos_precio_extra.map((item) => ({
@@ -625,7 +693,7 @@ function PriceInput({
   );
 }
 
-function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSave }) {
+function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSave, children }) {
   useEffect(() => {
     if (!open) return;
 
@@ -678,6 +746,8 @@ function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSa
             />
           </FloatingField>
 
+          {children}
+
           <div className="cmi-miniModal__actions">
             <button
               type="button"
@@ -704,6 +774,154 @@ function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSa
   );
 }
 
+
+function emptyVariantAttr() {
+  return { atributo: "", valor: "" };
+}
+
+function getTipoPrecioIdValue(tipo) {
+  return String(tipo?.id_tipo_precio_stock ?? tipo?.id ?? "").trim();
+}
+
+function isBaseTipoPrecioId(tipoId) {
+  return ["1", "2", "3"].includes(String(tipoId ?? ""));
+}
+
+function normalizeVariantExtraPriceRow(tipo = null, existing = null) {
+  return {
+    id_tipo_precio_stock: getTipoPrecioIdValue(tipo || existing),
+    tipo_nombre: normalizeOptionLabel(tipo?.tipo_nombre ?? tipo?.nombre ?? existing?.tipo_nombre ?? existing?.nombre ?? ""),
+    precio: existing?.precio ?? "",
+    margen_porcentaje: existing?.margen_porcentaje ?? "",
+    margen_valor: existing?.margen_valor ?? "",
+  };
+}
+
+function syncVariantExtraPrices(variant = {}, tiposProducto = []) {
+  const actuales = Array.isArray(variant.tipos_precio_extra) ? variant.tipos_precio_extra : [];
+  const porId = new Map();
+
+  actuales.forEach((item) => {
+    const id = getTipoPrecioIdValue(item);
+    if (id && !isBaseTipoPrecioId(id)) porId.set(id, item);
+  });
+
+  return (Array.isArray(tiposProducto) ? tiposProducto : [])
+    .map((tipo) => {
+      const id = getTipoPrecioIdValue(tipo);
+      if (!id || isBaseTipoPrecioId(id)) return null;
+      return normalizeVariantExtraPriceRow(tipo, porId.get(id));
+    })
+    .filter(Boolean);
+}
+
+function syncVariantsExtraPrices(variantes = [], tiposProducto = []) {
+  return (Array.isArray(variantes) ? variantes : []).map((variant) => ({
+    ...variant,
+    tipos_precio_extra: syncVariantExtraPrices(variant, tiposProducto),
+  }));
+}
+
+function emptyVariantRow(tiposProducto = []) {
+  const variant = {
+    id_stock_variante: 0,
+    nombre_variante: "",
+    sku: "",
+    stock: "0",
+    categorias_ids: [],
+    precio_costo: "",
+    precio: "",
+    precio_promo: "",
+    atributos: [emptyVariantAttr()],
+    tipos_precio_extra: [],
+  };
+
+  return {
+    ...variant,
+    tipos_precio_extra: syncVariantExtraPrices(variant, tiposProducto),
+  };
+}
+
+function categoryOptionLabel(cat) {
+  if (!cat) return "Categoría";
+  if (cat.nombre_mostrar) return String(cat.nombre_mostrar).toUpperCase();
+  const nivel = Number(cat.nivel || 0);
+  return `${"— ".repeat(nivel)}${String(cat.nombre || cat.label || "Categoría")}`.toUpperCase();
+}
+
+function getCategoryIdValue(cat) {
+  return normalizeIdValue(cat?.id_stock_categoria ?? cat?.id ?? cat?.id_categoria ?? "");
+}
+
+function getCategoryParentIdValue(cat) {
+  return normalizeIdValue(cat?.id_categoria_padre ?? cat?.categoria_padre_id ?? cat?.parent_id ?? "");
+}
+
+function isCategoriaPadre(cat) {
+  const parentId = getCategoryParentIdValue(cat);
+  return !parentId || parentId === "0";
+}
+
+function normalizeCategoriaRegistro(cat, fallback = {}) {
+  const base = cat || {};
+  const id = normalizeIdValue(base.id_stock_categoria ?? base.id ?? fallback.id ?? fallback.id_stock_categoria ?? "");
+  const idPadre = normalizeIdValue(base.id_categoria_padre ?? fallback.id_categoria_padre ?? "");
+  const nivel = Number(base.nivel ?? fallback.nivel ?? (idPadre ? 1 : 0)) || 0;
+  const nombre = String(base.nombre ?? fallback.nombre ?? "").trim().toUpperCase();
+
+  return {
+    ...fallback,
+    ...base,
+    id,
+    id_stock_categoria: id,
+    id_categoria_padre: idPadre || null,
+    nivel,
+    nombre,
+    nombre_mostrar: String(base.nombre_mostrar ?? fallback.nombre_mostrar ?? `${"— ".repeat(nivel)}${nombre}`).trim(),
+  };
+}
+
+function mapPreciosByTipo(precios = []) {
+  const map = {};
+  (Array.isArray(precios) ? precios : []).forEach((precio) => {
+    const id = Number(precio?.id_tipo_precio_stock || precio?.id || 0);
+    if (id > 0) map[id] = precio;
+  });
+  return map;
+}
+
+function buildVariantPricePayload(variant) {
+  const precios = [];
+  if (variant.precio_costo !== "") {
+    precios.push({ id_tipo_precio_stock: 1, nombre: "COSTO", tipo_nombre: "COSTO", precio: formatNumberForApi(variant.precio_costo) });
+  }
+  if (variant.precio !== "") {
+    precios.push({ id_tipo_precio_stock: 2, nombre: "VENTA", tipo_nombre: "VENTA", precio: formatNumberForApi(variant.precio) });
+  }
+  if (variant.precio_promo !== "") {
+    precios.push({ id_tipo_precio_stock: 3, nombre: "PROMO", tipo_nombre: "PROMO", precio: formatNumberForApi(variant.precio_promo) });
+  }
+
+  (Array.isArray(variant.tipos_precio_extra) ? variant.tipos_precio_extra : []).forEach((item) => {
+    const id = Number(item.id_tipo_precio_stock || 0);
+    if (!id || isBaseTipoPrecioId(id)) return;
+
+    const precio = formatNumberForApi(item.precio);
+    if (precio === "" || precio === null || precio === undefined) return;
+
+    precios.push({
+      id_tipo_precio_stock: id,
+      nombre: toUpperCaseValue(item.tipo_nombre),
+      tipo_nombre: toUpperCaseValue(item.tipo_nombre),
+      precio,
+      margen_porcentaje: formatNumberForApi(item.margen_porcentaje),
+      margen_valor: formatNumberForApi(item.margen_valor),
+    });
+  });
+
+  return precios.filter((precio) => precio.precio !== null && precio.precio !== undefined && precio.precio !== "");
+}
+
 function buildEmptyForm() {
   return {
     id: "",
@@ -721,6 +939,9 @@ function buildEmptyForm() {
     imagen_url: "",
     imagen_archivo_id: null,
     id_categoria_stock: "",
+    categorias_ids: [],
+    tiene_variantes: false,
+    variantes: [emptyVariantRow()],
     tipos_precio_extra: [],
   };
 }
@@ -732,6 +953,8 @@ export default function ModalEditarProducto({
   onToast,
 }) {
   const closeBtnRef = useRef(null);
+  const categoriasPanelRef = useRef(null);
+  const variantesPanelRef = useRef(null);
   const inputImagenRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
@@ -740,6 +963,7 @@ export default function ModalEditarProducto({
   const [dark, setDark] = useState(isTemaOscuro);
 
   const [form, setForm] = useState(buildEmptyForm());
+  const [cargaActiva, setCargaActiva] = useState("producto");
   const [categorias, setCategorias] = useState([]);
   const [loadingCategorias, setLoadingCategorias] = useState(false);
   const [tiposPrecio, setTiposPrecio] = useState([]);
@@ -751,7 +975,10 @@ export default function ModalEditarProducto({
 
   const [miniCategoriaOpen, setMiniCategoriaOpen] = useState(false);
   const [miniCategoriaNombre, setMiniCategoriaNombre] = useState("");
+  const [miniCategoriaPadreId, setMiniCategoriaPadreId] = useState("");
   const [guardandoMiniCategoria, setGuardandoMiniCategoria] = useState(false);
+  const [subCategoriaNombre, setSubCategoriaNombre] = useState("");
+  const [guardandoSubCategoria, setGuardandoSubCategoria] = useState(false);
 
   const [miniTipoOpen, setMiniTipoOpen] = useState(false);
   const [miniTipoNombre, setMiniTipoNombre] = useState("");
@@ -834,6 +1061,33 @@ export default function ModalEditarProducto({
 
   const isLoading = loading || guardando;
 
+  const categoriasSafe = useMemo(
+    () => (Array.isArray(categorias) ? categorias.filter(Boolean) : []),
+    [categorias]
+  );
+
+  const categoriasPadre = useMemo(
+    () => categoriasSafe.filter(isCategoriaPadre),
+    [categoriasSafe]
+  );
+
+  const categoriaPrincipalId = useMemo(
+    () => normalizeIdValue(form.id_categoria_stock),
+    [form.id_categoria_stock]
+  );
+
+  const categoriaPrincipal = useMemo(
+    () => categoriasSafe.find((cat) => getCategoryIdValue(cat) === categoriaPrincipalId) || null,
+    [categoriasSafe, categoriaPrincipalId]
+  );
+
+  const subcategoriasCategoriaPrincipal = useMemo(
+    () => categoriaPrincipalId
+      ? categoriasSafe.filter((cat) => getCategoryParentIdValue(cat) === categoriaPrincipalId)
+      : [],
+    [categoriasSafe, categoriaPrincipalId]
+  );
+
   useEffect(() => {
     let cancelado = false;
 
@@ -843,7 +1097,7 @@ export default function ModalEditarProducto({
 
       try {
         const [resListas, resTipos] = await Promise.allSettled([
-          fetch(`${API_URL}?action=obtener_listas`, {
+          fetch(`${API_URL}?action=stock_categorias_listar`, {
             method: "GET",
             headers: buildHeadersGET(),
           }),
@@ -857,16 +1111,20 @@ export default function ModalEditarProducto({
           if (resListas.status === "fulfilled") {
             try {
               const dataListas = await parseJsonOrThrow(resListas.value);
-              const rawCategorias = Array.isArray(
-                dataListas?.listas?.stock_categorias
-              )
-                ? dataListas.listas.stock_categorias
-                : [];
+              const rawCategorias = Array.isArray(dataListas?.categorias)
+                ? dataListas.categorias
+                : Array.isArray(dataListas?.listas?.stock_categorias)
+                  ? dataListas.listas.stock_categorias
+                  : [];
 
               setCategorias(
                 rawCategorias
                   .map((cat) => ({
                     id: String(cat.id_stock_categoria ?? cat.id ?? "").trim(),
+                    id_stock_categoria: String(cat.id_stock_categoria ?? cat.id ?? "").trim(),
+                    id_categoria_padre: cat.id_categoria_padre ?? null,
+                    nivel: Number(cat.nivel || 0),
+                    nombre_mostrar: String(cat.nombre_mostrar ?? "").trim(),
                     nombre: String(cat.nombre ?? cat.label ?? "")
                       .trim()
                       .toUpperCase(),
@@ -1005,6 +1263,7 @@ export default function ModalEditarProducto({
       }
 
       setLoading(true);
+      setCargaActiva("producto");
       setErrores({});
 
       try {
@@ -1021,6 +1280,7 @@ export default function ModalEditarProducto({
 
         if (mounted) {
           setForm(hydratePricingFormValues(normalizarProducto(data)));
+          setCargaActiva("producto");
         }
       } catch (err) {
         if (mounted) {
@@ -1090,9 +1350,13 @@ export default function ModalEditarProducto({
         return;
       }
 
+      const idNormalizado = normalizeIdValue(value);
       setForm((prev) => ({
         ...prev,
-        [name]: normalizeIdValue(value),
+        [name]: idNormalizado,
+        categorias_ids: idNormalizado
+          ? Array.from(new Set([...(prev.categorias_ids || []), idNormalizado]))
+          : prev.categorias_ids || [],
       }));
     } else {
       setForm((prev) => ({
@@ -1316,17 +1580,25 @@ export default function ModalEditarProducto({
       (t) => String(t.id ?? t.id_tipo_precio_stock) === String(val)
     );
 
-    setForm((prev) => ({
-      ...prev,
-      tipos_precio_extra: [...prev.tipos_precio_extra, emptyExtraPriceRow(tipo)],
-    }));
+    setForm((prev) => {
+      const tipos_precio_extra = [...(prev.tipos_precio_extra || []), emptyExtraPriceRow(tipo)];
+      return {
+        ...prev,
+        tipos_precio_extra,
+        variantes: syncVariantsExtraPrices(prev.variantes, tipos_precio_extra),
+      };
+    });
   };
 
   const quitarTipoPrecio = (idx) => {
-    setForm((prev) => ({
-      ...prev,
-      tipos_precio_extra: prev.tipos_precio_extra.filter((_, i) => i !== idx),
-    }));
+    setForm((prev) => {
+      const tipos_precio_extra = (prev.tipos_precio_extra || []).filter((_, i) => i !== idx);
+      return {
+        ...prev,
+        tipos_precio_extra,
+        variantes: syncVariantsExtraPrices(prev.variantes, tipos_precio_extra),
+      };
+    });
   };
 
   const limpiarNuevaImagen = () => {
@@ -1425,6 +1697,73 @@ export default function ModalEditarProducto({
     setEliminarImagenActual(false);
   };
 
+  const toggleCategoriaMultiple = (categoriaId) => {
+    const id = normalizeIdValue(categoriaId);
+    if (!id) return;
+    setForm((prev) => {
+      const actuales = Array.isArray(prev.categorias_ids) ? prev.categorias_ids : [];
+      const existe = actuales.includes(id);
+      const categorias_ids = existe ? actuales.filter((x) => x !== id) : [...actuales, id];
+      return { ...prev, categorias_ids, id_categoria_stock: prev.id_categoria_stock || id };
+    });
+  };
+
+  const toggleVariantCategoria = (variantIdx, categoriaId) => {
+    const id = normalizeIdValue(categoriaId);
+    if (!id) return;
+
+    setForm((prev) => ({
+      ...prev,
+      variantes: (prev.variantes || []).map((variant, i) => {
+        if (i !== variantIdx) return variant;
+        const actuales = (Array.isArray(variant.categorias_ids) ? variant.categorias_ids : []).map(normalizeIdValue).filter(Boolean);
+        const existe = actuales.includes(id);
+        return {
+          ...variant,
+          categorias_ids: existe ? actuales.filter((x) => x !== id) : [...actuales, id],
+        };
+      }),
+    }));
+  };
+
+  const updateVariant = (idx, patch) => {
+    setForm((prev) => ({
+      ...prev,
+      variantes: (prev.variantes || []).map((variant, i) => i === idx ? { ...variant, ...patch } : variant),
+    }));
+  };
+
+  const updateVariantAttr = (variantIdx, attrIdx, patch) => {
+    setForm((prev) => ({
+      ...prev,
+      variantes: (prev.variantes || []).map((variant, i) =>
+        i === variantIdx
+          ? { ...variant, atributos: (variant.atributos || []).map((attr, j) => j === attrIdx ? { ...attr, ...patch } : attr) }
+          : variant
+      ),
+    }));
+  };
+
+  const addVariant = () => {
+    setForm((prev) => ({ ...prev, variantes: [...(prev.variantes || []), emptyVariantRow(prev.tipos_precio_extra)] }));
+  };
+
+  const removeVariant = (idx) => {
+    setForm((prev) => {
+      const next = (prev.variantes || []).filter((_, i) => i !== idx);
+      return { ...prev, variantes: next.length ? next : [emptyVariantRow(prev.tipos_precio_extra)] };
+    });
+  };
+
+  const addVariantAttr = (idx) => {
+    setForm((prev) => ({
+      ...prev,
+      variantes: (prev.variantes || []).map((variant, i) =>
+        i === idx ? { ...variant, atributos: [...(variant.atributos || []), emptyVariantAttr()] } : variant
+      ),
+    }));
+  };
+
   const guardarNuevaCategoria = async () => {
     const nombreLimpio = String(miniCategoriaNombre || "")
       .trim()
@@ -1441,7 +1780,7 @@ export default function ModalEditarProducto({
       const res = await fetch(`${API_URL}?action=stock_categorias_crear`, {
         method: "POST",
         headers: buildHeadersJSON(),
-        body: JSON.stringify({ nombre: nombreLimpio }),
+        body: JSON.stringify({ nombre: nombreLimpio, id_categoria_padre: miniCategoriaPadreId || null }),
       });
 
       const data = await parseJsonOrThrow(res);
@@ -1452,10 +1791,15 @@ export default function ModalEditarProducto({
           id: data.id_stock_categoria,
           id_stock_categoria: data.id_stock_categoria,
           nombre: nombreLimpio,
+          id_categoria_padre: miniCategoriaPadreId || null,
         };
 
       const normalizada = {
         id: String(nueva.id ?? nueva.id_stock_categoria ?? "").trim(),
+        id_stock_categoria: String(nueva.id_stock_categoria ?? nueva.id ?? "").trim(),
+        id_categoria_padre: (nueva.id_categoria_padre ?? miniCategoriaPadreId) || null,
+        nivel: Number(nueva.nivel || 0),
+        nombre_mostrar: String(nueva.nombre_mostrar ?? "").trim(),
         nombre: String(nueva.nombre ?? nombreLimpio).trim().toUpperCase(),
         activo:
           nueva.activo === undefined || nueva.activo === null
@@ -1475,15 +1819,79 @@ export default function ModalEditarProducto({
 
       setForm((prev) => ({
         ...prev,
-        id_categoria_stock: normalizada.id,
+        id_categoria_stock: prev.id_categoria_stock || normalizada.id,
+        categorias_ids: normalizada.id
+          ? Array.from(new Set([...(prev.categorias_ids || []), normalizada.id]))
+          : prev.categorias_ids || [],
       }));
 
       setMiniCategoriaNombre("");
+      setMiniCategoriaPadreId("");
       setMiniCategoriaOpen(false);
     } catch (err) {
       mostrarToast(err, "error");
     } finally {
       setGuardandoMiniCategoria(false);
+    }
+  };
+
+  const guardarNuevaSubcategoriaInline = async () => {
+    const idPadre = normalizeIdValue(form.id_categoria_stock);
+    const nombreLimpio = toCapitalizedText(subCategoriaNombre);
+
+    if (!idPadre) {
+      mostrarToast("Primero seleccioná una categoría principal.", "error");
+      return;
+    }
+
+    if (!nombreLimpio) {
+      mostrarToast("Ingresá el nombre de la subcategoría.", "error");
+      return;
+    }
+
+    setGuardandoSubCategoria(true);
+
+    try {
+      const res = await fetch(`${API_URL}?action=stock_categorias_crear`, {
+        method: "POST",
+        headers: buildHeadersJSON(),
+        body: JSON.stringify({ nombre: nombreLimpio, id_categoria_padre: idPadre }),
+      });
+
+      const data = await parseJsonOrThrow(res);
+      const nivelPadre = Number(categoriaPrincipal?.nivel || 0);
+      const normalizada = normalizeCategoriaRegistro(data.categoria || data.nueva || {}, {
+        id: data.id_stock_categoria,
+        id_stock_categoria: data.id_stock_categoria,
+        nombre: nombreLimpio,
+        id_categoria_padre: idPadre,
+        nivel: nivelPadre + 1,
+        nombre_mostrar: `${"— ".repeat(nivelPadre + 1)}${nombreLimpio}`,
+      });
+
+      setCategorias((prev) => {
+        const existe = prev.some((cat) => getCategoryIdValue(cat) === getCategoryIdValue(normalizada));
+        const next = existe
+          ? prev.map((cat) => (getCategoryIdValue(cat) === getCategoryIdValue(normalizada) ? normalizada : cat))
+          : [...prev, normalizada];
+        return next.sort((a, b) => String(a.nombre_mostrar || a.nombre || "").localeCompare(String(b.nombre_mostrar || b.nombre || ""), "es"));
+      });
+
+      const nuevaId = getCategoryIdValue(normalizada);
+      setForm((prev) => ({
+        ...prev,
+        categorias_ids: nuevaId
+          ? Array.from(new Set([...(prev.categorias_ids || []), String(idPadre), nuevaId]))
+          : prev.categorias_ids || [],
+      }));
+
+      setSubCategoriaNombre("");
+      try { window.dispatchEvent(new Event("balto:listas-updated")); } catch {}
+      mostrarToast("Subcategoría creada y asignada.", "exito");
+    } catch (err) {
+      mostrarToast(errorToText(err, "No se pudo crear la subcategoría"), "error");
+    } finally {
+      setGuardandoSubCategoria(false);
     }
   };
 
@@ -1548,12 +1956,15 @@ export default function ModalEditarProducto({
 
         if (yaExiste) return prev;
 
+        const tipos_precio_extra = [
+          ...(prev.tipos_precio_extra || []),
+          emptyExtraPriceRow(normalizado),
+        ];
+
         return {
           ...prev,
-          tipos_precio_extra: [
-            ...prev.tipos_precio_extra,
-            emptyExtraPriceRow(normalizado),
-          ],
+          tipos_precio_extra,
+          variantes: syncVariantsExtraPrices(prev.variantes, tipos_precio_extra),
         };
       });
 
@@ -1590,10 +2001,28 @@ export default function ModalEditarProducto({
     }
 
     if (
+      !sourceForm.tiene_variantes &&
       sourceForm.stock !== "" &&
       (Number.isNaN(Number(sourceForm.stock)) || Number(sourceForm.stock) < 0)
     ) {
       errs.stock = "Stock inválido";
+    }
+
+    if (sourceForm.tiene_variantes) {
+      const variantesValidas = (sourceForm.variantes || []).filter((variant) =>
+        String(variant.nombre_variante || variant.sku || "").trim() ||
+        (variant.atributos || []).some((attr) => String(attr.atributo || attr.valor || "").trim())
+      );
+
+      if (variantesValidas.length === 0) {
+        errs.variantes = "Agregá al menos una variante";
+      }
+
+      variantesValidas.forEach((variant, idx) => {
+        if (variant.stock !== "" && (Number.isNaN(Number(variant.stock)) || Number(variant.stock) < 0)) {
+          errs[`variante_${idx}`] = "Stock inválido en variante";
+        }
+      });
     }
 
     sourceForm.tipos_precio_extra.forEach((item, idx) => {
@@ -1641,6 +2070,12 @@ export default function ModalEditarProducto({
         ...prev,
         ...formNormalizado,
       }));
+
+      if (Object.keys(errs).some((key) => key === "variantes" || key.startsWith("variante_"))) {
+        setCargaActiva("variantes");
+      } else {
+        setCargaActiva("producto");
+      }
 
       mostrarToast(
         Object.values(errs)[0] || "Revisá los campos del formulario",
@@ -1717,12 +2152,41 @@ export default function ModalEditarProducto({
 
       fd.append(
         "stock",
-        formNormalizado.stock !== "" ? String(formNormalizado.stock) : ""
+        formNormalizado.tiene_variantes ? "0" : formNormalizado.stock !== "" ? String(formNormalizado.stock) : ""
       );
 
       fd.append("descripcion", toUpperCaseValue(formNormalizado.descripcion.trim()));
+      fd.append("tiene_variantes", formNormalizado.tiene_variantes ? "1" : "0");
 
       fd.append("id_categoria_stock", categoriaId !== "" ? categoriaId : "");
+
+      const categoriasIdsPayload = Array.from(
+        new Set([
+          ...(formNormalizado.categorias_ids || []).map((id) => Number(normalizeIdValue(id))).filter(Boolean),
+          Number(normalizeIdValue(formNormalizado.id_categoria_stock)) || 0,
+        ].filter(Boolean))
+      );
+      fd.append("categorias_ids", JSON.stringify(categoriasIdsPayload));
+
+      const variantesPayload = formNormalizado.tiene_variantes
+        ? (formNormalizado.variantes || [])
+            .filter((variant) =>
+              String(variant.nombre_variante || variant.sku || "").trim() ||
+              (variant.atributos || []).some((attr) => String(attr.atributo || attr.valor || "").trim())
+            )
+            .map((variant) => ({
+              id_stock_variante: Number(variant.id_stock_variante || 0),
+              nombre_variante: toUpperCaseValue(String(variant.nombre_variante || "").trim()),
+              sku: toUpperCaseValue(String(variant.sku || "").trim()),
+              stock: Number(variant.stock || 0),
+              categorias_ids: Array.from(new Set((variant.categorias_ids || []).map((id) => Number(normalizeIdValue(id))).filter(Boolean))),
+              atributos: (variant.atributos || [])
+                .filter((attr) => String(attr.atributo || "").trim() && String(attr.valor || "").trim())
+                .map((attr) => ({ atributo: toUpperCaseValue(attr.atributo), valor: toUpperCaseValue(attr.valor) })),
+              precios: buildVariantPricePayload(variant),
+            }))
+        : [];
+      fd.append("variantes", JSON.stringify(variantesPayload));
 
       if (idUsuarioMaster > 0) {
         fd.append("idUsuarioMaster", String(idUsuarioMaster));
@@ -1770,6 +2234,10 @@ export default function ModalEditarProducto({
     } finally {
       setGuardando(false);
     }
+  };
+
+  const irAPanel = (ref) => {
+    ref?.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   };
 
   const tieneImagenActual = !eliminarImagenActual && !nuevaImagenFile && !!imagenActualUrl;
@@ -1828,7 +2296,32 @@ export default function ModalEditarProducto({
                 </div>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div
+                className={`cmi-v2-formShell cmi-v2-formShell--${cargaActiva}`}
+                style={{ display: "flex", flexDirection: "column", gap: 14 }}
+              >
+                <div className="cmi-v2-mainTabs" role="tablist" aria-label="Edición de producto">
+                  <button
+                    type="button"
+                    className={`cmi-v2-mainTab ${cargaActiva === "producto" ? "is-active" : ""}`}
+                    onClick={() => setCargaActiva("producto")}
+                    role="tab"
+                    aria-selected={cargaActiva === "producto"}
+                    disabled={isLoading}
+                  >
+                    <FontAwesomeIcon icon={faBoxOpen} /> Producto original
+                  </button>
+                  <button
+                    type="button"
+                    className={`cmi-v2-mainTab ${cargaActiva === "variantes" ? "is-active" : ""}`}
+                    onClick={() => setCargaActiva("variantes")}
+                    role="tab"
+                    aria-selected={cargaActiva === "variantes"}
+                    disabled={isLoading}
+                  >
+                    <FontAwesomeIcon icon={faCubesStacked} /> Variantes
+                  </button>
+                </div>
                 <FloatingField
                   label="Nombre del producto *"
                   icon={faBoxOpen}
@@ -1869,7 +2362,7 @@ export default function ModalEditarProducto({
                       className="cmi-input"
                       placeholder="Ej: 25"
                       inputMode="numeric"
-                      disabled={guardando}
+                      disabled={guardando || form.tiene_variantes}
                     />
                   </FloatingField>
 
@@ -1887,13 +2380,118 @@ export default function ModalEditarProducto({
                       </option>
                       <option value="__nueva_categoria__">+ Nueva categoría</option>
 
-                      {categorias.map((cat) => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.nombre}
+                      {categoriasPadre.map((cat) => (
+                        <option key={cat.id ?? cat.id_stock_categoria} value={cat.id ?? cat.id_stock_categoria}>
+                          {categoryOptionLabel(cat)}
                         </option>
                       ))}
                     </select>
                   </FloatingField>
+                </div>
+
+                <div className="cmi-v2-tabsInline">
+                  <button type="button" className="cmi-v2-tabBtn" onClick={() => irAPanel(categoriasPanelRef)} disabled={guardando}>
+                    Categorías
+                  </button>
+                  <button type="button" className="cmi-v2-tabBtn" onClick={() => setCargaActiva("variantes")} disabled={guardando}>
+                    Variantes
+                  </button>
+                </div>
+
+                <div ref={categoriasPanelRef} className="cmi-priceBlock cmi-v2-softBlock">
+                  <div className="cmi-priceBlock__title">
+                    <FontAwesomeIcon icon={faLayerGroup} /> Categorías múltiples
+                  </div>
+                  <div className="cmi-priceBlock__subtitle">
+                    Podés asignar el producto a varias categorías o subcategorías. La seleccionada arriba queda como principal.
+                  </div>
+                  <div className="cmi-v2-checkGrid">
+                    {categoriasPadre.length === 0 ? (
+                      <span className="cmi-v2-muted">No hay categorías cargadas.</span>
+                    ) : (
+                      categoriasPadre.map((cat) => {
+                        const id = getCategoryIdValue(cat);
+                        return (
+                          <label key={id} className="cmi-v2-checkItem">
+                            <input
+                              type="checkbox"
+                              checked={(form.categorias_ids || []).includes(id)}
+                              onChange={() => toggleCategoriaMultiple(id)}
+                              disabled={guardando}
+                            />
+                            <span>{categoryOptionLabel(cat)}</span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="cmi-v2-childPanel">
+                    <div className="cmi-v2-childPanel__head">
+                      <div>
+                        <strong>
+                          {categoriaPrincipal
+                            ? `Subcategorías de ${String(categoriaPrincipal.nombre || categoriaPrincipal.nombre_mostrar || "la categoría").replace(/^—\s*/, "")}`
+                            : "Subcategorías"}
+                        </strong>
+                        <span>
+                          {categoriaPrincipal
+                            ? "Creá una subcategoría nueva o seleccioná una existente para este producto."
+                            : "Seleccioná una categoría principal arriba para ver o crear subcategorías."}
+                        </span>
+                      </div>
+                    </div>
+
+                    {categoriaPrincipalId ? (
+                      <>
+                        <div className="cmi-v2-checkGrid cmi-v2-checkGrid--compact">
+                          {subcategoriasCategoriaPrincipal.length === 0 ? (
+                            <span className="cmi-v2-muted">Esta categoría todavía no tiene subcategorías.</span>
+                          ) : (
+                            subcategoriasCategoriaPrincipal.map((cat) => {
+                              const id = getCategoryIdValue(cat);
+                              return (
+                                <label key={id} className="cmi-v2-checkItem">
+                                  <input
+                                    type="checkbox"
+                                    checked={(form.categorias_ids || []).includes(id)}
+                                    onChange={() => toggleCategoriaMultiple(id)}
+                                    disabled={guardando}
+                                  />
+                                  <span>{String(cat.nombre || cat.nombre_mostrar || "Subcategoría").replace(/^—\s*/, "").toUpperCase()}</span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        <div className="cmi-v2-inlineCreate">
+                          <input
+                            className="cmi-input"
+                            value={subCategoriaNombre}
+                            onChange={(e) => setSubCategoriaNombre(toCapitalizedText(e.target.value))}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                guardarNuevaSubcategoriaInline();
+                              }
+                            }}
+                            placeholder={`Nueva subcategoría de ${String(categoriaPrincipal?.nombre || "esta categoría").replace(/^—\s*/, "")}`}
+                            disabled={guardando || guardandoSubCategoria}
+                          />
+                          <button
+                            type="button"
+                            className="mit-btn mit-btn--ghost"
+                            onClick={guardarNuevaSubcategoriaInline}
+                            disabled={guardando || guardandoSubCategoria}
+                          >
+                            <FontAwesomeIcon icon={faPlus} />
+                            {guardandoSubCategoria ? "Creando..." : "Crear subcategoría"}
+                          </button>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="cmi-priceBlock">
@@ -2127,6 +2725,162 @@ export default function ModalEditarProducto({
                       </div>
                     </div>
                   ))}
+                </div>
+
+
+                <div ref={variantesPanelRef} className="cmi-priceBlock cmi-v2-softBlock cmi-v2-variantPanelOnly">
+                  <div className="cmi-extraPriceCard__head">
+                    <div className="cmi-priceBlock__title">
+                      <FontAwesomeIcon icon={faCubesStacked} /> Variantes del producto
+                    </div>
+                    <label className="cmi-v2-switch">
+                      <input
+                        type="checkbox"
+                        checked={!!form.tiene_variantes}
+                        disabled={isLoading}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setForm((prev) => ({
+                            ...prev,
+                            tiene_variantes: checked,
+                            variantes: checked ? syncVariantsExtraPrices(prev.variantes, prev.tipos_precio_extra) : prev.variantes,
+                          }));
+                        }}
+                      />
+                      Tiene variantes
+                    </label>
+                  </div>
+
+                  <p className="cmi-priceBlock__subtitle">
+                    Usalo para talles, colores, medidas, materiales o presentaciones. Si está activo, el stock vive en cada variante.
+                  </p>
+
+                  {errores.variantes ? <div className="cmi-errorText">{errores.variantes}</div> : null}
+
+                  {form.tiene_variantes ? (
+                    <div className="cmi-v2-variantsWrap">
+                      {(form.variantes || []).map((variant, variantIdx) => (
+                        <div className="cmi-extraPriceCard cmi-v2-variantCard" key={`variant-${variantIdx}`}>
+                          <div className="cmi-extraPriceCard__head">
+                            <div className="cmi-extraPriceCard__title">Variante #{variantIdx + 1}</div>
+                            <button
+                              type="button"
+                              className="mit-btn mit-btn--ghost"
+                              onClick={() => removeVariant(variantIdx)}
+                              disabled={isLoading}
+                              style={{ padding: "5px 11px", fontSize: 12, color: "#ef4444", borderColor: "rgba(239,68,68,0.25)" }}
+                            >
+                              <FontAwesomeIcon icon={faTrashCan} style={{ fontSize: 11 }} /> Quitar
+                            </button>
+                          </div>
+
+                          <div className="fl-row" style={{ gridTemplateColumns: "1.3fr 1fr .75fr" }}>
+                            <FloatingField label="Nombre variante">
+                              <input className="cmi-input" value={variant.nombre_variante} onChange={(e) => updateVariant(variantIdx, { nombre_variante: toUpperCaseValue(e.target.value) })} disabled={isLoading} placeholder="Ej: TALLE M / NEGRO" />
+                            </FloatingField>
+                            <FloatingField label="SKU variante">
+                              <input className="cmi-input" value={variant.sku} onChange={(e) => updateVariant(variantIdx, { sku: toUpperCaseValue(e.target.value) })} disabled={isLoading} placeholder="SKU" style={{ textTransform: "uppercase" }} />
+                            </FloatingField>
+                            <FloatingField label="Stock">
+                              <input className="cmi-input" value={variant.stock} onChange={(e) => updateVariant(variantIdx, { stock: e.target.value.replace(/[^\d]/g, "") })} disabled={isLoading} inputMode="numeric" />
+                            </FloatingField>
+                          </div>
+
+                          {categoriasSafe.length > 0 ? (
+                            <div className="cmi-v2-variantCategories">
+                              <div className="cmi-v2-variantCategories__head">
+                                <strong>Categorías específicas</strong>
+                                <span>Opcional. Si no marcás ninguna, hereda las categorías del producto.</span>
+                              </div>
+                              <div className="cmi-v2-checkGrid cmi-v2-checkGrid--compact">
+                                {categoriasSafe.map((cat) => {
+                                  const id = getCategoryIdValue(cat);
+                                  const checked = (variant.categorias_ids || []).map(normalizeIdValue).includes(id);
+                                  return (
+                                    <label key={`variant-cat-${variantIdx}-${id}`} className="cmi-v2-checkItem">
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => toggleVariantCategoria(variantIdx, id)}
+                                        disabled={isLoading}
+                                      />
+                                      <span>{categoryOptionLabel(cat)}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : null}
+
+                          <div className="fl-row" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+                            <FloatingField label="Precio de costo"><PriceInput value={variant.precio_costo} onChange={(e) => updateVariant(variantIdx, { precio_costo: e.target.value })} disabled={isLoading} /></FloatingField>
+                            <FloatingField label="Precio de venta"><PriceInput value={variant.precio} onChange={(e) => updateVariant(variantIdx, { precio: e.target.value })} disabled={isLoading} /></FloatingField>
+                            <FloatingField label="Precio promocional"><PriceInput value={variant.precio_promo} onChange={(e) => updateVariant(variantIdx, { precio_promo: e.target.value })} disabled={isLoading} /></FloatingField>
+                          </div>
+
+                          {(variant.tipos_precio_extra || []).length > 0 ? (
+                            <div className="fl-row" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+                              {(variant.tipos_precio_extra || []).map((tipoItem, tipoIdx) => {
+                                const precioProducto = (form.tipos_precio_extra || []).find(
+                                  (item) => String(item.id_tipo_precio_stock) === String(tipoItem.id_tipo_precio_stock)
+                                )?.precio;
+
+                                return (
+                                  <FloatingField
+                                    label={`Precio ${normalizeOptionLabel(tipoItem.tipo_nombre || `tipo ${tipoIdx + 1}`).toLowerCase()}`}
+                                    key={`variant-extra-${variantIdx}-${tipoItem.id_tipo_precio_stock}-${tipoIdx}`}
+                                  >
+                                    <PriceInput
+                                      name={`variant_extra_precio_${variantIdx}_${tipoIdx}`}
+                                      value={tipoItem.precio}
+                                      placeholder={precioProducto ? `Hereda ${formatPriceDisplay(precioProducto)}` : "Opcional"}
+                                      onChange={(e) => {
+                                        const value = normalizeMoneyInput(e.target.value);
+                                        setForm((prev) => ({
+                                          ...prev,
+                                          variantes: (prev.variantes || []).map((v, i) => {
+                                            if (i !== variantIdx) return v;
+                                            return {
+                                              ...v,
+                                              tipos_precio_extra: (v.tipos_precio_extra || []).map((item, j) =>
+                                                j === tipoIdx ? { ...item, precio: value } : item
+                                              ),
+                                            };
+                                          }),
+                                        }));
+                                      }}
+                                      disabled={isLoading}
+                                    />
+                                  </FloatingField>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+
+                          <div className="cmi-v2-attrsWrap">
+                            {(variant.atributos || []).map((attr, attrIdx) => (
+                              <div className="fl-row" style={{ gridTemplateColumns: "1fr 1fr" }} key={`attr-${variantIdx}-${attrIdx}`}>
+                                <FloatingField label="Atributo">
+                                  <input className="cmi-input" value={attr.atributo} onChange={(e) => updateVariantAttr(variantIdx, attrIdx, { atributo: toUpperCaseValue(e.target.value) })} disabled={isLoading} placeholder="TALLE / COLOR / MEDIDA" />
+                                </FloatingField>
+                                <FloatingField label="Valor">
+                                  <input className="cmi-input" value={attr.valor} onChange={(e) => updateVariantAttr(variantIdx, attrIdx, { valor: toUpperCaseValue(e.target.value) })} disabled={isLoading} placeholder="M / NEGRO / 80X200" />
+                                </FloatingField>
+                              </div>
+                            ))}
+                            <button type="button" className="mit-btn mit-btn--ghost" onClick={() => addVariantAttr(variantIdx)} disabled={isLoading}>
+                              <FontAwesomeIcon icon={faPlus} /> Agregar atributo
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <button type="button" className="mit-btn mit-btn--ghost" onClick={addVariant} disabled={isLoading}>
+                        <FontAwesomeIcon icon={faPlus} /> Agregar variante
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="cmi-v2-muted">Producto simple: se usa el stock cargado arriba.</div>
+                  )}
                 </div>
 
                 <FloatingField label="Descripción" icon={faAlignLeft}>
@@ -2375,9 +3129,21 @@ export default function ModalEditarProducto({
         onCancel={() => {
           setMiniCategoriaOpen(false);
           setMiniCategoriaNombre("");
+          setMiniCategoriaPadreId("");
         }}
         onSave={guardarNuevaCategoria}
-      />
+      >
+        <FloatingField label="Categoría padre">
+          <select className="cmi-input cmi-select" value={miniCategoriaPadreId} onChange={(e) => setMiniCategoriaPadreId(e.target.value)}>
+            <option value="">Sin padre / categoría principal</option>
+            {categoriasPadre.map((cat) => (
+              <option key={cat.id ?? cat.id_stock_categoria} value={cat.id ?? cat.id_stock_categoria}>
+                {categoryOptionLabel(cat)}
+              </option>
+            ))}
+          </select>
+        </FloatingField>
+      </MiniCreateModal>
 
       <MiniCreateModal
         open={miniTipoOpen}
@@ -2425,6 +3191,13 @@ function normalizeIdValue(value) {
   }
 
   return String(value ?? "");
+}
+
+function toCapitalizedText(value) {
+  return String(value ?? "")
+    .trimStart()
+    .normalize("NFC")
+    .toUpperCase();
 }
 
 function normalizeOptionLabel(value, fallback = "") {

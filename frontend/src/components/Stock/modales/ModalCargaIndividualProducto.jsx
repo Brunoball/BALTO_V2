@@ -5,6 +5,7 @@ import "./ModalCargaMasiva.css";
 
 import {
   faBarcode,
+  faBoxOpen,
   faCubesStacked,
   faTag,
   faAlignLeft,
@@ -17,6 +18,7 @@ import {
   faMoneyBillTrendUp,
   faLayerGroup,
   faCheck,
+  faPlus,
 } from "@fortawesome/free-solid-svg-icons";
 
 import {
@@ -468,7 +470,7 @@ function PriceGroupSection({ title, children }) {
   );
 }
 
-function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSave }) {
+function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSave, children }) {
   useEffect(() => {
     if (!open) return;
 
@@ -513,6 +515,8 @@ function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSa
             />
           </FloatingField>
 
+          {children}
+
           <div className="cmi-miniModal__actions">
             <button type="button" className="mit-btn mit-btn--ghost" onClick={onCancel} disabled={loading}>
               Cancelar
@@ -534,6 +538,144 @@ function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSa
   );
 }
 
+
+function emptyVariantAttr() {
+  return { atributo: "", valor: "" };
+}
+
+function getTipoPrecioIdValue(tipo) {
+  return String(tipo?.id_tipo_precio_stock ?? tipo?.id ?? "").trim();
+}
+
+function isBaseTipoPrecioId(tipoId) {
+  return ["1", "2", "3"].includes(String(tipoId ?? ""));
+}
+
+function normalizeVariantExtraPriceRow(tipo = null, existing = null) {
+  return {
+    id_tipo_precio_stock: getTipoPrecioIdValue(tipo || existing),
+    tipo_nombre: normalizeOptionLabel(tipo?.tipo_nombre ?? tipo?.nombre ?? existing?.tipo_nombre ?? existing?.nombre ?? ""),
+    precio: existing?.precio ?? "",
+    margen_porcentaje: existing?.margen_porcentaje ?? "",
+    margen_valor: existing?.margen_valor ?? "",
+  };
+}
+
+function syncVariantExtraPrices(variant = {}, tiposProducto = []) {
+  const actuales = Array.isArray(variant.tipos_precio_extra) ? variant.tipos_precio_extra : [];
+  const porId = new Map();
+
+  actuales.forEach((item) => {
+    const id = getTipoPrecioIdValue(item);
+    if (id && !isBaseTipoPrecioId(id)) porId.set(id, item);
+  });
+
+  return (Array.isArray(tiposProducto) ? tiposProducto : [])
+    .map((tipo) => {
+      const id = getTipoPrecioIdValue(tipo);
+      if (!id || isBaseTipoPrecioId(id)) return null;
+      return normalizeVariantExtraPriceRow(tipo, porId.get(id));
+    })
+    .filter(Boolean);
+}
+
+function syncVariantsExtraPrices(variantes = [], tiposProducto = []) {
+  return (Array.isArray(variantes) ? variantes : []).map((variant) => ({
+    ...variant,
+    tipos_precio_extra: syncVariantExtraPrices(variant, tiposProducto),
+  }));
+}
+
+function emptyVariantRow(tiposProducto = []) {
+  const variant = {
+    nombre_variante: "",
+    sku: "",
+    stock: "0",
+    categorias_ids: [],
+    precio_costo: "",
+    precio: "",
+    precio_promo: "",
+    atributos: [emptyVariantAttr()],
+    tipos_precio_extra: [],
+  };
+
+  return {
+    ...variant,
+    tipos_precio_extra: syncVariantExtraPrices(variant, tiposProducto),
+  };
+}
+
+function categoryOptionLabel(cat) {
+  if (!cat) return "Categoría";
+  if (cat.nombre_mostrar) return String(cat.nombre_mostrar).toUpperCase();
+  const nivel = Number(cat.nivel || 0);
+  return `${"— ".repeat(nivel)}${String(cat.nombre || cat.label || "Categoría")}`.toUpperCase();
+}
+
+function getCategoryIdValue(cat) {
+  return normalizeIdValue(cat?.id_stock_categoria ?? cat?.id ?? cat?.id_categoria ?? "");
+}
+
+function getCategoryParentIdValue(cat) {
+  return normalizeIdValue(cat?.id_categoria_padre ?? cat?.categoria_padre_id ?? cat?.parent_id ?? "");
+}
+
+function isCategoriaPadre(cat) {
+  const parentId = getCategoryParentIdValue(cat);
+  return !parentId || parentId === "0";
+}
+
+function normalizeCategoriaRegistro(cat, fallback = {}) {
+  const base = cat || {};
+  const id = normalizeIdValue(base.id_stock_categoria ?? base.id ?? fallback.id ?? fallback.id_stock_categoria ?? "");
+  const idPadre = normalizeIdValue(base.id_categoria_padre ?? fallback.id_categoria_padre ?? "");
+  const nivel = Number(base.nivel ?? fallback.nivel ?? (idPadre ? 1 : 0)) || 0;
+  const nombre = String(base.nombre ?? fallback.nombre ?? "").trim().toUpperCase();
+
+  return {
+    ...fallback,
+    ...base,
+    id,
+    id_stock_categoria: id,
+    id_categoria_padre: idPadre || null,
+    nivel,
+    nombre,
+    nombre_mostrar: String(base.nombre_mostrar ?? fallback.nombre_mostrar ?? `${"— ".repeat(nivel)}${nombre}`).trim(),
+  };
+}
+
+function buildVariantPricePayload(variant) {
+  const precios = [];
+  if (variant.precio_costo !== "") {
+    precios.push({ id_tipo_precio_stock: 1, nombre: "COSTO", tipo_nombre: "COSTO", precio: moneyToApi(variant.precio_costo) });
+  }
+  if (variant.precio !== "") {
+    precios.push({ id_tipo_precio_stock: 2, nombre: "VENTA", tipo_nombre: "VENTA", precio: moneyToApi(variant.precio) });
+  }
+  if (variant.precio_promo !== "") {
+    precios.push({ id_tipo_precio_stock: 3, nombre: "PROMO", tipo_nombre: "PROMO", precio: moneyToApi(variant.precio_promo) });
+  }
+
+  (Array.isArray(variant.tipos_precio_extra) ? variant.tipos_precio_extra : []).forEach((item) => {
+    const id = Number(item.id_tipo_precio_stock || 0);
+    if (!id || isBaseTipoPrecioId(id)) return;
+
+    const precio = moneyToApi(item.precio);
+    if (precio === "") return;
+
+    precios.push({
+      id_tipo_precio_stock: id,
+      nombre: toCapitalizedText(item.tipo_nombre),
+      tipo_nombre: toCapitalizedText(item.tipo_nombre),
+      precio,
+      margen_porcentaje: moneyToApi(item.margen_porcentaje),
+      margen_valor: moneyToApi(item.margen_valor),
+    });
+  });
+
+  return precios.filter((p) => p.precio !== "");
+}
+
 function buildEmptyForm() {
   return {
     nombre: "",
@@ -548,6 +690,9 @@ function buildEmptyForm() {
     stock: "",
     descripcion: "",
     id_categoria_stock: "",
+    categorias_ids: [],
+    tiene_variantes: false,
+    variantes: [emptyVariantRow()],
     tipos_precio_extra: [],
   };
 }
@@ -568,6 +713,8 @@ export default function ModalCargaIndividualProducto({
   onToast,
 }) {
   const inputImagenRef = useRef(null);
+  const categoriasPanelRef = useRef(null);
+  const variantesPanelRef = useRef(null);
 
   const [guardando, setGuardando] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -576,12 +723,16 @@ export default function ModalCargaIndividualProducto({
   const [previewFileName, setPreviewFileName] = useState("");
   const [previewTitle, setPreviewTitle] = useState("Archivo");
   const [form, setForm] = useState(buildEmptyForm);
+  const [cargaActiva, setCargaActiva] = useState("producto");
   const [errores, setErrores] = useState({});
   const [imagenFile, setImagenFile] = useState(null);
 
   const [miniCategoriaOpen, setMiniCategoriaOpen] = useState(false);
   const [miniCategoriaNombre, setMiniCategoriaNombre] = useState("");
+  const [miniCategoriaPadreId, setMiniCategoriaPadreId] = useState("");
   const [guardandoMiniCategoria, setGuardandoMiniCategoria] = useState(false);
+  const [subCategoriaNombre, setSubCategoriaNombre] = useState("");
+  const [guardandoSubCategoria, setGuardandoSubCategoria] = useState(false);
 
   const [miniTipoOpen, setMiniTipoOpen] = useState(false);
   const [miniTipoNombre, setMiniTipoNombre] = useState("");
@@ -631,11 +782,37 @@ export default function ModalCargaIndividualProducto({
 
   const mostrarToast = (mensaje, tipo = "error") => onToast?.(errorToText(mensaje), tipo);
 
+  const irAPanel = (ref) => {
+    ref?.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  };
+
   const imagenNombre = useMemo(() => imagenFile?.name || "", [imagenFile]);
 
   const categoriasSafe = useMemo(
     () => (Array.isArray(categorias) ? categorias.filter(Boolean) : []),
     [categorias]
+  );
+
+  const categoriasPadre = useMemo(
+    () => categoriasSafe.filter(isCategoriaPadre),
+    [categoriasSafe]
+  );
+
+  const categoriaPrincipalId = useMemo(
+    () => normalizeIdValue(form.id_categoria_stock),
+    [form.id_categoria_stock]
+  );
+
+  const categoriaPrincipal = useMemo(
+    () => categoriasSafe.find((cat) => getCategoryIdValue(cat) === categoriaPrincipalId) || null,
+    [categoriasSafe, categoriaPrincipalId]
+  );
+
+  const subcategoriasCategoriaPrincipal = useMemo(
+    () => categoriaPrincipalId
+      ? categoriasSafe.filter((cat) => getCategoryParentIdValue(cat) === categoriaPrincipalId)
+      : [],
+    [categoriasSafe, categoriaPrincipalId]
   );
 
   const tiposPrecioSafe = useMemo(
@@ -650,9 +827,12 @@ export default function ModalCargaIndividualProducto({
   useEffect(() => {
     if (!open) {
       setForm(buildEmptyForm());
+      setCargaActiva("producto");
       setErrores({});
       setGuardando(false);
       setImagenFile(null);
+      setMiniCategoriaPadreId("");
+      setSubCategoriaNombre("");
       cerrarPreview();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -744,7 +924,14 @@ export default function ModalCargaIndividualProducto({
         return;
       }
 
-      setForm((p) => ({ ...p, [name]: normalizeIdValue(value) }));
+      const idNormalizado = normalizeIdValue(value);
+      setForm((p) => ({
+        ...p,
+        [name]: idNormalizado,
+        categorias_ids: idNormalizado
+          ? Array.from(new Set([...(p.categorias_ids || []), idNormalizado]))
+          : p.categorias_ids || [],
+      }));
     } else {
       setForm((p) => ({ ...p, [name]: value }));
     }
@@ -960,16 +1147,105 @@ export default function ModalCargaIndividualProducto({
 
     const tipo = tiposPrecioSafe.find((t) => String(t.id ?? t.id_tipo_precio_stock) === String(val));
 
-    setForm((p) => ({
-      ...p,
-      tipos_precio_extra: [...p.tipos_precio_extra, emptyExtraPriceRow(tipo)],
-    }));
+    setForm((p) => {
+      const tipos_precio_extra = [...(p.tipos_precio_extra || []), emptyExtraPriceRow(tipo)];
+      return {
+        ...p,
+        tipos_precio_extra,
+        variantes: syncVariantsExtraPrices(p.variantes, tipos_precio_extra),
+      };
+    });
   };
 
   const quitarTipoPrecio = (idx) => {
+    setForm((p) => {
+      const tipos_precio_extra = (p.tipos_precio_extra || []).filter((_, i) => i !== idx);
+      return {
+        ...p,
+        tipos_precio_extra,
+        variantes: syncVariantsExtraPrices(p.variantes, tipos_precio_extra),
+      };
+    });
+  };
+
+
+  const toggleCategoriaMultiple = (categoriaId) => {
+    const id = normalizeIdValue(categoriaId);
+    if (!id) return;
+    setForm((p) => {
+      const actuales = Array.isArray(p.categorias_ids) ? p.categorias_ids : [];
+      const existe = actuales.includes(id);
+      const categorias_ids = existe ? actuales.filter((x) => x !== id) : [...actuales, id];
+      return {
+        ...p,
+        categorias_ids,
+        id_categoria_stock: p.id_categoria_stock || id,
+      };
+    });
+  };
+
+  const toggleVariantCategoria = (variantIdx, categoriaId) => {
+    const id = normalizeIdValue(categoriaId);
+    if (!id) return;
+
     setForm((p) => ({
       ...p,
-      tipos_precio_extra: p.tipos_precio_extra.filter((_, i) => i !== idx),
+      variantes: (p.variantes || []).map((variant, i) => {
+        if (i !== variantIdx) return variant;
+        const actuales = (Array.isArray(variant.categorias_ids) ? variant.categorias_ids : []).map(normalizeIdValue).filter(Boolean);
+        const existe = actuales.includes(id);
+        return {
+          ...variant,
+          categorias_ids: existe ? actuales.filter((x) => x !== id) : [...actuales, id],
+        };
+      }),
+    }));
+  };
+
+  const updateVariant = (idx, patch) => {
+    setForm((p) => ({
+      ...p,
+      variantes: (p.variantes || []).map((variant, i) =>
+        i === idx ? { ...variant, ...patch } : variant
+      ),
+    }));
+  };
+
+  const updateVariantAttr = (variantIdx, attrIdx, patch) => {
+    setForm((p) => ({
+      ...p,
+      variantes: (p.variantes || []).map((variant, i) =>
+        i === variantIdx
+          ? {
+              ...variant,
+              atributos: (variant.atributos || []).map((attr, j) =>
+                j === attrIdx ? { ...attr, ...patch } : attr
+              ),
+            }
+          : variant
+      ),
+    }));
+  };
+
+  const addVariant = () => {
+    setForm((p) => ({ ...p, variantes: [...(p.variantes || []), emptyVariantRow(p.tipos_precio_extra)] }));
+  };
+
+  const removeVariant = (idx) => {
+    setForm((p) => {
+      const next = (p.variantes || []).filter((_, i) => i !== idx);
+      return { ...p, variantes: next.length ? next : [emptyVariantRow(p.tipos_precio_extra)] };
+    });
+  };
+
+  const addVariantAttr = (idx) => {
+    setForm((p) => ({
+      ...p,
+      variantes: (p.variantes || []).map((variant, i) =>
+        i === idx
+          ? { ...variant, atributos: [...(variant.atributos || []), emptyVariantAttr()] }
+          : variant
+      ),
     }));
   };
 
@@ -996,8 +1272,25 @@ export default function ModalCargaIndividualProducto({
       errs.precio_promo = "Precio promocional inválido";
     }
 
-    if (sourceForm.stock !== "" && (Number.isNaN(Number(sourceForm.stock)) || Number(sourceForm.stock) < 0)) {
+    if (!sourceForm.tiene_variantes && sourceForm.stock !== "" && (Number.isNaN(Number(sourceForm.stock)) || Number(sourceForm.stock) < 0)) {
       errs.stock = "Stock inválido";
+    }
+
+    if (sourceForm.tiene_variantes) {
+      const variantesValidas = (sourceForm.variantes || []).filter((variant) =>
+        String(variant.nombre_variante || variant.sku || "").trim() ||
+        (variant.atributos || []).some((attr) => String(attr.atributo || attr.valor || "").trim())
+      );
+
+      if (variantesValidas.length === 0) {
+        errs.variantes = "Agregá al menos una variante";
+      }
+
+      variantesValidas.forEach((variant, idx) => {
+        if (variant.stock !== "" && (Number.isNaN(Number(variant.stock)) || Number(variant.stock) < 0)) {
+          errs[`variante_${idx}`] = "Stock inválido en variante";
+        }
+      });
     }
 
     sourceForm.tipos_precio_extra.forEach((item, idx) => {
@@ -1040,7 +1333,7 @@ export default function ModalCargaIndividualProducto({
       const res = await fetch(`${API_URL}?action=stock_categorias_crear`, {
         method: "POST",
         headers: buildHeadersJSON(),
-        body: JSON.stringify({ nombre: nombreLimpio }),
+        body: JSON.stringify({ nombre: nombreLimpio, id_categoria_padre: miniCategoriaPadreId || null }),
       });
 
       const data = await parseJsonOrThrow(res);
@@ -1049,21 +1342,80 @@ export default function ModalCargaIndividualProducto({
         id: data.id_stock_categoria,
         id_stock_categoria: data.id_stock_categoria,
         nombre: nombreLimpio,
+        id_categoria_padre: miniCategoriaPadreId || null,
       };
 
       const categoriaRegistrada = (await onCategoriaCreada?.(nueva)) || nueva;
 
+      const nuevaId = normalizeIdValue(categoriaRegistrada);
       setForm((p) => ({
         ...p,
-        id_categoria_stock: normalizeIdValue(categoriaRegistrada),
+        id_categoria_stock: p.id_categoria_stock || nuevaId,
+        categorias_ids: nuevaId
+          ? Array.from(new Set([...(p.categorias_ids || []), nuevaId]))
+          : p.categorias_ids || [],
       }));
 
       setMiniCategoriaNombre("");
+      setMiniCategoriaPadreId("");
       setMiniCategoriaOpen(false);
     } catch (err) {
       mostrarToast(errorToText(err, "No se pudo crear la categoría"), "error");
     } finally {
       setGuardandoMiniCategoria(false);
+    }
+  };
+
+  const guardarNuevaSubcategoriaInline = async () => {
+    const idPadre = normalizeIdValue(form.id_categoria_stock);
+    const nombreLimpio = toCapitalizedText(subCategoriaNombre);
+
+    if (!idPadre) {
+      mostrarToast("Primero seleccioná una categoría principal.", "error");
+      return;
+    }
+
+    if (!nombreLimpio) {
+      mostrarToast("Ingresá el nombre de la subcategoría.", "error");
+      return;
+    }
+
+    setGuardandoSubCategoria(true);
+
+    try {
+      const res = await fetch(`${API_URL}?action=stock_categorias_crear`, {
+        method: "POST",
+        headers: buildHeadersJSON(),
+        body: JSON.stringify({ nombre: nombreLimpio, id_categoria_padre: idPadre }),
+      });
+
+      const data = await parseJsonOrThrow(res);
+      const nivelPadre = Number(categoriaPrincipal?.nivel || 0);
+      const nueva = normalizeCategoriaRegistro(data.categoria || data.nueva || {}, {
+        id: data.id_stock_categoria,
+        id_stock_categoria: data.id_stock_categoria,
+        nombre: nombreLimpio,
+        id_categoria_padre: idPadre,
+        nivel: nivelPadre + 1,
+        nombre_mostrar: `${"— ".repeat(nivelPadre + 1)}${nombreLimpio}`,
+      });
+
+      const categoriaRegistrada = normalizeCategoriaRegistro((await onCategoriaCreada?.(nueva)) || nueva, nueva);
+      const nuevaId = getCategoryIdValue(categoriaRegistrada);
+
+      setForm((p) => ({
+        ...p,
+        categorias_ids: nuevaId
+          ? Array.from(new Set([...(p.categorias_ids || []), String(idPadre), nuevaId]))
+          : p.categorias_ids || [],
+      }));
+
+      setSubCategoriaNombre("");
+      mostrarToast("Subcategoría creada y asignada.", "exito");
+    } catch (err) {
+      mostrarToast(errorToText(err, "No se pudo crear la subcategoría"), "error");
+    } finally {
+      setGuardandoSubCategoria(false);
     }
   };
 
@@ -1104,9 +1456,11 @@ export default function ModalCargaIndividualProducto({
 
         if (yaExiste) return p;
 
+        const tipos_precio_extra = [...(p.tipos_precio_extra || []), emptyExtraPriceRow(tipoRegistrado)];
         return {
           ...p,
-          tipos_precio_extra: [...p.tipos_precio_extra, emptyExtraPriceRow(tipoRegistrado)],
+          tipos_precio_extra,
+          variantes: syncVariantsExtraPrices(p.variantes, tipos_precio_extra),
         };
       });
 
@@ -1126,6 +1480,11 @@ export default function ModalCargaIndividualProducto({
     if (Object.keys(errs).length > 0) {
       setErrores(errs);
       setForm((p) => ({ ...p, ...formNormalizado }));
+      if (Object.keys(errs).some((key) => key === "variantes" || key.startsWith("variante_"))) {
+        setCargaActiva("variantes");
+      } else {
+        setCargaActiva("producto");
+      }
       mostrarToast(getFirstErrorText(errs), "error");
       return;
     }
@@ -1147,12 +1506,46 @@ export default function ModalCargaIndividualProducto({
       fd.append("precio_promo", moneyToApi(formNormalizado.precio_promo));
       fd.append("margen_promo_porcentaje", moneyToApi(formNormalizado.margen_promo_porcentaje));
       fd.append("margen_promo_valor", moneyToApi(formNormalizado.margen_promo_valor));
-      fd.append("stock", formNormalizado.stock !== "" ? String(formNormalizado.stock) : "");
+      fd.append(
+        "stock",
+        formNormalizado.tiene_variantes ? "0" : formNormalizado.stock !== "" ? String(formNormalizado.stock) : ""
+      );
       fd.append("descripcion", toCapitalizedText(formNormalizado.descripcion));
+      fd.append("tiene_variantes", formNormalizado.tiene_variantes ? "1" : "0");
 
       if (formNormalizado.id_categoria_stock) {
         fd.append("id_categoria_stock", normalizeIdValue(formNormalizado.id_categoria_stock));
       }
+
+      const categoriasIdsPayload = Array.from(
+        new Set([
+          ...(formNormalizado.categorias_ids || []).map((id) => Number(normalizeIdValue(id))).filter(Boolean),
+          Number(normalizeIdValue(formNormalizado.id_categoria_stock)) || 0,
+        ].filter(Boolean))
+      );
+      fd.append("categorias_ids", JSON.stringify(categoriasIdsPayload));
+
+      const variantesPayload = formNormalizado.tiene_variantes
+        ? (formNormalizado.variantes || [])
+            .filter((variant) =>
+              String(variant.nombre_variante || variant.sku || "").trim() ||
+              (variant.atributos || []).some((attr) => String(attr.atributo || attr.valor || "").trim())
+            )
+            .map((variant) => ({
+              nombre_variante: toCapitalizedText(variant.nombre_variante),
+              sku: toUpperCaseValue(String(variant.sku || "").trim()),
+              stock: Number(variant.stock || 0),
+              categorias_ids: Array.from(new Set((variant.categorias_ids || []).map((id) => Number(normalizeIdValue(id))).filter(Boolean))),
+              atributos: (variant.atributos || [])
+                .filter((attr) => String(attr.atributo || "").trim() && String(attr.valor || "").trim())
+                .map((attr) => ({
+                  atributo: toCapitalizedText(attr.atributo),
+                  valor: toCapitalizedText(attr.valor),
+                })),
+              precios: buildVariantPricePayload(variant),
+            }))
+        : [];
+      fd.append("variantes", JSON.stringify(variantesPayload));
 
       if (idUsuarioMaster > 0) {
         fd.append("idUsuarioMaster", String(idUsuarioMaster));
@@ -1207,7 +1600,30 @@ export default function ModalCargaIndividualProducto({
           background: "var(--nv-surface, #F7F9FC)",
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <div
+          className={`cmi-v2-formShell cmi-v2-formShell--${cargaActiva}`}
+          style={{ display: "flex", flexDirection: "column", gap: 18 }}
+        >
+          <div className="cmi-v2-mainTabs" role="tablist" aria-label="Carga de producto">
+            <button
+              type="button"
+              className={`cmi-v2-mainTab ${cargaActiva === "producto" ? "is-active" : ""}`}
+              onClick={() => setCargaActiva("producto")}
+              role="tab"
+              aria-selected={cargaActiva === "producto"}
+            >
+              <FontAwesomeIcon icon={faBoxOpen} /> Producto original
+            </button>
+            <button
+              type="button"
+              className={`cmi-v2-mainTab ${cargaActiva === "variantes" ? "is-active" : ""}`}
+              onClick={() => setCargaActiva("variantes")}
+              role="tab"
+              aria-selected={cargaActiva === "variantes"}
+            >
+              <FontAwesomeIcon icon={faCubesStacked} /> Variantes
+            </button>
+          </div>
           <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <SectionTitle label="Datos del producto" />
 
@@ -1245,6 +1661,7 @@ export default function ModalCargaIndividualProducto({
                   className="cmi-input"
                   placeholder="Ej: 25"
                   inputMode="numeric"
+                  disabled={form.tiene_variantes}
                 />
               </FloatingField>
 
@@ -1262,19 +1679,119 @@ export default function ModalCargaIndividualProducto({
                   </option>
                   <option value="__nueva_categoria__">+ Nueva categoría</option>
 
-                  {categoriasSafe.map((cat) => (
+                  {categoriasPadre.map((cat) => (
                     <option
                       key={cat.id ?? cat.id_stock_categoria}
                       value={cat.id ?? cat.id_stock_categoria}
                     >
-                      {normalizeOptionLabel(
-                        cat.nombre,
-                        `Categoría ${cat.id ?? cat.id_stock_categoria ?? ""}`
-                      )}
+                      {categoryOptionLabel(cat)}
                     </option>
                   ))}
                 </select>
               </FloatingField>
+            </div>
+
+            <div className="cmi-v2-tabsInline">
+              <button type="button" className="cmi-v2-tabBtn" onClick={() => irAPanel(categoriasPanelRef)}>
+                Categorías
+              </button>
+              <button type="button" className="cmi-v2-tabBtn" onClick={() => setCargaActiva("variantes")}>
+                Variantes
+              </button>
+            </div>
+
+            <div ref={categoriasPanelRef} className="cmi-priceBlock cmi-v2-softBlock">
+              <div className="cmi-priceBlock__title">
+                <FontAwesomeIcon icon={faLayerGroup} /> Categorías múltiples
+              </div>
+              <p className="cmi-priceBlock__subtitle">
+                Podés asignar el producto a varias categorías o subcategorías. La seleccionada arriba queda como principal.
+              </p>
+              <div className="cmi-v2-checkGrid">
+                {categoriasPadre.length === 0 ? (
+                  <span className="cmi-v2-muted">No hay categorías cargadas.</span>
+                ) : (
+                  categoriasPadre.map((cat) => {
+                    const id = getCategoryIdValue(cat);
+                    return (
+                      <label key={id} className="cmi-v2-checkItem">
+                        <input
+                          type="checkbox"
+                          checked={(form.categorias_ids || []).includes(id)}
+                          onChange={() => toggleCategoriaMultiple(id)}
+                        />
+                        <span>{categoryOptionLabel(cat)}</span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="cmi-v2-childPanel">
+                <div className="cmi-v2-childPanel__head">
+                  <div>
+                    <strong>
+                      {categoriaPrincipal
+                        ? `Subcategorías de ${String(categoriaPrincipal.nombre || categoriaPrincipal.nombre_mostrar || "la categoría").replace(/^—\s*/, "")}`
+                        : "Subcategorías"}
+                    </strong>
+                    <span>
+                      {categoriaPrincipal
+                        ? "Creá una subcategoría nueva o seleccioná una existente para este producto."
+                        : "Seleccioná una categoría principal arriba para ver o crear subcategorías."}
+                    </span>
+                  </div>
+                </div>
+
+                {categoriaPrincipalId ? (
+                  <>
+                    <div className="cmi-v2-checkGrid cmi-v2-checkGrid--compact">
+                      {subcategoriasCategoriaPrincipal.length === 0 ? (
+                        <span className="cmi-v2-muted">Esta categoría todavía no tiene subcategorías.</span>
+                      ) : (
+                        subcategoriasCategoriaPrincipal.map((cat) => {
+                          const id = getCategoryIdValue(cat);
+                          return (
+                            <label key={id} className="cmi-v2-checkItem">
+                              <input
+                                type="checkbox"
+                                checked={(form.categorias_ids || []).includes(id)}
+                                onChange={() => toggleCategoriaMultiple(id)}
+                              />
+                              <span>{String(cat.nombre || cat.nombre_mostrar || "Subcategoría").replace(/^—\s*/, "").toUpperCase()}</span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="cmi-v2-inlineCreate">
+                      <input
+                        className="cmi-input"
+                        value={subCategoriaNombre}
+                        onChange={(e) => setSubCategoriaNombre(toCapitalizedText(e.target.value))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            guardarNuevaSubcategoriaInline();
+                          }
+                        }}
+                        placeholder={`Nueva subcategoría de ${String(categoriaPrincipal?.nombre || "esta categoría").replace(/^—\s*/, "")}`}
+                        disabled={guardandoSubCategoria}
+                      />
+                      <button
+                        type="button"
+                        className="mit-btn mit-btn--ghost"
+                        onClick={guardarNuevaSubcategoriaInline}
+                        disabled={guardandoSubCategoria}
+                      >
+                        <FontAwesomeIcon icon={faPlus} />
+                        {guardandoSubCategoria ? "Creando..." : "Crear subcategoría"}
+                      </button>
+                    </div>
+                  </>
+                ) : null}
+              </div>
             </div>
           </section>
 
@@ -1550,6 +2067,191 @@ export default function ModalCargaIndividualProducto({
             )}
           </div>
 
+
+          <div ref={variantesPanelRef} className="cmi-priceBlock cmi-v2-softBlock cmi-v2-variantPanelOnly">
+            <div className="cmi-extraPriceCard__head">
+              <div className="cmi-priceBlock__title">
+                <FontAwesomeIcon icon={faCubesStacked} /> Variantes del producto
+              </div>
+              <label className="cmi-v2-switch">
+                <input
+                  type="checkbox"
+                  checked={!!form.tiene_variantes}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setForm((p) => ({
+                      ...p,
+                      tiene_variantes: checked,
+                      variantes: checked ? syncVariantsExtraPrices(p.variantes, p.tipos_precio_extra) : p.variantes,
+                    }));
+                  }}
+                />
+                Tiene variantes
+              </label>
+            </div>
+
+            <p className="cmi-priceBlock__subtitle">
+              Usalo para talles, colores, medidas, materiales o presentaciones. Si está activo, el stock vive en cada variante.
+            </p>
+
+            {errores.variantes ? <div className="cmi-errorText">{errores.variantes}</div> : null}
+
+            {form.tiene_variantes ? (
+              <div className="cmi-v2-variantsWrap">
+                {(form.variantes || []).map((variant, variantIdx) => (
+                  <div className="cmi-extraPriceCard cmi-v2-variantCard" key={`variant-${variantIdx}`}>
+                    <div className="cmi-extraPriceCard__head">
+                      <div className="cmi-extraPriceCard__title">Variante #{variantIdx + 1}</div>
+                      <button
+                        type="button"
+                        className="mit-btn mit-btn--ghost"
+                        onClick={() => removeVariant(variantIdx)}
+                        style={{ padding: "5px 11px", fontSize: 12, color: "#ef4444", borderColor: "rgba(239,68,68,0.25)" }}
+                      >
+                        <FontAwesomeIcon icon={faTrashCan} style={{ fontSize: 11 }} /> Quitar
+                      </button>
+                    </div>
+
+                    <div className="fl-row" style={{ gridTemplateColumns: "1.3fr 1fr .75fr" }}>
+                      <FloatingField label="Nombre variante">
+                        <input
+                          className="cmi-input"
+                          value={variant.nombre_variante}
+                          onChange={(e) => updateVariant(variantIdx, { nombre_variante: toCapitalizedText(e.target.value) })}
+                          placeholder="Ej: TALLE M / NEGRO"
+                        />
+                      </FloatingField>
+                      <FloatingField label="SKU variante">
+                        <input
+                          className="cmi-input"
+                          value={variant.sku}
+                          onChange={(e) => updateVariant(variantIdx, { sku: toUpperCaseValue(e.target.value) })}
+                          placeholder="SKU"
+                          style={{ textTransform: "uppercase" }}
+                        />
+                      </FloatingField>
+                      <FloatingField label="Stock">
+                        <input
+                          className="cmi-input"
+                          value={variant.stock}
+                          onChange={(e) => updateVariant(variantIdx, { stock: onlyNumbers(e.target.value) })}
+                          inputMode="numeric"
+                        />
+                      </FloatingField>
+                    </div>
+
+                    {categoriasSafe.length > 0 ? (
+                      <div className="cmi-v2-variantCategories">
+                        <div className="cmi-v2-variantCategories__head">
+                          <strong>Categorías específicas</strong>
+                          <span>Opcional. Si no marcás ninguna, hereda las categorías del producto.</span>
+                        </div>
+                        <div className="cmi-v2-checkGrid cmi-v2-checkGrid--compact">
+                          {categoriasSafe.map((cat) => {
+                            const id = getCategoryIdValue(cat);
+                            const checked = (variant.categorias_ids || []).map(normalizeIdValue).includes(id);
+                            return (
+                              <label key={`variant-cat-${variantIdx}-${id}`} className="cmi-v2-checkItem">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleVariantCategoria(variantIdx, id)}
+                                />
+                                <span>{categoryOptionLabel(cat)}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="fl-row" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+                      <FloatingField label="Precio de costo">
+                        <PriceInput value={variant.precio_costo} onChange={(e) => updateVariant(variantIdx, { precio_costo: normalizeMoneyInput(e.target.value) })} />
+                      </FloatingField>
+                      <FloatingField label="Precio de venta">
+                        <PriceInput value={variant.precio} onChange={(e) => updateVariant(variantIdx, { precio: normalizeMoneyInput(e.target.value) })} />
+                      </FloatingField>
+                      <FloatingField label="Precio promocional">
+                        <PriceInput value={variant.precio_promo} onChange={(e) => updateVariant(variantIdx, { precio_promo: normalizeMoneyInput(e.target.value) })} />
+                      </FloatingField>
+                    </div>
+
+                    {(variant.tipos_precio_extra || []).length > 0 ? (
+                      <div className="fl-row" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+                        {(variant.tipos_precio_extra || []).map((tipoItem, tipoIdx) => {
+                          const precioProducto = (form.tipos_precio_extra || []).find(
+                            (item) => String(item.id_tipo_precio_stock) === String(tipoItem.id_tipo_precio_stock)
+                          )?.precio;
+
+                          return (
+                            <FloatingField
+                              label={`Precio ${normalizeOptionLabel(tipoItem.tipo_nombre || `tipo ${tipoIdx + 1}`).toLowerCase()}`}
+                              key={`variant-extra-${variantIdx}-${tipoItem.id_tipo_precio_stock}-${tipoIdx}`}
+                            >
+                              <PriceInput
+                                name={`variant_extra_precio_${variantIdx}_${tipoIdx}`}
+                                value={tipoItem.precio}
+                                placeholder={precioProducto ? `Hereda ${formatPriceDisplay(precioProducto)}` : "Opcional"}
+                                onChange={(e) => {
+                                  const value = normalizeMoneyInput(e.target.value);
+                                  setForm((p) => ({
+                                    ...p,
+                                    variantes: (p.variantes || []).map((v, i) => {
+                                      if (i !== variantIdx) return v;
+                                      return {
+                                        ...v,
+                                        tipos_precio_extra: (v.tipos_precio_extra || []).map((item, j) =>
+                                          j === tipoIdx ? { ...item, precio: value } : item
+                                        ),
+                                      };
+                                    }),
+                                  }));
+                                }}
+                              />
+                            </FloatingField>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+
+                    <div className="cmi-v2-attrsWrap">
+                      {(variant.atributos || []).map((attr, attrIdx) => (
+                        <div className="fl-row" style={{ gridTemplateColumns: "1fr 1fr" }} key={`attr-${variantIdx}-${attrIdx}`}>
+                          <FloatingField label="Atributo">
+                            <input
+                              className="cmi-input"
+                              value={attr.atributo}
+                              onChange={(e) => updateVariantAttr(variantIdx, attrIdx, { atributo: toCapitalizedText(e.target.value) })}
+                              placeholder="TALLE / COLOR / MEDIDA"
+                            />
+                          </FloatingField>
+                          <FloatingField label="Valor">
+                            <input
+                              className="cmi-input"
+                              value={attr.valor}
+                              onChange={(e) => updateVariantAttr(variantIdx, attrIdx, { valor: toCapitalizedText(e.target.value) })}
+                              placeholder="M / NEGRO / 80X200"
+                            />
+                          </FloatingField>
+                        </div>
+                      ))}
+                      <button type="button" className="mit-btn mit-btn--ghost" onClick={() => addVariantAttr(variantIdx)}>
+                        <FontAwesomeIcon icon={faPlus} /> Agregar atributo
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <button type="button" className="mit-btn mit-btn--ghost" onClick={addVariant}>
+                  <FontAwesomeIcon icon={faPlus} /> Agregar variante
+                </button>
+              </div>
+            ) : (
+              <div className="cmi-v2-muted">Producto simple: se usa el stock inicial cargado arriba.</div>
+            )}
+          </div>
+
           <FloatingField label="Descripción" icon={faAlignLeft}>
             <textarea
               name="descripcion"
@@ -1687,9 +2389,25 @@ export default function ModalCargaIndividualProducto({
         onCancel={() => {
           setMiniCategoriaOpen(false);
           setMiniCategoriaNombre("");
+          setMiniCategoriaPadreId("");
         }}
         onSave={guardarNuevaCategoria}
-      />
+      >
+        <FloatingField label="Categoría padre">
+          <select
+            className="cmi-input cmi-select"
+            value={miniCategoriaPadreId}
+            onChange={(e) => setMiniCategoriaPadreId(e.target.value)}
+          >
+            <option value="">Sin padre / categoría principal</option>
+            {categoriasPadre.map((cat) => (
+              <option key={cat.id ?? cat.id_stock_categoria} value={cat.id ?? cat.id_stock_categoria}>
+                {categoryOptionLabel(cat)}
+              </option>
+            ))}
+          </select>
+        </FloatingField>
+      </MiniCreateModal>
 
       <MiniCreateModal
         open={miniTipoOpen}
