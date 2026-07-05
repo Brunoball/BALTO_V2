@@ -82,8 +82,8 @@ const PAGE_SIZE = 100;
 const PROBE_LIMIT = PAGE_SIZE + 1;
 const SKELETON_ROWS = 10;
 const LIVE_POLL_MS = 6000;
-const PRESUPUESTOS_CACHE_NS = "presupuestos:listar:v3";
-const PRESUPUESTOS_CACHE_OLD_NS = ["presupuestos:listar:v2"];
+const PRESUPUESTOS_CACHE_NS = "presupuestos:listar:v5";
+const PRESUPUESTOS_CACHE_OLD_NS = ["presupuestos:listar:v2", "presupuestos:listar:v3", "presupuestos:listar:v4"];
 
 function moneyARS(v) {
   const n = Number(v || 0);
@@ -181,16 +181,113 @@ function detalleProductosLabel(cantidad) {
   return `${n} PRODUCTOS`;
 }
 
+function normalizeCompareText(value) {
+  return safeStr(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function firstFilled(...values) {
+  for (const value of values) {
+    if (value && typeof value === "object") {
+      const nested = firstFilled(
+        value.nombre_variante,
+        value.stock_variante_nombre,
+        value.variante_nombre,
+        value.nombre,
+        value.descripcion,
+        value.detalle,
+        value.valor,
+        value.label
+      );
+      if (nested) return nested;
+      continue;
+    }
+
+    const s = safeStr(value);
+    if (s) return s;
+  }
+  return "";
+}
+
+function getItemVariantText(item) {
+  const raw = item && typeof item === "object" ? item : {};
+  return firstFilled(
+    raw.stock_variante_nombre,
+    raw.variante_nombre,
+    raw.nombre_variante,
+    raw.stock_variante_nombre_raw,
+    raw.stock_variante,
+    raw.variante,
+    raw.stock_variante_valores,
+    raw.stock_variante_detalle,
+    raw.variant_name,
+    raw.variantName,
+    raw.atributos_variante,
+    raw.atributos
+  );
+}
+
+function compareTokens(value) {
+  return normalizeCompareText(value)
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function variantAlreadyIncludedInProduct(productName, variantName) {
+  const productoNorm = normalizeCompareText(productName);
+  const varianteNorm = normalizeCompareText(variantName);
+  if (!productoNorm || !varianteNorm) return false;
+  if (productoNorm === varianteNorm) return true;
+
+  const productoTokens = compareTokens(productoNorm);
+  const varianteTokens = compareTokens(varianteNorm);
+  if (!productoTokens.length || !varianteTokens.length) return false;
+  if (varianteTokens.length > productoTokens.length) return false;
+
+  for (let i = 0; i <= productoTokens.length - varianteTokens.length; i += 1) {
+    let matches = true;
+    for (let j = 0; j < varianteTokens.length; j += 1) {
+      if (productoTokens[i + j] !== varianteTokens[j]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return true;
+  }
+
+  return false;
+}
+
+function composeProductoVariante(productName, variantName) {
+  const producto = safeStr(productName);
+  const variante = safeStr(variantName);
+  if (!producto && !variante) return "";
+  if (!producto) return variante;
+  if (!variante) return producto;
+
+  if (variantAlreadyIncludedInProduct(producto, variante)) return producto;
+
+  return `${producto} ${variante}`;
+}
+
 function getItemDetalleText(item) {
   const raw = item && typeof item === "object" ? item : {};
-  const value =
-    safeStr(raw.descripcion) ||
-    safeStr(raw.detalle) ||
-    safeStr(raw.detalle_nombre) ||
-    safeStr(raw.producto_nombre) ||
-    safeStr(raw.stock_producto_nombre) ||
-    safeStr(raw.nombre) ||
-    safeStr(raw.producto);
+  const producto = firstFilled(
+    raw.stock_producto_nombre,
+    raw.producto_base_nombre,
+    raw.producto_nombre,
+    raw.detalle_nombre,
+    raw.nombre,
+    raw.descripcion,
+    raw.detalle,
+    raw.producto
+  );
+  const value = composeProductoVariante(producto, getItemVariantText(raw));
 
   return value && value !== "Producto / Servicio" ? value : "";
 }
@@ -208,6 +305,31 @@ function isResumenProductosText(value) {
   return text === "SIN PRODUCTOS" || /^\d+\s+PRODUCTO(S)?$/.test(text);
 }
 
+function getCantidadProductosPresupuesto(row) {
+  const items = Array.isArray(row?.items_detalle)
+    ? row.items_detalle
+    : Array.isArray(row?.items)
+      ? row.items
+      : [];
+  if (items.length > 0) return items.length;
+
+  const cantidad = Number(row?.cantidad_items ?? row?.cantidadItems ?? row?.productos_count ?? row?.productosCount ?? 0);
+  if (Number.isFinite(cantidad) && cantidad > 0) return Math.trunc(cantidad);
+
+  const detalle = safeStr(row?.detalle || row?.descripcion || row?.concepto);
+  const match = detalle.toUpperCase().match(/^(\d+)\s+PRODUCTO(S)?$/);
+  if (match) return Number(match[1]);
+
+  const tieneProducto = safeStr(row?.id_stock_producto || row?.stock_producto_nombre || row?.producto_nombre);
+  if (tieneProducto) return 1;
+
+  return 0;
+}
+
+function getResumenPresupuesto(row) {
+  return detalleProductosLabel(getCantidadProductosPresupuesto(row));
+}
+
 function getDetallePresupuesto(row) {
   const itemsText = buildDetalleItemsText(row?.items_detalle || row?.items);
   if (itemsText) return itemsText;
@@ -218,8 +340,7 @@ function getDetallePresupuesto(row) {
   const detalle = safeStr(row?.detalle || row?.descripcion || row?.concepto);
   if (detalle && !isResumenProductosText(detalle) && detalle !== "Producto / Servicio") return detalle;
 
-  const cantidad = Number(row?.cantidad_items ?? row?.items_detalle?.length ?? 0);
-  return detalleProductosLabel(Number.isFinite(cantidad) ? cantidad : 0);
+  return getResumenPresupuesto(row);
 }
 
 function normalizePresupuestoItemForModal(it, idx = 0, idMovimiento = null) {
@@ -1102,7 +1223,7 @@ export default function Presupuestos() {
 
   const columns = useMemo(() => [
     { key: "fecha", align: "center", label: "Fecha", render: (r) => formatFechaDMY(r.fecha) },
-    { key: "detalle", label: "Descripción", render: (r) => safeText(getDetallePresupuesto(r)) },
+    { key: "detalle", label: "Descripción", render: (r) => safeText(getResumenPresupuesto(r)) },
     { key: "cliente", align: "center", label: "Cliente", render: (r) => safeText(r.cliente) },
     { key: "estado", align: "center", label: "Estado", render: (r) => (r.convertido_a_venta ? "CONVERTIDO EN VENTA" : "PRESUPUESTO") },
     { key: "total", label: "Total", align: "right", strong: true, render: (r) => moneyARS(r.monto_total) },
@@ -1281,6 +1402,8 @@ export default function Presupuestos() {
             "ventas:listar:cc-medios-v3",
             "ventas:listar:cc-medios-r2-v4",
             "ventas:listar:cc-medios-r2-v5",
+            "ventas:listar:cc-medios-r2-v6",
+            "ventas:listar:cc-medios-r2-v7",
           ].forEach((scope) => clearMovPerfCache(scope));
           const idVenta = Number(data?.id_venta || data?.id_movimiento || data?.ids?.[0] || data?.ids_movimiento?.[0] || 0);
           if (selectedRow?.id_movimiento && idVenta) {

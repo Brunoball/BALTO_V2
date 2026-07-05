@@ -8,6 +8,7 @@ import "./ModalPresupuesto.css";
 import "../../modalcss/AltasMovimientos.css";
 import BASE_URL from "../../../../config/config";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
+import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
 import ModalClienteFiscalArca from "../../../Global/Modales/ModalClienteFiscalArca.jsx";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -169,6 +170,12 @@ function getDetalleId(d) {
 
 function getStockProductoId(d) {
   const cand = d?.id_stock_producto ?? d?.idStockProducto ?? d?.stock_producto_id ?? d?.id_producto ?? d?.idProducto ?? getDetalleId(d);
+  const n = Number(cand);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function getStockVarianteId(d) {
+  const cand = d?.id_stock_variante ?? d?.idStockVariante ?? d?.stock_variante_id ?? d?.id_variante ?? d?.idVariante ?? null;
   const n = Number(cand);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
@@ -665,6 +672,7 @@ function buildEmptyRow() {
     id: uid(),
     id_detalle: NULL_OPTION,
     id_stock_producto: NULL_OPTION,
+    id_stock_variante: NULL_OPTION,
     detalleText: "",
     codigo: "",
     cantidad: 1,
@@ -1001,15 +1009,19 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
   }, [clientesList]);
 
   const handleSelectDetalle = useCallback((rowId, detalle) => {
+    const idStockProducto = getStockProductoId(detalle);
+    const idStockVariante = getStockVarianteId(detalle);
     const precios = getDetallePreciosDisponibles(detalle);
     const inicial = pickDetallePrecioInicial(precios);
     const stockDisponible = getStockDisponible(detalle);
     const sinStock = isSinStock(stockDisponible);
+    const nombreDetalle = getDetalleNombre(detalle);
 
     updateRow(rowId, {
       id_detalle: NULL_OPTION,
-      id_stock_producto: getStockProductoId(detalle) || NULL_OPTION,
-      detalleText: getDetalleNombre(detalle),
+      id_stock_producto: idStockProducto || NULL_OPTION,
+      id_stock_variante: idStockVariante || NULL_OPTION,
+      detalleText: nombreDetalle,
       codigo: getDetalleCodigo(detalle),
       cantidad: sinStock ? "" : 1,
       precio: inicial ? safeNumber(inicial.monto) : 0,
@@ -1023,7 +1035,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
     });
 
     if (sinStock) {
-      onToast?.("advertencia", `El producto "${getDetalleNombre(detalle)}" no tiene stock disponible.`, 2500);
+      onToast?.("advertencia", `El producto "${nombreDetalle}" no tiene stock disponible.`, 2500);
     }
   }, [onToast, updateRow]);
 
@@ -1032,6 +1044,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
       detalleText: value,
       id_detalle: NULL_OPTION,
       id_stock_producto: NULL_OPTION,
+      id_stock_variante: NULL_OPTION,
       codigo: "",
       precios_disponibles: [],
       precio_tipo_label: "",
@@ -1218,6 +1231,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
       .map((r) => ({
         id_detalle: null,
         id_stock_producto: r.id_stock_producto || null,
+        id_stock_variante: r.id_stock_variante || null,
         codigo: r.codigo || "",
         descripcion: safeStr(r.detalleText),
         detalle: safeStr(r.detalleText),
@@ -1434,14 +1448,12 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                   return (
                     <div key={r.id} className={`mi-cr-row ${rowSinStock ? "mi-cr-row--sin-stock" : ""}`}>
                       <div className="mi-cr-cell mi-cr-cell--detalle">
-                        <GlobalAutocomplete
+                        <ProductStockAutocomplete
                           value={r.detalleText}
                           onChange={(val) => handleDetalleInputChange(r.id, val)}
                           onSelect={(d) => handleSelectDetalle(r.id, d)}
                           options={detallesList}
-                          getOptionLabel={(d) => getDetalleNombre(d)}
-                          getOptionValue={(d) => String(getDetalleId(d) || getDetalleNombre(d))}
-                          placeholder="Escribí o buscá un detalle…"
+                          placeholder="Escribí o buscá un producto…"
                           disabled={saving}
                           showAllOnFocus={false}
                           maxItems={18}

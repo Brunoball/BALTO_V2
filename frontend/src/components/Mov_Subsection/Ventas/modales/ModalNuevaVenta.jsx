@@ -12,6 +12,7 @@ import ModalFacturaBaltoResumen from "../../Facturacion/ModalFacturaBaltoResumen
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faFileInvoiceDollar, faPlus, faMoneyCheckDollar } from "@fortawesome/free-solid-svg-icons";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
+import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
 import ModalNuevoCheque from "../../../Global/Modales/ModalNuevoCheque.jsx";
 import ModalClienteFiscalArca from "../../../Global/Modales/ModalClienteFiscalArca.jsx";
 import {
@@ -88,6 +89,19 @@ function getDetalleId(d) {
   const cand = d?.id ?? d?.id_detalle ?? d?.idDetalle ?? d?.detalle_id ?? d?.iddetalle ?? null;
   const n = Number(cand);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+function getStockProductoId(d) {
+  const cand = d?.id_stock_producto ?? d?.idStockProducto ?? d?.stock_producto_id ?? d?.id_producto ?? d?.idProducto ?? getDetalleId(d);
+  const n = Number(cand);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+function getStockVarianteId(d) {
+  const cand = d?.id_stock_variante ?? d?.idStockVariante ?? d?.stock_variante_id ?? d?.id_variante ?? d?.idVariante ?? null;
+  const n = Number(cand);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+function getDetalleNombre(d) {
+  return safeStr(d?.nombre || d?.descripcion || d?.detalle || d?.producto || d?.label || "");
 }
 function getClienteId(c) {
   const cand = c?.id ?? c?.id_cliente ?? c?.idCliente ?? c?.cliente_id ?? c?.idcliente ?? null;
@@ -523,7 +537,7 @@ function normalizeChequeTipoFromMedio(nombre) {
 }
 
 function describeLineProblem(r, idx1based) {
-  const detId = Number(r.id_detalle);
+  const detId = Number(r.id_stock_producto || r.id_detalle);
   const detTxt = String(r.detalleText || "").trim();
   const qtyBlank = isBlank(r.cantidad);
   const priceBlank = isBlank(r.precio);
@@ -533,7 +547,8 @@ function describeLineProblem(r, idx1based) {
 
   const touched =
     detTxt !== "" ||
-    String(r.id_detalle || "").trim() !== "" ||
+    String(r.id_stock_producto || r.id_detalle || "").trim() !== "" ||
+    String(r.id_stock_variante || "").trim() !== "" ||
     !qtyBlank ||
     !priceBlank ||
     safeNumber(r.cantidad) !== 0 ||
@@ -561,6 +576,8 @@ function buildEmptyRow() {
   return {
     id: uid(),
     id_detalle: NULL_OPTION,
+    id_stock_producto: NULL_OPTION,
+    id_stock_variante: NULL_OPTION,
     detalleText: "",
     cantidad: 1,
     precio: 0,
@@ -1776,15 +1793,20 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
 
   const handleSelectDetalle = useCallback(
     (detalle, rowId) => {
+      const idStockProducto = getStockProductoId(detalle);
+      const idStockVariante = getStockVarianteId(detalle);
       const preciosDisponibles = getDetallePreciosDisponibles(detalle);
       const precioInicial = pickDetallePrecioInicial(preciosDisponibles);
       const precio = Number(precioInicial?.monto ?? detalle?.precio ?? 0);
       const stockDisponible = getStockDisponible(detalle);
       const sinStock = isSinStock(stockDisponible);
+      const nombreDetalle = getDetalleNombre(detalle);
 
       updateRow(rowId, {
-        id_detalle: String(getDetalleId(detalle) || ""),
-        detalleText: detalle?.nombre || "",
+        id_detalle: idStockProducto ? String(idStockProducto) : NULL_OPTION,
+        id_stock_producto: idStockProducto ? String(idStockProducto) : NULL_OPTION,
+        id_stock_variante: idStockVariante ? String(idStockVariante) : NULL_OPTION,
+        detalleText: nombreDetalle,
         precio,
         id_tipo_precio_stock: String(precioInicial?.value ?? NULL_OPTION),
         precio_tipo_label: String(precioInicial?.tipo_precio ?? ""),
@@ -1795,7 +1817,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
       });
 
       if (sinStock) {
-        showToast("advertencia", `El producto "${detalle?.nombre || ""}" no tiene stock disponible.`, 2500);
+        showToast("advertencia", `El producto "${nombreDetalle}" no tiene stock disponible.`, 2500);
       }
     },
     [updateRow, showToast]
@@ -2443,8 +2465,14 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
       const nombreClienteParaGuardar = clienteFinal?.nombre || selectedClienteNombre || safeStr(clienteFiscalResuelto?.razon_social) || null;
 
       const payloads = rowsCalc
-        .filter((r) => Number.isFinite(Number(r.id_detalle)) && Number(r.id_detalle) > 0 && Number(r.total || 0) > 0)
-        .map((r) => ({
+        .filter((r) => {
+          const stockId = Number(r.id_stock_producto || r.id_detalle);
+          return Number.isFinite(stockId) && stockId > 0 && Number(r.total || 0) > 0;
+        })
+        .map((r) => {
+          const stockId = Number(r.id_stock_producto || r.id_detalle);
+          const varianteId = Number(r.id_stock_variante || 0);
+          return {
           idUsuario,
           fecha,
           periodo: periodoApi,
@@ -2454,7 +2482,8 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
           id_medio_pago: primerMedioId,
           id_cuenta_corriente: null,
           id_detalle: null,
-          id_stock_producto: Number(r.id_detalle),
+          id_stock_producto: stockId,
+          id_stock_variante: Number.isFinite(varianteId) && varianteId > 0 ? varianteId : null,
           cantidad: Math.round(Number(r.cantidad) * 100) / 100,
           precio: Math.round(Number(r.precio) * 100) / 100,
           iva_pct: Math.round(Number(r.ivaPct) * 100) / 100,
@@ -2465,7 +2494,8 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
           accion_venta: accionFinal,
           es_facturada: esFacturadaFinal,
           cliente_fiscal: esFacturadaFinal ? clienteFiscalResuelto : null,
-        }));
+        };
+        });
 
       if (!payloads.length) throw new Error("No hay filas válidas para guardar.");
 
@@ -3253,12 +3283,14 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                     return (
                       <div key={r.id} className={`mi-cr-row ${rowSinStock ? "mi-cr-row--sin-stock" : ""}`}>
                         <div className="mi-cr-cell mi-cr-cell--detalle">
-                          <GlobalAutocomplete
+                          <ProductStockAutocomplete
                             value={r.detalleText}
                             onChange={(val) =>
                               updateRow(r.id, {
                                 detalleText: val,
                                 id_detalle: NULL_OPTION,
+                                id_stock_producto: NULL_OPTION,
+                                id_stock_variante: NULL_OPTION,
                                 precio: 0,
                                 id_tipo_precio_stock: NULL_OPTION,
                                 precio_tipo_label: "",
@@ -3269,9 +3301,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                             }
                             onSelect={(d) => handleSelectDetalle(d, r.id)}
                             options={detallesList}
-                            getOptionLabel={(d) => String(d?.nombre ?? "").trim()}
-                            getOptionValue={(d) => String(getDetalleId(d) ?? d?.nombre ?? "")}
-                            placeholder="Escribí o buscá un detalle…"
+                            placeholder="Escribí o buscá un producto…"
                             disabled={saving || addUI.open}
                             showAllOnFocus={false}
                             maxItems={18}

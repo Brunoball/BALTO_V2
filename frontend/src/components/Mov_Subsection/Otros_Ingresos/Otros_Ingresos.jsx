@@ -612,7 +612,7 @@ export default function OtrosIngresos() {
       const cacheKey = `${fromAPI}|${toAPI}|${qKey}`;
 
       if (!append && offset === 0 && !cacheRef.current.has(cacheKey)) {
-        const persisted = readMovPerfCache("otros_ingresos:listar", cacheKey);
+        const persisted = readMovPerfCache("otros_ingresos:listar:v3", cacheKey);
         if (persisted?.rows) cacheRef.current.set(cacheKey, persisted);
       }
 
@@ -724,7 +724,7 @@ export default function OtrosIngresos() {
                   nextOffset: newNextOffset,
                 };
                 cacheRef.current.set(cacheKey, cachePayload);
-                writeMovPerfCache("otros_ingresos:listar", cacheKey, cachePayload);
+                writeMovPerfCache("otros_ingresos:listar:v3", cacheKey, cachePayload);
               }
 
               if (rowsReqIdRef.current === myReqId) setLoadingRows(false);
@@ -812,7 +812,7 @@ export default function OtrosIngresos() {
 
       setDateRange(newRange);
       cacheRef.current.clear();
-      clearMovPerfCache("otros_ingresos:listar");
+      clearMovPerfCache("otros_ingresos:listar:v3");
       skipSearchRef.current = true;
 
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
@@ -1053,7 +1053,7 @@ export default function OtrosIngresos() {
       signedUrlInFlightRef.current.clear();
 
       cacheRef.current.clear();
-      clearMovPerfCache("otros_ingresos:listar");
+      clearMovPerfCache("otros_ingresos:listar:v3");
       await loadRows({
         from: dateRange.from,
         to: dateRange.to,

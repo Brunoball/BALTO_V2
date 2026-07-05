@@ -45,7 +45,7 @@ const SKELETON_ROWS = 10;
 const LIVE_POLL_MS = 5000;
 const PREWARM_BATCH_SIZE = 8;
 const PREWARM_DELAY_MS = 60;
-const VENTAS_LIST_CACHE_KEY = "ventas:listar:cc-medios-r2-v5";
+const VENTAS_LIST_CACHE_KEY = "ventas:listar:cc-medios-r2-v7";
 
 function moneyARS(v) { const n = Number(v || 0); try { return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" }); } catch { return `$${n.toFixed(2)}`; } }
 function safeText(v) { const s = String(v ?? "").trim(); return s ? s : "—"; }
@@ -265,7 +265,7 @@ function rowMatchesQuery(row, query) {
   const montoNum = Number(row?.monto_total || row?.total || 0);
   const parts = [];
   if (row && typeof row === "object") for (const k of Object.keys(row)) { const val = row[k]; if (val && typeof val === "object") continue; parts.push(String(val ?? "")); }
-  if (Array.isArray(row?.items_detalle)) row.items_detalle.forEach((it) => parts.push(it?.producto_nombre, it?.stock_producto_nombre, it?.detalle_nombre, it?.nombre, it?.descripcion));
+  if (Array.isArray(row?.items_detalle)) row.items_detalle.forEach((it) => parts.push(it?.producto_nombre, it?.stock_producto_nombre, it?.variante_nombre, it?.stock_variante_nombre, it?.nombre_variante, it?.producto_variante_nombre, it?.detalle_nombre, it?.nombre, it?.descripcion));
   if (Array.isArray(row?.medios_pago_detalle)) row.medios_pago_detalle.forEach((mp) => parts.push(mp?.medio_pago_nombre, mp?.cheque_tipo, mp?.numero_cheque, mp?.emisor));
   parts.push(formatFechaDMY(row?.fecha), String(montoNum), String(Math.trunc(montoNum)), moneyARS(montoNum));
   const hay = normalizeSearchText(parts.join(" | "));
@@ -326,7 +326,7 @@ export default function Ventas() {
   const liveToastCooldownRef = useRef(0);
   useEffect(() => () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); if (liveTimerRef.current) clearTimeout(liveTimerRef.current); prewarmCancelRef.current = true; }, []);
   useEffect(() => {
-    ["ventas:listar:cc-medios-v2", "ventas:listar:cc-medios-v3", "ventas:listar:cc-medios-r2-v4"].forEach((key) => clearMovPerfCache(key));
+    ["ventas:listar:cc-medios-v2", "ventas:listar:cc-medios-v3", "ventas:listar:cc-medios-r2-v4", "ventas:listar:cc-medios-r2-v5", "ventas:listar:cc-medios-r2-v6"].forEach((key) => clearMovPerfCache(key));
   }, []);
   const buildHeadersGET = useCallback(() => { const { token, sessionKey } = getAuthInfo(); const h = {}; if (sessionKey) h["X-Session"] = sessionKey; if (token) h.Authorization = `Bearer ${token}`; return h; }, []);
   const buildHeadersPOST = useCallback(() => { const { token, sessionKey } = getAuthInfo(); const h = { "Content-Type": "application/json" }; if (sessionKey) h["X-Session"] = sessionKey; if (token) h.Authorization = `Bearer ${token}`; return h; }, []);
@@ -513,7 +513,7 @@ export default function Ventas() {
     { key: "txt", label: "Exportar TXT (.txt)", onClick: () => handleExport("txt") },
   ], [handleExport]);
   const reloadVista = useCallback(async () => { cacheRef.current.clear(); clearMovPerfCache(VENTAS_LIST_CACHE_KEY); signedUrlCacheRef.current.clear(); signedUrlInFlightRef.current.clear(); await loadRows({ from: dateRange.from, to: dateRange.to, q, offset: 0, append: false, bypassCache: true }); try { const token = await fetchLiveToken(dateRange.from, dateRange.to, q); liveTokenRef.current = token; } catch {} }, [dateRange.from, dateRange.to, loadRows, q, fetchLiveToken]);
-  const confirmDelete = async () => { if (!selectedRow?.id_movimiento) return; const id = selectedRow.id_movimiento; setDeletingId(id); setError(""); try { const { idUsuario } = getAuthInfo(); const sp = new URLSearchParams(); sp.set("action", "ventas_eliminar"); sp.set("id_movimiento", String(id)); const data = await apiPostJson(`${API}?${sp.toString()}`, { idUsuario }); if (!data?.exito) throw new Error(data?.mensaje || "No se pudo eliminar."); ["presupuestos:listar:v2", "presupuestos:listar:v3"].forEach((scope) => clearMovPerfCache(scope)); setOpenDel(false); setSelectedRow(null); await reloadVista(); await refreshPeriodos(); } catch (e) { setError(e.message || "Error eliminando venta."); throw e; } finally { setDeletingId(null); } };
+  const confirmDelete = async () => { if (!selectedRow?.id_movimiento) return; const id = selectedRow.id_movimiento; setDeletingId(id); setError(""); try { const { idUsuario } = getAuthInfo(); const sp = new URLSearchParams(); sp.set("action", "ventas_eliminar"); sp.set("id_movimiento", String(id)); const data = await apiPostJson(`${API}?${sp.toString()}`, { idUsuario }); if (!data?.exito) throw new Error(data?.mensaje || "No se pudo eliminar."); ["presupuestos:listar:v2", "presupuestos:listar:v3", "presupuestos:listar:v4"].forEach((scope) => clearMovPerfCache(scope)); setOpenDel(false); setSelectedRow(null); await reloadVista(); await refreshPeriodos(); } catch (e) { setError(e.message || "Error eliminando venta."); throw e; } finally { setDeletingId(null); } };
   const handleLoadMore = useCallback(async () => { if (!hasMore || loadingMore || loadingRows || loadingListsCtx || nextOffset === null) return; try { await loadRows({ from: dateRange.from, to: dateRange.to, q: (q || "").trim(), offset: nextOffset, append: true }); try { const token = await fetchLiveToken(dateRange.from, dateRange.to, q); liveTokenRef.current = token; } catch {} } catch (e) { showToast("error", e?.message || "Error cargando más ventas.", 4200); } }, [hasMore, loadingMore, loadingRows, loadingListsCtx, nextOffset, dateRange, q, loadRows, showToast, fetchLiveToken]);
   const handleVerComprobante = useCallback(async (r) => {
     const candidates = buildComprobanteCandidatesFromRow(r);

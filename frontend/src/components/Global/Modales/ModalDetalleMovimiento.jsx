@@ -57,15 +57,128 @@ function toArray(value) {
   return [];
 }
 
-function getItemName(item) {
-  return safeText(
-    item?.producto_nombre ||
-      item?.stock_producto_nombre ||
-      item?.detalle_nombre ||
-      item?.nombre ||
-      item?.descripcion ||
-      item?.detalle
+function normalizeCompareText(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+
+function compareTokens(value) {
+  return normalizeCompareText(value)
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function variantAlreadyIncludedInProduct(productName, variantName) {
+  const productoNorm = normalizeCompareText(productName);
+  const varianteNorm = normalizeCompareText(variantName);
+  if (!productoNorm || !varianteNorm) return false;
+  if (productoNorm === varianteNorm) return true;
+
+  const productoTokens = compareTokens(productoNorm);
+  const varianteTokens = compareTokens(varianteNorm);
+  if (!productoTokens.length || !varianteTokens.length) return false;
+  if (varianteTokens.length > productoTokens.length) return false;
+
+  for (let i = 0; i <= productoTokens.length - varianteTokens.length; i += 1) {
+    let matches = true;
+    for (let j = 0; j < varianteTokens.length; j += 1) {
+      if (productoTokens[i + j] !== varianteTokens[j]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return true;
+  }
+
+  return false;
+}
+
+function composeProductoVariante(productName, variantName) {
+  const producto = String(productName ?? "").trim();
+  const variante = String(variantName ?? "").trim();
+
+  if (!producto && !variante) return "";
+  if (!producto) return variante;
+  if (!variante) return producto;
+
+  if (variantAlreadyIncludedInProduct(producto, variante)) return producto;
+
+  return `${producto} - ${variante}`;
+}
+
+function getItemVariantName(item) {
+  return firstText(
+    item?.stock_variante_nombre,
+    item?.variante_nombre,
+    item?.nombre_variante,
+    item?.stock_variante_nombre_raw,
+    item?.stock_variante,
+    item?.variante,
+    item?.stock_variante_valores,
+    item?.stock_variante_detalle,
+    item?.variant_name,
+    item?.variantName,
+    item?.atributos_variante,
+    item?.atributos
   );
+}
+
+function getItemName(item) {
+  const productoBase = firstText(
+    item?.stock_producto_nombre,
+    item?.producto_base_nombre,
+    item?.producto_nombre,
+    item?.producto
+  );
+  const variante = getItemVariantName(item);
+  const nombreCompuesto = composeProductoVariante(productoBase, variante);
+
+  const nombreExplicito = firstText(
+    item?.nombre_completo,
+    item?.producto_variante_nombre,
+    item?.nombre,
+    item?.descripcion,
+    item?.detalle,
+    item?.detalle_nombre,
+    item?.concepto
+  );
+
+  if (variante) return safeText(nombreCompuesto || nombreExplicito);
+
+  const productoNorm = normalizeCompareText(productoBase);
+  const explicitoNorm = normalizeCompareText(nombreExplicito);
+  if (nombreExplicito && productoNorm && explicitoNorm && explicitoNorm !== productoNorm) {
+    return safeText(nombreExplicito);
+  }
+
+  return safeText(nombreCompuesto || nombreExplicito);
+}
+
+function getItemsDescription(items) {
+  const arr = Array.isArray(items) ? items : [];
+  if (!arr.length) return "";
+
+  return arr
+    .map((item) => {
+      const name = getItemName(item);
+      if (!name || name === "—") return "";
+
+      const cantidad = Number(item?.cantidad ?? 0);
+      const cantidadTexto = Number.isFinite(cantidad) && cantidad > 0
+        ? `${formatNumber(cantidad)} x `
+        : "";
+
+      return `${cantidadTexto}${name}`;
+    })
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function formatNumber(value) {
@@ -223,7 +336,18 @@ export default function ModalDetalleMovimiento({
     return [
       {
         id_item: row?.id_item,
-        producto_nombre: row?.detalle || row?.descripcion || row?.concepto,
+        producto_nombre:
+          row?.stock_producto_nombre ||
+          row?.producto_nombre ||
+          row?.detalle ||
+          row?.descripcion ||
+          row?.concepto,
+        stock_producto_nombre: row?.stock_producto_nombre,
+        stock_variante_nombre: row?.stock_variante_nombre || row?.variante_nombre || row?.nombre_variante,
+        variante_nombre: row?.variante_nombre || row?.stock_variante_nombre || row?.nombre_variante,
+        nombre: row?.nombre,
+        descripcion: row?.descripcion,
+        detalle: row?.detalle,
         cantidad: row?.cantidad ?? 1,
         precio: row?.precio ?? row?.monto_total ?? row?.total ?? 0,
         iva_pct: row?.iva_pct ?? 0,
@@ -297,7 +421,10 @@ export default function ModalDetalleMovimiento({
     row?.monto_total_movimiento ?? row?.monto_total ?? row?.total ?? row?.total_general ?? totalItems ?? 0
   );
 
+  const descripcionItems = getItemsDescription(items);
+
   const descripcion =
+    descripcionItems ||
     row?.detalle_original ||
     row?.descripcion_original ||
     row?.concepto_original ||

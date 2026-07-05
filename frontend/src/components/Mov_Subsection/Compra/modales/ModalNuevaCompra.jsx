@@ -21,6 +21,7 @@ import {
   faPlus,
 } from "@fortawesome/free-solid-svg-icons";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
+import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
 import ModalClienteFiscalArca from "../../../Global/Modales/ModalClienteFiscalArca.jsx";
 
 const NULL_OPTION = "";
@@ -543,6 +544,76 @@ function getDetalleId(d) {
   const n = Number(c);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
+function getStockProductoId(d) {
+  const c = d?.id_stock_producto ?? d?.idStockProducto ?? d?.stock_producto_id ?? d?.id_producto ?? d?.idProducto ?? getDetalleId(d);
+  const n = Number(c);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+function getStockVarianteId(d) {
+  const c = d?.id_stock_variante ?? d?.idStockVariante ?? d?.stock_variante_id ?? d?.id_variante ?? d?.idVariante ?? null;
+  const n = Number(c);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+function getDetalleNombre(d) {
+  return safeStr(d?.nombre || d?.descripcion || d?.detalle || d?.producto || d?.label || "");
+}
+function normalizeTipoPrecioNombre(nombre) {
+  return String(nombre ?? "")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function getDetallePreciosDisponibles(detalle) {
+  const lista = Array.isArray(detalle?.precios) ? detalle.precios : [];
+  const out = [];
+  const seen = new Set();
+
+  for (let i = 0; i < lista.length; i += 1) {
+    const p = lista[i] ?? {};
+    const idTipo = Number(p?.id_tipo_precio_stock ?? 0);
+    const monto = Number(p?.monto ?? p?.precio ?? 0);
+    const tipoPrecio = safeStr(p?.tipo_precio || p?.nombre || (idTipo > 0 ? `Precio ${idTipo}` : `Precio ${i + 1}`));
+    if (!Number.isFinite(monto)) continue;
+
+    const key = `${idTipo}|${tipoPrecio}|${monto}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    out.push({
+      value: idTipo > 0 ? String(idTipo) : `precio_${i + 1}`,
+      id_tipo_precio_stock: idTipo > 0 ? idTipo : null,
+      tipo_precio: tipoPrecio || `Precio ${i + 1}`,
+      monto,
+      label: `${tipoPrecio || `Precio ${i + 1}`} - ${moneyARS(monto)}`,
+    });
+  }
+
+  if (!out.length) {
+    const montoFallback = Number(detalle?.precio_costo ?? detalle?.precio ?? detalle?.precio_venta ?? detalle?.precio_promocional ?? 0);
+    out.push({
+      value: "default",
+      id_tipo_precio_stock: null,
+      tipo_precio: "PRECIO",
+      monto: Number.isFinite(montoFallback) ? montoFallback : 0,
+      label: `PRECIO - ${moneyARS(Number.isFinite(montoFallback) ? montoFallback : 0)}`,
+    });
+  }
+
+  return out;
+}
+function pickDetallePrecioCompraInicial(precios) {
+  if (!Array.isArray(precios) || !precios.length) return null;
+  for (const p of precios) {
+    const nombre = normalizeTipoPrecioNombre(p?.tipo_precio);
+    if (nombre.includes("COSTO") || nombre.includes("COMPRA")) return p;
+  }
+  for (const p of precios) {
+    if (Number(p?.id_tipo_precio_stock ?? 0) === 1) return p;
+  }
+  return precios[0] ?? null;
+}
 function getProveedorId(p) {
   const c = p?.id ?? p?.id_proveedor ?? p?.idProveedor ?? p?.proveedor_id ?? null;
   const n = Number(c);
@@ -569,6 +640,8 @@ function buildEmptyRow() {
   return {
     id: uid(),
     id_detalle: NULL_OPTION,
+    id_stock_producto: NULL_OPTION,
+    id_stock_variante: NULL_OPTION,
     detalleText: "",
     cantidad: 1,
     precio: 0,
@@ -580,7 +653,7 @@ function buildEmptyRow() {
   };
 }
 function describeLineProblem(r, idx1based) {
-  const detId = Number(r.id_detalle);
+  const detId = Number(r.id_stock_producto || r.id_detalle);
   const detTxt = String(r.detalleText || "").trim();
   const qtyBlank = isBlank(r.cantidad);
   const priceBlank = isBlank(r.precio);
@@ -590,7 +663,8 @@ function describeLineProblem(r, idx1based) {
 
   const touched =
     detTxt !== "" ||
-    String(r.id_detalle || "").trim() !== "" ||
+    String(r.id_stock_producto || r.id_detalle || "").trim() !== "" ||
+    String(r.id_stock_variante || "").trim() !== "" ||
     !qtyBlank ||
     !priceBlank ||
     safeNumber(r.cantidad) !== 0 ||
@@ -1111,17 +1185,22 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
 
   const handleSelectDetalle = useCallback(
     (detalle, rowId) => {
+      const idStockProducto = getStockProductoId(detalle);
+      const idStockVariante = getStockVarianteId(detalle);
+      const preciosDisponibles = getDetallePreciosDisponibles(detalle);
+      const precioInicial = pickDetallePrecioCompraInicial(preciosDisponibles);
+      const precio = Number(precioInicial?.monto ?? detalle?.precio_costo ?? detalle?.precio ?? 0);
       const stockDisponible = getStockDisponible(detalle);
 
       updateRow(rowId, {
-        id_detalle: String(getDetalleId(detalle) || ""),
-        detalleText: detalle?.nombre || "",
-        // En compras el precio unitario y la cantidad los define esta compra al proveedor.
-        // No se autocompleta precio desde el producto ni se limita por el stock actual.
+        id_detalle: idStockProducto ? String(idStockProducto) : NULL_OPTION,
+        id_stock_producto: idStockProducto ? String(idStockProducto) : NULL_OPTION,
+        id_stock_variante: idStockVariante ? String(idStockVariante) : NULL_OPTION,
+        detalleText: getDetalleNombre(detalle),
         stock_disponible: stockDisponible,
         sinStock: false,
         cantidad: 1,
-        precio: 0,
+        precio,
         precioDraft: "",
         precioFocused: false,
       });
@@ -1534,16 +1613,23 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
         : [];
 
       const payloads = rowsCalc
-        .filter((r) => Number.isFinite(Number(r.id_detalle)) && Number(r.id_detalle) > 0 && Number(r.total || 0) > 0)
-        .map((r) => ({
+        .filter((r) => {
+          const stockId = Number(r.id_stock_producto || r.id_detalle);
+          return Number.isFinite(stockId) && stockId > 0 && Number(r.total || 0) > 0;
+        })
+        .map((r) => {
+          const stockId = Number(r.id_stock_producto || r.id_detalle);
+          const varianteId = Number(r.id_stock_variante || 0);
+          return {
           idUsuario,
           idUsuarioMaster,
           fecha,
           id_tipo_venta: idTipoVenta,
           id_proveedor: proveedorIdFinal,
           proveedor_nombre: String(provInput || "").trim() || null,
-          id_detalle: Number(r.id_detalle),
-          id_stock_producto: Number(r.id_detalle),
+          id_detalle: stockId,
+          id_stock_producto: stockId,
+          id_stock_variante: Number.isFinite(varianteId) && varianteId > 0 ? varianteId : null,
           cantidad: Math.round(Number(r.cantidad) * 100) / 100,
           precio: Math.round(Number(r.precio) * 100) / 100,
           iva_pct: Math.round(Number(r.ivaPct) * 100) / 100,
@@ -1553,7 +1639,8 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
           monto_total: Math.round(Number(r.total) * 100) / 100,
           accion_compra: accionFinal,
           es_pagada: esPagadaFinal,
-        }));
+        };
+        });
 
       if (!payloads.length) {
         showToast("advertencia", "No hay filas válidas para guardar.", 4200);
@@ -1669,21 +1756,21 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                     return (
                       <div key={r.id} className="mi-cr-row">
                         <div className="mi-cr-cell mi-cr-cell--detalle">
-                          <GlobalAutocomplete
+                          <ProductStockAutocomplete
                             value={r.detalleText}
                             onChange={(val) =>
                               updateRow(r.id, {
                                 detalleText: val,
                                 id_detalle: NULL_OPTION,
+                                id_stock_producto: NULL_OPTION,
+                                id_stock_variante: NULL_OPTION,
                                 stock_disponible: null,
                                 sinStock: false,
                               })
                             }
                             onSelect={(d) => handleSelectDetalle(d, r.id)}
                             options={detallesList}
-                            getOptionLabel={(d) => String(d?.nombre ?? "").trim()}
-                            getOptionValue={(d) => String(getDetalleId(d) ?? d?.nombre ?? "")}
-                            placeholder="Escribí o buscá un detalle…"
+                            placeholder="Escribí o buscá un producto…"
                             disabled={saving || addUI.open}
                             showAllOnFocus={false}
                             maxItems={18}

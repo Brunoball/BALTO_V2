@@ -679,7 +679,7 @@ export default function Compras() {
       const cacheKey = `${fromAPI}|${toAPI}|${qKey}`;
 
       if (!append && offset === 0 && !cacheRef.current.has(cacheKey)) {
-        const persisted = readMovPerfCache("compras:listar:cc-medios-v2", cacheKey);
+        const persisted = readMovPerfCache("compras:listar:cc-medios-v4", cacheKey);
         if (persisted?.rows) cacheRef.current.set(cacheKey, persisted);
       }
 
@@ -794,7 +794,7 @@ export default function Compras() {
             nextOffset: newNextOffset,
           };
           cacheRef.current.set(cacheKey, cachePayload);
-          writeMovPerfCache("compras:listar:cc-medios-v2", cacheKey, cachePayload);
+          writeMovPerfCache("compras:listar:cc-medios-v4", cacheKey, cachePayload);
         }
 
         setHasMore(newHasMore);
@@ -883,7 +883,7 @@ export default function Compras() {
       if (!newRange?.from && !newRange?.to) return;
       setDateRange(newRange);
       cacheRef.current.clear();
-      clearMovPerfCache("compras:listar:cc-medios-v2");
+      clearMovPerfCache("compras:listar:cc-medios-v4");
       signedUrlCacheRef.current.clear();
       skipSearchRef.current = true;
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
@@ -1139,7 +1139,7 @@ export default function Compras() {
 
       // Evita volver a abrir el modal con una versión vieja persistida en localStorage.
       cacheRef.current.clear();
-      clearMovPerfCache("compras:listar:cc-medios-v2");
+      clearMovPerfCache("compras:listar:cc-medios-v4");
     } catch (e) {
       console.warn("No se pudo refrescar el detalle de medios de pago de la compra:", e);
     }
@@ -1200,7 +1200,7 @@ export default function Compras() {
     setOpenEdit(false);
     setSelectedRow(null);
     cacheRef.current.clear();
-    clearMovPerfCache("compras:listar:cc-medios-v2");
+    clearMovPerfCache("compras:listar:cc-medios-v4");
     signedUrlCacheRef.current.clear();
     await loadRows({ dateRange, q: "", offset: 0, append: false });
     await refreshPeriodos();
@@ -1244,7 +1244,7 @@ export default function Compras() {
       setOpenDel(false);
       setSelectedRow(null);
       cacheRef.current.clear();
-      clearMovPerfCache("compras:listar:cc-medios-v2");
+      clearMovPerfCache("compras:listar:cc-medios-v4");
       signedUrlCacheRef.current.clear();
 
       await loadRows({ dateRange, q, offset: 0, append: false });

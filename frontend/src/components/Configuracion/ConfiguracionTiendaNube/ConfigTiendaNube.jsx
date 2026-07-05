@@ -540,7 +540,7 @@ export default function ConfigTiendaNube() {
 
       const res = await apiFetch(
         {
-          action: "stock_tiendanube_importar_faltantes",
+          action: "tiendanube_importar_catalogo",
           idTenant: tenantId,
         },
         {

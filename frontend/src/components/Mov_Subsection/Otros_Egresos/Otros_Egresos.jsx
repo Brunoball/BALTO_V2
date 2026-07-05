@@ -910,7 +910,7 @@ export default function OtrosEgresos() {
       const cacheKey = `${fromAPI}|${toAPI}|${qKey}`;
 
       if (!append && offset === 0 && !cacheRef.current.has(cacheKey)) {
-        const persisted = readMovPerfCache("otros_egresos:listar", cacheKey);
+        const persisted = readMovPerfCache("otros_egresos:listar:v3", cacheKey);
         if (persisted?.rows) cacheRef.current.set(cacheKey, persisted);
       }
 
@@ -1022,7 +1022,7 @@ export default function OtrosEgresos() {
                   nextOffset: newNextOffset,
                 };
                 cacheRef.current.set(cacheKey, cachePayload);
-                writeMovPerfCache("otros_egresos:listar", cacheKey, cachePayload);
+                writeMovPerfCache("otros_egresos:listar:v3", cacheKey, cachePayload);
               }
 
               if (rowsReqIdRef.current === myReqId) setLoadingRows(false);
@@ -1110,7 +1110,7 @@ export default function OtrosEgresos() {
 
       setDateRange(newRange);
       cacheRef.current.clear();
-      clearMovPerfCache("otros_egresos:listar");
+      clearMovPerfCache("otros_egresos:listar:v3");
       skipSearchRef.current = true;
 
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
@@ -1347,7 +1347,7 @@ export default function OtrosEgresos() {
   const reloadVista = useCallback(async () => {
     try {
       cacheRef.current.clear();
-      clearMovPerfCache("otros_egresos:listar");
+      clearMovPerfCache("otros_egresos:listar:v3");
       signedUrlCacheRef.current.clear();
       signedUrlInFlightRef.current.clear();
       await loadRows({
@@ -1376,7 +1376,7 @@ export default function OtrosEgresos() {
       if (!afectaOtrosEgresos) return;
 
       cacheRef.current.clear();
-      clearMovPerfCache("otros_egresos:listar");
+      clearMovPerfCache("otros_egresos:listar:v3");
       signedUrlCacheRef.current.clear();
       signedUrlInFlightRef.current.clear();
 
