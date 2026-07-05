@@ -1534,6 +1534,49 @@ const Stock = () => {
     );
   };
 
+  const renderStockToolbarActions = (extraClassName = "", options = {}) => {
+    const { showToggleBajas = true, showAjustePrecios = true, showAgregarProducto = true } = options;
+
+    return (
+      <div className={["stock-tableActions", extraClassName].filter(Boolean).join(" ")}>
+        {showToggleBajas ? (
+          <button
+            type="button"
+            className={mostrarDadosDeBaja ? "mov-btn mov-btn--primary" : "mov-btn mov-btn--ghost"}
+            onClick={() => {
+              setMostrarDadosDeBaja((prev) => !prev);
+              setPaginaActual(1);
+            }}
+          >
+            <FontAwesomeIcon icon={faRotateLeft} /> {mostrarDadosDeBaja ? "Ver activos" : "Ver dados de baja"}
+          </button>
+        ) : null}
+
+        {showAjustePrecios ? (
+          <button
+            type="button"
+            className="mov-btn mov-btn--ghost"
+            onClick={() => setModalAjustePreciosAbierto(true)}
+            disabled={mostrarDadosDeBaja}
+          >
+            <FontAwesomeIcon icon={faMoneyBillTrendUp} /> Ajustar precios
+          </button>
+        ) : null}
+
+        {showAgregarProducto ? (
+          <button
+            type="button"
+            className="mov-btn mov-btn--primary"
+            onClick={() => setModalAbierto(true)}
+            disabled={mostrarDadosDeBaja}
+          >
+            <FontAwesomeIcon icon={faPlus} /> Agregar producto
+          </button>
+        ) : null}
+      </div>
+    );
+  };
+
   return (
     <>
       <div className="mov-page">
@@ -1647,35 +1690,12 @@ const Stock = () => {
               </div>
             </div>
 
-            <div className="mov-card__actions" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                className={mostrarDadosDeBaja ? "mov-btn mov-btn--primary" : "mov-btn mov-btn--ghost"}
-                onClick={() => {
-                  setMostrarDadosDeBaja((prev) => !prev);
-                  setPaginaActual(1);
-                }}
-              >
-                <FontAwesomeIcon icon={faRotateLeft} /> {mostrarDadosDeBaja ? "Ver activos" : "Ver dados de baja"}
-              </button>
+            <div className="mov-card__actions stock-tableActionsDesktop">
+              {renderStockToolbarActions()}
+            </div>
 
-              <button
-                type="button"
-                className="mov-btn mov-btn--ghost"
-                onClick={() => setModalAjustePreciosAbierto(true)}
-                disabled={mostrarDadosDeBaja}
-              >
-                <FontAwesomeIcon icon={faMoneyBillTrendUp} /> Ajustar precios
-              </button>
-
-              <button
-                type="button"
-                className="mov-btn mov-btn--primary"
-                onClick={() => setModalAbierto(true)}
-                disabled={mostrarDadosDeBaja}
-              >
-                <FontAwesomeIcon icon={faPlus} /> Agregar producto
-              </button>
+            <div className="mov-card__actions stock-tableActionsAddMobile">
+              {renderStockToolbarActions("", { showToggleBajas: false, showAjustePrecios: false })}
             </div>
           </div>
 
@@ -1703,7 +1723,7 @@ const Stock = () => {
             ))}
           </div>
 
-          <div className="mov-tableWrap" role="rowgroup">
+          <div className="mov-tableWrap stock-tableWrap" role="rowgroup">
             <div
               className={[
                 "mov-gridBody",
@@ -1909,6 +1929,8 @@ const Stock = () => {
               )}
             </div>
           </div>
+
+          {renderStockToolbarActions("stock-tableActionsMobile", { showAgregarProducto: false })}
         </section>
 
         {totalPaginas > 1 && (

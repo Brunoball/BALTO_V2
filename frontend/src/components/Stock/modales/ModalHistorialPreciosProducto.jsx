@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faChevronDown,
@@ -11,7 +12,9 @@ import {
   buildHeadersGET,
   parseJsonOrThrow,
 } from "./stockFormUtils";
-import "./ModalCargaMasiva.css";
+import "./ModalAjustePrecios.css";
+import "./ModalHistorialPreciosProducto.css";
+import { isTopStockModal } from "./modalStackUtils";
 
 function formatMoney(value) {
   if (value === null || value === undefined || value === "") return "—";
@@ -38,6 +41,7 @@ async function apiGet(paramsObj) {
 }
 
 const ModalHistorialPreciosProducto = ({ open, producto, onClose, onToast }) => {
+  const overlayRef = useRef(null);
   const productoId = Number(producto?.id_stock_producto ?? producto?.id ?? 0);
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState([]);
@@ -82,13 +86,25 @@ const ModalHistorialPreciosProducto = ({ open, producto, onClose, onToast }) => 
 
   useEffect(() => {
     if (!open) return;
+
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
     const handleKeyDown = (e) => {
-      if (e.key === "Escape") {
-        if (typeof onClose === "function") onClose();
-      }
+      if (e.key !== "Escape") return;
+      if (!isTopStockModal(overlayRef.current)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof onClose === "function") onClose();
     };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+
+    document.addEventListener("keydown", handleKeyDown, true);
+
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", handleKeyDown, true);
+    };
   }, [open, onClose]);
 
   const grupos = useMemo(() => {
@@ -134,23 +150,23 @@ const ModalHistorialPreciosProducto = ({ open, producto, onClose, onToast }) => 
   const nombreProducto = productoInfo?.nombre || producto?.nombre || "Producto";
   const skuProducto = productoInfo?.sku || producto?.sku || "—";
 
-  return (
-    <div className="ap-modalOverlay" role="dialog" aria-modal="true">
-      <div className="ap-modal ap-modal--historyProduct">
-        <div className="ap-modal__head">
-          <div className="ap-modal__titleIcon">
+  return createPortal(
+    <div ref={overlayRef} data-stock-modal-overlay="true" className="mi-modal__overlay ap-modalOverlay" role="dialog" aria-modal="true">
+      <div className="mi-modal__container ap-modal ap-modal--historyProduct">
+        <div className="mi-modal__header ap-modal__head">
+          <div className="mi-modal__head-icon ap-modal__titleIcon">
             <FontAwesomeIcon icon={faClockRotateLeft} />
           </div>
           <div>
             <h2>Historial de precios</h2>
             <p>{nombreProducto} · SKU {skuProducto}</p>
           </div>
-          <button type="button" className="ap-modal__close" onClick={onClose} title="Cerrar">
+          <button type="button" className="mi-modal__close ap-modal__close" onClick={onClose} title="Cerrar" aria-label="Cerrar">
             <FontAwesomeIcon icon={faTimes} />
           </button>
         </div>
 
-        <div className="ap-modal__body">
+        <div className="mi-modal__content ap-modal__body">
           <section className="ap-summaryGrid">
             <div className="ap-summaryCard">
               <span>Cambios</span>
@@ -238,7 +254,8 @@ const ModalHistorialPreciosProducto = ({ open, producto, onClose, onToast }) => 
           </section>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

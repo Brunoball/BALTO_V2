@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import "./ModalCargaMasiva.css";
+import "./ModalEditarStock.css";
 import ModalVerComprobante from "../../Global/Ver_Comprobantes/ModalVerComprobante";
+import { isTopStockModal } from "./modalStackUtils";
 import {
   faBoxOpen,
   faTag,
@@ -700,11 +701,15 @@ function PriceInput({
 }
 
 function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSave, children }) {
+  const overlayRef = useRef(null);
+
   useEffect(() => {
     if (!open) return;
 
     const handleEscape = (e) => {
       if (e.key !== "Escape") return;
+
+      if (!isTopStockModal(overlayRef.current)) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -729,6 +734,8 @@ function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSa
 
   return createPortal(
     <div
+      ref={overlayRef}
+      data-stock-modal-overlay="true"
       className="cmi-miniOverlay"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !loading) {
@@ -969,6 +976,7 @@ export default function ModalEditarProducto({
   onToast,
 }) {
   const closeBtnRef = useRef(null);
+  const overlayRef = useRef(null);
   const categoriasPanelRef = useRef(null);
   const variantesPanelRef = useRef(null);
   const inputImagenRef = useRef(null);
@@ -1249,18 +1257,21 @@ export default function ModalEditarProducto({
     const h = (e) => {
       if (
         e.key === "Escape" &&
+        isTopStockModal(overlayRef.current) &&
         !guardando &&
         !previewOpen &&
         !miniCategoriaOpen &&
         !miniTipoOpen
       ) {
+        e.preventDefault();
+        e.stopPropagation();
         onClose?.();
       }
     };
 
-    document.addEventListener("keydown", h);
+    document.addEventListener("keydown", h, true);
 
-    return () => document.removeEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h, true);
   }, [onClose, guardando, previewOpen, miniCategoriaOpen, miniTipoOpen]);
 
   useEffect(() => {
@@ -2266,6 +2277,8 @@ export default function ModalEditarProducto({
   return createPortal(
     <>
       <div
+        ref={overlayRef}
+        data-stock-modal-overlay="true"
         className={["mi-modal__overlay", dark ? "mi-modal__overlay--dark" : ""]
           .join(" ")
           .trim()}
@@ -2274,6 +2287,7 @@ export default function ModalEditarProducto({
           className={[
             "mi-modal__container",
             "cmi-container",
+            "cmi-container--editar",
             dark ? "mi-modal--dark" : "",
           ]
             .join(" ")

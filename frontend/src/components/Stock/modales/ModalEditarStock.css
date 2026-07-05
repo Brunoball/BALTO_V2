@@ -1,0 +1,13 @@
+/* =========================================================
+   ModalEditarStock.css
+   Estilos propios del modal de edición de producto.
+   Reutiliza los campos cmi-* y la base global de modales.
+   ========================================================= */
+
+@import "./ModalCargaIndividualProducto.css";
+
+.cmi-container--editar {
+  width: min(1180px, 96vw);
+  max-height: 92vh;
+  min-height: auto;
+}

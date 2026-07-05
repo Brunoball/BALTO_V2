@@ -1291,569 +1291,99 @@ html[data-theme="oscuro"] .prod-variantExtraPrices small {
   color: rgba(147,197,253,.95) !important;
 }
 
-/* =========================================================
-   Stock 2.0 · Ajuste masivo de precios
-   ========================================================= */
-.ap-modalOverlay {
-  position: fixed;
-  inset: 0;
-  z-index: 999999999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(4, 12, 24, 0.60);
-  backdrop-filter: blur(5px);
-}
 
-.ap-modal {
-  width: min(1320px, 96vw);
-  max-height: 92vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: 22px;
-  background: var(--nv-bg, #fff);
-  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.30), 0 0 0 1px rgba(255,255,255,0.10);
-}
-
-.ap-modal__head {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 20px 24px;
-  background: var(--nv-midnight, #0A2540);
-  color: #fff;
-  border-bottom: 1px solid rgba(255,255,255,.08);
-}
-
-.ap-modal__titleIcon {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.14);
-  flex-shrink: 0;
-}
-
-.ap-modal__head h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 850;
-  letter-spacing: -0.02em;
-}
-
-.ap-modal__head p {
-  margin: 4px 0 0;
-  color: rgba(226, 232, 240, 0.78);
-  font-size: 13.5px;
-}
-
-.ap-modal__close {
-  margin-left: auto;
-  width: 42px;
-  height: 42px;
-  border: 0;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  color: #fff;
-  background: rgba(255,255,255,0.12);
-  font-size: 17px;
-}
-
-.ap-modal__close:hover {
-  background: rgba(255,255,255,0.20);
-}
-
-.ap-modal__body {
-  flex: 1;
-  overflow: auto;
-  padding: 18px 20px 22px;
-  background: var(--nv-surface, #F7F9FC);
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.ap-panel {
-  border: 1px solid var(--nv-border-md, rgba(10, 37, 64, 0.14));
-  border-radius: 16px;
-  background: var(--nv-bg, #fff);
-  padding: 16px;
-  box-shadow: 0 16px 34px rgba(10, 37, 64, 0.06);
-}
-
-.ap-panel--controls {
-  border-top: 3px solid var(--nv-action, #0055BB);
-}
-
-.ap-controlsGrid {
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(160px, .8fr);
-  gap: 12px;
-}
-
-.ap-observation {
-  margin-top: 14px;
-}
-
-.ap-summaryGrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.ap-summaryCard {
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: var(--nv-bg, #fff);
-  border: 1px solid var(--nv-border-md, rgba(10, 37, 64, 0.12));
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.ap-summaryCard span {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--nv-muted, #5A6A7E);
-}
-
-.ap-summaryCard strong {
-  font-size: 20px;
-  color: var(--nv-text, #0A2540);
-}
-
-.ap-summaryCard.is-positive strong,
-.ap-positive {
-  color: #059669 !important;
-}
-
-.ap-summaryCard.is-negative strong,
-.ap-negative {
-  color: #dc2626 !important;
-}
-
-.ap-sectionHead {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 12px;
-}
-
-.ap-sectionHead h3 {
-  margin: 0;
-  font-size: 16px;
-  color: var(--nv-text, #0A2540);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ap-sectionHead p {
-  margin: 4px 0 0;
-  font-size: 12.5px;
-  color: var(--nv-muted, #5A6A7E);
-}
-
-.ap-actionsSmall {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.ap-search {
-  margin-bottom: 12px;
-}
-
-.ap-table,
-.ap-historyTable {
-  border: 1px solid var(--nv-border-md, rgba(10,37,64,.12));
-  border-radius: 14px;
-  overflow: hidden;
-  background: var(--nv-bg, #fff);
-}
-
-.ap-table__head,
-.ap-table__row {
-  display: grid;
-  grid-template-columns: 42px minmax(260px, 2.2fr) minmax(90px, .8fr) minmax(105px, .8fr) minmax(105px, .8fr) minmax(105px, .8fr);
-  gap: 10px;
-  align-items: center;
-}
-
-.ap-table__head,
-.ap-historyTable__head {
-  padding: 10px 12px;
-  background: var(--nv-midnight, #0A2540);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 850;
-  text-transform: uppercase;
-  letter-spacing: .035em;
-}
-
-.ap-table__row {
-  padding: 11px 12px;
-  border-top: 1px solid var(--nv-border, rgba(10,37,64,.08));
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--nv-text, #0A2540);
-}
-
-.ap-table__row:hover,
-.ap-table__row.is-selected {
-  background: color-mix(in srgb, var(--nv-action, #0055BB) 7%, #fff);
-}
-
-.ap-table__row input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--nv-action, #0055BB);
-}
-
-.ap-targetName {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.ap-targetName strong,
-.ap-historyTable__row b {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ap-targetName small,
-.ap-historyTable__row small,
-.ap-historyItem__head small {
-  color: var(--nv-muted, #5A6A7E);
-  font-size: 11.5px;
-  font-weight: 650;
-}
-
-.ap-targetName em {
-  width: max-content;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: rgba(59,130,246,.10);
-  color: #1d4ed8;
-  font-style: normal;
-  font-size: 10.5px;
-  font-weight: 800;
-}
-
-.ap-sku {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  color: var(--nv-muted, #5A6A7E);
-}
-
-.ap-empty {
-  padding: 18px;
-  text-align: center;
-  color: var(--nv-muted, #5A6A7E);
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.ap-history {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.ap-historyItem {
-  border: 1px solid var(--nv-border-md, rgba(10,37,64,.12));
-  border-radius: 14px;
-  background: var(--nv-bg, #fff);
-  overflow: hidden;
-}
-
-.ap-historyItem__head {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  padding: 12px 14px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 12px;
-  align-items: center;
-  text-align: left;
-  cursor: pointer;
-  color: var(--nv-text, #0A2540);
-  font-family: inherit;
-}
-
-.ap-historyItem__head > span:first-child {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.ap-historyDiff {
-  font-weight: 850;
-  white-space: nowrap;
-}
-
-.ap-historyDetail {
-  padding: 0 14px 14px;
-  border-top: 1px solid var(--nv-border, rgba(10,37,64,.08));
-}
-
-.ap-historyDetail p {
-  margin: 10px 0;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--nv-surface, #F7F9FC);
-  color: var(--nv-muted, #5A6A7E);
-  font-size: 12px;
-}
-
-.ap-historyTable__head,
-.ap-historyTable__row {
-  display: grid;
-  grid-template-columns: minmax(220px, 1.8fr) minmax(100px, .8fr) minmax(100px, .8fr) minmax(100px, .8fr);
-  gap: 10px;
-  align-items: center;
-}
-
-.ap-historyTable__row {
-  padding: 10px 12px;
-  border-top: 1px solid var(--nv-border, rgba(10,37,64,.08));
-  font-size: 12.5px;
-}
-
-.ap-historyTable__row > span:first-child {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.ap-modal__footer {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 20px;
-  border-top: 1px solid var(--nv-border-md, rgba(10,37,64,.14));
-  background: var(--nv-bg, #fff);
-}
-
-.ap-footerHint {
-  color: var(--nv-muted, #5A6A7E);
-  font-size: 12.5px;
-  font-weight: 650;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ap-footerActions {
-  display: flex;
-  gap: 10px;
-}
-
-html[data-theme="oscuro"] .ap-modal {
-  background: #06121c;
-}
-
-html[data-theme="oscuro"] .ap-modal__body {
-  background: #05101a;
-}
-
-html[data-theme="oscuro"] .ap-panel,
-html[data-theme="oscuro"] .ap-summaryCard,
-html[data-theme="oscuro"] .ap-table,
-html[data-theme="oscuro"] .ap-historyItem,
-html[data-theme="oscuro"] .ap-modal__footer {
-  background: rgba(15, 23, 42, 0.88) !important;
-  border-color: rgba(148, 163, 184, 0.18) !important;
-}
-
-html[data-theme="oscuro"] .ap-sectionHead h3,
-html[data-theme="oscuro"] .ap-summaryCard strong,
-html[data-theme="oscuro"] .ap-table__row,
-html[data-theme="oscuro"] .ap-historyItem__head {
-  color: rgba(226, 232, 240, 0.94) !important;
-}
-
-html[data-theme="oscuro"] .ap-table__row:hover,
-html[data-theme="oscuro"] .ap-table__row.is-selected {
-  background: rgba(78, 161, 255, 0.12) !important;
-}
-
-html[data-theme="oscuro"] .ap-targetName small,
-html[data-theme="oscuro"] .ap-historyTable__row small,
-html[data-theme="oscuro"] .ap-historyItem__head small,
-html[data-theme="oscuro"] .ap-sectionHead p,
-html[data-theme="oscuro"] .ap-footerHint,
-html[data-theme="oscuro"] .ap-empty,
-html[data-theme="oscuro"] .ap-sku {
-  color: rgba(203, 213, 225, 0.72) !important;
-}
-
-@media (max-width: 980px) {
-  .ap-controlsGrid,
-  .ap-summaryGrid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .ap-sectionHead {
-    flex-direction: column;
-  }
-
-  .ap-actionsSmall {
-    justify-content: flex-start;
-  }
-
-  .ap-table__head,
-  .ap-table__row {
-    grid-template-columns: 34px minmax(180px, 1.7fr) minmax(90px, .8fr) minmax(90px, .8fr) minmax(90px, .8fr) minmax(90px, .8fr);
-  }
-}
-
-@media (max-width: 720px) {
-  .ap-modalOverlay {
-    padding: 10px;
-  }
-
-  .ap-modal {
-    max-height: 96vh;
-  }
-
-  .ap-controlsGrid,
-  .ap-summaryGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .ap-table {
-    overflow-x: auto;
-  }
-
-  .ap-table__head,
-  .ap-table__row {
-    min-width: 760px;
-  }
-
-  .ap-modal__footer {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .ap-footerActions {
-    justify-content: flex-end;
-  }
-}
-
-/* =========================================================
-   Stock 2.0 · Historial de precios por producto + tabs
-   ========================================================= */
-.ap-tabs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px;
-  border-radius: 16px;
-  background: var(--nv-bg, #fff);
-  border: 1px solid var(--nv-border-md, rgba(10, 37, 64, 0.12));
-  box-shadow: 0 10px 24px rgba(10, 37, 64, 0.05);
-}
-
-.ap-tab {
-  border: 0;
-  background: transparent;
-  color: var(--nv-muted, #5A6A7E);
-  min-height: 38px;
-  padding: 0 16px;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  cursor: pointer;
-  font-weight: 850;
-  font-family: inherit;
-  transition: background .16s ease, color .16s ease, box-shadow .16s ease;
-}
-
-.ap-tab:hover {
-  background: color-mix(in srgb, var(--nv-action, #0055BB) 8%, transparent);
-  color: var(--nv-action, #0055BB);
-}
-
-.ap-tab.is-active {
-  background: var(--nv-action, #0055BB);
-  color: #fff;
-  box-shadow: 0 10px 22px rgba(0, 85, 187, 0.22);
-}
-
-.ap-panel--historyOnly {
-  min-height: 360px;
-}
-
-.ap-modal--historyProduct {
-  width: min(1180px, 96vw);
-}
-
-.ap-historyTable--product .ap-historyTable__head,
-.ap-historyTable--product .ap-historyTable__row {
-  grid-template-columns: minmax(230px, 1.55fr) minmax(110px, .75fr) minmax(105px, .7fr) minmax(105px, .7fr) minmax(105px, .7fr);
-}
-
-.mov-actionsInline .mov-iconBtn[title="Historial de precios"] {
-  color: var(--nv-action, #0055BB);
-}
-
-html[data-theme="oscuro"] .ap-tabs {
-  background: rgba(15, 23, 42, 0.88) !important;
-  border-color: rgba(148, 163, 184, 0.18) !important;
-}
-
-html[data-theme="oscuro"] .ap-tab {
-  color: rgba(203, 213, 225, 0.78) !important;
-}
-
-html[data-theme="oscuro"] .ap-tab:hover {
-  background: rgba(78, 161, 255, 0.12) !important;
-  color: rgba(147, 197, 253, 0.96) !important;
-}
-
-html[data-theme="oscuro"] .ap-tab.is-active {
-  background: var(--nv-action, #0055BB) !important;
-  color: #fff !important;
-}
-
-@media (max-width: 720px) {
-  .ap-tabs {
-    overflow-x: auto;
-  }
-
-  .ap-tab {
-    white-space: nowrap;
-  }
-
-  .ap-historyTable--product {
-    overflow-x: auto;
-  }
-
-  .ap-historyTable--product .ap-historyTable__head,
-  .ap-historyTable--product .ap-historyTable__row {
-    min-width: 820px;
-  }
-}
+/* Los estilos específicos de modales de stock se movieron a Stock/modales/*.css. */
 
 .prod-variantBadge--inactive {
   opacity: 0.85;
   border-style: dashed;
+}
+
+/* Stock: acciones principales debajo de la tabla desde 1300px */
+.stock-tableActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stock-tableActionsMobile,
+.stock-tableActionsAddMobile {
+  display: none;
+}
+
+.stock-tableActions .mov-btn {
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 650;
+  box-shadow: none;
+}
+
+.stock-tableActions .mov-btn svg {
+  font-size: 12px;
+}
+
+@media (max-width: 1500px) {
+  .stock-tableActionsDesktop {
+    display: none !important;
+  }
+
+  .stock-tableActionsAddMobile {
+    display: flex !important;
+    margin-left: auto;
+  }
+
+  .stock-tableActionsMobile {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 0;
+    padding: 8px;
+    border: 1px solid var(--mov-border, rgba(10, 37, 64, 0.10));
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--balto-bg, #f7f9fc) 82%, #fff);
+  }
+
+  .stock-tableWrap {
+    min-height:  calc(100vh - 290px)!important;
+    max-height: calc(100vh - 290px) !important;
+  }
+
+  .stock-tableActionsMobile .mov-btn {
+    min-width: 150px;
+    height: 34px;
+    padding-inline: 8px;
+  }
+}
+
+@media (max-width: 620px) {
+  .stock-tableActionsAddMobile,
+  .stock-tableActionsMobile {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .stock-tableWrap {
+    min-height: 46vh !important;
+    max-height: 46vh !important;
+  }
+
+  .stock-tableActionsAddMobile .stock-tableActions,
+  .stock-tableActionsMobile {
+    width: 100%;
+  }
+
+  .stock-tableActions .mov-btn,
+  .stock-tableActionsMobile .mov-btn {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}
+
+html[data-theme="oscuro"] .stock-tableActionsMobile {
+  background: rgba(15, 23, 42, 0.56) !important;
+  border-color: rgba(148, 163, 184, 0.16) !important;
 }

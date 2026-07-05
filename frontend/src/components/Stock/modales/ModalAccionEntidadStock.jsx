@@ -7,7 +7,8 @@ import {
   faCircleInfo,
   faCircleCheck,
 } from "@fortawesome/free-solid-svg-icons";
-import "../Stock.css";
+import "./ModalAccionEntidadStock.css";
+import { isTopStockModal } from "./modalStackUtils";
 
 function isTemaOscuro() {
   return (
@@ -41,6 +42,7 @@ export default function ModalAccionEntidadStock({
   variant = "info", // info | danger | success
 }) {
   const closeBtnRef = useRef(null);
+  const overlayRef = useRef(null);
   const [dark, setDark] = useState(isTemaOscuro);
 
   useEffect(() => {
@@ -80,13 +82,16 @@ export default function ModalAccionEntidadStock({
     if (!open) return;
 
     const h = (e) => {
-      if (e.key === "Escape" && !loading) {
-        onClose?.();
-      }
+      if (e.key !== "Escape") return;
+      if (!isTopStockModal(overlayRef.current)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      if (!loading) onClose?.();
     };
 
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
+    document.addEventListener("keydown", h, true);
+    return () => document.removeEventListener("keydown", h, true);
   }, [open, loading, onClose]);
 
   useEffect(() => {
@@ -121,6 +126,8 @@ export default function ModalAccionEntidadStock({
 
   return createPortal(
     <div
+      ref={overlayRef}
+      data-stock-modal-overlay="true"
       className={[
         "mi-modal__overlay",
         dark ? "mi-modal__overlay--dark" : "",
@@ -168,76 +175,17 @@ export default function ModalAccionEntidadStock({
 
         <div className="mi-modal__content">
           {details?.length > 0 && (
-            <div
-              style={{
-                display: "grid",
-                gap: 10,
-                padding: 14,
-                borderRadius: 14,
-                border: "1px solid var(--nv-border)",
-                background: "var(--nv-card-bg)",
-                marginBottom: warning ? 12 : 0,
-              }}
-            >
+            <div className={`stock-actionDetails ${warning ? "stock-actionDetails--withWarning" : ""}`.trim()}>
               {details.map((item, idx) => (
-                <div
-                  key={`${item?.label || "detail"}-${idx}`}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "110px 1fr",
-                    gap: 10,
-                    alignItems: "start",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: "var(--nv-muted)",
-                    }}
-                  >
-                    {item?.label || "Dato"}
-                  </span>
-
-                  <span
-                    style={{
-                      fontSize: 13,
-                      color: "var(--nv-text)",
-                      wordBreak: "break-word",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {item?.value || "—"}
-                  </span>
+                <div className="stock-actionDetailRow" key={`${item?.label || "detail"}-${idx}`}>
+                  <span className="stock-actionDetailLabel">{item?.label || "Dato"}</span>
+                  <span className="stock-actionDetailValue">{item?.value || "—"}</span>
                 </div>
               ))}
             </div>
           )}
 
-          {warning ? (
-            <div
-              style={{
-                padding: "12px 14px",
-                borderRadius: 12,
-                background:
-                  variant === "danger"
-                    ? "rgba(239,68,68,.10)"
-                    : variant === "success"
-                    ? "rgba(16,185,129,.10)"
-                    : "rgba(59,130,246,.10)",
-                border:
-                  variant === "danger"
-                    ? "1px solid rgba(239,68,68,.22)"
-                    : variant === "success"
-                    ? "1px solid rgba(16,185,129,.22)"
-                    : "1px solid rgba(59,130,246,.22)",
-                fontSize: 12,
-                color: "var(--nv-text)",
-              }}
-            >
-              {warning}
-            </div>
-          ) : null}
+          {warning ? <div className={`stock-actionWarning stock-actionWarning--${variant}`}>{warning}</div> : null}
         </div>
 
         <div className="mit-actions">

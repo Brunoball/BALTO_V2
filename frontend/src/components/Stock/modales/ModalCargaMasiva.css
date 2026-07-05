@@ -660,42 +660,106 @@ html[data-theme="oscuro"] .cmi-deleteWarn__desc {
 .cmi-v2-checkGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 8px;
+  gap: 10px;
   margin-top: 10px;
 }
 
 .cmi-v2-checkItem {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 38px;
-  padding: 8px 10px;
-  border: 1px solid var(--nv-border, rgba(15,23,42,.08));
-  border-radius: 12px;
-  background: var(--nv-surface, #F7F9FC);
+  gap: 10px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid rgba(10, 37, 64, 0.09);
+  border-radius: 14px;
+  background: var(--nv-bg, #fff);
   color: var(--nv-text, #0F172A);
+  box-shadow: 0 8px 20px rgba(10, 37, 64, 0.07);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 750;
   cursor: pointer;
+  overflow: hidden;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease, color .18s ease;
+}
+
+.cmi-v2-checkItem::after {
+  content: "";
+  position: absolute;
+  inset: auto -24px -32px auto;
+  width: 66px;
+  height: 66px;
+  border-radius: 999px;
+  background: rgba(75, 184, 255, 0.14);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease;
+}
+
+.cmi-v2-checkItem:hover,
+.cmi-v2-checkItem:has(input:checked) {
+  transform: translateY(-1px);
+  border-color: rgba(0, 85, 187, 0.22);
+  background: color-mix(in srgb, var(--nv-action, #0055BB) 4%, var(--nv-bg, #fff));
+  box-shadow: 0 12px 26px rgba(10, 37, 64, 0.11);
+  color: var(--nv-text, #0F172A);
+}
+
+.cmi-v2-checkItem:hover::after,
+.cmi-v2-checkItem:has(input:checked)::after {
+  opacity: .8;
 }
 
 .cmi-v2-checkItem input,
 .cmi-v2-switch input {
-  accent-color: var(--nv-action, #0055BB);
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 1.5px solid color-mix(in srgb, var(--nv-action, #0055BB) 42%, rgba(10, 37, 64, 0.28));
+  background: var(--nv-bg, #fff);
+  box-shadow: inset 0 1px 2px rgba(10, 37, 64, 0.08), 0 0 0 3px transparent;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+
+.cmi-v2-checkItem input:hover,
+.cmi-v2-switch input:hover {
+  border-color: var(--nv-action, #0055BB);
+  box-shadow: inset 0 1px 2px rgba(10, 37, 64, 0.08), 0 0 0 4px rgba(0, 85, 187, 0.10);
+}
+
+.cmi-v2-checkItem input:checked,
+.cmi-v2-switch input:checked {
+  border-color: var(--nv-action, #0055BB);
+  background: var(--nv-action, #0055BB) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M3 7.2 5.8 10 11 4'/%3E%3C/svg%3E") center / 13px 13px no-repeat;
+  box-shadow: 0 8px 18px rgba(0, 85, 187, 0.22);
 }
 
 .cmi-v2-switch {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border: 1px solid var(--nv-border, rgba(15,23,42,.08));
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid rgba(10, 37, 64, 0.09);
   border-radius: 999px;
-  background: var(--nv-surface, #F7F9FC);
+  background: var(--nv-bg, #fff);
+  box-shadow: 0 8px 20px rgba(10, 37, 64, 0.07);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--nv-text, #0F172A);
   white-space: nowrap;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.cmi-v2-switch:hover,
+.cmi-v2-switch:has(input:checked) {
+  transform: translateY(-1px);
+  border-color: rgba(0, 85, 187, 0.22);
+  background: color-mix(in srgb, var(--nv-action, #0055BB) 4%, var(--nv-bg, #fff));
+  box-shadow: 0 12px 26px rgba(10, 37, 64, 0.11);
 }
 
 .cmi-v2-variantsWrap,
@@ -726,9 +790,42 @@ html[data-theme="oscuro"] .cmi-deleteWarn__desc {
 
 html[data-theme="oscuro"] .cmi-v2-checkItem,
 html[data-theme="oscuro"] .cmi-v2-switch {
-  background: rgba(15, 23, 42, 0.74) !important;
+  background: rgba(15, 23, 42, 0.88) !important;
   border-color: rgba(148, 163, 184, 0.18) !important;
   color: rgba(226, 232, 240, 0.92) !important;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22) !important;
+}
+
+html[data-theme="oscuro"] .cmi-v2-checkItem:hover,
+html[data-theme="oscuro"] .cmi-v2-checkItem:has(input:checked),
+html[data-theme="oscuro"] .cmi-v2-switch:hover,
+html[data-theme="oscuro"] .cmi-v2-switch:has(input:checked) {
+  background: rgba(78, 161, 255, 0.12) !important;
+  border-color: rgba(78, 161, 255, 0.26) !important;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.28) !important;
+}
+
+html[data-theme="oscuro"] .cmi-v2-checkItem::after {
+  background: rgba(78, 161, 255, 0.18);
+}
+
+html[data-theme="oscuro"] .cmi-v2-checkItem input,
+html[data-theme="oscuro"] .cmi-v2-switch input {
+  background-color: rgba(15, 23, 42, 0.96);
+  border-color: rgba(148, 163, 184, 0.34);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25), 0 0 0 3px transparent;
+}
+
+html[data-theme="oscuro"] .cmi-v2-checkItem input:hover,
+html[data-theme="oscuro"] .cmi-v2-switch input:hover {
+  border-color: rgba(78, 161, 255, 0.72);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25), 0 0 0 4px rgba(78, 161, 255, 0.12);
+}
+
+html[data-theme="oscuro"] .cmi-v2-checkItem input:checked,
+html[data-theme="oscuro"] .cmi-v2-switch input:checked {
+  background-color: var(--nv-action, #0055BB);
+  border-color: var(--nv-action, #0055BB);
 }
 
 /* Stock 2.0 - accesos rápidos a categorías / variantes dentro del modal */
@@ -970,4 +1067,81 @@ html[data-theme="oscuro"] .cmi-v2-variantCategories__head span {
 
 .ap-table__row.is-disabled input {
   cursor: not-allowed;
+}
+
+
+/* Ajuste visual liviano pedido: checklist menos pesado y coherente con Global Modal */
+.cmi-v2-checkGrid {
+  gap: 8px;
+}
+
+.cmi-v2-checkItem {
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px -22px rgba(10, 37, 64, 0.42);
+  font-size: 11.5px;
+  font-weight: 550;
+}
+
+.cmi-v2-checkItem::after {
+  width: 54px;
+  height: 54px;
+  inset: auto -22px -28px auto;
+  opacity: 0;
+}
+
+.cmi-v2-checkItem:hover,
+.cmi-v2-checkItem:has(input:checked) {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px -23px rgba(10, 37, 64, 0.48);
+}
+
+.cmi-v2-checkItem input,
+.cmi-v2-switch input {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+}
+
+.cmi-v2-checkItem input:checked,
+.cmi-v2-switch input:checked {
+  background-size: 11px 11px;
+  box-shadow: 0 7px 14px rgba(0, 85, 187, 0.16);
+}
+
+.cmi-v2-switch {
+  padding: 7px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  box-shadow: 0 10px 24px -22px rgba(10, 37, 64, 0.42);
+}
+
+.cmi-v2-switch:hover,
+.cmi-v2-switch:has(input:checked) {
+  box-shadow: 0 14px 28px -23px rgba(10, 37, 64, 0.48);
+}
+
+.cmi-v2-childPanel__head strong {
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.cmi-v2-childPanel__head span,
+.cmi-v2-muted,
+.cmi-errorText {
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+html[data-theme="oscuro"] .cmi-v2-checkItem,
+html[data-theme="oscuro"] .cmi-v2-switch {
+  box-shadow: 0 14px 30px -24px rgba(0, 0, 0, 0.72) !important;
+}
+
+html[data-theme="oscuro"] .cmi-v2-checkItem:hover,
+html[data-theme="oscuro"] .cmi-v2-checkItem:has(input:checked),
+html[data-theme="oscuro"] .cmi-v2-switch:hover,
+html[data-theme="oscuro"] .cmi-v2-switch:has(input:checked) {
+  box-shadow: 0 18px 36px -24px rgba(0, 0, 0, 0.78) !important;
 }

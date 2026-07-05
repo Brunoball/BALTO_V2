@@ -7,6 +7,7 @@ import ModalCargaIndividualProducto from "./ModalCargaIndividualProducto";
 import { useListas } from "../../../context/ListasContext";
 import Toast from "../../Global/Toast.jsx";
 import { isBaltoDemoMode } from "../../../utils/demoMode";
+import { isTopStockModal } from "./modalStackUtils";
 
 import {
   faBoxOpen,
@@ -527,6 +528,23 @@ function ModalConfirmarProductosIA({
   const [miniTipoNombre, setMiniTipoNombre] = useState("");
   const [miniTipoFila, setMiniTipoFila] = useState(null);
   const [guardandoMiniTipo, setGuardandoMiniTipo] = useState(false);
+  const overlayRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleEscape = (e) => {
+      if (e.key !== "Escape") return;
+      if (!isTopStockModal(overlayRef.current)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      if (!confirmando && !miniCategoriaOpen && !miniTipoOpen) onClose?.();
+    };
+
+    document.addEventListener("keydown", handleEscape, true);
+    return () => document.removeEventListener("keydown", handleEscape, true);
+  }, [open, confirmando, miniCategoriaOpen, miniTipoOpen, onClose]);
 
   if (!open) return null;
 
@@ -587,7 +605,7 @@ function ModalConfirmarProductosIA({
 
   return createPortal(
     <>
-      <div className={["mi-modal__overlay", dark ? "mi-modal__overlay--dark" : ""].join(" ").trim()}>
+      <div ref={overlayRef} data-stock-modal-overlay="true" className={["mi-modal__overlay", dark ? "mi-modal__overlay--dark" : ""].join(" ").trim()}>
         <div
           className={["mi-modal__container", "cmi-container", dark ? "mi-modal--dark" : ""].join(" ").trim()}
           role="dialog"
@@ -1046,6 +1064,7 @@ export default function ModalCargaMasiva({
   loadingCategorias: loadingCategoriasProp,
 }) {
   const closeBtnRef = useRef(null);
+  const overlayRef = useRef(null);
   const fileInputMasivoRef = useRef(null);
 
   const [tab, setTab] = useState("individual");
@@ -1114,10 +1133,16 @@ export default function ModalCargaMasiva({
   useEffect(() => {
     if (!open) return;
     const h = (e) => {
-      if (e.key === "Escape" && !isLoading && !previewOpen && !modalConfirmOpen) onClose?.();
+      if (e.key !== "Escape") return;
+      if (!isTopStockModal(overlayRef.current)) return;
+      if (!isLoading && !previewOpen && !modalConfirmOpen) {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose?.();
+      }
     };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
+    document.addEventListener("keydown", h, true);
+    return () => document.removeEventListener("keydown", h, true);
   }, [open, onClose, isLoading, previewOpen, modalConfirmOpen]);
 
   useEffect(() => {
@@ -1605,7 +1630,7 @@ export default function ModalCargaMasiva({
 
   return createPortal(
     <>
-      <div className={["mi-modal__overlay", dark ? "mi-modal__overlay--dark" : ""].join(" ").trim()}>
+      <div ref={overlayRef} data-stock-modal-overlay="true" className={["mi-modal__overlay", dark ? "mi-modal__overlay--dark" : ""].join(" ").trim()}>
         <div
           className={["mi-modal__container", "cmi-container", dark ? "mi-modal--dark" : ""].join(" ").trim()}
           role="dialog"

@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCalculator,
@@ -23,7 +24,8 @@ import {
   moneyToInput,
   parseJsonOrThrow,
 } from "./stockFormUtils";
-import "./ModalCargaMasiva.css";
+import "./ModalAjustePrecios.css";
+import { isTopStockModal } from "./modalStackUtils";
 
 function formatMoney(value) {
   if (value === null || value === undefined || value === "") return "—";
@@ -104,6 +106,7 @@ async function apiPost(action, body) {
 }
 
 const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado }) => {
+  const overlayRef = useRef(null);
   const [tiposPrecio, setTiposPrecio] = useState([]);
   const [idTipoPrecio, setIdTipoPrecio] = useState("");
   const [opciones, setOpciones] = useState([]);
@@ -313,25 +316,48 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado }) => {
     }
   };
 
+  useEffect(() => {
+    if (!open) return;
+
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (e) => {
+      if (e.key !== "Escape") return;
+      if (!isTopStockModal(overlayRef.current)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      if (!guardando) onClose?.();
+    };
+
+    document.addEventListener("keydown", handleKeyDown, true);
+
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [open, guardando, onClose]);
+
   if (!open) return null;
 
-  return (
-    <div className="ap-modalOverlay" role="dialog" aria-modal="true">
-      <div className="ap-modal">
-        <div className="ap-modal__head">
-          <div className="ap-modal__titleIcon">
+  return createPortal(
+    <div ref={overlayRef} data-stock-modal-overlay="true" className="mi-modal__overlay ap-modalOverlay" role="dialog" aria-modal="true">
+      <div className="mi-modal__container ap-modal">
+        <div className="mi-modal__header ap-modal__head">
+          <div className="mi-modal__head-icon ap-modal__titleIcon">
             <FontAwesomeIcon icon={faMoneyBillTrendUp} />
           </div>
           <div>
             <h2>Ajuste de precios</h2>
             <p>Seleccioná productos o variantes, aplicá un porcentaje o importe y guardá el historial.</p>
           </div>
-          <button type="button" className="ap-modal__close" onClick={onClose} title="Cerrar">
+          <button type="button" className="mi-modal__close ap-modal__close" onClick={onClose} title="Cerrar" aria-label="Cerrar">
             <FontAwesomeIcon icon={faTimes} />
           </button>
         </div>
 
-        <div className="ap-modal__body">
+        <div className="mi-modal__content ap-modal__body">
           <div className="ap-tabs" role="tablist" aria-label="Ajuste de precios e historial">
             <button
               type="button"
@@ -578,7 +604,7 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado }) => {
           )}
         </div>
 
-        <div className="ap-modal__footer">
+        <div className="mit-actions ap-modal__footer">
           <div className="ap-footerHint">
             <FontAwesomeIcon icon={faCalculator} /> Se guarda historial con precio anterior, precio nuevo y observación.
           </div>
@@ -594,7 +620,8 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado }) => {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

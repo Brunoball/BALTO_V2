@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import ModalVerComprobante from "../../Global/Ver_Comprobantes/ModalVerComprobante";
-import "./ModalCargaMasiva.css";
+import "./ModalCargaIndividualProducto.css";
+import { isTopStockModal } from "./modalStackUtils";
 
 import {
   faBarcode,
@@ -471,11 +472,15 @@ function PriceGroupSection({ title, children }) {
 }
 
 function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSave, children }) {
+  const overlayRef = useRef(null);
+
   useEffect(() => {
     if (!open) return;
 
     const handleEscape = (e) => {
       if (e.key !== "Escape") return;
+
+      if (!isTopStockModal(overlayRef.current)) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -498,7 +503,7 @@ function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSa
   };
 
   return (
-    <div className="cmi-miniOverlay">
+    <div ref={overlayRef} data-stock-modal-overlay="true" className="cmi-miniOverlay">
       <div className="cmi-miniModal">
         <div className="cmi-miniModal__head">{title}</div>
 
@@ -1593,12 +1598,7 @@ export default function ModalCargaIndividualProducto({
   return (
     <div style={{ display: visible ? "contents" : "none" }}>
       <div
-        className="mi-modal__content"
-        style={{
-          overflowY: "auto",
-          padding: "20px 22px",
-          background: "var(--nv-surface, #F7F9FC)",
-        }}
+        className="mi-modal__content cmi-content--individual"
       >
         <div
           className={`cmi-v2-formShell cmi-v2-formShell--${cargaActiva}`}
