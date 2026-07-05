@@ -231,6 +231,10 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado }) => {
   }, [modoAjuste, seleccionadosArray, valorAjuste]);
 
   const toggleSeleccion = (row) => {
+    if (Number(row?.precio_heredado || 0) === 1) {
+      avisar("error", "Esa variante hereda el precio base. Ajustá el producto base o asignale precio propio a la variante.");
+      return;
+    }
     const key = targetKey(row);
     setSeleccionados((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -239,7 +243,7 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado }) => {
     setSeleccionados((prev) => {
       const next = { ...prev };
       opcionesFiltradas.forEach((row) => {
-        next[targetKey(row)] = true;
+        if (Number(row?.precio_heredado || 0) !== 1) next[targetKey(row)] = true;
       });
       return next;
     });
@@ -477,16 +481,17 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado }) => {
                   const nuevo = calcNuevoPrecio(anterior, modoAjuste, valorAjuste);
                   const diff = nuevo - anterior;
                   const esVariante = row.id_stock_variante !== null && row.id_stock_variante !== undefined;
+                  const heredado = Number(row.precio_heredado || 0) === 1;
 
                   return (
-                    <label className={`ap-table__row ${checked ? "is-selected" : ""}`} key={key}>
+                    <label className={`ap-table__row ${checked ? "is-selected" : ""} ${heredado ? "is-disabled" : ""}`} key={key}>
                       <span>
-                        <input type="checkbox" checked={checked} onChange={() => toggleSeleccion(row)} />
+                        <input type="checkbox" checked={checked} disabled={heredado} onChange={() => toggleSeleccion(row)} />
                       </span>
                       <span className="ap-targetName">
                         <strong>{targetLabel(row)}</strong>
                         <small>{esVariante ? "Variante" : row.tiene_variantes ? "Producto base con variantes" : "Producto simple"}</small>
-                        {Number(row.precio_heredado || 0) === 1 ? <em>heredado</em> : null}
+                        {heredado ? <em>heredado: ajustá el precio base</em> : null}
                       </span>
                       <span className="ap-sku">{row.variante_sku || row.producto_sku || row.sku || "—"}</span>
                       <span>{formatMoney(anterior)}</span>

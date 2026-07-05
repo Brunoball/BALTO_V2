@@ -20,6 +20,7 @@ import {
   faLayerGroup,
   faMoneyBillTrendUp,
   faClockRotateLeft,
+  faRotateLeft,
 } from "@fortawesome/free-solid-svg-icons";
 import "./Stock.css";
 import "../Global/Global_css/Global_Section.css";
@@ -237,8 +238,12 @@ function normalizeProductoListItem(prod = {}) {
       Number(prod?.imagen_archivo_id ?? prod?.id_archivo_imagen ?? prod?.archivo_id ?? 0) || 0,
     id_stock_categoria: categoriaId || null,
     id_categoria_stock: categoriaId || null,
+    activo: Number(prod?.activo ?? 1),
     tiene_variantes: Number(prod?.tiene_variantes || 0) === 1,
     cantidad_variantes: Number(prod?.cantidad_variantes || 0),
+    cantidad_variantes_total: Number(prod?.cantidad_variantes_total ?? prod?.cantidad_variantes ?? 0),
+    cantidad_variantes_activas: Number(prod?.cantidad_variantes_activas ?? prod?.cantidad_variantes ?? 0),
+    cantidad_variantes_inactivas: Number(prod?.cantidad_variantes_inactivas ?? 0),
     categorias: Array.isArray(prod?.categorias) ? prod.categorias : [],
     updated_at:
       prod?.updated_at ??
@@ -275,6 +280,7 @@ function normalizeVarianteListItem(variante = {}) {
     nombre_variante: String(variante?.nombre_variante ?? variante?.nombre ?? ""),
     sku: String(variante?.sku ?? ""),
     stock: variante?.stock ?? 0,
+    activo: Number(variante?.activo ?? 1),
     precio_costo: variante?.precio_costo ?? getPrecioVariante(variante, 1),
     precio: variante?.precio ?? getPrecioVariante(variante, 2),
     precio_promo: variante?.precio_promo ?? getPrecioVariante(variante, 3),
@@ -464,9 +470,12 @@ const Stock = () => {
 
   const [busqueda, setBusqueda] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
+  const [mostrarDadosDeBaja, setMostrarDadosDeBaja] = useState(false);
   const [categoriaDropdownAbierto, setCategoriaDropdownAbierto] = useState(false);
   const [categoriasFiltroExpandidas, setCategoriasFiltroExpandidas] = useState({});
   const [paginaActual, setPaginaActual] = useState(1);
+  const [totalProductosServidor, setTotalProductosServidor] = useState(0);
+  const [totalPaginasServidor, setTotalPaginasServidor] = useState(1);
   const [orden, setOrden] = useState({ campo: "nombre", dir: "ASC" });
 
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -478,6 +487,10 @@ const Stock = () => {
   const [modalEliminarAbierto, setModalEliminarAbierto] = useState(false);
   const [productoEliminar, setProductoEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
+  const [modalBajaVarianteAbierto, setModalBajaVarianteAbierto] = useState(false);
+  const [varianteBaja, setVarianteBaja] = useState(null);
+  const [procesandoVarianteId, setProcesandoVarianteId] = useState(null);
+  const [reactivandoId, setReactivandoId] = useState(null);
   const [impactoEliminar, setImpactoEliminar] = useState(null);
   const [cargandoImpactoEliminar, setCargandoImpactoEliminar] = useState(false);
   const [errorImpactoEliminar, setErrorImpactoEliminar] = useState("");
@@ -560,20 +573,26 @@ const Stock = () => {
       (async () => {
         const params = new URLSearchParams({
           action: "stock_productos_listar",
-          activo: "1",
-          pagina: "1",
-          por_pagina: "10000",
-          orden_campo: "nombre",
-          orden_dir: "ASC",
+          activo: mostrarDadosDeBaja ? "0" : "1",
+          pagina: String(paginaActual),
+          por_pagina: String(productosPorPagina),
+          orden_campo: orden.campo,
+          orden_dir: orden.dir,
         });
         if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
+        if (busqueda.trim()) params.set("buscar", busqueda.trim());
 
         const data = await apiGet(`${API_URL}?${params.toString()}`);
         if (data?.exito === false) {
           throw new Error(data?.mensaje || "Error al obtener productos");
         }
 
-        return normalizeProductosCollection(data?.productos);
+        return {
+          productos: normalizeProductosCollection(data?.productos),
+          total: Number(data?.total ?? 0),
+          pagina: Number(data?.pagina ?? paginaActual),
+          totalPaginas: Math.max(1, Number(data?.total_paginas ?? 1)),
+        };
       })(),
       (async () => {
         const params = new URLSearchParams({ action: "stock_categorias_listar" });
@@ -591,9 +610,16 @@ const Stock = () => {
     ]);
 
     if (productosRes.status === "fulfilled") {
-      setProductosRaw(productosRes.value);
+      setProductosRaw(productosRes.value.productos);
+      setTotalProductosServidor(productosRes.value.total);
+      setTotalPaginasServidor(productosRes.value.totalPaginas);
+      if (productosRes.value.pagina && productosRes.value.pagina !== paginaActual) {
+        setPaginaActual(productosRes.value.pagina);
+      }
     } else {
       setProductosRaw([]);
+      setTotalProductosServidor(0);
+      setTotalPaginasServidor(1);
       throw productosRes.reason;
     }
 
@@ -602,8 +628,7 @@ const Stock = () => {
     } else {
       setCategorias([]);
     }
-  }, [categoriaFiltro]);
-
+  }, [busqueda, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina]);
 
   const refrescarDespuesDeGuardar = useCallback(
     async (productoGuardado = null) => {
@@ -665,13 +690,14 @@ const Stock = () => {
     try {
       const params = new URLSearchParams({
         action: "stock_productos_listar",
-        activo: "1",
-        pagina: "1",
-        por_pagina: "10000",
-        orden_campo: "nombre",
-        orden_dir: "ASC",
+        activo: mostrarDadosDeBaja ? "0" : "1",
+        pagina: String(paginaActual),
+        por_pagina: String(productosPorPagina),
+        orden_campo: orden.campo,
+        orden_dir: orden.dir,
       });
       if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
+      if (busqueda.trim()) params.set("buscar", busqueda.trim());
 
       const data = await apiGet(`${API_URL}?${params.toString()}`);
       if (data.exito === false) {
@@ -679,14 +705,21 @@ const Stock = () => {
       }
 
       setProductosRaw(normalizeProductosCollection(data.productos));
+      setTotalProductosServidor(Number(data?.total ?? 0));
+      setTotalPaginasServidor(Math.max(1, Number(data?.total_paginas ?? 1)));
+      const paginaServidor = Number(data?.pagina ?? paginaActual);
+      if (paginaServidor > 0 && paginaServidor !== paginaActual) {
+        setPaginaActual(paginaServidor);
+      }
     } catch (err) {
       setProductosRaw([]);
+      setTotalProductosServidor(0);
+      setTotalPaginasServidor(1);
       setError(err.message || "Error inesperado");
     } finally {
       setLoading(false);
     }
-  }, [categoriaFiltro]);
-
+  }, [busqueda, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina]);
 
   const cargarVariantesProducto = useCallback(async (productoId) => {
     const id = Number(productoId || 0);
@@ -703,6 +736,7 @@ const Stock = () => {
       const params = new URLSearchParams({
         action: "stock_variantes_listar",
         id_stock_producto: String(id),
+        activo: "todos",
       });
       if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
 
@@ -741,12 +775,15 @@ const Stock = () => {
     setErrorVariantesPorProducto({});
     setLoadingVariantesPorProducto({});
     setVariantesAbiertas({});
-  }, [categoriaFiltro]);
+  }, [categoriaFiltro, mostrarDadosDeBaja]);
 
   useEffect(() => {
     fetchProductos();
+  }, [fetchProductos]);
+
+  useEffect(() => {
     fetchCategorias();
-  }, [fetchProductos, fetchCategorias]);
+  }, [fetchCategorias]);
 
   // Escucha actualizaciones de productos (stock-updated)
   useEffect(() => {
@@ -941,24 +978,11 @@ const Stock = () => {
   ]);
 
   const productosFiltradosYOrdenados = useMemo(() => {
-    let lista = Array.isArray(productosRaw) ? [...productosRaw] : [];
-    const q = normalizeText(busqueda);
-    if (q) {
-      lista = lista.filter(
-        (p) => normalizeText(p.nombre).includes(q) || normalizeText(p.sku).includes(q)
-      );
-    }
+    return Array.isArray(productosRaw) ? productosRaw : [];
+  }, [productosRaw]);
 
-    lista.sort((a, b) => {
-      const result = compareValues(a, b, orden.campo);
-      return orden.dir === "ASC" ? result : -result;
-    });
-
-    return lista;
-  }, [productosRaw, busqueda, orden]);
-
-  const totalProductos = productosFiltradosYOrdenados.length;
-  const totalPaginas = Math.max(1, Math.ceil(totalProductos / productosPorPagina));
+  const totalProductos = totalProductosServidor;
+  const totalPaginas = Math.max(1, totalPaginasServidor);
 
   useEffect(() => {
     if (paginaActual > totalPaginas) {
@@ -966,10 +990,7 @@ const Stock = () => {
     }
   }, [paginaActual, totalPaginas]);
 
-  const productos = useMemo(() => {
-    const inicio = (paginaActual - 1) * productosPorPagina;
-    return productosFiltradosYOrdenados.slice(inicio, inicio + productosPorPagina);
-  }, [productosFiltradosYOrdenados, paginaActual]);
+  const productos = productosFiltradosYOrdenados;
 
   const inicioProductosVisibles = totalProductos > 0
     ? (paginaActual - 1) * productosPorPagina + 1
@@ -1029,7 +1050,7 @@ const Stock = () => {
 
       const data = await apiGet(`${API_URL}?${params.toString()}`);
       if (data?.exito === false) {
-        throw new Error(data?.mensaje || "No se pudo consultar el impacto de eliminación.");
+        throw new Error(data?.mensaje || "No se pudo consultar el impacto de la baja.");
       }
 
       if (impactoEliminarRequestRef.current !== requestId) return;
@@ -1100,7 +1121,7 @@ const Stock = () => {
       const data = await apiPost(API_URL, payload);
 
       if (data.exito === false) {
-        throw new Error(data.mensaje || "Error al eliminar el producto");
+        throw new Error(data.mensaje || "Error al dar de baja el producto");
       }
 
       setProductosRaw((prev) =>
@@ -1122,11 +1143,136 @@ const Stock = () => {
       setProductoEliminar(null);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
-      mostrarToast("exito", "Producto eliminado correctamente.");
+      mostrarToast("exito", "Producto dado de baja correctamente.");
     } catch (error) {
-      mostrarToast("error", error.message || "No se pudo eliminar el producto.");
+      mostrarToast("error", error.message || "No se pudo dar de baja el producto.");
     } finally {
       setEliminando(false);
+    }
+  };
+
+  const handleReactivarProducto = async (producto) => {
+    const productoId = getProductoId(producto);
+    if (!productoId || productoId <= 0 || reactivandoId) return;
+
+    setReactivandoId(productoId);
+    try {
+      const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
+      const payload = {
+        action: "stock_producto_reactivar",
+        id: productoId,
+        idUsuarioMaster,
+      };
+      if (idTenant) payload.tenant_id = idTenant;
+
+      const data = await apiPost(API_URL, payload);
+      if (data?.exito === false) {
+        throw new Error(data?.mensaje || "No se pudo reactivar el producto.");
+      }
+
+      setProductosRaw((prev) => prev.filter((p) => getProductoId(p) !== productoId));
+      await refrescarDespuesDeGuardar();
+      notifyListsUpdated();
+      mostrarToast("exito", "Producto reactivado correctamente.");
+    } catch (error) {
+      mostrarToast("error", error?.message || "No se pudo reactivar el producto.");
+    } finally {
+      setReactivandoId(null);
+    }
+  };
+
+  const handleAbrirBajaVariante = (producto, variante) => {
+    const productoId = getProductoId(producto);
+    const varianteId = getVarianteId(variante);
+
+    if (!productoId || !varianteId) {
+      mostrarToast("error", "ID de variante inválido.");
+      return;
+    }
+
+    setVarianteBaja({
+      productoId,
+      productoNombre: producto?.nombre || "Producto",
+      ...variante,
+      id: varianteId,
+    });
+    setModalBajaVarianteAbierto(true);
+  };
+
+  const handleCerrarBajaVariante = () => {
+    if (procesandoVarianteId) return;
+    setModalBajaVarianteAbierto(false);
+    setVarianteBaja(null);
+  };
+
+  const handleConfirmarBajaVariante = async () => {
+    const varianteId = getVarianteId(varianteBaja);
+    const productoId = Number(varianteBaja?.productoId || varianteBaja?.id_stock_producto || 0);
+
+    if (!varianteId || varianteId <= 0 || !productoId || productoId <= 0) {
+      throw new Error("ID de variante inválido.");
+    }
+
+    setProcesandoVarianteId(varianteId);
+
+    try {
+      const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
+      const payload = {
+        action: "stock_variante_dar_baja",
+        id: varianteId,
+        id_stock_variante: varianteId,
+        idUsuarioMaster,
+      };
+      if (idTenant) payload.tenant_id = idTenant;
+
+      const data = await apiPost(API_URL, payload);
+      if (data?.exito === false) {
+        throw new Error(data?.mensaje || "No se pudo dar de baja la variante.");
+      }
+
+      await cargarVariantesProducto(productoId);
+      await refrescarDespuesDeGuardar();
+      notifyListsUpdated();
+      setModalBajaVarianteAbierto(false);
+      setVarianteBaja(null);
+      mostrarToast("exito", "Variante dada de baja correctamente.");
+    } catch (error) {
+      mostrarToast("error", error?.message || "No se pudo dar de baja la variante.");
+    } finally {
+      setProcesandoVarianteId(null);
+    }
+  };
+
+  const handleReactivarVariante = async (producto, variante) => {
+    const productoId = getProductoId(producto);
+    const varianteId = getVarianteId(variante);
+    if (!productoId || !varianteId || procesandoVarianteId) return;
+
+    setProcesandoVarianteId(varianteId);
+
+    try {
+      const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
+      const payload = {
+        action: "stock_variante_reactivar",
+        id: varianteId,
+        id_stock_variante: varianteId,
+        idUsuarioMaster,
+      };
+      if (idTenant) payload.tenant_id = idTenant;
+
+      const data = await apiPost(API_URL, payload);
+      if (data?.exito === false) {
+        throw new Error(data?.mensaje || "No se pudo reactivar la variante.");
+      }
+
+      await cargarVariantesProducto(productoId);
+      await refrescarDespuesDeGuardar();
+      notifyListsUpdated();
+      mostrarToast("exito", "Variante reactivada correctamente.");
+    } catch (error) {
+      mostrarToast("error", error?.message || "No se pudo reactivar la variante.");
+    } finally {
+      setProcesandoVarianteId(null);
     }
   };
 
@@ -1318,30 +1464,69 @@ const Stock = () => {
                 <span>Precio de costo</span>
                 <span>Precio de venta</span>
                 <span>Precio promocional</span>
+                <span>Estado</span>
+                <span>Acciones</span>
               </div>
-              {variantes.map((variant) => (
-                <div className="prod-variantsMiniTable__row" key={variant.id_stock_variante}>
-                  <span>
-                    <b>{variant.nombre_variante || `Variante #${variant.id_stock_variante}`}</b>
-                    <small>{variantAttributesLabel(variant)}</small>
-                    <small>{variantCategoriasLabel(variant)}</small>
-                  </span>
-                  <span className="prod-sku">{variant.sku || "—"}</span>
-                  <span>{renderStockChip(variant.stock)}</span>
-                  <span>{formatMoney(variant.precio_costo)}</span>
-                  <span>{formatMoney(variant.precio)}</span>
-                  <span className="prod-promo">{formatMoney(variant.precio_promo)}</span>
-                  {(variant.precios_extra || []).length > 0 ? (
-                    <span className="prod-variantExtraPrices">
-                      {(variant.precios_extra || []).map((item) => (
-                        <small key={`${variant.id_stock_variante}-${item.id_tipo_precio_stock}`}>
-                          {item.tipo_nombre || `Precio ${item.id_tipo_precio_stock}`}: {formatMoney(item.precio)}
+              {variantes.map((variant) => {
+                const varianteId = getVarianteId(variant);
+                const varianteInactiva = Number(variant?.activo ?? 1) === 0;
+                const procesandoEstaVariante = procesandoVarianteId === varianteId;
+
+                return (
+                  <div
+                    className={["prod-variantsMiniTable__row", varianteInactiva ? "is-inactive" : ""].join(" ")}
+                    key={variant.id_stock_variante}
+                  >
+                    <span>
+                      <b>{variant.nombre_variante || `Variante #${variant.id_stock_variante}`}</b>
+                      <small>{variantAttributesLabel(variant)}</small>
+                      <small>{variantCategoriasLabel(variant)}</small>
+                      {(variant.precios_extra || []).length > 0 ? (
+                        <small className="prod-variantExtraPrices">
+                          {(variant.precios_extra || [])
+                            .map((item) => `${item.tipo_nombre || `Precio ${item.id_tipo_precio_stock}`}: ${formatMoney(item.precio)}`)
+                            .join(" · ")}
                         </small>
-                      ))}
+                      ) : null}
                     </span>
-                  ) : null}
-                </div>
-              ))}
+                    <span className="prod-sku">{variant.sku || "—"}</span>
+                    <span>{renderStockChip(variant.stock)}</span>
+                    <span>{formatMoney(variant.precio_costo)}</span>
+                    <span>{formatMoney(variant.precio)}</span>
+                    <span className="prod-promo">{formatMoney(variant.precio_promo)}</span>
+                    <span>
+                      {varianteInactiva ? (
+                        <span className="prod-variantBadge prod-variantBadge--inactive">Dada de baja</span>
+                      ) : (
+                        <span className="prod-variantBadge prod-variantBadge--active">Activa</span>
+                      )}
+                    </span>
+                    <span className="prod-variantActions">
+                      {varianteInactiva ? (
+                        <button
+                          type="button"
+                          className="mov-iconBtn"
+                          title="Reactivar variante"
+                          disabled={procesandoEstaVariante}
+                          onClick={() => handleReactivarVariante(prod, variant)}
+                        >
+                          <FontAwesomeIcon icon={faRotateLeft} />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="mov-iconBtn mov-iconBtn--danger"
+                          title="Dar de baja variante"
+                          disabled={procesandoEstaVariante}
+                          onClick={() => handleAbrirBajaVariante(prod, variant)}
+                        >
+                          <FontAwesomeIcon icon={faTrashCan} />
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -1367,7 +1552,7 @@ const Stock = () => {
                   {totalProductos > 0 ? (
                     <>
                       Mostrando <b>{inicioProductosVisibles}</b>–<b>{finProductosVisibles}</b> de{" "}
-                      <b>{totalProductos}</b> productos
+                      <b>{totalProductos}</b> {mostrarDadosDeBaja ? "productos dados de baja" : "productos"}
                     </>
                   ) : (
                     <>Sin productos para mostrar</>
@@ -1384,7 +1569,7 @@ const Stock = () => {
                           className="cc-input cc-input--floating"
                           value={busqueda}
                           onChange={handleBusqueda}
-                          placeholder="Buscar por nombre o SKU..."
+                          placeholder="Buscar por nombre, SKU o variante..."
                           disabled={loading}
                         />
                         <span className="cc-floatingLabel">
@@ -1465,8 +1650,20 @@ const Stock = () => {
             <div className="mov-card__actions" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button
                 type="button"
+                className={mostrarDadosDeBaja ? "mov-btn mov-btn--primary" : "mov-btn mov-btn--ghost"}
+                onClick={() => {
+                  setMostrarDadosDeBaja((prev) => !prev);
+                  setPaginaActual(1);
+                }}
+              >
+                <FontAwesomeIcon icon={faRotateLeft} /> {mostrarDadosDeBaja ? "Ver activos" : "Ver dados de baja"}
+              </button>
+
+              <button
+                type="button"
                 className="mov-btn mov-btn--ghost"
                 onClick={() => setModalAjustePreciosAbierto(true)}
+                disabled={mostrarDadosDeBaja}
               >
                 <FontAwesomeIcon icon={faMoneyBillTrendUp} /> Ajustar precios
               </button>
@@ -1475,6 +1672,7 @@ const Stock = () => {
                 type="button"
                 className="mov-btn mov-btn--primary"
                 onClick={() => setModalAbierto(true)}
+                disabled={mostrarDadosDeBaja}
               >
                 <FontAwesomeIcon icon={faPlus} /> Agregar producto
               </button>
@@ -1525,7 +1723,9 @@ const Stock = () => {
                       <div className="cc-emptyText">
                         {busqueda.trim() || categoriaFiltro
                           ? "No se encontraron productos con los filtros seleccionados."
-                          : "No hay productos para mostrar."}
+                          : mostrarDadosDeBaja
+                            ? "No hay productos dados de baja."
+                            : "No hay productos para mostrar."}
                       </div>
                     </div>
                   ) : (
@@ -1534,6 +1734,11 @@ const Stock = () => {
                       const archivoId = Number(prod?.imagen_archivo_id || 0);
                       const intentoImagen = Number(reintentosImagenes?.[productoId] || 0);
                       const imagenRota = !!erroresImagenes[productoId];
+                      const productoInactivo = Number(prod?.activo ?? 1) === 0;
+                      const totalVariantesProducto = Number(prod?.cantidad_variantes_total ?? prod?.cantidad_variantes ?? 0);
+                      const variantesActivasProducto = Number(prod?.cantidad_variantes_activas ?? prod?.cantidad_variantes ?? 0);
+                      const variantesInactivasProducto = Number(prod?.cantidad_variantes_inactivas ?? 0);
+                      const tieneVariantesParaMostrar = !!prod.tiene_variantes || totalVariantesProducto > 0;
                       const imageUrl =
                         archivoId > 0
                           ? getProductoImageUrl(
@@ -1553,7 +1758,7 @@ const Stock = () => {
                         >
                           <div className="mov-gridCell is-strong" role="cell" data-label="PRODUCTO">
                             <div className="prod-productCell">
-                              {prod.tiene_variantes ? (
+                              {tieneVariantesParaMostrar ? (
                                 <button
                                   type="button"
                                   className="prod-expandBtn"
@@ -1602,9 +1807,13 @@ const Stock = () => {
                               </div>
 
                               <span className="mov-ellipsissss">{prod.nombre}</span>
-                              {prod.tiene_variantes ? (
-                                <span className="prod-variantBadge">{prod.cantidad_variantes || 0} variantes</span>
+                              {tieneVariantesParaMostrar ? (
+                                <span className="prod-variantBadge">
+                                  {totalVariantesProducto || variantesActivasProducto || 0} variantes
+                                  {variantesInactivasProducto > 0 ? ` · ${variantesInactivasProducto} baja${variantesInactivasProducto === 1 ? "" : "s"}` : ""}
+                                </span>
                               ) : null}
+                              {productoInactivo ? <span className="prod-variantBadge prod-variantBadge--inactive">Dado de baja</span> : null}
                             </div>
                           </div>
 
@@ -1657,23 +1866,37 @@ const Stock = () => {
                                 <FontAwesomeIcon icon={faClockRotateLeft} />
                               </button>
 
-                              <button
-                                type="button"
-                                title="Editar"
-                                className="mov-iconBtn"
-                                onClick={() => handleAbrirEditar(productoId)}
-                              >
-                                <FontAwesomeIcon icon={faPenToSquare} />
-                              </button>
+                              {productoInactivo ? (
+                                <button
+                                  type="button"
+                                  title="Reactivar producto"
+                                  className="mov-iconBtn"
+                                  disabled={reactivandoId === productoId}
+                                  onClick={() => handleReactivarProducto(prod)}
+                                >
+                                  <FontAwesomeIcon icon={faRotateLeft} />
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    title="Editar"
+                                    className="mov-iconBtn"
+                                    onClick={() => handleAbrirEditar(productoId)}
+                                  >
+                                    <FontAwesomeIcon icon={faPenToSquare} />
+                                  </button>
 
-                              <button
-                                type="button"
-                                title="Eliminar"
-                                className="mov-iconBtn mov-iconBtn--danger"
-                                onClick={() => handleAbrirEliminar(prod)}
-                              >
-                                <FontAwesomeIcon icon={faTrashCan} />
-                              </button>
+                                  <button
+                                    type="button"
+                                    title="Dar de baja"
+                                    className="mov-iconBtn mov-iconBtn--danger"
+                                    onClick={() => handleAbrirEliminar(prod)}
+                                  >
+                                    <FontAwesomeIcon icon={faTrashCan} />
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1811,13 +2034,13 @@ const Stock = () => {
         onClose={handleCerrarEliminar}
         onConfirm={handleConfirmarEliminar}
         onToast={mostrarToast}
-        title="Eliminar producto"
-        message="¿Seguro que querés eliminar este producto definitivamente?"
-        warning="Esta acción no se puede deshacer."
-        loadingMessage="Eliminando producto..."
-        successMessage="Producto eliminado correctamente."
-        errorMessage="No se pudo eliminar el producto."
-        confirmLabel="Eliminar"
+        title="Dar de baja producto"
+        message="¿Seguro que querés dar de baja este producto?"
+        warning="No se borra historial, precios, variantes ni movimientos. Vas a poder reactivarlo desde la vista de dados de baja."
+        loadingMessage="Dando de baja producto..."
+        successMessage="Producto dado de baja correctamente."
+        errorMessage="No se pudo dar de baja el producto."
+        confirmLabel="Dar de baja"
         cancelLabel="Cancelar"
         confirmDisabled={cargandoImpactoEliminar}
         confirmVariant="danger"
@@ -1839,6 +2062,57 @@ const Stock = () => {
                 },
                 { label: "Precio costo", value: formatMoney(productoEliminar.precio_costo) },
                 { label: "Precio venta", value: formatMoney(productoEliminar.precio) },
+              ]
+            : []
+        }
+      />
+
+
+      <ModalEliminar
+        open={modalBajaVarianteAbierto}
+        row={
+          varianteBaja
+            ? {
+                id: getVarianteId(varianteBaja),
+                nombre: varianteBaja.nombre_variante || `Variante #${getVarianteId(varianteBaja)}`,
+                sku: varianteBaja.sku,
+                stock: varianteBaja.stock,
+                precio_costo: varianteBaja.precio_costo,
+                precio: varianteBaja.precio,
+              }
+            : null
+        }
+        loading={!!procesandoVarianteId}
+        onClose={handleCerrarBajaVariante}
+        onConfirm={handleConfirmarBajaVariante}
+        onToast={mostrarToast}
+        title="Dar de baja variante"
+        message="¿Seguro que querés dar de baja esta variante?"
+        warning="No se borra historial, precios, categorías, atributos ni movimientos. Vas a poder reactivarla desde el detalle de variantes del producto."
+        loadingMessage="Dando de baja variante..."
+        successMessage="Variante dada de baja correctamente."
+        errorMessage="No se pudo dar de baja la variante."
+        confirmLabel="Dar de baja"
+        cancelLabel="Cancelar"
+        confirmVariant="danger"
+        details={
+          varianteBaja
+            ? [
+                { label: "ID Variante", value: `#${getVarianteId(varianteBaja)}` },
+                { label: "Producto", value: varianteBaja.productoNombre || "—" },
+                { label: "Variante", value: varianteBaja.nombre_variante || "—" },
+                { label: "SKU", value: varianteBaja.sku || "—" },
+                {
+                  label: "Stock",
+                  value:
+                    varianteBaja.stock === null ||
+                    varianteBaja.stock === undefined ||
+                    varianteBaja.stock === ""
+                      ? "—"
+                      : String(varianteBaja.stock),
+                },
+                { label: "Precio costo", value: formatMoney(varianteBaja.precio_costo) },
+                { label: "Precio venta", value: formatMoney(varianteBaja.precio) },
               ]
             : []
         }

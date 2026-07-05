@@ -18,7 +18,6 @@ import {
   faListCheck,
 } from "@fortawesome/free-solid-svg-icons";
 import BASE_URL from "../../../config/config";
-import Toast from "../../Global/Toast";
 import "./configTiendanube.css";
 
 const API_RELATIVE = "api.php";
@@ -159,6 +158,93 @@ function armarMensajeImportacion(resultado) {
   }
 
   return `Importación terminada. ${partes.join(" · ")}.`;
+}
+
+
+function TnToastLocal({ tipo = "info", mensaje = "", duracion = 3000, onClose }) {
+  useEffect(() => {
+    if (!duracion) return undefined;
+    const timer = window.setTimeout(() => {
+      onClose?.();
+    }, duracion);
+
+    return () => window.clearTimeout(timer);
+  }, [duracion, onClose]);
+
+  const palette = {
+    exito: { border: "#23c16b", background: "#f0fff7", color: "#0f5132", icon: "✓" },
+    success: { border: "#23c16b", background: "#f0fff7", color: "#0f5132", icon: "✓" },
+    error: { border: "#ef4444", background: "#fff5f5", color: "#842029", icon: "!" },
+    advertencia: { border: "#f59e0b", background: "#fff9eb", color: "#7c4a03", icon: "!" },
+    warning: { border: "#f59e0b", background: "#fff9eb", color: "#7c4a03", icon: "!" },
+    info: { border: "#3b82f6", background: "#eff6ff", color: "#1e3a8a", icon: "i" },
+  };
+
+  const theme = palette[tipo] || palette.info;
+
+  return createPortal(
+    <div
+      role={tipo === "error" ? "alert" : "status"}
+      aria-live={tipo === "error" ? "assertive" : "polite"}
+      style={{
+        position: "fixed",
+        top: 18,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 2147483647,
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        maxWidth: "min(92vw, 520px)",
+        minHeight: 48,
+        padding: "10px 16px",
+        borderRadius: 14,
+        border: `1px solid ${theme.border}`,
+        borderLeft: `5px solid ${theme.border}`,
+        background: theme.background,
+        color: theme.color,
+        boxShadow: "0 18px 42px rgba(15, 23, 42, 0.18)",
+        fontFamily: "inherit",
+        fontSize: 14,
+        fontWeight: 700,
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          display: "inline-grid",
+          placeItems: "center",
+          width: 24,
+          height: 24,
+          borderRadius: "999px",
+          background: theme.border,
+          color: "#fff",
+          flex: "0 0 auto",
+        }}
+      >
+        {theme.icon}
+      </span>
+      <span style={{ lineHeight: 1.35 }}>{mensaje || "Aviso del sistema."}</span>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Cerrar aviso"
+        style={{
+          marginLeft: 6,
+          border: 0,
+          background: "transparent",
+          color: "inherit",
+          cursor: "pointer",
+          fontSize: 18,
+          lineHeight: 1,
+          opacity: 0.75,
+        }}
+      >
+        ×
+      </button>
+    </div>,
+    document.body
+  );
 }
 
 function ModalInstructivo({ isOpen, onClose }) {
@@ -414,11 +500,23 @@ export default function ConfigTiendaNube() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const tnConnected = params.get("tn_connected");
+    const tnError = params.get("tn_error");
 
-    if (params.get("tn_connected") === "1") {
+    // Fallback compatible con el flujo viejo en la misma pestaña. El flujo nuevo
+    // usa popup + postMessage para evitar recargar localhost y generar errores
+    // visuales de blob/HMR en desarrollo.
+    if (tnConnected === "1") {
       mostrarToast("exito", "Tienda conectada correctamente.");
-      params.delete("tn_connected");
+    } else if (tnConnected === "0" || tnError) {
+      mostrarToast(
+        "error",
+        tnError || "No se pudo completar la conexión con Tienda Nube.",
+        5200
+      );
     }
+
+    ["tn_connected", "tn_error", "store_id"].forEach((key) => params.delete(key));
 
     const next = `${window.location.pathname}${
       params.toString() ? `?${params.toString()}` : ""
@@ -426,6 +524,37 @@ export default function ConfigTiendaNube() {
     window.history.replaceState({}, "", next);
 
     cargarEstado();
+  }, [cargarEstado, mostrarToast]);
+
+  useEffect(() => {
+    const handleOauthMessage = (event) => {
+      const data = event?.data || {};
+      if (!data || data.source !== "balto_tiendanube_oauth") return;
+
+      const allowedOrigins = new Set([
+        window.location.origin,
+        "https://balto.3devsnet.com",
+        "https://app.balto.com.ar",
+      ]);
+
+      if (event.origin && !allowedOrigins.has(event.origin)) return;
+
+      if (String(data.tn_connected) === "1") {
+        mostrarToast("exito", "Tienda conectada correctamente.");
+        cargarEstado();
+        return;
+      }
+
+      mostrarToast(
+        "error",
+        data.tn_error || "No se pudo completar la conexión con Tienda Nube.",
+        5200
+      );
+      cargarEstado();
+    };
+
+    window.addEventListener("message", handleOauthMessage);
+    return () => window.removeEventListener("message", handleOauthMessage);
   }, [cargarEstado, mostrarToast]);
 
   const handleConectar = async () => {
@@ -442,6 +571,13 @@ export default function ConfigTiendaNube() {
         {
           action: "tiendanube_connect_url",
           idTenant: tenantId,
+          // Se envía explícitamente para que el callback sepa a qué frontend
+          // debe avisar al terminar la autorización.
+          front_redirect: window.location.href,
+          // Popup evita recargar/desmontar localhost durante OAuth. Eso elimina
+          // falsos errores tipo blob:http://localhost/... ERR_FILE_NOT_FOUND
+          // generados por HMR/DevTools al volver de Tienda Nube.
+          oauth_mode: "popup",
         },
         { method: "GET" }
       );
@@ -457,7 +593,19 @@ export default function ConfigTiendaNube() {
         );
       }
 
-      window.location.href = data.auth_url;
+      const popup = window.open(
+        data.auth_url,
+        "balto_tiendanube_oauth",
+        "popup=yes,width=980,height=760,menubar=no,toolbar=no,location=yes,status=no,scrollbars=yes,resizable=yes"
+      );
+
+      if (!popup || popup.closed || typeof popup.closed === "undefined") {
+        window.location.assign(data.auth_url);
+        return;
+      }
+
+      popup.focus?.();
+      mostrarToast("info", "Completá la autorización en la ventana de Tienda Nube.", 4200);
     } catch (e) {
       mostrarToast("error", e?.message || "No se pudo iniciar la conexión.", 4200);
     } finally {
@@ -560,7 +708,7 @@ export default function ConfigTiendaNube() {
     return (
       <>
         {toast && (
-          <Toast
+          <TnToastLocal
             key={toast.key}
             tipo={toast.tipo}
             mensaje={toast.mensaje}
@@ -600,7 +748,7 @@ export default function ConfigTiendaNube() {
   return (
     <>
       {toast && (
-        <Toast
+        <TnToastLocal
           key={toast.key}
           tipo={toast.tipo}
           mensaje={toast.mensaje}

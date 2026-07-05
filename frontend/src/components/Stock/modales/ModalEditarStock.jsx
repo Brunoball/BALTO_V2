@@ -598,6 +598,9 @@ function normalizarProducto(data) {
             precio_costo: formatNumberForDisplay(preciosVariante[1]?.precio ?? preciosVariante[1]?.monto ?? ""),
             precio: formatNumberForDisplay(preciosVariante[2]?.precio ?? preciosVariante[2]?.monto ?? ""),
             precio_promo: formatNumberForDisplay(preciosVariante[3]?.precio ?? preciosVariante[3]?.monto ?? ""),
+            precio_costo_heredado: !!(variant.precio_costo_heredado || preciosVariante[1]?.heredado || preciosVariante[1]?.origen_precio === "producto"),
+            precio_heredado: !!(variant.precio_heredado || preciosVariante[2]?.heredado || preciosVariante[2]?.origen_precio === "producto"),
+            precio_promo_heredado: !!(variant.precio_promo_heredado || preciosVariante[3]?.heredado || preciosVariante[3]?.origen_precio === "producto"),
             tipos_precio_extra: tiposExtra.map((tipo) => {
               const idTipo = Number(tipo.id_tipo_precio_stock || 0);
               const precioVariante = preciosVariante[idTipo] || {};
@@ -606,6 +609,9 @@ function normalizarProducto(data) {
                 precio: formatNumberForDisplay(precioVariante?.precio ?? precioVariante?.monto ?? ""),
                 margen_porcentaje: formatNumberForDisplay(precioVariante?.margen_porcentaje ?? ""),
                 margen_valor: formatNumberForDisplay(precioVariante?.margen_valor ?? ""),
+                precio_heredado: !!(precioVariante?.precio_heredado || precioVariante?.heredado || precioVariante?.origen_precio === "producto"),
+                heredado: !!(precioVariante?.precio_heredado || precioVariante?.heredado || precioVariante?.origen_precio === "producto"),
+                origen_precio: precioVariante?.origen_precio ?? "",
               });
             }),
             atributos: Array.isArray(variant.atributos) && variant.atributos.length > 0
@@ -794,6 +800,7 @@ function normalizeVariantExtraPriceRow(tipo = null, existing = null) {
     precio: existing?.precio ?? "",
     margen_porcentaje: existing?.margen_porcentaje ?? "",
     margen_valor: existing?.margen_valor ?? "",
+    precio_heredado: !!(existing?.precio_heredado || existing?.heredado || existing?.origen_precio === "producto"),
   };
 }
 
@@ -832,6 +839,9 @@ function emptyVariantRow(tiposProducto = []) {
     precio_costo: "",
     precio: "",
     precio_promo: "",
+    precio_costo_heredado: false,
+    precio_heredado: false,
+    precio_promo_heredado: false,
     atributos: [emptyVariantAttr()],
     tipos_precio_extra: [],
   };
@@ -892,19 +902,25 @@ function mapPreciosByTipo(precios = []) {
 
 function buildVariantPricePayload(variant) {
   const precios = [];
-  if (variant.precio_costo !== "") {
-    precios.push({ id_tipo_precio_stock: 1, nombre: "COSTO", tipo_nombre: "COSTO", precio: formatNumberForApi(variant.precio_costo) });
-  }
-  if (variant.precio !== "") {
-    precios.push({ id_tipo_precio_stock: 2, nombre: "VENTA", tipo_nombre: "VENTA", precio: formatNumberForApi(variant.precio) });
-  }
-  if (variant.precio_promo !== "") {
-    precios.push({ id_tipo_precio_stock: 3, nombre: "PROMO", tipo_nombre: "PROMO", precio: formatNumberForApi(variant.precio_promo) });
-  }
+
+  const pushBasePrice = (field, idTipo, nombre, inheritedFlag) => {
+    if (variant?.[inheritedFlag]) return;
+    if (variant?.[field] === "") return;
+    precios.push({
+      id_tipo_precio_stock: idTipo,
+      nombre,
+      tipo_nombre: nombre,
+      precio: formatNumberForApi(variant[field]),
+    });
+  };
+
+  pushBasePrice("precio_costo", 1, "COSTO", "precio_costo_heredado");
+  pushBasePrice("precio", 2, "VENTA", "precio_heredado");
+  pushBasePrice("precio_promo", 3, "PROMO", "precio_promo_heredado");
 
   (Array.isArray(variant.tipos_precio_extra) ? variant.tipos_precio_extra : []).forEach((item) => {
     const id = Number(item.id_tipo_precio_stock || 0);
-    if (!id || isBaseTipoPrecioId(id)) return;
+    if (!id || isBaseTipoPrecioId(id) || item.precio_heredado) return;
 
     const precio = formatNumberForApi(item.precio);
     if (precio === "" || precio === null || precio === undefined) return;
@@ -1727,9 +1743,14 @@ export default function ModalEditarProducto({
   };
 
   const updateVariant = (idx, patch) => {
+    const patchFinal = { ...patch };
+    if (Object.prototype.hasOwnProperty.call(patchFinal, "precio_costo")) patchFinal.precio_costo_heredado = false;
+    if (Object.prototype.hasOwnProperty.call(patchFinal, "precio")) patchFinal.precio_heredado = false;
+    if (Object.prototype.hasOwnProperty.call(patchFinal, "precio_promo")) patchFinal.precio_promo_heredado = false;
+
     setForm((prev) => ({
       ...prev,
-      variantes: (prev.variantes || []).map((variant, i) => i === idx ? { ...variant, ...patch } : variant),
+      variantes: (prev.variantes || []).map((variant, i) => i === idx ? { ...variant, ...patchFinal } : variant),
     }));
   };
 
@@ -2843,7 +2864,7 @@ export default function ModalEditarProducto({
                                             return {
                                               ...v,
                                               tipos_precio_extra: (v.tipos_precio_extra || []).map((item, j) =>
-                                                j === tipoIdx ? { ...item, precio: value } : item
+                                                j === tipoIdx ? { ...item, precio: value, precio_heredado: false } : item
                                               ),
                                             };
                                           }),

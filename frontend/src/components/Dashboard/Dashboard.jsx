@@ -407,7 +407,8 @@ export default function Dashboard() {
   const [toast, setToast] = useState(null);
 
   const didWarmupRef = useRef(false);
-  const abortRef = useRef(null);
+  const mountedRef = useRef(false);
+  const dashboardRequestSeqRef = useRef(0);
 
   const showToast = useCallback((tipo, mensaje, duracion = 3200) => {
     setToast({ tipo, mensaje, duracion });
@@ -418,10 +419,8 @@ export default function Dashboard() {
   const usuario = useMemo(() => getUsuarioFromStorage(), []);
 
   const fetchDashboard = useCallback(async () => {
-    if (abortRef.current) abortRef.current.abort();
-
-    const controller = new AbortController();
-    abortRef.current = controller;
+    const requestId = dashboardRequestSeqRef.current + 1;
+    dashboardRequestSeqRef.current = requestId;
 
     setLoadingDashboard(true);
 
@@ -434,7 +433,6 @@ export default function Dashboard() {
       const res = await fetch(buildApiUrl("dashboard_resumen"), {
         method: "GET",
         headers,
-        signal: controller.signal,
       });
 
       const text = await res.text();
@@ -451,15 +449,17 @@ export default function Dashboard() {
         throw new Error(json?.mensaje || `Error HTTP ${res.status}`);
       }
 
+      if (!mountedRef.current || requestId !== dashboardRequestSeqRef.current) return;
+
       setDashboard(normalizePayload(json));
     } catch (error) {
-      if (error?.name !== "AbortError") {
-        const mensaje = error?.message || "No se pudo cargar el dashboard.";
-        setDashboard(EMPTY_DASHBOARD);
-        showToast("error", mensaje, 5200);
-      }
+      if (!mountedRef.current || requestId !== dashboardRequestSeqRef.current) return;
+
+      const mensaje = error?.message || "No se pudo cargar el dashboard.";
+      setDashboard(EMPTY_DASHBOARD);
+      showToast("error", mensaje, 5200);
     } finally {
-      if (!controller.signal.aborted) {
+      if (mountedRef.current && requestId === dashboardRequestSeqRef.current) {
         setLoadingDashboard(false);
       }
     }
@@ -496,10 +496,11 @@ export default function Dashboard() {
   }, [ensureListsLoaded]);
 
   useEffect(() => {
+    mountedRef.current = true;
     fetchDashboard();
 
     return () => {
-      if (abortRef.current) abortRef.current.abort();
+      mountedRef.current = false;
     };
   }, [fetchDashboard]);
 

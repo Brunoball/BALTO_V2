@@ -994,7 +994,7 @@ html[data-theme="oscuro"] .sc-editBanner    { color: rgba(78,161,255,.90) !impor
 .prod-variantsMiniTable__head,
 .prod-variantsMiniTable__row {
   display: grid;
-  grid-template-columns: 1.45fr .9fr .7fr .95fr .95fr .95fr;
+  grid-template-columns: 1.45fr .85fr .65fr .9fr .9fr .9fr .75fr .65fr;
   align-items: center;
   gap: 10px;
   padding: 9px 12px;
@@ -1028,6 +1028,28 @@ html[data-theme="oscuro"] .sc-editBanner    { color: rgba(78,161,255,.90) !impor
   font-weight: 520;
 }
 
+.prod-variantsMiniTable__row.is-inactive {
+  opacity: .78;
+  background: color-mix(in srgb, var(--balto-bg, #f7f9fc) 88%, #fff);
+}
+
+.prod-variantBadge--active {
+  background: rgba(16, 185, 129, .12);
+  color: #047857;
+}
+
+.prod-variantActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.prod-variantExtraPrices {
+  color: var(--mov-muted, #64748b);
+}
+
+
 html[data-theme="oscuro"] .prod-expandBtn {
   background: rgba(15,23,42,.72) !important;
   border-color: rgba(148,163,184,.18) !important;
@@ -1060,6 +1082,15 @@ html[data-theme="oscuro"] .prod-variantsPanel__empty,
 html[data-theme="oscuro"] .prod-variantsMiniTable__head,
 html[data-theme="oscuro"] .prod-variantsMiniTable__row small {
   color: rgba(226,232,240,.62) !important;
+}
+
+html[data-theme="oscuro"] .prod-variantsMiniTable__row.is-inactive {
+  background: rgba(15,23,42,.56) !important;
+}
+
+html[data-theme="oscuro"] .prod-variantBadge--active {
+  background: rgba(16,185,129,.14) !important;
+  color: rgba(110,231,183,.95) !important;
 }
 
 @media (max-width: 900px) {
@@ -1820,4 +1851,9 @@ html[data-theme="oscuro"] .ap-tab.is-active {
   .ap-historyTable--product .ap-historyTable__row {
     min-width: 820px;
   }
+}
+
+.prod-variantBadge--inactive {
+  opacity: 0.85;
+  border-style: dashed;
 }

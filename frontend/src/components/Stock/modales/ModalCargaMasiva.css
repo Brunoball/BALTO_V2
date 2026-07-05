@@ -962,3 +962,12 @@ html[data-theme="oscuro"] .cmi-v2-variantCategories__head span {
     padding-inline: 10px;
   }
 }
+
+.ap-table__row.is-disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.ap-table__row.is-disabled input {
+  cursor: not-allowed;
+}

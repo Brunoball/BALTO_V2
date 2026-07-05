@@ -485,6 +485,8 @@ function normalizarProductoDetectado(item = {}, tiposPrecio = []) {
         : String(item.id_categoria_stock),
     imagen: null,
     tipos_precio_extra: tiposExtra,
+    tiene_variantes: Boolean(item.tiene_variantes) || (Array.isArray(item.variantes) && item.variantes.length > 0),
+    variantes: Array.isArray(item.variantes) ? item.variantes : [],
   };
 
   return recalcularProductoDetectadoInicial(productoBase);
@@ -676,6 +678,12 @@ function ModalConfirmarProductosIA({
                           />
                         </FloatingField>
                       </div>
+
+                      {Array.isArray(item.variantes) && item.variantes.length > 0 ? (
+                        <div className="mi-card__hint" style={{ marginTop: -4 }}>
+                          Se detectaron <b>{item.variantes.length}</b> variante{item.variantes.length !== 1 ? "s" : ""}.
+                        </div>
+                      ) : null}
 
                       {/* ── PRECIOS ── */}
                       <div className="cmi-priceBlock">
@@ -1534,6 +1542,11 @@ export default function ModalCargaMasiva({
             fd.append("margen_promo_valor", moneyToApi(item.margen_promo_valor));
             fd.append("stock", item.stock !== "" ? String(item.stock) : "");
             fd.append("descripcion", toUpperCaseValue(String(item.descripcion || "").trim()));
+            const variantesPayload = Array.isArray(item.variantes) ? item.variantes : [];
+            if (variantesPayload.length > 0 || item.tiene_variantes) {
+              fd.append("tiene_variantes", "1");
+              fd.append("variantes", JSON.stringify(variantesPayload));
+            }
             if (item.id_categoria_stock !== "") fd.append("id_categoria_stock", String(item.id_categoria_stock));
             if (idUsuarioMaster > 0) fd.append("idUsuarioMaster", String(idUsuarioMaster));
             if (idTenant) fd.append("tenant_id", String(idTenant));
@@ -1796,7 +1809,7 @@ export default function ModalCargaMasiva({
 
             <div className="cmi-footer">
               <div className="mi-card__hint cmi-footer__hint">
-                {tipoArchivo === "csv" && "El CSV se procesará fila a fila actualizando o creando productos."}
+                {tipoArchivo === "csv" && "El CSV se procesará fila a fila creando productos y variantes detectadas."}
                 {tipoArchivo === "pdf" && "Se extraerá el texto, se clasificarán los productos y luego vas a poder confirmarlos."}
                 {tipoArchivo === "imagen" && "Se aplicará OCR, se clasificarán los productos y luego vas a poder confirmarlos."}
                 {tipoArchivo === "" && !nombreArchivo && "Seleccioná un archivo para continuar."}
