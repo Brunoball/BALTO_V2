@@ -1495,11 +1495,7 @@ export default function ModalProveedores({
                   )}
                 </div>
 
-                <div className="cc-cliente-table__footWrap">
-                  <span style={{ fontSize: 12, color: "var(--nv-muted)" }}>
-                    Administrá el padrón de <b>proveedores</b> y sus <b>datos fiscales</b>.
-                  </span>
-                </div>
+
               </div>
             </section>
           </div>
