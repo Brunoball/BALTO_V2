@@ -336,10 +336,11 @@ body.dark .mp-label--up {
   min-height: 42px;
   display: flex;
   align-items: center;
-  border: 1px dashed var(--mp-border);
-  border-radius: 13px;
+  border: 1px solid var(--mp-border-md);
+  border-radius: 12px;
   padding: 8px 10px;
-  color: var(--mp-muted);
+  background: var(--mp-bg);
+  color: var(--mp-text);
   font-size: .78rem;
   font-weight: 700;
   line-height: 1.25;
@@ -463,9 +464,9 @@ body.dark .mp-label--up {
 
 .presupuesto-modal__content .mi-cr-table > .presupuesto-terms .presupuesto-terms__hint {
   min-height: 42px;
-  border-radius: 10px;
-  border-color: var(--mp-border-md);
-  color: var(--mp-muted);
+  border-radius: 12px;
+  border: 1px solid var(--mp-border-md);
+  color: var(--mp-text);
 }
 
 html[data-theme="oscuro"] .presupuesto-terms,
@@ -476,7 +477,9 @@ body.dark .presupuesto-terms {
 
 html[data-theme="oscuro"] .presupuesto-terms__hint,
 body.dark .presupuesto-terms__hint {
-  border-color: rgba(148, 163, 184, .2);
+  background: rgba(255, 255, 255, .06);
+  border-color: rgba(255, 255, 255, .14);
+  color: rgba(255, 255, 255, .92);
 }
 
 html[data-theme="oscuro"] .presupuesto-modal__content .mi-cr-table > .presupuesto-terms,
