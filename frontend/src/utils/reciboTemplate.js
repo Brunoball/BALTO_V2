@@ -244,13 +244,21 @@ export function buildReciboHTML(payload) {
     }
 
     .meta{
-      text-align:right;
+      text-align:center;
       font-size:12px;
       color:var(--muted);
       display:flex;
       flex-direction:column;
+      align-items:center;
+      justify-content:center;
       gap:6px;
+      min-width:190px;
       white-space:nowrap;
+    }
+
+    .meta > div{
+      width:100%;
+      text-align:center;
     }
 
     .grid{
@@ -278,6 +286,21 @@ export function buildReciboHTML(payload) {
       font-weight:700;
       color:var(--text);
       word-break:break-word;
+    }
+
+    .field.centerInfo{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+    }
+
+    .field.centerInfo .k,
+    .field.centerInfo .v,
+    .field.centerInfo .small{
+      width:100%;
+      text-align:center;
     }
 
     .tbl{
@@ -310,8 +333,14 @@ export function buildReciboHTML(payload) {
       border-bottom:none;
     }
 
-    .center{ text-align:center; }
-    .right{ text-align:right; }
+    .center{ text-align:center !important; }
+    .right{ text-align:right !important; }
+
+    .tbl thead th.center,
+    .tbl tbody td.center{
+      text-align:center !important;
+      vertical-align:middle;
+    }
 
     .muted{
       color:var(--muted);
@@ -380,7 +409,7 @@ export function buildReciboHTML(payload) {
         <div class="v">${clienteNom}</div>
       </div>
 
-      <div class="field">
+      <div class="field centerInfo">
         <div class="k">Comprobantes abonados</div>
         <div class="v">${cantidadItems || "—"}</div>
       </div>

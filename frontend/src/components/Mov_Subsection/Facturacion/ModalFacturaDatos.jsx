@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FaArrowLeft, FaCheck, FaPlus, FaTrash } from "react-icons/fa";
 import "./ModalFacturaBalto.css";
-import "../mov_subsection_modales.css";
+import "../globalmodalsmov.css";
 
 const CBTE_TIPOS = [{ id: 11, label: "Factura C (11)" }];
 

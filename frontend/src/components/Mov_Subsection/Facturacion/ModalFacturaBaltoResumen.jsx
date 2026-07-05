@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback, useEffect, useRef } from "react"
 import { FaCheck } from "react-icons/fa";
 import "./ModalFacturaBaltoResumen.css";
 import "../../Global/Global_css/Global_oscuro.css";
-import "../mov_subsection_modales.css";
+import "../globalmodalsmov.css";
 import { DEMO_BLOCK_MESSAGE, isBaltoDemoMode } from "../../../utils/demoMode";
 
 import { buildBaltoInvoicePdf, saveBaltoInvoicePdf } from "../../../utils/FacturaPdfBuilder";

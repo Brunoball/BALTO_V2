@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import BASE_URL from "../../../../config/config";
+import "../../../Global/Global_css/Global_Modals.css";
 import "../../cuentas_corrientes.css";
 import "../../cuentas_corrientes_modales.css";
+import "../../modales/ModalEntidadFiscal.css";
+import "./ModalProveedorFormulario.css";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faXmark,
@@ -445,6 +448,134 @@ function ModalDatosLegalesProveedor({ open, dark, row, fiscal, loading, onClose,
   );
 }
 
+
+function ModalFormularioProveedor({ open, dark, modo, saving, fiscalLoading, activo, onActivoChange, onGuardar, saveLabel, onClose, arcaControls, children }) {
+  if (!open) return null;
+
+  const busy = saving || fiscalLoading;
+  const esEdicion = modo === "editar";
+  const titulo = esEdicion ? "Editar proveedor" : "Agregar proveedor";
+  const descripcion = esEdicion
+    ? "Modificá los datos simples o fiscales del proveedor seleccionado."
+    : "Creá un proveedor manual o consultá ARCA por CUIT para cargar datos fiscales.";
+
+  return createPortal(
+    <div className={["mi-modal__overlay", "cc-entity-form-modal__overlay", dark ? "mi-modal__overlay--dark" : ""].join(" ").trim()}>
+      <div
+        className={[
+          "mi-modal__container",
+          "cc-legal-modal",
+          "cc-entity-form-modal",
+          dark ? "mi-modal--dark" : "",
+        ].join(" ").trim()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={titulo}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="mi-modal__header cc-legal-modal__head cc-entity-form-modal__head">
+          <div className="mi-modal__head-icon cc-legal-modal__headIcon" aria-hidden="true">
+            <FontAwesomeIcon icon={esEdicion ? faPenToSquare : faPlus} />
+          </div>
+
+          <div className="mi-modal__head-left cc-legal-modal__headText">
+            <span>{esEdicion ? "Edición de proveedor" : "Nuevo proveedor"}</span>
+            <h2 className="mi-modal__title">{titulo}</h2>
+          </div>
+
+          <button
+            type="button"
+            className="mi-modal__close"
+            disabled={busy}
+            onClick={onClose}
+            aria-label="Cerrar formulario de proveedor"
+          >
+            <FontAwesomeIcon icon={faXmark} />
+          </button>
+        </div>
+
+        <div className="mi-modal__content cc-legal-modal__content cc-entity-form-modal__content">
+          <div className="cc-legal-modal__layout cc-entity-form-modal__layout">
+            <section className="cc-legal-client-card cc-entity-form-card" aria-label={titulo}>
+              {!esEdicion && (
+                <div className="cc-legal-client-card__top">
+                  <div className="cc-legal-client-card__avatar" aria-hidden="true">
+                    <FontAwesomeIcon icon={faBuilding} />
+                  </div>
+                  <div className="cc-legal-client-card__heading">
+                    <span className="cc-legal-client-card__eyebrow">Formulario del proveedor</span>
+                    <h3>{titulo}</h3>
+                    <div className="cc-legal-client-card__description">{descripcion}</div>
+                  </div>
+                </div>
+              )}
+
+              <div className="cc-entity-form-card__body">
+                {children}
+              </div>
+            </section>
+
+            <aside className="cc-legal-side-panel cc-entity-form-side-panel" aria-label="Opciones del formulario de proveedor">
+              <section className="cc-legal-panel-section">
+                <div className="cc-legal-panel-section__head">
+                  <span className="cc-legal-panel-section__dot" />
+                  <span>Opciones del proveedor</span>
+                </div>
+
+                <div className="cc-legal-panel-section__body">
+                  <div className="cc-legal-panel-intro">
+                    <b>{esEdicion ? "Actualizar estado" : "Estado inicial"}</b>
+                    <span>
+                      Definí si el proveedor queda disponible en el listado activo o si se guarda como inactivo.
+                    </span>
+                  </div>
+
+                  <div className="fl-field cc-entity-form-status-field">
+                    <select
+                      className="fl-input"
+                      value={String(activo)}
+                      onChange={(e) => onActivoChange?.(Number(e.target.value) === 1 ? 1 : 0)}
+                      disabled={busy}
+                    >
+                      <option value="1">Activo</option>
+                      <option value="0">Inactivo</option>
+                    </select>
+                    <label className="fl-label">Estado</label>
+                  </div>
+
+                  {arcaControls}
+                </div>
+              </section>
+
+              <div className="cc-legal-modal__actions cc-entity-form-side-actions">
+                <button
+                  type="button"
+                  className="mit-btn mit-btn--solid mit-btn--block"
+                  onClick={onGuardar}
+                  disabled={busy}
+                >
+                  <FontAwesomeIcon icon={faFloppyDisk} style={{ marginRight: 8 }} />
+                  {saveLabel}
+                </button>
+
+                <button
+                  type="button"
+                  className="mit-btn mit-btn--ghost mit-btn--block"
+                  onClick={onClose}
+                  disabled={busy}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function ModalProveedores({
   open,
   onClose,
@@ -462,6 +593,7 @@ export default function ModalProveedores({
   const [pestana, setPestana] = useState("activos");
   const [modo, setModo] = useState("crear");
   const [editandoId, setEditandoId] = useState(null);
+  const [formModalOpen, setFormModalOpen] = useState(false);
   const [form, setForm] = useState(() => buildEmptyForm(1));
 
   const [modalAccion, setModalAccion] = useState({
@@ -485,7 +617,8 @@ export default function ModalProveedores({
     modalAccion.loading ||
     modalAccion.open ||
     modalFiscal.loading ||
-    modalFiscal.open;
+    modalFiscal.open ||
+    formModalOpen;
 
   useEffect(() => {
     const update = () => setDark(isTemaOscuro());
@@ -526,6 +659,14 @@ export default function ModalProveedores({
       if (e.key !== "Escape") return;
       if (modalAccion.open || modalFiscal.open) return;
 
+      if (formModalOpen) {
+        if (!saving && !form.fiscalLoading) {
+          setFormModalOpen(false);
+          resetForm();
+        }
+        return;
+      }
+
       if (!loading && !saving && !form.fiscalLoading) {
         onClose?.();
       }
@@ -533,12 +674,13 @@ export default function ModalProveedores({
 
     document.addEventListener("keydown", h, true);
     return () => document.removeEventListener("keydown", h, true);
-  }, [open, onClose, loading, saving, form.fiscalLoading, modalAccion.open, modalFiscal.open]);
+  }, [open, onClose, loading, saving, form.fiscalLoading, modalAccion.open, modalFiscal.open, formModalOpen]);
 
   useEffect(() => {
     if (open) {
       setTimeout(() => closeBtnRef.current?.focus(), 0);
       setBusqueda("");
+      setFormModalOpen(false);
       setModalFiscal({ open: false, row: null, fiscal: null, loading: false });
     }
   }, [open]);
@@ -700,6 +842,7 @@ export default function ModalProveedores({
     const fiscalRow = fiscalPreloaded || fiscalFromProveedorRow(row);
     setModo("editar");
     setEditandoId(getProveedorId(row));
+    setFormModalOpen(true);
     setForm({
       ...buildEmptyForm(Number(row?.activo ?? 1) === 1 ? 1 : 0),
       nombre: toUpperValue(row?.nombre),
@@ -731,7 +874,13 @@ export default function ModalProveedores({
   }, [modalFiscal.row, modalFiscal.fiscal]);
 
   const cancelarEdicion = () => {
+    setFormModalOpen(false);
     resetForm();
+  };
+
+  const abrirNuevoProveedor = () => {
+    resetForm();
+    setFormModalOpen(true);
   };
 
   const consultarArca = useCallback(async () => {
@@ -888,6 +1037,7 @@ export default function ModalProveedores({
       setPestana(tabDestino);
       await cargarProveedores(tabDestino);
       await onActualizado?.();
+      setFormModalOpen(false);
       resetForm();
     } catch (err) {
       onToast?.("error", err?.message || "No se pudo guardar el proveedor.");
@@ -1058,7 +1208,7 @@ export default function ModalProveedores({
           <div className="mi-modal__head-left">
             <h2 className="mi-modal__title">Proveedores</h2>
             <p className="mi-modal__subtitle">
-              Agregá o editá proveedores combinando datos simples y datos fiscales de ARCA.
+              Administrá el listado de proveedores. Usá Agregar proveedor o Editar para abrir el formulario separado.
             </p>
           </div>
 
@@ -1075,170 +1225,7 @@ export default function ModalProveedores({
         </div>
 
         <div className="mi-modal__content">
-          <div className="mi-cr-grid cc-entity-admin-grid">
-            <aside className="mi-cr-filters cc-entity-form-panel">
-              <div className="mi-cr-filters__top">
-                <div className="mi-cr-filters__title">
-                  <FontAwesomeIcon
-                    icon={modo === "crear" ? faPlus : faPenToSquare}
-                    style={{ marginRight: 8, opacity: 0.75, fontSize: 13 }}
-                  />
-                  {modo === "crear" ? "Nuevo proveedor" : "Editar proveedor"}
-                </div>
-              </div>
-
-              <div className="mi-cr-filters__body cc-entity-form-body">
-                <div className="cc-fiscal-intro-card">
-                  <b className="cc-fiscal-intro-card__title">
-                    <FontAwesomeIcon icon={faFileInvoiceDollar} /> Proveedor fiscal o manual
-                  </b>
-                  <span>
-                    Ingresá CUIT para traer datos de ARCA. Si no aparece o es compra informal, dejá el CUIT vacío y cargá solo el nombre.
-                  </span>
-                </div>
-
-                <div className="fl-field">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={11}
-                    className="fl-input"
-                    placeholder=" "
-                    value={form.cuit}
-                    onChange={(e) =>
-                      setForm((prev) => {
-                        const cuit = onlyDigits(e.target.value);
-                        const fiscalActual = fiscalHasAnyData(prev.fiscalData)
-                          ? { ...normalizeFiscalData(prev.fiscalData), cuit, doc_nro: cuit }
-                          : null;
-
-                        return {
-                          ...prev,
-                          cuit,
-                          fiscalData: fiscalActual,
-                          fiscalError: "",
-                          fiscalConsultado: false,
-                          cargaManual: !fiscalActual,
-                        };
-                      })
-                    }
-                    disabled={saving || form.fiscalLoading}
-                  />
-                  <label className="fl-label">
-                    <FontAwesomeIcon icon={faIdCard} style={{ marginRight: 5 }} />
-                    CUIT ARCA
-                  </label>
-                </div>
-
-                <div className="mi-cr-filters__actions cc-fiscal-action-row">
-                  <button
-                    type="button"
-                    className="mit-btn mit-btn--ghost mit-btn--block"
-                    onClick={consultarArca}
-                    disabled={saving || form.fiscalLoading || onlyDigits(form.cuit).length !== 11}
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} style={{ marginRight: 8 }} />
-                    {form.fiscalLoading ? "Consultando..." : "Consultar ARCA"}
-                  </button>
-
-                  <button
-                    type="button"
-                    className="mit-btn mit-btn--ghost mit-btn--block"
-                    onClick={usarCargaManual}
-                    disabled={saving || form.fiscalLoading}
-                    title="Cargar proveedor sin datos fiscales"
-                  >
-                    Sin CUIT
-                  </button>
-                </div>
-
-                {form.fiscalError && (
-                  <div className="cc-fiscal-alert cc-fiscal-alert--error">
-                    {form.fiscalError} Completá el nombre y guardalo sin CUIT si corresponde.
-                  </div>
-                )}
-
-                <FiscalResumen fiscal={form.fiscalData} />
-
-                <FiscalEditableFields
-                  fiscal={form.fiscalData}
-                  cuit={form.cuit}
-                  saving={saving}
-                  fiscalLoading={form.fiscalLoading}
-                  onFieldChange={actualizarCampoFiscal}
-                />
-
-                <div className="fl-field">
-                  <input
-                    type="text"
-                    className="fl-input"
-                    placeholder=" "
-                    value={form.nombre}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        nombre: toUpperValue(e.target.value),
-                      }))
-                    }
-                    disabled={saving || form.fiscalLoading}
-                  />
-                  <label className="fl-label">
-                    <FontAwesomeIcon icon={faBuilding} style={{ marginRight: 5 }} />
-                    Nombre / razón social *
-                  </label>
-                </div>
-
-                <div className="fl-field">
-                  <select
-                    className="fl-input"
-                    value={String(form.activo)}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        activo: Number(e.target.value) === 1 ? 1 : 0,
-                      }))
-                    }
-                    disabled={saving || form.fiscalLoading}
-                  >
-                    <option value="1">Activo</option>
-                    <option value="0">Inactivo</option>
-                  </select>
-                  <label className="fl-label">Estado</label>
-                </div>
-
-                <div className="mi-cr-filters__actions cc-form-action-row">
-                  <button
-                    type="button"
-                    className="mit-btn mit-btn--solid mit-btn--block"
-                    onClick={handleGuardar}
-                    disabled={saving || form.fiscalLoading}
-                  >
-                    <FontAwesomeIcon icon={faFloppyDisk} style={{ marginRight: 8 }} />
-                    {saving
-                      ? "Guardando..."
-                      : modo === "crear"
-                      ? fiscalIsUsable(form.fiscalData)
-                        ? "Crear proveedor fiscal"
-                        : "Crear proveedor"
-                      : fiscalIsUsable(form.fiscalData)
-                      ? "Guardar proveedor fiscal"
-                      : "Guardar"}
-                  </button>
-
-                  {modo === "editar" && (
-                    <button
-                      type="button"
-                      className="mit-btn mit-btn--ghost mit-btn--block"
-                      onClick={cancelarEdicion}
-                      disabled={saving || form.fiscalLoading}
-                    >
-                      Cancelar
-                    </button>
-                  )}
-                </div>
-              </div>
-            </aside>
-
+          <div className="mi-cr-grid cc-entity-admin-grid cc-entity-admin-grid--list-only">
             <section className="mi-cr-table cc-entity-list-panel">
               <div className="mi-cr-table__foot mi-cr-table__foot--top">
                 <div className="mi-cr-table__summary">
@@ -1288,7 +1275,17 @@ export default function ModalProveedores({
                     </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="cc-entity-toolbar-actions">
+                  <button
+                    type="button"
+                    className="mit-btn mit-btn--solid"
+                    onClick={abrirNuevoProveedor}
+                    disabled={loading || saving || modalAccion.loading}
+                  >
+                    <FontAwesomeIcon icon={faPlus} />
+                    Agregar proveedor
+                  </button>
+
                   <button
                     type="button"
                     className={`mit-btn ${pestana === "activos" ? "mit-btn--solid" : "mit-btn--ghost"}`}
@@ -1297,6 +1294,7 @@ export default function ModalProveedores({
                       setModo("crear");
                       setEditandoId(null);
                       setForm(buildEmptyForm(1));
+                      setFormModalOpen(false);
                     }}
                     disabled={loading || saving || modalAccion.loading}
                   >
@@ -1311,6 +1309,7 @@ export default function ModalProveedores({
                       setModo("crear");
                       setEditandoId(null);
                       setForm(buildEmptyForm(0));
+                      setFormModalOpen(false);
                     }}
                     disabled={loading || saving || modalAccion.loading}
                   >
@@ -1478,6 +1477,203 @@ export default function ModalProveedores({
           </button>
         </div>
       </div>
+
+
+      <ModalFormularioProveedor
+        open={formModalOpen}
+        dark={dark}
+        modo={modo}
+        saving={saving}
+        fiscalLoading={form.fiscalLoading}
+        activo={form.activo}
+        onActivoChange={(activo) => setForm((prev) => ({ ...prev, activo }))}
+        onGuardar={handleGuardar}
+        saveLabel={
+          saving
+            ? "Guardando..."
+            : modo === "crear"
+            ? fiscalIsUsable(form.fiscalData)
+              ? "Crear proveedor fiscal"
+              : "Crear proveedor"
+            : fiscalIsUsable(form.fiscalData)
+            ? "Guardar proveedor fiscal"
+            : "Guardar"
+        }
+        onClose={cancelarEdicion}
+        arcaControls={modo === "editar" ? (
+          <div className="cc-entity-form-arca-side">
+            <div className="cc-entity-form-arca-side__title">CUIT ARCA</div>
+            <div className="cc-entity-form-arca-row">
+              <div className="fl-field cc-entity-form-arca-field">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={11}
+                  className="fl-input"
+                  placeholder=" "
+                  value={form.cuit}
+                  onChange={(e) =>
+                    setForm((prev) => {
+                      const cuit = onlyDigits(e.target.value);
+                      const fiscalActual = fiscalHasAnyData(prev.fiscalData)
+                        ? { ...normalizeFiscalData(prev.fiscalData), cuit, doc_nro: cuit }
+                        : null;
+
+                      return {
+                        ...prev,
+                        cuit,
+                        fiscalData: fiscalActual,
+                        fiscalError: "",
+                        fiscalConsultado: false,
+                        cargaManual: !fiscalActual,
+                      };
+                    })
+                  }
+                  disabled={saving || form.fiscalLoading}
+                />
+                <label className="fl-label">
+                  <FontAwesomeIcon icon={faIdCard} style={{ marginRight: 5 }} />
+                  CUIT ARCA
+                </label>
+              </div>
+
+              <button
+                type="button"
+                className="mit-btn mit-btn--ghost cc-entity-form-arca-no-cuit"
+                onClick={usarCargaManual}
+                disabled={saving || form.fiscalLoading}
+                title="Cargar proveedor sin datos fiscales"
+              >
+                Sin CUIT
+              </button>
+            </div>
+
+            <div className="cc-entity-form-arca-actions">
+              <button
+                type="button"
+                className="mit-btn mit-btn--ghost mit-btn--block"
+                onClick={consultarArca}
+                disabled={saving || form.fiscalLoading || onlyDigits(form.cuit).length !== 11}
+              >
+                <FontAwesomeIcon icon={faMagnifyingGlass} style={{ marginRight: 8 }} />
+                {form.fiscalLoading ? "Consultando..." : "Consultar ARCA"}
+              </button>
+            </div>
+
+            {form.fiscalError && (
+              <div className="cc-fiscal-alert cc-fiscal-alert--error cc-entity-form-arca-alert">
+                {form.fiscalError} Completá el nombre y guardalo sin CUIT si corresponde.
+              </div>
+            )}
+          </div>
+        ) : null}
+      >
+        <div className="mi-cr-filters__body cc-entity-form-body">
+          {modo === "crear" && (
+            <>
+              <div className="cc-fiscal-intro-card">
+                <b className="cc-fiscal-intro-card__title">
+                  <FontAwesomeIcon icon={faFileInvoiceDollar} /> Proveedor fiscal o manual
+                </b>
+                <span>
+                  Ingresá CUIT para traer datos de ARCA. Si no aparece o es compra informal, dejá el CUIT vacío y cargá solo el nombre.
+                </span>
+              </div>
+
+              <div className="fl-field">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={11}
+                  className="fl-input"
+                  placeholder=" "
+                  value={form.cuit}
+                  onChange={(e) =>
+                    setForm((prev) => {
+                      const cuit = onlyDigits(e.target.value);
+                      const fiscalActual = fiscalHasAnyData(prev.fiscalData)
+                        ? { ...normalizeFiscalData(prev.fiscalData), cuit, doc_nro: cuit }
+                        : null;
+
+                      return {
+                        ...prev,
+                        cuit,
+                        fiscalData: fiscalActual,
+                        fiscalError: "",
+                        fiscalConsultado: false,
+                        cargaManual: !fiscalActual,
+                      };
+                    })
+                  }
+                  disabled={saving || form.fiscalLoading}
+                />
+                <label className="fl-label">
+                  <FontAwesomeIcon icon={faIdCard} style={{ marginRight: 5 }} />
+                  CUIT ARCA
+                </label>
+              </div>
+
+              <div className="mi-cr-filters__actions cc-fiscal-action-row">
+                <button
+                  type="button"
+                  className="mit-btn mit-btn--ghost mit-btn--block"
+                  onClick={consultarArca}
+                  disabled={saving || form.fiscalLoading || onlyDigits(form.cuit).length !== 11}
+                >
+                  <FontAwesomeIcon icon={faMagnifyingGlass} style={{ marginRight: 8 }} />
+                  {form.fiscalLoading ? "Consultando..." : "Consultar ARCA"}
+                </button>
+
+                <button
+                  type="button"
+                  className="mit-btn mit-btn--ghost mit-btn--block"
+                  onClick={usarCargaManual}
+                  disabled={saving || form.fiscalLoading}
+                  title="Cargar proveedor sin datos fiscales"
+                >
+                  Sin CUIT
+                </button>
+              </div>
+
+              {form.fiscalError && (
+                <div className="cc-fiscal-alert cc-fiscal-alert--error">
+                  {form.fiscalError} Completá el nombre y guardalo sin CUIT si corresponde.
+                </div>
+              )}
+
+              <FiscalResumen fiscal={form.fiscalData} />
+            </>
+          )}
+
+          <FiscalEditableFields
+            fiscal={form.fiscalData}
+            cuit={form.cuit}
+            saving={saving}
+            fiscalLoading={form.fiscalLoading}
+            onFieldChange={actualizarCampoFiscal}
+          />
+
+          <div className="fl-field">
+            <input
+              type="text"
+              className="fl-input"
+              placeholder=" "
+              value={form.nombre}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  nombre: toUpperValue(e.target.value),
+                }))
+              }
+              disabled={saving || form.fiscalLoading}
+            />
+            <label className="fl-label">
+              <FontAwesomeIcon icon={faBuilding} style={{ marginRight: 5 }} />
+              Nombre / razón social *
+            </label>
+          </div>
+        </div>
+      </ModalFormularioProveedor>
 
       <ModalDatosLegalesProveedor
         open={modalFiscal.open}

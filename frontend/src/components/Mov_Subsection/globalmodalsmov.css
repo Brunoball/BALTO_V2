@@ -1,22 +1,5 @@
-/* =========================================================
-   MOV_SUBSECTION — ESTILOS PROPIOS DE MODALES
-   ---------------------------------------------------------
-   Este archivo contiene los estilos específicos que antes
-   estaban mezclados en Global_Modals.css.
+@import "./Compra/modales/ModalCompra.css";
 
-   Global_Modals.css queda como base compartida: overlay,
-   container, header, content, footer, inputs y botones base.
-
-   Acá quedan los ajustes propios de Mov_Subsection:
-   - tamaño de modales de movimientos
-   - pagos inline / medios de pago
-   - cheques en pagos
-   - alertas de ventas/facturación
-   - detalle de movimiento
-   - ajustes de recibos, órdenes, compras, egresos e ingresos
-
-   Usa variables globales ya existentes para colores/fondos.
-========================================================= */
 
 .mi-modal__container--mov {
   min-height: 94vh;
@@ -797,7 +780,12 @@ html[data-theme="oscuro"] .nc-section-head{
 }
 .mpr-modal .mpr-tbody { flex: 1; min-height: 0; overflow: auto; }
 .mpr-modal .mpr-row { transition: background .12s ease, border-color .12s ease, box-shadow .12s ease; }
-.mpr-modal .mpr-row:hover { background: color-mix(in srgb, var(--mi-primary-600) 8%, #fff); }
+.mpr-modal .mpr-row:hover { background: var(--color-primary-soft); }
+html[data-theme="oscuro"] .mpr-modal .mpr-row:hover,
+.mi-modal--dark.mpr-modal .mpr-row:hover,
+.mi-modal--dark .mpr-modal .mpr-row:hover {
+  background: rgba(78, 161, 255, .10);
+}
 .mpr-modal .mpr-tfoot {
   border-top: 1px solid var(--mi-border);
   background: var(--mi-bg-soft);
@@ -1071,7 +1059,12 @@ html[data-theme="oscuro"] .mdm-section-title {
 }
 
 .mdm-table__row:hover:not(.mdm-table__row--head) {
-  background: color-mix(in srgb, var(--mi-primary-600) 8%, #fff);
+  background: var(--color-primary-soft);
+}
+
+html[data-theme="oscuro"] .mdm-table__row:hover:not(.mdm-table__row--head),
+.mi-modal--dark .mdm-table__row:hover:not(.mdm-table__row--head) {
+  background: rgba(78, 161, 255, .10);
 }
 
 .mdm-table__row--head {
@@ -1256,7 +1249,7 @@ html[data-theme="oscuro"] .mdm-total-line strong {
 }
 
 .mdm-medio-card:hover {
-  background: color-mix(in srgb, var(--mi-primary-600) 8%, #fff);
+  background: var(--color-primary-soft);
   border-color: var(--mi-border);
   transform: translateY(-1px);
 }

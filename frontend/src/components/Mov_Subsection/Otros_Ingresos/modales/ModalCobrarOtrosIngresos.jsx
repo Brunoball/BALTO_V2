@@ -13,7 +13,7 @@ import BASE_URL from "../../../../config/config";
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { getDetalleMovimiento } from "../../_shared/detalleMovimiento.js";
 import "../../../Global/Global_css/Global_Modals.css";
-import "../../mov_subsection_modales.css";
+import "../../globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "../../Recibos/modales/ModalPagarRecibos.css";

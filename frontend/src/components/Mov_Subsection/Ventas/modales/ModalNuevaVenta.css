@@ -1,0 +1,100 @@
+/* =========================================================
+   MODAL NUEVA VENTA — estilos propios
+   Base compartida: Global_Modals.css + globalmodalsmov.css
+   ========================================================= */
+
+.mi-cr-cell--detalle .nv-cell-input { width: 100%; }
+
+
+/* ── Input dentro de celda ── */
+.nv-cell-input {
+  width: 100%;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: .875rem;
+  font-weight: 400;
+  color: var(--mi-text);
+  background: transparent;
+  outline: none;
+  transition: border-color .14s, background .14s, box-shadow .14s;
+  font-family: inherit;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.nv-cell-input:hover  { border-color: var(--mi-border); background: var(--mi-bg); }
+.nv-cell-input:focus  { border-color: var(--mi-primary-600); background: var(--mi-bg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mi-primary-600) 10%, transparent); }
+.nv-cell-input--center{ text-align: center; }
+.nv-cell-input--right { text-align: right; }
+.nv-cell-input--select{ cursor: pointer; padding-right: 0; }
+
+.nv-foot-btn {
+  appearance: none;
+  height: 32px;
+  padding: 0 14px 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 85, 187, .45);
+  background: rgba(0, 85, 187, .08);
+  color: var(--mi-primary-600);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: background .14s, border-color .14s, color .14s, transform .14s;
+  font-family: inherit;
+  white-space: nowrap;
+  
+}
+.nv-foot-btn svg{
+  color: #fff;
+}
+
+.nv-foot-btn:hover {
+  background: rgba(0, 85, 187, .15);
+  border-color: rgba(0, 85, 187, .70);
+  color: #003f99;
+  transform: translateY(-1px);
+}
+
+.nv-foot-btn:disabled {
+  opacity: .38;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.nv-foot-btn__icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--mi-primary-600);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: background .14s;
+}
+
+.nv-foot-btn:hover .nv-foot-btn__icon {
+  background: #003f99;
+}
+
+html[data-theme="oscuro"] .nv-foot-btn {
+  background: rgba(0, 85, 187, .14);
+  border-color: rgba(0, 85, 187, .40);
+  color: #85B7EB;
+}
+
+html[data-theme="oscuro"] .nv-foot-btn:hover {
+  background: rgba(0, 85, 187, .25);
+  border-color: rgba(0, 85, 187, .65);
+  color: #B5D4F4;
+}
+
+html[data-theme="oscuro"] .nv-foot-btn__icon {
+  background: rgba(0, 85, 187, .70);
+}
+
+.nv-foot-sep {display: none; width: 1px; height: 16px; background: var(--mi-border); }

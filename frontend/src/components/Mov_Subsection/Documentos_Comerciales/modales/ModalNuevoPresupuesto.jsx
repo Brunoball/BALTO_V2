@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/Global_Modals.css";
-import "../../mov_subsection_modales.css";
+import "../../globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
+import "./ModalPresupuesto.css";
+import "../../dstmodasmov.css";
 import BASE_URL from "../../../../config/config";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
 import ModalClienteFiscalArca from "../../../Global/Modales/ModalClienteFiscalArca.jsx";
@@ -1443,13 +1445,13 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                           disabled={saving}
                           showAllOnFocus={false}
                           maxItems={18}
-                          inputClassName="nv-cell-input"
+                          inputClassName="mp-cell-input"
                         />
                       </div>
 
                       <div className="mi-cr-cell mi-cr-cell--center stock_cant">
                         <input
-                          className="nv-cell-input nv-cell-input--center"
+                          className="mp-cell-input mp-cell-input--center"
                           type="number"
                           min={rowSinStock ? undefined : "1"}
                           step="1"
@@ -1492,7 +1494,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                         />
                       ) : (
                         <input
-                          className="nv-cell-input nv-cell-input--right"
+                          className="mp-cell-input mp-cell-input--right"
                           type="text"
                           inputMode="decimal"
                           value={r.precioFocused ? r.precioDraft : moneyARS(r.precio)}
@@ -1510,7 +1512,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
 
                     <div className="mi-cr-cell mi-cr-cell--center">
                       <select
-                        className="nv-cell-input nv-cell-input--center nv-cell-input--select"
+                        className="mp-cell-input mp-cell-input--center mp-cell-input--select"
                         value={r.ivaPct}
                         onChange={(e) => updateRow(r.id, { ivaPct: Number(e.target.value) })}
                         disabled={saving}
@@ -1547,9 +1549,9 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
               <div className="presupuesto-terms" aria-label="Condiciones comerciales del presupuesto">
                 <div className="presupuesto-terms__title">Condiciones comerciales</div>
                 <div className="presupuesto-terms__row">
-                  <div className="nc-field presupuesto-terms__field presupuesto-terms__field--small">
+                  <div className="mp-field presupuesto-terms__field presupuesto-terms__field--small">
                     <input
-                      className="nc-input"
+                      className="mp-input"
                       type="number"
                       min="0"
                       max="3650"
@@ -1558,7 +1560,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                       onChange={(e) => updateCondicion("validezDias", e.target.value)}
                       disabled={saving}
                     />
-                    <label className="nc-label">Validez (días)</label>
+                    <label className="mp-label">Validez (días)</label>
                   </div>
                   <div className="presupuesto-terms__hint">
                     {condicionesPreview.fecha_validez
@@ -1567,91 +1569,91 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                   </div>
                 </div>
 
-                <div className="nc-field presupuesto-terms__field">
+                <div className="mp-field presupuesto-terms__field">
                   <textarea
-                    className="nc-input presupuesto-terms__textarea"
+                    className="mp-input presupuesto-terms__textarea"
                     rows={2}
                     placeholder=" "
                     value={condiciones.plazoEntrega}
                     onChange={(e) => updateCondicion("plazoEntrega", e.target.value)}
                     disabled={saving}
                   />
-                  <label className="nc-label">Plazo de entrega / ejecución</label>
+                  <label className="mp-label">Plazo de entrega / ejecución</label>
                 </div>
 
                 <div className="presupuesto-terms__row presupuesto-terms__row--split">
-                  <div className="nc-field presupuesto-terms__field">
+                  <div className="mp-field presupuesto-terms__field">
                     <textarea
-                      className="nc-input presupuesto-terms__textarea"
+                      className="mp-input presupuesto-terms__textarea"
                       rows={2}
                       placeholder=" "
                       value={condiciones.lugarEntrega}
                       onChange={(e) => updateCondicion("lugarEntrega", e.target.value)}
                       disabled={saving}
                     />
-                    <label className="nc-label">Lugar de entrega / instalación</label>
+                    <label className="mp-label">Lugar de entrega / instalación</label>
                   </div>
-                  <div className="nc-field presupuesto-terms__field">
+                  <div className="mp-field presupuesto-terms__field">
                     <textarea
-                      className="nc-input presupuesto-terms__textarea"
+                      className="mp-input presupuesto-terms__textarea"
                       rows={2}
                       placeholder=" "
                       value={condiciones.garantia}
                       onChange={(e) => updateCondicion("garantia", e.target.value)}
                       disabled={saving}
                     />
-                    <label className="nc-label">Garantía / soporte</label>
+                    <label className="mp-label">Garantía / soporte</label>
                   </div>
                 </div>
 
-                <div className="nc-field presupuesto-terms__field">
+                <div className="mp-field presupuesto-terms__field">
                   <textarea
-                    className="nc-input presupuesto-terms__textarea"
+                    className="mp-input presupuesto-terms__textarea"
                     rows={3}
                     placeholder=" "
                     value={condiciones.formaPago}
                     onChange={(e) => updateCondicion("formaPago", e.target.value)}
                     disabled={saving}
                   />
-                  <label className="nc-label">Forma de pago</label>
+                  <label className="mp-label">Forma de pago</label>
                 </div>
 
-                <div className="nc-field presupuesto-terms__field">
+                <div className="mp-field presupuesto-terms__field">
                   <textarea
-                    className="nc-input presupuesto-terms__textarea"
+                    className="mp-input presupuesto-terms__textarea"
                     rows={3}
                     placeholder=" "
                     value={condiciones.condicionesComerciales}
                     onChange={(e) => updateCondicion("condicionesComerciales", e.target.value)}
                     disabled={saving}
                   />
-                  <label className="nc-label">Aclaraciones / condiciones</label>
+                  <label className="mp-label">Aclaraciones / condiciones</label>
                 </div>
 
-                <div className="nc-field presupuesto-terms__field">
+                <div className="mp-field presupuesto-terms__field">
                   <textarea
-                    className="nc-input presupuesto-terms__textarea"
+                    className="mp-input presupuesto-terms__textarea"
                     rows={2}
                     placeholder=" "
                     value={condiciones.notas}
                     onChange={(e) => updateCondicion("notas", e.target.value)}
                     disabled={saving}
                   />
-                  <label className="nc-label">Notas adicionales</label>
+                  <label className="mp-label">Notas adicionales</label>
                 </div>
               </div>
 
               <div className="mi-cr-table__foot">
                 <div className="mi-cr-foot-actions">
-                  <button type="button" className="nv-foot-btn" onClick={addRow} disabled={saving}>
-                    <span className="nv-foot-btn__icon">
+                  <button type="button" className="mp-foot-btn" onClick={addRow} disabled={saving}>
+                    <span className="mp-foot-btn__icon">
                       <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M5 1.5V8.5M1.5 5H8.5" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
                       </svg>
                     </span>
                     Agregar fila
                   </button>
-                  <div className="nv-foot-sep" />
+                  <div className="mp-foot-sep" />
                 </div>
 
                 <div className="mi-cr-totals">
@@ -1673,16 +1675,16 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
             </section>
 
             <div className="mi-cr-filters">
-              <aside className="nc-aside">
-                <div className="nc-section">
-                  <div className="nc-section-head">
-                    <div className="nc-section-dot" />
+              <aside className="mp-aside">
+                <div className="mp-section">
+                  <div className="mp-section-head">
+                    <div className="mp-section-dot" />
                     <span>Datos del presupuesto</span>
                   </div>
 
-                  <div className="nc-section-body">
+                  <div className="mp-section-body">
                     <div
-                      className="nc-field"
+                      className="mp-field"
                       onMouseDown={(e) => {
                         if (e.target !== fechaInputRef.current) {
                           e.preventDefault();
@@ -1692,7 +1694,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                     >
                       <input
                         ref={fechaInputRef}
-                        className="nc-input"
+                        className="mp-input"
                         type="date"
                         placeholder=" "
                         value={fecha}
@@ -1702,10 +1704,10 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                         onChange={(e) => setFecha(clampFechaHastaHoy(e.target.value))}
                         disabled={saving}
                       />
-                      <label className="nc-label">Fecha</label>
+                      <label className="mp-label">Fecha</label>
                     </div>
 
-                    <div className="nc-prov-wrap">
+                    <div className="mp-prov-wrap">
                       <GlobalAutocomplete
                         value={cliInput}
                         onChange={handleClienteInputChange}
@@ -1718,20 +1720,20 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                         disabled={saving || addUI.open}
                         showAllOnFocus={true}
                         maxItems={25}
-                        inputClassName="nc-input"
+                        inputClassName="mp-input"
                       />
                     </div>
 
 
 
-                    <div className="nc-cc-info presupuesto-info">
+                    <div className="mp-cc-info presupuesto-info">
                       Se guarda como presupuesto y genera PDF con validez, entrega, pago y condiciones. No impacta caja, ARCA ni medio de pago.
                     </div>
                   </div>
                 </div>
               </aside>
 
-              <div className="nc-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+              <div className="mp-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
                 <button
                   type="submit"
                   disabled={saving}

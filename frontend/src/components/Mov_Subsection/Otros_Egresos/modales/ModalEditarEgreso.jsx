@@ -4,10 +4,11 @@ import { createPortal } from "react-dom";
 import BASE_URL from "../../../../config/config.jsx";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
 import "../../../Global/Global_css/Global_Modals.css";
-import "../../mov_subsection_modales.css";
+import "../../globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
-import "./ModalNuevoEgreso_extra.css";
+import "./ModalEgreso.css";
+import "../../dstmodasmov.css";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -555,7 +556,7 @@ function ChequeFields({ cheque, saving, onUpdate }) {
       >
         <div className="mi-cr-cell">
           <input
-            className="nv-cell-input"
+            className="oe-cell-input"
             value={String(cheque?.id_cheque || "")}
             disabled
           />
@@ -563,7 +564,7 @@ function ChequeFields({ cheque, saving, onUpdate }) {
 
         <div className="mi-cr-cell">
           <input
-            className="nv-cell-input"
+            className="oe-cell-input"
             value={tipoActual}
             disabled
           />
@@ -571,7 +572,7 @@ function ChequeFields({ cheque, saving, onUpdate }) {
 
         <div className="mi-cr-cell">
           <input
-            className="nv-cell-input"
+            className="oe-cell-input"
             type="text"
             value={cheque?.emisor || ""}
             onChange={(e) => onUpdate("emisor", upperText(e.target.value))}
@@ -583,7 +584,7 @@ function ChequeFields({ cheque, saving, onUpdate }) {
 
         <div className="mi-cr-cell">
           <input
-            className="nv-cell-input"
+            className="oe-cell-input"
             type="text"
             value={cheque?.numero_cheque || ""}
             onChange={(e) => onUpdate("numero_cheque", upperText(e.target.value))}
@@ -600,7 +601,7 @@ function ChequeFields({ cheque, saving, onUpdate }) {
         >
           <input
             ref={fechaEmisionRef}
-            className="nv-cell-input"
+            className="oe-cell-input"
             type="date"
             value={cheque?.fecha_emision || ""}
             max={todayISO()}
@@ -624,7 +625,7 @@ function ChequeFields({ cheque, saving, onUpdate }) {
         >
           <input
             ref={fechaPagoRef}
-            className="nv-cell-input"
+            className="oe-cell-input"
             type="date"
             value={cheque?.fecha_pago || ""}
             onChange={(e) => {
@@ -640,7 +641,7 @@ function ChequeFields({ cheque, saving, onUpdate }) {
 
         <div className="mi-cr-cell mi-cr-cell--right">
           <input
-            className="nv-cell-input nv-cell-input--right"
+            className="oe-cell-input oe-cell-input--right"
             type="number"
             min="0"
             step="0.01"
@@ -665,7 +666,7 @@ function ChequesCarteraCards({
   if (!Array.isArray(cheques) || cheques.length === 0) return null;
 
   return (
-    <div className="nc-cheques-list">
+    <div className="oe-cheques-list">
       {cheques.map((ch, idx) => {
         const idChequeStr = String(ch?.id_cheque || "");
         const checked = idsSeleccionados.includes(idChequeStr);
@@ -678,7 +679,7 @@ function ChequesCarteraCards({
         return (
           <div
             key={ch?.id_cheque || idx}
-            className={`nc-cheque-item ${checked ? "nc-cheque-item--selected" : ""} ${esEcheq ? "nc-cheque-item--echeq" : ""}`}
+            className={`oe-cheque-item ${checked ? "oe-cheque-item--selected" : ""} ${esEcheq ? "oe-cheque-item--echeq" : ""}`}
             role={soloLectura ? undefined : "button"}
             tabIndex={soloLectura ? undefined : 0}
             onClick={handleSelect}
@@ -688,24 +689,24 @@ function ChequesCarteraCards({
             }}
             style={soloLectura ? { cursor: "default" } : undefined}
           >
-            <div className="nc-cheque-main">
-              <div className="nc-cheque-top">
-                <span className="nc-cheque-number">N° {safeText(ch?.numero_cheque) || "-"}</span>
-                {esEcheq && <span className="nc-cheque-badge nc-cheque-badge--echeq">eCheq</span>}
+            <div className="oe-cheque-main">
+              <div className="oe-cheque-top">
+                <span className="oe-cheque-number">N° {safeText(ch?.numero_cheque) || "-"}</span>
+                {esEcheq && <span className="oe-cheque-badge oe-cheque-badge--echeq">eCheq</span>}
               </div>
-              <div className="nc-cheque-meta">
-                <span className="nc-cheque-emisor" title={safeText(ch?.emisor) || "-"}>
+              <div className="oe-cheque-meta">
+                <span className="oe-cheque-emisor" title={safeText(ch?.emisor) || "-"}>
                   {safeText(ch?.emisor) || "-"}
                 </span>
-                <span className="nc-cheque-separator">·</span>
+                <span className="oe-cheque-separator">·</span>
                 <span>Pago: {formatFechaDMY(ch?.fecha_pago)}</span>
               </div>
             </div>
 
-            <span className="nc-cheque-importe">{moneyARS(ch?.importe || 0)}</span>
+            <span className="oe-cheque-importe">{moneyARS(ch?.importe || 0)}</span>
 
             {!soloLectura && (
-              <div className="nc-cheque-check-icon nc-cheque-check-icon--corner nc-cheque-check-icon--echeq nc-cheque-check-icon--cheque">
+              <div className="oe-cheque-check-icon oe-cheque-check-icon--corner oe-cheque-check-icon--echeq oe-cheque-check-icon--cheque">
                 {checked && (
                   <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
                     <path d="M1 3.5L3.5 6L8 1" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -846,11 +847,11 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
   ]);
 
   return (
-    <div className="nc-mp-card">
-      <div className="nc-mp-row nc-mp-row--medio">
-        <div className="nc-field" style={{ position: "relative" }}>
+    <div className="oe-mp-card">
+      <div className="oe-mp-row oe-mp-row--medio">
+        <div className="oe-field" style={{ position: "relative" }}>
           <select
-            className="nc-input nc-select"
+            className="oe-input oe-select"
             value={String(row.id_medio_pago || "")}
             onChange={(e) => handleChangeMedio(e.target.value)}
             disabled={saving}
@@ -865,14 +866,14 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
               );
             })}
           </select>
-          <label className={`nc-label${row.id_medio_pago ? " nc-label--up" : ""}`}>Medio de pago</label>
+          <label className={`oe-label${row.id_medio_pago ? " oe-label--up" : ""}`}>Medio de pago</label>
         </div>
       </div>
 
-      <div className="nc-mp-row nc-mp-row--monto">
-        <div className="nc-field nc-mp-monto-field" style={{ position: "relative" }}>
+      <div className="oe-mp-row oe-mp-row--monto">
+        <div className="oe-field oe-mp-monto-field" style={{ position: "relative" }}>
           <input
-            className="nc-input nc-mp-monto-input"
+            className="oe-input oe-mp-monto-input"
             type="text"
             inputMode="decimal"
             value={row.montoFocused ? row.montoDraft ?? "" : formatMoneyInputARS(montoActual)}
@@ -902,14 +903,14 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
             disabled={saving || (esCheque && chequesSeleccionados.length > 0)}
             style={{ height: 32, padding: "0 10px", fontSize: 13, textAlign: "right" }}
           />
-          <label className="nc-label nc-label--up">Monto</label>
+          <label className="oe-label oe-label--up">Monto</label>
         </div>
 
-        <div className="nc-mp-actions-col">
+        <div className="oe-mp-actions-col">
           {!esCheque && (
             <button
               type="button"
-              className="nc-mp-completar"
+              className="oe-mp-completar"
               onClick={() => onUpdate(row.id, { monto: restanteParaEstaFila, montoDraft: "", montoFocused: false })}
               disabled={!puedeCompletarRestante || saving}
               title="Completar importe restante"
@@ -917,15 +918,15 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
               ↓ Rest.
             </button>
           )}
-          <button type="button" className="nc-mp-del-btn" onClick={() => onRemove(row.id)} title="Quitar" disabled={saving}>
+          <button type="button" className="oe-mp-del-btn" onClick={() => onRemove(row.id)} title="Quitar" disabled={saving}>
             ×
           </button>
         </div>
       </div>
 
       {esCheque && (
-        <div className="nc-mp-cheques">
-          <div className="nc-mp-cheques-title">
+        <div className="oe-mp-cheques">
+          <div className="oe-mp-cheques-title">
             <FontAwesomeIcon icon={faMoneyCheckDollar} style={{ fontSize: 12 }} />
             {soloChequeVinculado
               ? esEcheq ? "eCheq vinculado" : "Cheque vinculado"
@@ -933,12 +934,12 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
           </div>
 
           {row.loadingCheques ? (
-            <div className="nc-mp-cheques-loading">
+            <div className="oe-mp-cheques-loading">
               <FontAwesomeIcon icon={faCircleNotch} spin style={{ marginRight: 6 }} />
               Cargando...
             </div>
           ) : !Array.isArray(chequesAMostrar) || chequesAMostrar.length === 0 ? (
-            <div className="nc-mp-cheques-empty">
+            <div className="oe-mp-cheques-empty">
               {soloChequeVinculado
                 ? `No se encontró el ${esEcheq ? "eCheq" : "cheque"} vinculado.`
                 : `No hay ${esEcheq ? "eCheqs" : "cheques"} activos en cartera.`}
@@ -1067,13 +1068,13 @@ function PanelMediosPagoInlineEgreso({
         />
       ))}
 
-      <div className="nc-mp-totals">
-        <span className="nc-mp-totals-asignado">Asignado: <b>{moneyARS(sumaMediosPago)}</b></span>
-        {diferenciaRestante > 0.01 && <span className="nc-mp-totals-falta">Falta: {moneyARS(diferenciaRestante)}</span>}
-        {diferenciaRestante <= 0.01 && safeNumber(totalEgreso) > 0 && <span className="nc-mp-totals-ok">✓ Cubierto</span>}
+      <div className="oe-mp-totals">
+        <span className="oe-mp-totals-asignado">Asignado: <b>{moneyARS(sumaMediosPago)}</b></span>
+        {diferenciaRestante > 0.01 && <span className="oe-mp-totals-falta">Falta: {moneyARS(diferenciaRestante)}</span>}
+        {diferenciaRestante <= 0.01 && safeNumber(totalEgreso) > 0 && <span className="oe-mp-totals-ok">✓ Cubierto</span>}
       </div>
 
-      <button type="button" className="nc-pago-btn" onClick={onAdd} disabled={saving}>
+      <button type="button" className="oe-pago-btn" onClick={onAdd} disabled={saving}>
         <FontAwesomeIcon icon={faPlus} style={{ fontSize: 11 }} /> Agregar otro medio
       </button>
     </>
@@ -1601,7 +1602,7 @@ export default function ModalEditarEgreso({
     <>
       <div className="mi-modal__overlay">
         <div
-          className="mi-modal__container mi-modal__container--mov"
+          className="mi-modal__container mi-modal__container--mov oe-modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="mi-ee-title"
@@ -1674,13 +1675,13 @@ export default function ModalEditarEgreso({
                               disabled={saving}
                               showAllOnFocus={false}
                               maxItems={18}
-                              inputClassName="nv-cell-input"
+                              inputClassName="oe-cell-input"
                             />
                           </div>
 
                           <div className="mi-cr-cell mi-cr-cell--center stock_cant">
                             <input
-                              className="nv-cell-input nv-cell-input--center"
+                              className="oe-cell-input oe-cell-input--center"
                               type="text"
                               inputMode="decimal"
                               value={it.cantidad}
@@ -1694,7 +1695,7 @@ export default function ModalEditarEgreso({
 
                           <div className="mi-cr-cell mi-cr-cell--center">
                             <input
-                              className="nv-cell-input nv-cell-input--right"
+                              className="oe-cell-input oe-cell-input--right"
                               type="text"
                               inputMode="decimal"
                               value={it.precioFocused ? it.precioDraft ?? "" : formatMoneyInputARS(it.precio)}
@@ -1733,7 +1734,7 @@ export default function ModalEditarEgreso({
 
                           <div className="mi-cr-cell mi-cr-cell--center">
                             <select
-                              className="nv-cell-input nv-cell-input--center nv-cell-input--select"
+                              className="oe-cell-input oe-cell-input--center oe-cell-input--select"
                               value={String(it.iva_pct)}
                               onChange={(e) => updateItem(it.uid, { iva_pct: e.target.value })}
                               onKeyDown={(e) => {
@@ -1778,13 +1779,13 @@ export default function ModalEditarEgreso({
                       <div className="mi-cr-foot-actions">
                         <button
                           type="button"
-                          className="nv-foot-btn"
+                          className="oe-foot-btn"
                           onClick={addItem}
                           disabled={saving}
                         >
-                          <span className="nv-foot-btn__icon">+</span>Agregar ítem
+                          <span className="oe-foot-btn__icon">+</span>Agregar ítem
                         </button>
-                        <div className="nv-foot-sep" />
+                        <div className="oe-foot-sep" />
                       </div>
                       <div className="mi-cr-totals">
                         <div className="mi-cr-totalLine mi-cr-totalLine--sub">
@@ -1826,17 +1827,17 @@ export default function ModalEditarEgreso({
                 )}
 
                 <div className="mi-cr-filters">
-                  <aside className="nc-aside">
-                    <div className="nc-section">
-                      <div className="nc-section-head">
-                        <div className="nc-section-dot" />
+                  <aside className="oe-aside">
+                    <div className="oe-section">
+                      <div className="oe-section-head">
+                        <div className="oe-section-dot" />
                         <span>{esMovCheque ? "Datos del movimiento" : "Datos del egreso"}</span>
                       </div>
-                      <div className="nc-section-body">
-                        <div className="nc-field" onClick={openDatePicker}>
+                      <div className="oe-section-body">
+                        <div className="oe-field" onClick={openDatePicker}>
                           <input
                             ref={fechaRef}
-                            className="nc-input"
+                            className="oe-input"
                             type="date"
                             placeholder=" "
                             value={form.fecha}
@@ -1844,7 +1845,7 @@ export default function ModalEditarEgreso({
                             onChange={handleFechaChange}
                             disabled={saving}
                           />
-                          <label className="nc-label" onClick={openDatePicker}>
+                          <label className="oe-label" onClick={openDatePicker}>
                             Fecha
                           </label>
                         </div>
@@ -1866,9 +1867,9 @@ export default function ModalEditarEgreso({
                         )}
 
                         {!esMovCheque && (
-                          <div className="nc-field">
+                          <div className="oe-field">
                             <select
-                              className="nc-input nc-select"
+                              className="oe-input oe-select"
                               value={String(form.id_clasificacion || "")}
                               onChange={(e) => setForm((p) => ({ ...p, id_clasificacion: e.target.value }))}
                               disabled={saving}
@@ -1881,7 +1882,7 @@ export default function ModalEditarEgreso({
                                 {clasificacionConfig.labelNoCostoFijo}
                               </option>
                             </select>
-                            <label className="nc-label" style={{ pointerEvents: "none" }}>
+                            <label className="oe-label" style={{ pointerEvents: "none" }}>
                               Clasificación *
                             </label>
                           </div>
@@ -2022,7 +2023,7 @@ export default function ModalEditarEgreso({
                       </div>
                     </div>
                   </aside>
-                  <div className="nc-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+                  <div className="oe-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
                     <button
                       type="submit"
                       disabled={saving}

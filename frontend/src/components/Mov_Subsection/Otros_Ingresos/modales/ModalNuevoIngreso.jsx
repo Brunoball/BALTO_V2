@@ -9,9 +9,11 @@ import ModalNuevoCheque from "../../../Global/Modales/ModalNuevoCheque.jsx";
 import ModalNuevaDescripcion from "./ModalNuevaDescripcion.jsx";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import "../../../Global/Global_css/Global_Modals.css";
-import "../../mov_subsection_modales.css";
+import "../../globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
+import "./ModalIngreso.css";
+import "../../dstmodasmov.css";
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const NULL_OPTION = "";
@@ -252,26 +254,26 @@ function ChequeResumen({ cheque, tipoCheque }) {
   if (!cheque) return null;
   const esEcheq = tipoCheque === "echeq";
   return (
-    <div className="nc-cheques-list">
-      <div className={`nc-cheque-item nc-cheque-item--selected${esEcheq ? " nc-cheque-item--echeq" : ""}`}>
-        <div className="nc-cheque-main">
-          <div className="nc-cheque-top">
-            <span className="nc-cheque-number">N° {safeText(cheque?.numero_cheque)}</span>
-            {esEcheq && <span className="nc-cheque-badge nc-cheque-badge--echeq">eCheq</span>}
+    <div className="oi-cheques-list">
+      <div className={`oi-cheque-item oi-cheque-item--selected${esEcheq ? " oi-cheque-item--echeq" : ""}`}>
+        <div className="oi-cheque-main">
+          <div className="oi-cheque-top">
+            <span className="oi-cheque-number">N° {safeText(cheque?.numero_cheque)}</span>
+            {esEcheq && <span className="oi-cheque-badge oi-cheque-badge--echeq">eCheq</span>}
           </div>
-          <div className="nc-cheque-meta">
-            <span className="nc-cheque-emisor" title={safeText(cheque?.emisor)}>
+          <div className="oi-cheque-meta">
+            <span className="oi-cheque-emisor" title={safeText(cheque?.emisor)}>
               {safeText(cheque?.emisor)}
             </span>
-            <span className="nc-cheque-separator">·</span>
+            <span className="oi-cheque-separator">·</span>
             <span>Pago: {formatFechaDMY(cheque?.fecha_pago)}</span>
           </div>
         </div>
-        <span className="nc-cheque-importe">{moneyARS(cheque?.importe || 0)}</span>
+        <span className="oi-cheque-importe">{moneyARS(cheque?.importe || 0)}</span>
         <div
           aria-hidden="true"
-          className={`nc-cheque-check-icon nc-cheque-check-icon--corner${
-            esEcheq ? " nc-cheque-check-icon--echeq" : " nc-cheque-check-icon--cheque"
+          className={`oi-cheque-check-icon oi-cheque-check-icon--corner${
+            esEcheq ? " oi-cheque-check-icon--echeq" : " oi-cheque-check-icon--cheque"
           }`}
         >
           <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
@@ -411,12 +413,12 @@ function MedioPagoRow({
   );
 
   return (
-    <div className="nc-mp-card">
+    <div className="oi-mp-card">
       {/* Selector de medio */}
-      <div className="nc-mp-row nc-mp-row--medio">
-        <div className="nc-field" style={{ position: "relative" }}>
+      <div className="oi-mp-row oi-mp-row--medio">
+        <div className="oi-field" style={{ position: "relative" }}>
           <select
-            className="nc-input nc-select"
+            className="oi-input oi-select"
             value={String(row.id_medio_pago || "")}
             onChange={(e) => handleChangeMedio(e.target.value)}
             disabled={saving}
@@ -431,17 +433,17 @@ function MedioPagoRow({
               );
             })}
           </select>
-          <label className={`nc-label${row.id_medio_pago && row.id_medio_pago !== "" ? " nc-label--up" : ""}`}>
+          <label className={`oi-label${row.id_medio_pago && row.id_medio_pago !== "" ? " oi-label--up" : ""}`}>
             Medio de pago
           </label>
         </div>
       </div>
 
       {/* Monto */}
-      <div className="nc-mp-row nc-mp-row--monto">
-        <div className="nc-field nc-mp-monto-field" style={{ position: "relative" }}>
+      <div className="oi-mp-row oi-mp-row--monto">
+        <div className="oi-field oi-mp-monto-field" style={{ position: "relative" }}>
           <input
-            className="nc-input nc-mp-monto-input"
+            className="oi-input oi-mp-monto-input"
             type="text"
             inputMode="decimal"
             value={row.montoFocused ? row.montoDraft ?? "" : formatMoneyInputARS(montoActual)}
@@ -474,14 +476,14 @@ function MedioPagoRow({
             disabled={saving || (esCheque && !!row.cheque)}
             style={{ height: 32, padding: "0 10px", fontSize: 13, textAlign: "right" }}
           />
-          <label className="nc-label nc-label--up">Monto</label>
+          <label className="oi-label oi-label--up">Monto</label>
         </div>
 
-        <div className="nc-mp-actions-col">
+        <div className="oi-mp-actions-col">
           {!esCheque && (
             <button
               type="button"
-              className="nc-mp-completar"
+              className="oi-mp-completar"
               onClick={() =>
                 onUpdate(row.id, { monto: restanteParaEstaFila, montoDraft: "", montoFocused: false })
               }
@@ -493,7 +495,7 @@ function MedioPagoRow({
           )}
           <button
             type="button"
-            className="nc-mp-del-btn"
+            className="oi-mp-del-btn"
             onClick={() => onRemove(row.id)}
             disabled={saving}
             title="Quitar"
@@ -505,8 +507,8 @@ function MedioPagoRow({
 
       {/* Cheque */}
       {esCheque && (
-        <div className="nc-mp-cheques">
-          <div className="nc-mp-cheques-title">
+        <div className="oi-mp-cheques">
+          <div className="oi-mp-cheques-title">
             <FontAwesomeIcon icon={faMoneyCheckDollar} style={{ fontSize: 12 }} />
             {tipoCheque === "echeq" ? "eCheq cargado" : "Cheque cargado"}
           </div>
@@ -516,7 +518,7 @@ function MedioPagoRow({
               <ChequeResumen cheque={row.cheque} tipoCheque={tipoCheque} />
               <button
                 type="button"
-                className="nc-pago-btn"
+                className="oi-pago-btn"
                 onClick={() => setOpenChequeModal(true)}
                 disabled={saving}
               >
@@ -526,7 +528,7 @@ function MedioPagoRow({
           ) : (
             <button
               type="button"
-              className="nc-pago-btn"
+              className="oi-pago-btn"
               onClick={() => setOpenChequeModal(true)}
               disabled={saving}
             >
@@ -616,21 +618,21 @@ function PanelMediosPago({
         />
       ))}
 
-      <div className="nc-mp-totals">
-        <span className="nc-mp-totals-asignado">
+      <div className="oi-mp-totals">
+        <span className="oi-mp-totals-asignado">
           Asignado: <b>{moneyARS(sumaMediosPago)}</b>
         </span>
         {diferenciaRestante > 0.01 && (
-          <span className="nc-mp-totals-falta">Pendiente: {moneyARS(diferenciaRestante)}</span>
+          <span className="oi-mp-totals-falta">Pendiente: {moneyARS(diferenciaRestante)}</span>
         )}
         {diferenciaRestante <= 0.01 && sumaMediosPago > 0 && (
-          <span className="nc-mp-totals-ok">✓ Cobro completo</span>
+          <span className="oi-mp-totals-ok">✓ Cobro completo</span>
         )}
       </div>
 
       <button
         type="button"
-        className="nc-pago-btn"
+        className="oi-pago-btn"
         onClick={onAdd}
         disabled={saving}
       >
@@ -679,6 +681,7 @@ export default function ModalNuevoIngreso({
   const closeBtnRef = useRef(null);
   const prevOpenRef = useRef(false);
   const inputFileRef = useRef(null);
+  const fechaRef = useRef(null);
 
   const localLists = useMemo(() => normalizeLists(lists), [lists]);
   const mediosPagoList = useMemo(
@@ -935,6 +938,17 @@ export default function ModalNuevoIngreso({
 
     setArchivoAdjunto(file);
   }, [showToast]);
+
+  const openDatePicker = useCallback(() => {
+    const el = fechaRef.current;
+    if (!el || saving || el.disabled) return;
+    try {
+      if (typeof el.showPicker === "function") el.showPicker();
+      else el.focus();
+    } catch {
+      el.focus();
+    }
+  }, [saving]);
 
   // ⭐ FUNCIÓN DE VALIDACIÓN DE FECHA PARA EL onChange ⭐
   const handleFechaChange = useCallback((e) => {
@@ -1236,7 +1250,7 @@ export default function ModalNuevoIngreso({
     <>
       <div className="mi-modal__overlay">
         <div
-          className="mi-modal__container mi-modal__container--mov"
+          className="mi-modal__container mi-modal__container--mov oi-modal"
           role="dialog"
           aria-modal="true"
           onMouseDown={(e) => e.stopPropagation()}
@@ -1307,13 +1321,13 @@ export default function ModalNuevoIngreso({
                             disabled={saving}
                             showAllOnFocus={false}
                             maxItems={18}
-                            inputClassName="nv-cell-input"
+                            inputClassName="oi-cell-input"
                           />
                         </div>
 
                         <div className="mi-cr-cell mi-cr-cell--center">
                           <input
-                            className="nv-cell-input nv-cell-input--center"
+                            className="oi-cell-input oi-cell-input--center"
                             type="number"
                             min="1"
                             step="1"
@@ -1333,7 +1347,7 @@ export default function ModalNuevoIngreso({
 
                         <div className="mi-cr-cell mi-cr-cell--right">
                           <input
-                            className="nv-cell-input nv-cell-input--right"
+                            className="oi-cell-input oi-cell-input--right"
                             type="text"
                             inputMode="decimal"
                             value={
@@ -1377,7 +1391,7 @@ export default function ModalNuevoIngreso({
 
                         <div className="mi-cr-cell mi-cr-cell--center">
                           <select
-                            className="nv-cell-input nv-cell-input--center nv-cell-input--select"
+                            className="oi-cell-input oi-cell-input--center oi-cell-input--select"
                             value={String(r.ivaPct)}
                             onChange={(e) => updateRow(r.id, { ivaPct: Number(e.target.value) })}
                             disabled={saving}
@@ -1417,8 +1431,8 @@ export default function ModalNuevoIngreso({
 
                 <div className="mi-cr-table__foot">
                   <div className="mi-cr-foot-actions">
-                    <button type="button" className="nv-foot-btn" onClick={addRow} disabled={saving}>
-                      <span className="nv-foot-btn__icon">
+                    <button type="button" className="oi-foot-btn" onClick={addRow} disabled={saving}>
+                      <span className="oi-foot-btn__icon">
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M5 1.5V8.5M1.5 5H8.5" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
                         </svg>
@@ -1445,18 +1459,19 @@ export default function ModalNuevoIngreso({
 
               {/* Sidebar */}
               <div className="mi-cr-filters">
-                <aside className="nc-aside">
-                  <div className="nc-section">
-                    <div className="nc-section-head">
-                      <div className="nc-section-dot" />
+                <aside className="oi-aside">
+                  <div className="oi-section">
+                    <div className="oi-section-head">
+                      <div className="oi-section-dot" />
                       <span>Datos del ingreso</span>
                     </div>
 
-                    <div className="nc-section-body">
+                    <div className="oi-section-body">
                       {/* ⭐ FECHA CON VALIDACIONES ⭐ */}
-                      <div className="nc-field">
+                      <div className="oi-field" onClick={openDatePicker}>
                         <input
-                          className="nc-input"
+                          ref={fechaRef}
+                          className="oi-input"
                           type="date"
                           placeholder=" "
                           value={fecha}
@@ -1464,7 +1479,7 @@ export default function ModalNuevoIngreso({
                           onChange={handleFechaChange}
                           disabled={saving}
                         />
-                        <label className="nc-label">Fecha</label>
+                        <label className="oi-label">Fecha</label>
                       </div>
 
                       {/* Medios de pago integrados */}
@@ -1556,7 +1571,7 @@ export default function ModalNuevoIngreso({
                   </div>
                 </aside>
 
-                <div className="nc-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+                <div className="oi-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
                   <button
                     type="button"
                     className="mit-btn mit-btn--solid mit-btn--block"

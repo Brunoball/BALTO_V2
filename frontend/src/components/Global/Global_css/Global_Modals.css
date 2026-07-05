@@ -256,12 +256,13 @@ html[data-theme="oscuro"] .mi-cr-table__head {
 }
 
 .mi-cr-row:nth-child(even) { background: var(--mi-bg-soft); }
-.mi-cr-row:hover           { background: color-mix(in srgb, var(--mi-primary-600) 8%, #fff); }
+.mi-cr-row:hover           { background: var(--color-primary-soft); }
 .mi-cr-row:last-child      { border-bottom: none; }
 
 html[data-theme="oscuro"] .mi-cr-row             { border-bottom-color: rgba(255, 255, 255, .08); }
 html[data-theme="oscuro"] .mi-cr-row:nth-child(odd) { background: rgba(255, 255, 255, .03); }
-html[data-theme="oscuro"] .mi-cr-row:hover          { background: color-mix(in srgb, var(--mi-primary-600) 8%, #fff); }
+html[data-theme="oscuro"] .mi-cr-row:hover,
+.mi-modal--dark .mi-cr-row:hover          { background: rgba(78, 161, 255, .10); }
 
 
 
@@ -299,33 +300,9 @@ html[data-theme="oscuro"] .mi-cr-row:hover          { background: color-mix(in s
   gap: 2px;
 }
 
-.mi-cr-cell--detalle .nv-cell-input { width: 100%; }
+/* Estilos específicos de Nueva Venta movidos a Mov_Subsection/Ventas/modales/ModalNuevaVenta.css */
 
 #delete_cell { padding: 0 !important; }
-
-/* ── Input dentro de celda ── */
-.nv-cell-input {
-  width: 100%;
-  height: 30px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  padding: 0 8px;
-  font-size: .875rem;
-  font-weight: 400;
-  color: var(--mi-text);
-  background: transparent;
-  outline: none;
-  transition: border-color .14s, background .14s, box-shadow .14s;
-  font-family: inherit;
-  text-align: left;
-  box-sizing: border-box;
-}
-
-.nv-cell-input:hover  { border-color: var(--mi-border); background: var(--mi-bg); }
-.nv-cell-input:focus  { border-color: var(--mi-primary-600); background: var(--mi-bg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mi-primary-600) 10%, transparent); }
-.nv-cell-input--center{ text-align: center; }
-.nv-cell-input--right { text-align: right; }
-.nv-cell-input--select{ cursor: pointer; padding-right: 0; }
 
 /* ── Botón eliminar fila ── */
 .mi-cr-del {
@@ -372,75 +349,7 @@ html[data-theme="oscuro"] .mi-cr-table__foot {
 
 .mi-cr-foot-actions { display: flex; align-items: center; gap: 8px; }
 
-/* en Global_Modals.css — reemplazá .nv-foot-btn y .nv-foot-btn__icon */
-.nv-foot-btn {
-  appearance: none;
-  height: 32px;
-  padding: 0 14px 0 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(0, 85, 187, .45);
-  background: rgba(0, 85, 187, .08);
-  color: var(--mi-primary-600);
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  transition: background .14s, border-color .14s, color .14s, transform .14s;
-  font-family: inherit;
-  white-space: nowrap;
-  
-}
-.nv-foot-btn svg{
-  color: #fff;
-}
-
-.nv-foot-btn:hover {
-  background: rgba(0, 85, 187, .15);
-  border-color: rgba(0, 85, 187, .70);
-  color: #003f99;
-  transform: translateY(-1px);
-}
-
-.nv-foot-btn:disabled {
-  opacity: .38;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.nv-foot-btn__icon {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  background: var(--mi-primary-600);
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  transition: background .14s;
-}
-
-.nv-foot-btn:hover .nv-foot-btn__icon {
-  background: #003f99;
-}
-
-html[data-theme="oscuro"] .nv-foot-btn {
-  background: rgba(0, 85, 187, .14);
-  border-color: rgba(0, 85, 187, .40);
-  color: #85B7EB;
-}
-
-html[data-theme="oscuro"] .nv-foot-btn:hover {
-  background: rgba(0, 85, 187, .25);
-  border-color: rgba(0, 85, 187, .65);
-  color: #B5D4F4;
-}
-
-html[data-theme="oscuro"] .nv-foot-btn__icon {
-  background: rgba(0, 85, 187, .70);
-}
-
-.nv-foot-sep {display: none; width: 1px; height: 16px; background: var(--mi-border); }
+/* Acciones específicas de Nueva Venta movidas a ModalNuevaVenta.css */
 
 /* ── Totales ── */
 .mi-cr-totals { display: flex; align-items: center; gap: 6px; }
@@ -494,326 +403,6 @@ html[data-theme="oscuro"] .mi-cr-totalLine b    { color: rgba(255, 255, 255, .92
 html[data-theme="oscuro"] .mi-cr-totalLine--sub   { border-color: rgba(0, 85, 187, .35) !important; }
 html[data-theme="oscuro"] .mi-cr-totalLine--iva   { border-color: rgba(245, 158, 11, .35) !important; }
 html[data-theme="oscuro"] .mi-cr-totalLine--total { border-color: rgba(16, 185, 129, .35) !important; box-shadow: 0 12px 26px rgba(16, 185, 129, .10) !important; }
-
-/* =========================================================
-   PANEL LATERAL — nc-aside (Nueva Compra)
-   ========================================================= */
-.nc-aside {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: visible;
-}
-
-/* Sección */
-.nc-section {
-  border: 1px solid var(--mi-border);
-  border-radius: 12px;
-  background: var(--mi-bg);
-  flex-shrink: 0;
-  overflow: visible;
-  position: relative;
-}
-
-html[data-theme="oscuro"] .nc-section { background: var(--mi-bg); border-color: rgba(255, 255, 255, .10); }
-
-.nc-section-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--mi-bg-soft);
-  border-bottom: 1px solid var(--mi-border);
-}
-
-html[data-theme="oscuro"] .nc-section-head { background: rgba(255, 255, 255, .06); border-bottom-color: rgba(255, 255, 255, .10); }
-
-.nc-section-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--blue-midnight);
-  flex: 0 0 auto;
-}
-
-.nc-section-head span {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .07em;
-  color: var(--mi-muted);
-}
-
-html[data-theme="oscuro"] .nc-section-head span { color: rgba(210, 220, 235, .70); }
-
-.nc-section-body {
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow: visible;
-}
-
-/* ── Campo nc ── */
-.nc-field { position: relative; }
-
-.nc-input {
-  width: 100%;
-  height: 42px;
-  border: 1px solid var(--mi-border);
-  border-radius: 10px;
-  background: var(--mi-bg);
-  padding: 10px;
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--mi-text);
-  outline: none;
-  transition: border-color .14s, box-shadow .14s;
-  font-family: inherit;
-  box-sizing: border-box;
-}
-
-.nc-input:focus { border-color: var(--blue-action); box-shadow: 0 0 0 3px rgba(0, 85, 187, .10); }
-.nc-input:disabled { background: rgba(241, 245, 249, .7); opacity: .85; cursor: not-allowed; }
-
-html[data-theme="oscuro"] .nc-input { background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .14); color: rgba(255, 255, 255, .92); }
-html[data-theme="oscuro"] .nc-input:focus { border-color: rgba(0, 85, 187, .65); box-shadow: 0 0 0 3px rgba(0, 85, 187, .18); }
-
-.nc-label {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 13px;
-  color: var(--mi-muted);
-  pointer-events: none;
-  transform-origin: left top;
-  transition: all .14s ease;
-  background: transparent;
-  padding: 0 3px;
-}
-
-html[data-theme="oscuro"] .nc-label { color: rgba(210, 220, 235, .70); }
-
-.nc-input:focus + .nc-label,
-.nc-input:not(:placeholder-shown) + .nc-label {
-  top: -5px;
-  transform: translateY(0) scale(.82);
-  color: var(--blue-action);
-  background: var(--mi-bg);
-}
-
-html[data-theme="oscuro"] .nc-input:focus + .nc-label,
-html[data-theme="oscuro"] .nc-input:not(:placeholder-shown) + .nc-label {
-  color: rgba(140, 190, 255, .92);
-  background: rgba(6, 18, 28, .92);
-}
-
-/* ── Pills tipo compra ── */
-.nc-pill-label {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--mi-muted);
-  margin-bottom: 5px;
-}
-
-.nc-pills {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 5px;
-}
-
-.nc-pill {
-  appearance: none;
-  border: 1px solid var(--mi-border);
-  border-radius: 8px;
-  padding: 6px 0;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  background: var(--mi-bg);
-  color: var(--mi-muted);
-  transition: all .15s;
-  text-align: center;
-  font-family: inherit;
-  line-height: 1;
-}
-
-.nc-pill:hover { border-color: var(--blue-midnight); color: var(--blue-midnight); background: rgba(10, 37, 64, .04); }
-.nc-pill--active { background: var(--blue-midnight); border-color: var(--blue-midnight); color: #fff; }
-.nc-pill--active:hover { background: #0d2f55; border-color: #0d2f55; color: #fff; }
-.nc-pill:disabled { opacity: .55; cursor: not-allowed; }
-
-html[data-theme="oscuro"] .nc-pill { background: rgba(255, 255, 255, .05); border-color: rgba(255, 255, 255, .14); color: rgba(210, 220, 235, .80); }
-html[data-theme="oscuro"] .nc-pill:hover { background: rgba(255, 255, 255, .09); border-color: rgba(255, 255, 255, .22); color: rgba(255, 255, 255, .92); }
-html[data-theme="oscuro"] .nc-pill--active { background: #0055BB; border-color: rgba(0, 85, 187, .80); color: #fff; }
-
-/* ── Proveedor / autocomplete ── */
-.nc-prov-wrap {
-  position: relative;
-  z-index: 40;
-  overflow: visible;
-}
-
-.nc-prov-wrap:focus-within { z-index: 80; }
-
-.nc-prov-wrap .fl-field   { position: relative; }
-.nc-prov-wrap .fl-label   { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--mi-muted); pointer-events: none; transform-origin: left top; transition: all .14s ease; background: transparent; padding: 0 3px; z-index: 2; }
-
-.nc-prov-wrap .nc-input:focus + .fl-label,
-.nc-prov-wrap .nc-input:not(:placeholder-shown) + .fl-label {
-  top: -5px;
-  transform: translateY(0) scale(.82);
-  color: var(--blue-action);
-  background: var(--mi-bg);
-}
-
-html[data-theme="oscuro"] .nc-prov-wrap .fl-label { color: rgba(210, 220, 235, .70); }
-html[data-theme="oscuro"] .nc-prov-wrap .nc-input:focus + .fl-label,
-html[data-theme="oscuro"] .nc-prov-wrap .nc-input:not(:placeholder-shown) + .fl-label { color: rgba(140, 190, 255, .92); background: rgba(6, 18, 28, .92); }
-
-/* dropdown autocomplete */
-.nc-prov-wrap [role="listbox"],
-.nc-prov-wrap .ga-list,
-.nc-prov-wrap .ga-menu,
-.nc-prov-wrap .autocomplete-menu,
-.nc-prov-wrap .autocomplete-dropdown,
-.nc-prov-wrap .global-autocomplete__menu,
-.nc-prov-wrap .global-autocomplete__list {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  z-index: 99999999999999999999999;
-  max-height: 260px;
-  overflow-y: auto;
-  border-radius: 12px;
-}
-
-/* ── Información cuenta corriente ── */
-.nc-cc-info {
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(217, 119, 6, .22);
-  background: rgba(217, 119, 6, .06);
-  font-size: 12px;
-  color: var(--mi-text);
-  line-height: 1.5;
-}
-
-.nc-cc-info b { font-weight: 700; color: #92400e; }
-
-html[data-theme="oscuro"] .nc-cc-info { background: rgba(217, 119, 6, .08); border-color: rgba(217, 119, 6, .20); color: rgba(255, 255, 255, .85); }
-
-/* ── Acciones finales panel lateral ── */
-.nc-actions {
-  display: flex;
-  gap: 7px;
-  padding: 10px;
-  flex-shrink: 0;
-}
-
-/* ── Botón configurar pago ── */
-.nc-pago-btn {
-  appearance: none;
-  width: 100%;
-  height: 34px;
-  border: 1.5px dashed rgba(0, 85, 187, .3);
-  border-radius: 9px;
-  background: transparent;
-  color: var(--blue-action);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  transition: background .14s;
-  font-family: inherit;
-  margin-top: 4px;
-}
-
-.nc-pago-btn:hover:not(:disabled) { background: rgba(0, 85, 187, .05); }
-.nc-pago-btn:disabled { opacity: .4; cursor: not-allowed; }
-
-/* ── Resumen pago en panel ── */
-.nc-pago-resumen {
-  border: 1px solid var(--mi-border);
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--mi-bg-soft);
-  margin-top: 2px;
-}
-
-html[data-theme="oscuro"] .nc-pago-resumen { background: rgba(255, 255, 255, .03); border-color: rgba(255, 255, 255, .09); }
-
-.nc-pago-resumen__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 7px 10px;
-  background: var(--mi-bg-soft);
-  border-bottom: 1px solid var(--mi-border);
-}
-
-html[data-theme="oscuro"] .nc-pago-resumen__head { background: rgba(255, 255, 255, .05); border-bottom-color: rgba(255, 255, 255, .08); }
-
-.nc-pago-resumen__label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--mi-muted); }
-
-html[data-theme="oscuro"] .nc-pago-resumen__label { color: rgba(210, 220, 235, .65); }
-
-.nc-pago-resumen__edit {
-  appearance: none;
-  border: none;
-  background: none;
-  color: var(--blue-action);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-  font-family: inherit;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: opacity .12s;
-}
-
-.nc-pago-resumen__edit:hover { opacity: .72; }
-
-.nc-pago-resumen__body { padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
-
-.nc-pago-resumen__row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
-
-.nc-pago-resumen__medio { display: flex; align-items: center; gap: 6px; color: var(--mi-text); min-width: 0; }
-html[data-theme="oscuro"] .nc-pago-resumen__medio { color: rgba(255, 255, 255, .88); }
-
-.nc-pago-resumen__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue-action); flex: 0 0 auto; }
-
-.nc-pago-resumen__nombre { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
-
-.nc-pago-resumen__cheque-badge { font-size: 10px; font-weight: 600; color: #0f766e; background: rgba(15, 118, 110, .1); border: 1px solid rgba(15, 118, 110, .2); border-radius: 999px; padding: 0 5px; flex-shrink: 0; }
-
-.nc-pago-resumen__monto { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--mi-text); flex-shrink: 0; }
-html[data-theme="oscuro"] .nc-pago-resumen__monto { color: rgba(255, 255, 255, .92); }
-
-.nc-pago-resumen__divider { height: 1px; background: var(--mi-border); margin: 2px 0; }
-html[data-theme="oscuro"] .nc-pago-resumen__divider { background: rgba(255, 255, 255, .08); }
-
-.nc-pago-resumen__total-row { display: flex; align-items: center; justify-content: space-between; padding-top: 2px; }
-
-.nc-pago-resumen__total-label { font-size: 11px; font-weight: 700; color: var(--mi-muted); text-transform: uppercase; letter-spacing: .05em; }
-html[data-theme="oscuro"] .nc-pago-resumen__total-label { color: rgba(210, 220, 235, .60); }
-
-.nc-pago-resumen__total-val { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; color: #0f766e; }
-
-.nc-pago-resumen__ok-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; color: #0f766e; background: rgba(15, 118, 110, .08); border: 1px solid rgba(15, 118, 110, .18); border-radius: 999px; padding: 2px 7px; }
-
-.nc-pago-resumen__warn-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; color: #dc2626; background: rgba(220, 38, 38, .07); border: 1px solid rgba(220, 38, 38, .18); border-radius: 999px; padding: 2px 7px; }
 
 /* =========================================================
    PANEL LATERAL — mi-cr-filters (Nueva Venta)
@@ -874,7 +463,7 @@ html[data-theme="oscuro"] .mi-cr-filters{ background: var(--mi-bg-soft)}
   border: 1px solid rgba(148, 163, 184, .55);
   background: var(--mi-bg);
   border-radius: 12px;
-  padding: 16px 12px 10px;
+  padding: 12px 10px;
   font-size: .95rem !important;
   font-weight: 400 !important;
   color: var(--mi-text) !important;

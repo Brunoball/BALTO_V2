@@ -1299,6 +1299,45 @@ const Principal = () => {
   const isChequesDropdown = (itemKey) => itemKey === "cheques";
   const isStockDropdown = (itemKey) => itemKey === "stock";
 
+  const getSubmenuKeyByPath = useCallback((pathname = "") => {
+    if (
+      pathname.startsWith("/panel/movimientos") ||
+      pathname.startsWith("/panel/ventas") ||
+      pathname.startsWith("/panel/compras") ||
+      pathname.startsWith("/panel/recibos") ||
+      pathname.startsWith("/panel/OrdenesPago") ||
+      pathname.startsWith("/panel/Otrosingresos") ||
+      pathname.startsWith("/panel/Otrosegresos") ||
+      pathname.startsWith("/panel/documentos_comerciales") ||
+      pathname.startsWith("/panel/presupuesto")
+    ) {
+      return "movimientos";
+    }
+
+    if (pathname.startsWith("/panel/cuentas-corrientes")) {
+      return "cuentas-corrientes";
+    }
+
+    if (pathname.startsWith("/panel/cheques")) return "cheques";
+
+    return "";
+  }, []);
+
+  const openOnlySubmenu = useCallback((itemKey = "") => {
+    setOpenMovSub(itemKey === "movimientos");
+    setOpenCCSub(itemKey === "cuentas-corrientes");
+    setOpenChequesSub(itemKey === "cheques");
+    setOpenStockSub(itemKey === "stock");
+  }, []);
+
+  useEffect(() => {
+    const currentSubmenu = getSubmenuKeyByPath(location.pathname);
+
+    if (currentSubmenu) {
+      openOnlySubmenu(currentSubmenu);
+    }
+  }, [getSubmenuKeyByPath, location.pathname, openOnlySubmenu]);
+
   const getModalLogoSrc = useCallback(() => {
     if (tenantLogoIconoLoaded && tenantLogoIconoSrc) {
       return tenantLogoIconoSrc;
@@ -1314,12 +1353,9 @@ const Principal = () => {
         return;
       }
 
-      setOpenMovSub(itemKey === "movimientos");
-      setOpenCCSub(itemKey === "cuentas-corrientes");
-      setOpenChequesSub(itemKey === "cheques");
-      setOpenStockSub(itemKey === "stock");
+      openOnlySubmenu(itemKey);
     },
-    [closeAllSubs]
+    [closeAllSubs, openOnlySubmenu]
   );
 
   const handleNavItemClick = useCallback(
@@ -1586,7 +1622,7 @@ const Principal = () => {
                         }`}
                         onMouseEnter={() => prefetchRoute(sub.ruta)}
                         onClick={() => {
-                          closeAllSubs();
+                          openOnlySubmenu(item.key);
                           navigate(sub.ruta);
                           setDrawerOpen(false);
                         }}

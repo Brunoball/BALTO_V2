@@ -238,13 +238,21 @@ export function buildOrdenPagoHTML({
     }
 
     .meta{
-      text-align:right;
+      text-align:center;
       font-size:12px;
       color:var(--muted);
       display:flex;
       flex-direction:column;
+      align-items:center;
+      justify-content:center;
       gap:6px;
+      min-width:190px;
       white-space:nowrap;
+    }
+
+    .meta > div{
+      width:100%;
+      text-align:center;
     }
 
     .grid{
@@ -272,6 +280,21 @@ export function buildOrdenPagoHTML({
       font-weight:700;
       color:var(--text);
       word-break:break-word;
+    }
+
+    .field.centerInfo{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+    }
+
+    .field.centerInfo .k,
+    .field.centerInfo .v,
+    .field.centerInfo .small{
+      width:100%;
+      text-align:center;
     }
 
     .field .small{
@@ -312,8 +335,14 @@ export function buildOrdenPagoHTML({
       border-bottom:none;
     }
 
-    .center{ text-align:center; }
-    .right{ text-align:right; }
+    .center{ text-align:center !important; }
+    .right{ text-align:right !important; }
+
+    .tbl thead th.center,
+    .tbl tbody td.center{
+      text-align:center !important;
+      vertical-align:middle;
+    }
 
     .muted{
       color:var(--muted);
@@ -362,7 +391,7 @@ export function buildOrdenPagoHTML({
       body{ padding:12px; }
       .paper{ padding:18px; border-radius:16px; }
       .top{ flex-direction:column; }
-      .meta{ text-align:left; white-space:normal; }
+      .meta{ text-align:center; align-items:center; white-space:normal; }
       .grid{ grid-template-columns:1fr; }
       .totalBox{ width:100%; min-width:0; }
       .footer{ flex-direction:column; }
@@ -393,7 +422,7 @@ export function buildOrdenPagoHTML({
         <div class="small">ID: ${proveedorIdSafe}</div>
       </div>
 
-      <div class="field">
+      <div class="field centerInfo">
         <div class="k">Comprobantes abonados</div>
         <div class="v">${cantidadItems || "—"}</div>
       </div>

@@ -2,9 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/Global_Modals.css";
-import "../../mov_subsection_modales.css";
+import "./ModalCompra.css";
+import "../../globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
+import "../../dstmodasmov.css";
 import BASE_URL from "../../../../config/config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -1930,7 +1932,7 @@ export default function ModalEditarCompra({
   if (!open) return null;
 
   const overlayClass = ["mi-modal__overlay", dark ? "mi-modal__overlay--dark" : ""].join(" ").trim();
-  const containerClass = ["mi-modal__container", "mi-modal__container--mov", dark ? "mi-modal--dark" : ""].join(" ").trim();
+  const containerClass = ["mi-modal__container", "mi-modal__container--mov", "nc-modal", dark ? "mi-modal--dark" : ""].join(" ").trim();
   const miniTitle = addUI.catalogo === "proveedores" ? "Nuevo proveedor" : addUI.catalogo === "detalles" ? "Nuevo detalle" : "Nuevo";
 
   return createPortal(
@@ -1981,7 +1983,7 @@ export default function ModalEditarCompra({
                       <div className="fl-field mi-autocomplete" style={{ width: "100%" }}>
                         <input
                           ref={detalleInputRef}
-                          className="nv-cell-input"
+                          className="nc-cell-input"
                           placeholder=" "
                           value={detalleInput}
                           onChange={handleDetalleInputChange}
@@ -2025,7 +2027,7 @@ export default function ModalEditarCompra({
 
                     <div className="mi-cr-cell mi-cr-cell--center stock_cant">
                       <input
-                        className="nv-cell-input nv-cell-input--center"
+                        className="nc-cell-input nc-cell-input--center"
                         type="number"
                         min="0.001"
                         step="0.001"
@@ -2037,7 +2039,7 @@ export default function ModalEditarCompra({
 
                     <div className="mi-cr-cell mi-cr-cell--center">
                       <input
-                        className="nv-cell-input nv-cell-input--right"
+                        className="nc-cell-input nc-cell-input--right"
                         type="number"
                         min="0"
                         step="0.01"
@@ -2049,7 +2051,7 @@ export default function ModalEditarCompra({
 
                     <div className="mi-cr-cell mi-cr-cell--center">
                       <select
-                        className="nv-cell-input nv-cell-input--center nv-cell-input--select"
+                        className="nc-cell-input nc-cell-input--center nc-cell-input--select"
                         value={String(form.iva_pct)}
                         onChange={(e) => onIvaPctChange(e.target.value)}
                         disabled={saving}
@@ -2070,7 +2072,7 @@ export default function ModalEditarCompra({
 
                 <div className="mi-cr-table__foot">
                   <div className="mi-cr-foot-actions">
-                    <div className="nv-foot-sep" />
+                    <div className="nc-foot-sep" />
                   </div>
                   <div className="mi-cr-totals">
                     <div className="mi-cr-totalLine mi-cr-totalLine--sub">

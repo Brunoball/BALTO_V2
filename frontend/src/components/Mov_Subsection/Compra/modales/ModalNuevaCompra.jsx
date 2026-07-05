@@ -2,9 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/Global_Modals.css";
-import "../../mov_subsection_modales.css";
+import "./ModalCompra.css";
+import "../../globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
+import "../../dstmodasmov.css";
 import BASE_URL from "../../../../config/config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
@@ -1625,7 +1627,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
     <>
       <div className="mi-modal__overlay">
         <div
-          className="mi-modal__container mi-modal__container--mov"
+          className="mi-modal__container mi-modal__container--mov nc-modal"
           role="dialog"
           aria-modal="true"
           onMouseDown={(e) => e.stopPropagation()}
@@ -1685,13 +1687,13 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                             disabled={saving || addUI.open}
                             showAllOnFocus={false}
                             maxItems={18}
-                            inputClassName="nv-cell-input"
+                            inputClassName="nc-cell-input"
                           />
                         </div>
 
                         <div className="mi-cr-cell mi-cr-cell--center stock_cant">
                           <input
-                            className="nv-cell-input nv-cell-input--center"
+                            className="nc-cell-input nc-cell-input--center"
                             type="number"
                             min="0"
                             step="1"
@@ -1719,7 +1721,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
 
                         <div className="mi-cr-cell mi-cr-cell--center">
                           <input
-                            className="nv-cell-input nv-cell-input--right"
+                            className="nc-cell-input nc-cell-input--right"
                             type="text"
                             inputMode="decimal"
                             value={r.precioFocused ? r.precioDraft ?? "" : formatMoneyInputARS(r.precio)}
@@ -1760,7 +1762,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
 
                         <div className="mi-cr-cell mi-cr-cell--center">
                           <select
-                            className="nv-cell-input nv-cell-input--center nv-cell-input--select"
+                            className="nc-cell-input nc-cell-input--center nc-cell-input--select"
                             value={String(r.ivaPct)}
                             onChange={(e) => updateRow(r.id, { ivaPct: Number(e.target.value) })}
                             onKeyDown={(e) => {
@@ -1803,15 +1805,15 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
 
                 <div className="mi-cr-table__foot">
                   <div className="mi-cr-foot-actions">
-                    <button type="button" className="nv-foot-btn" onClick={addRow} disabled={saving}>
-                      <span className="nv-foot-btn__icon">
+                    <button type="button" className="nc-foot-btn" onClick={addRow} disabled={saving}>
+                      <span className="nc-foot-btn__icon">
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M5 1.5V8.5M1.5 5H8.5" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
                         </svg>
                       </span>
                       Agregar fila
                     </button>
-                    <div className="nv-foot-sep" />
+                    <div className="nc-foot-sep" />
                   </div>
 
                   <div className="mi-cr-totals">

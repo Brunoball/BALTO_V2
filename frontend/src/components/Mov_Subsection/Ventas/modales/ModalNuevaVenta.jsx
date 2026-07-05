@@ -2,9 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/Global_Modals.css";
-import "../../mov_subsection_modales.css";
+import "../../globalmodalsmov.css";
+import "./ModalNuevaVenta.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
+import "../../dstmodasmov.css";
 import BASE_URL from "../../../../config/config";
 import ModalFacturaBaltoResumen from "../../Facturacion/ModalFacturaBaltoResumen.jsx";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -3203,7 +3205,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
     <>
       <div className={["mi-modal__overlay", dark ? "mi-modal__overlay--dark" : ""].join(" ").trim()}>
         <div
-          className={["mi-modal__container", "mi-modal__container--mov", dark ? "mi-modal--dark" : ""].join(" ").trim()}
+          className={["mi-modal__container", "mi-modal__container--mov", "nv-modal", dark ? "mi-modal--dark" : ""].join(" ").trim()}
           role="dialog"
           aria-modal="true"
           onMouseDown={(e) => e.stopPropagation()}
@@ -3566,7 +3568,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                   </div>
                 </aside>
 
-                <div className="nc-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+                <div className="nv-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
                   <button
                     type="button"
                     onClick={submit}
