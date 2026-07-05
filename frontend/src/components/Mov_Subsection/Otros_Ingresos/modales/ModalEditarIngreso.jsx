@@ -12,11 +12,11 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import BASE_URL from "../../../../config/config.jsx";
 import "../../../Global/Global_css/Global_Modals.css";
-import "../../globalmodalsmov.css";
+import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalIngreso.css";
-import "../../dstmodasmov.css";
+import "../../modalcss/AltasMovimientos.css";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
 import ModalNuevaDescripcion from "./ModalNuevaDescripcion.jsx";

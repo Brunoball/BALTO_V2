@@ -4,7 +4,7 @@ import "../../Global/Global_css/Global_Section.css";
 import "../../Global/Global_css/roots.css";
 import "../../Global/Global_css/Global_oscuro.css";
 import "./DocumentosComerciales.css";
-import "../globalmodalsmov.css";
+import "../modalcss/globalmodalsmov.css";
 import BASE_URL from "../../../config/config.jsx";
 import ModalVerComprobante from "../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import { readMovPerfCache, writeMovPerfCache, MOV_CACHE_LONG_TTL_MS } from "../_shared/performanceCache.js";

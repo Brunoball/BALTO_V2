@@ -655,26 +655,68 @@ export default function ModalProveedores({
   useEffect(() => {
     if (!open) return;
 
+    const stopEscape = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+    };
+
     const h = (e) => {
       if (e.key !== "Escape") return;
-      if (modalAccion.open || modalFiscal.open) return;
+
+      if (modalAccion.open) {
+        stopEscape(e);
+        if (!modalAccion.loading) {
+          setModalAccion({
+            open: false,
+            type: null,
+            row: null,
+            loading: false,
+          });
+        }
+        return;
+      }
+
+      if (modalFiscal.open) {
+        stopEscape(e);
+        if (!modalFiscal.loading) {
+          setModalFiscal({ open: false, row: null, fiscal: null, loading: false });
+        }
+        return;
+      }
 
       if (formModalOpen) {
+        stopEscape(e);
         if (!saving && !form.fiscalLoading) {
           setFormModalOpen(false);
-          resetForm();
+          setModo("crear");
+          setEditandoId(null);
+          setForm(buildEmptyForm(pestana === "inactivos" ? 0 : 1));
         }
         return;
       }
 
       if (!loading && !saving && !form.fiscalLoading) {
+        stopEscape(e);
         onClose?.();
       }
     };
 
     document.addEventListener("keydown", h, true);
     return () => document.removeEventListener("keydown", h, true);
-  }, [open, onClose, loading, saving, form.fiscalLoading, modalAccion.open, modalFiscal.open, formModalOpen]);
+  }, [
+    open,
+    onClose,
+    loading,
+    saving,
+    form.fiscalLoading,
+    modalAccion.open,
+    modalAccion.loading,
+    modalFiscal.open,
+    modalFiscal.loading,
+    formModalOpen,
+    pestana,
+  ]);
 
   useEffect(() => {
     if (open) {

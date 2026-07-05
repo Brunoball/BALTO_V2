@@ -794,6 +794,45 @@ export default function ProveedoresCC() {
     setDeleteState({ open: false, loading: false, row: null });
   }, []);
 
+  const closePreviewComprobante = useCallback(() => {
+    setPreviewComprobante({ open: false, url: "", mime: "", title: "Comprobante", documents: [] });
+  }, []);
+
+  useEffect(() => {
+    const h = (e) => {
+      if (e.key !== "Escape") return;
+
+      if (modalProveedoresOpen) return;
+
+      const stopEscape = () => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
+      };
+
+      if (deleteState.open) {
+        stopEscape();
+        if (!deleteState.loading) closeDeleteModal();
+        return;
+      }
+
+      if (previewComprobante.open) {
+        stopEscape();
+        closePreviewComprobante();
+      }
+    };
+
+    document.addEventListener("keydown", h, true);
+    return () => document.removeEventListener("keydown", h, true);
+  }, [
+    modalProveedoresOpen,
+    deleteState.open,
+    deleteState.loading,
+    previewComprobante.open,
+    closeDeleteModal,
+    closePreviewComprobante,
+  ]);
+
   const refreshCurrent = useCallback(async () => {
     if (selectedProveedor?.id_proveedor) {
       await loadHistorial(selectedProveedor, { keepSelection: true });
@@ -863,9 +902,7 @@ export default function ProveedoresCC() {
         mime={previewComprobante.mime}
         documents={previewComprobante.documents}
         title={previewComprobante.title}
-        onClose={() =>
-          setPreviewComprobante({ open: false, url: "", mime: "", title: "Comprobante", documents: [] })
-        }
+        onClose={closePreviewComprobante}
       />
 
       <ModalEliminarMovimientos

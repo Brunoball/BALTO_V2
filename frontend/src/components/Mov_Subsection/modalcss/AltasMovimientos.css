@@ -6,7 +6,7 @@
    Toma la distribución de botones/panel de Nueva Compra.
 ========================================================= */
 
-:is(.nv-modal, .nc-modal, .oi-modal, .oe-modal, .presupuesto-modal, .dc-asignar-modal) {
+:is(.nv-modal, .nc-modal, .oi-modal, .oe-modal, .presupuesto-modal, .dc-asignar-modal, .mpr-modal) {
   --mam-accent: var(--blue-action, var(--mi-primary-600, #0055bb));
   --mam-accent-dark: #003f99;
   --mam-accent-soft: rgba(0, 85, 187, .08);
@@ -255,7 +255,7 @@
   }
 }
 
-html[data-theme="oscuro"] :is(.nv-modal, .nc-modal, .oi-modal, .oe-modal, .presupuesto-modal, .dc-asignar-modal) {
+html[data-theme="oscuro"] :is(.nv-modal, .nc-modal, .oi-modal, .oe-modal, .presupuesto-modal, .dc-asignar-modal, .mpr-modal) {
   --mam-bg: var(--mi-bg, rgba(6, 18, 28, .96));
   --mam-bg-soft: rgba(255, 255, 255, .06);
   --mam-border: rgba(255, 255, 255, .10);

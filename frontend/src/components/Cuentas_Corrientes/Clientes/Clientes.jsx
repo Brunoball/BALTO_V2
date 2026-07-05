@@ -812,6 +812,51 @@ export default function ClientesCC() {
     });
   }, []);
 
+  const closePreviewComprobante = useCallback(() => {
+    setPreviewComprobante({
+      open: false,
+      url: "",
+      mime: "",
+      title: "Comprobante",
+      documents: [],
+    });
+  }, []);
+
+  useEffect(() => {
+    const h = (e) => {
+      if (e.key !== "Escape") return;
+
+      if (clientesModalOpen) return;
+
+      const stopEscape = () => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
+      };
+
+      if (deleteState.open) {
+        stopEscape();
+        if (!deleteState.loading) closeDeleteModal();
+        return;
+      }
+
+      if (previewComprobante.open) {
+        stopEscape();
+        closePreviewComprobante();
+      }
+    };
+
+    document.addEventListener("keydown", h, true);
+    return () => document.removeEventListener("keydown", h, true);
+  }, [
+    clientesModalOpen,
+    deleteState.open,
+    deleteState.loading,
+    previewComprobante.open,
+    closeDeleteModal,
+    closePreviewComprobante,
+  ]);
+
   const refreshCurrent = useCallback(async () => {
     if (selectedCliente?.id_cliente) {
       await loadHistorial(selectedCliente, { keepSelection: true });
@@ -890,15 +935,7 @@ export default function ClientesCC() {
         mime={previewComprobante.mime}
         documents={previewComprobante.documents}
         title={previewComprobante.title}
-        onClose={() =>
-          setPreviewComprobante({
-            open: false,
-            url: "",
-            mime: "",
-            title: "Comprobante",
-            documents: [],
-          })
-        }
+        onClose={closePreviewComprobante}
       />
 
       <ModalEliminarMovimientos

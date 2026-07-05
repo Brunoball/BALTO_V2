@@ -88,6 +88,11 @@ html[data-theme="oscuro"] .mi-modal__overlay {
   -webkit-font-smoothing: antialiased;
 }
 
+html[data-theme="oscuro"] .mi-modal__container {
+  background: var(--mi-bg);
+  border-color: rgba(255, 255, 255, .08);
+}
+
 
 /* =========================================================
    HEADER

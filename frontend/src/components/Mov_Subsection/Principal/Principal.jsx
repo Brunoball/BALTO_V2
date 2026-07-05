@@ -28,7 +28,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 import "./principal.css";
-import "../globalmodalsmov.css";
+import "../modalcss/globalmodalsmov.css";
 import ModalPerfil from "../Perfil/ModalPerfil";
 
 /* =========================================================

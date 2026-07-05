@@ -2,11 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/Global_Modals.css";
-import "../../globalmodalsmov.css";
+import "../../modalcss/globalmodalsmov.css";
 import "./ModalNuevaVenta.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
-import "../../dstmodasmov.css";
+import "../../modalcss/AltasMovimientos.css";
 import BASE_URL from "../../../../config/config";
 import ModalFacturaBaltoResumen from "../../Facturacion/ModalFacturaBaltoResumen.jsx";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";

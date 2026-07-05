@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/Global_Modals.css";
-import "../../globalmodalsmov.css";
+import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
+import "../../modalcss/AltasMovimientos.css";
 import "./ModalPagarRecibos.css";
 import BASE_URL from "../../../../config/config";
 
@@ -1728,7 +1729,7 @@ export default function ModalPagarRecibos({
                       <div className="nc-section-body">
                         <button
                           type="button"
-                          className="nv-foot-btn"
+                          className="nv-foot-btn mpr-btn-selall"
                           style={{
                             width: "100%",
                             justifyContent: "center",

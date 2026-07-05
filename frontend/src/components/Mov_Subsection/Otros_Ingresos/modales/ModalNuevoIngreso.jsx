@@ -9,11 +9,11 @@ import ModalNuevoCheque from "../../../Global/Modales/ModalNuevoCheque.jsx";
 import ModalNuevaDescripcion from "./ModalNuevaDescripcion.jsx";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import "../../../Global/Global_css/Global_Modals.css";
-import "../../globalmodalsmov.css";
+import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalIngreso.css";
-import "../../dstmodasmov.css";
+import "../../modalcss/AltasMovimientos.css";
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const NULL_OPTION = "";

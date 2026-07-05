@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import "../Global_css/Global_Modals.css";
 import "../Global_css/Global_responsive.css";
 import "../Global_css/roots.css";
+import "../Global_css/ModalDetalleMovimiento.css";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faInfoCircle,

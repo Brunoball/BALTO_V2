@@ -13,7 +13,7 @@
 
 /* =========================================================
    MODAL INGRESO — estilos propios
-   Base compartida: Global_Modals.css + globalmodalsmov.css
+   Base compartida: Global_Modals.css + modalcss/globalmodalsmov.css
    ========================================================= */
 
 .mi-cr-cell--detalle .oi-cell-input { width: 100%; }

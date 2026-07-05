@@ -909,16 +909,15 @@ export default function ModalVerComprobante({
         </div>
 
         <div className="mi-modal__footer mpr-footer">
-          <div style={{ display: "flex", gap: 10, width: "100%", justifyContent: "flex-end" }}>
+          <div className="mpr-footerActions">
             <button
               type="button"
-              className="mit-btn mit-btn--solid mit-btn--block"
-              id="maxBTN"
+              className="mit-btn mit-btn--solid mpr-actionBtn mpr-actionBtn--open"
               onClick={handleOpen}
               disabled={!blobUrl && !activeUrl}
               title={`Abrir ${displayFileName} en nueva pestaña`}
             >
-              <FontAwesomeIcon icon={faUpRightFromSquare} style={{ marginRight: 8 }} />
+              <FontAwesomeIcon icon={faUpRightFromSquare} className="mpr-actionBtn__icon" />
               Abrir
             </button>
           </div>

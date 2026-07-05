@@ -13,7 +13,7 @@
 
 /* =========================================================
    MODAL EGRESO — estilos propios
-   Base compartida: Global_Modals.css + globalmodalsmov.css
+   Base compartida: Global_Modals.css + modalcss/globalmodalsmov.css
    ========================================================= */
 
 .mi-cr-cell--detalle .oe-cell-input { width: 100%; }

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { FaXmark, FaCircleInfo, FaBuildingColumns } from "react-icons/fa6";
+import "../../Global/Global_css/Global_Modals.css";
+import "./ModalDepositarCheque.css";
 
 function formatFecha(fecha) {
   const s = String(fecha || "").trim();
@@ -119,11 +121,10 @@ export default function ModalDepositarCheque({
   };
 
   return createPortal(
-    <div className="mi-mini__overlay" role="presentation">
+    <div className="mi-mini__overlay cheque-deposito-modal__overlay" role="presentation">
       <div
-        className="mi-mini__modal"
+        className="mi-mini__modal cheque-deposito-modal"
         onMouseDown={handleModalMouseDown}
-        style={{ width: "min(560px, 94vw)" }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-depositar-cheque-title"
@@ -131,13 +132,7 @@ export default function ModalDepositarCheque({
         <div className="mi-mini__head">
           <h4
             id="modal-depositar-cheque-title"
-            className="mi-mini__title"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              margin: 0,
-            }}
+            className="mi-mini__title cheque-deposito-modal__title"
           >
             <FaBuildingColumns />
             <span>{titulo}</span>
@@ -155,25 +150,11 @@ export default function ModalDepositarCheque({
         </div>
 
         <div className="mi-mini__body">
-          <p
-            style={{
-              margin: "0 0 14px",
-              fontSize: "14px",
-              color: "var(--mi-muted)",
-              fontWeight: 400,
-            }}
-          >
+          <p className="cheque-deposito-modal__question">
             {pregunta}
           </p>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: 12,
-              marginBottom: 14,
-            }}
-          >
+          <div className="cheque-deposito-modal__grid">
             <div className="fl-field">
               <input
                 className="fl-input"
@@ -218,22 +199,18 @@ export default function ModalDepositarCheque({
               <label className="fl-label">Fecha de pago</label>
             </div>
 
-            <div className="fl-field" style={{ gridColumn: "1 / -1" }}>
+            <div className="fl-field cheque-deposito-modal__fieldFull">
               <input
-                className="fl-input"
+                className="fl-input cheque-deposito-modal__amount"
                 type="text"
                 readOnly
                 value={moneyARS(cheque?.importe)}
                 placeholder=" "
-                style={{
-                  fontWeight: 700,
-                  color: "var(--nv-tot-color, #057A55)",
-                }}
               />
               <label className="fl-label">Importe</label>
             </div>
 
-            <div className="fl-field" style={{ gridColumn: "1 / -1" }}>
+            <div className="fl-field cheque-deposito-modal__fieldFull">
               <input
                 className="fl-input"
                 type="date"
@@ -248,43 +225,21 @@ export default function ModalDepositarCheque({
               />
               <label className="fl-label">Fecha de depósito</label>
               {fechaError && (
-                <small
-                  style={{
-                    display: "block",
-                    marginTop: 6,
-                    color: "#b91c1c",
-                    fontWeight: 700,
-                  }}
-                >
+                <small className="cheque-deposito-modal__error">
                   {fechaError}
                 </small>
               )}
             </div>
           </div>
 
-          <div
-            style={{
-              padding: "10px 14px",
-              borderRadius: 10,
-              background:
-                "linear-gradient(135deg, rgba(245,158,11,.08) 0%, rgba(245,158,11,.12) 100%)",
-              borderLeft: "3px solid #f59e0b",
-              fontSize: 13,
-              color: "#92400e",
-              marginBottom: 4,
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 10,
-              lineHeight: 1.45,
-            }}
-          >
-            <FaCircleInfo style={{ marginTop: 2, flexShrink: 0 }} />
+          <div className="cheque-deposito-modal__info">
+            <FaCircleInfo className="cheque-deposito-modal__infoIcon" />
             <span>
-              <span style={{ fontWeight: 600 }}>Información:</span> {infoText}
+              <span className="cheque-deposito-modal__infoStrong">Información:</span> {infoText}
             </span>
           </div>
 
-          <div className="mi-mini__actions" style={{ marginTop: 14 }}>
+          <div className="mi-mini__actions cheque-deposito-modal__actions">
             <button
               type="button"
               className="mit-btn mit-btn--ghost"

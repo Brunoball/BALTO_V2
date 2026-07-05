@@ -18,12 +18,12 @@ import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerCompro
 
 // ── Estilos base + CSS propio de Egreso ──
 import "../../../Global/Global_css/Global_Modals.css";
-import "../../globalmodalsmov.css";
+import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 // Estilos específicos compartidos por Nuevo Egreso y Editar Egreso
 import "./ModalEgreso.css";
-import "../../dstmodasmov.css";
+import "../../modalcss/AltasMovimientos.css";
 
 /* ─────────────────────────────────────────
    CONSTANTES Y HELPERS  (idénticos a NuevaCompra)
