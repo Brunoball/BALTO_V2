@@ -410,6 +410,18 @@ function getProductoImageUrl(prod, apiUrl, refreshKey = 0, intento = 0) {
   return withSessionKey(`${apiUrl}?${params.toString()}`);
 }
 
+function extractProductoFromApiResponse(data) {
+  const candidates = [
+    data?.producto,
+    data?.data?.producto,
+    data?.data,
+    data?.resultado?.producto,
+    data?.resultado,
+  ];
+
+  return candidates.find((item) => item && typeof item === "object" && getProductoId(item) > 0) || null;
+}
+
 function getUsuarioAuditData() {
   let idUsuarioMaster = 0;
   let idTenant = null;
@@ -510,12 +522,14 @@ const Stock = () => {
   const [versionImagenPorProducto, setVersionImagenPorProducto] = useState({});
   const [erroresImagenes, setErroresImagenes] = useState({});
   const [reintentosImagenes, setReintentosImagenes] = useState({});
+  const [imagenesTemporalesPorProducto, setImagenesTemporalesPorProducto] = useState({});
   const [variantesAbiertas, setVariantesAbiertas] = useState({});
   const [variantesPorProducto, setVariantesPorProducto] = useState({});
   const [loadingVariantesPorProducto, setLoadingVariantesPorProducto] = useState({});
   const [errorVariantesPorProducto, setErrorVariantesPorProducto] = useState({});
 
   const refreshTimersRef = useRef([]);
+  const imagenesTemporalesRef = useRef({});
   const impactoEliminarRequestRef = useRef(0);
   const categoriaFiltroDropdownRef = useRef(null);
   const productosPorPagina = 20;
@@ -556,8 +570,54 @@ const Stock = () => {
   useEffect(() => {
     return () => {
       limpiarRefreshTimers();
+      Object.values(imagenesTemporalesRef.current || {}).forEach((item) => {
+        if (item?.url) URL.revokeObjectURL(item.url);
+      });
+      imagenesTemporalesRef.current = {};
     };
   }, [limpiarRefreshTimers]);
+
+  const limpiarImagenTemporalProducto = useCallback((productoId) => {
+    const id = Number(productoId || 0);
+    if (!id) return;
+
+    const actual = imagenesTemporalesRef.current?.[id];
+    if (actual?.url) URL.revokeObjectURL(actual.url);
+
+    const nextRef = { ...(imagenesTemporalesRef.current || {}) };
+    delete nextRef[id];
+    imagenesTemporalesRef.current = nextRef;
+
+    setImagenesTemporalesPorProducto((prev) => {
+      if (!prev?.[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  const aplicarImagenTemporalProducto = useCallback((productoId, file) => {
+    const id = Number(productoId || 0);
+    if (!id || !file) return;
+
+    const actual = imagenesTemporalesRef.current?.[id];
+    if (actual?.url) URL.revokeObjectURL(actual.url);
+
+    const temp = {
+      url: URL.createObjectURL(file),
+      createdAt: Date.now(),
+    };
+
+    imagenesTemporalesRef.current = {
+      ...(imagenesTemporalesRef.current || {}),
+      [id]: temp,
+    };
+
+    setImagenesTemporalesPorProducto((prev) => ({
+      ...prev,
+      [id]: temp,
+    }));
+  }, []);
 
   const invalidarMiniaturaProducto = useCallback((productoId, seed = Date.now()) => {
     const id = Number(productoId || 0);
@@ -601,75 +661,182 @@ const Stock = () => {
     refreshTimersRef.current.push(timerId);
   }, []);
 
-  const recargarTodo = useCallback(async () => {
-    const [productosRes, categoriasRes] = await Promise.allSettled([
-      (async () => {
-        const params = new URLSearchParams({
-          action: "stock_productos_listar",
-          activo: mostrarDadosDeBaja ? "0" : "1",
-          pagina: String(paginaActual),
-          por_pagina: String(productosPorPagina),
-          orden_campo: orden.campo,
-          orden_dir: orden.dir,
-        });
-        if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
-        if (busqueda.trim()) params.set("buscar", busqueda.trim());
+  const recargarTodo = useCallback(async (opciones = {}) => {
+    const mostrarLoader = opciones?.mostrarLoader !== false;
+    const seed = opciones?.seed || Date.now();
 
-        const data = await apiGet(`${API_URL}?${params.toString()}`);
-        if (data?.exito === false) {
-          throw new Error(data?.mensaje || "Error al obtener productos");
+    if (mostrarLoader) setLoading(true);
+    setError(null);
+
+    try {
+      const [productosRes, categoriasRes] = await Promise.allSettled([
+        (async () => {
+          const params = new URLSearchParams({
+            action: "stock_productos_listar",
+            activo: mostrarDadosDeBaja ? "0" : "1",
+            pagina: String(paginaActual),
+            por_pagina: String(productosPorPagina),
+            orden_campo: orden.campo,
+            orden_dir: orden.dir,
+            _r: String(seed),
+          });
+          if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
+          if (busqueda.trim()) params.set("buscar", busqueda.trim());
+
+          const data = await apiGet(`${API_URL}?${params.toString()}`);
+          if (data?.exito === false) {
+            throw new Error(data?.mensaje || "Error al obtener productos");
+          }
+
+          return {
+            productos: normalizeProductosCollection(data?.productos),
+            total: Number(data?.total ?? 0),
+            pagina: Number(data?.pagina ?? paginaActual),
+            totalPaginas: Math.max(1, Number(data?.total_paginas ?? 1)),
+          };
+        })(),
+        (async () => {
+          const params = new URLSearchParams({
+            action: "stock_categorias_listar",
+            _r: String(seed),
+          });
+          const data = await apiGet(`${API_URL}?${params.toString()}`);
+          const lista = (Array.isArray(data?.categorias) ? data.categorias : [])
+            .map((cat) => normalizeCategoria(cat))
+            .filter((cat) => Number(cat.id_stock_categoria) > 0);
+
+          return [...lista].sort((a, b) =>
+            String(a?.nombre_mostrar || a?.nombre || "").localeCompare(String(b?.nombre_mostrar || b?.nombre || ""), "es", {
+              sensitivity: "base",
+            })
+          );
+        })(),
+      ]);
+
+      if (productosRes.status === "fulfilled") {
+        setProductosRaw(productosRes.value.productos);
+        setTotalProductosServidor(productosRes.value.total);
+        setTotalPaginasServidor(productosRes.value.totalPaginas);
+        if (productosRes.value.pagina && productosRes.value.pagina !== paginaActual) {
+          setPaginaActual(productosRes.value.pagina);
         }
-
-        return {
-          productos: normalizeProductosCollection(data?.productos),
-          total: Number(data?.total ?? 0),
-          pagina: Number(data?.pagina ?? paginaActual),
-          totalPaginas: Math.max(1, Number(data?.total_paginas ?? 1)),
-        };
-      })(),
-      (async () => {
-        const params = new URLSearchParams({ action: "stock_categorias_listar" });
-        const data = await apiGet(`${API_URL}?${params.toString()}`);
-        const lista = (Array.isArray(data?.categorias) ? data.categorias : [])
-          .map((cat) => normalizeCategoria(cat))
-          .filter((cat) => Number(cat.id_stock_categoria) > 0);
-
-        return [...lista].sort((a, b) =>
-          String(a?.nombre_mostrar || a?.nombre || "").localeCompare(String(b?.nombre_mostrar || b?.nombre || ""), "es", {
-            sensitivity: "base",
-          })
-        );
-      })(),
-    ]);
-
-    if (productosRes.status === "fulfilled") {
-      setProductosRaw(productosRes.value.productos);
-      setTotalProductosServidor(productosRes.value.total);
-      setTotalPaginasServidor(productosRes.value.totalPaginas);
-      if (productosRes.value.pagina && productosRes.value.pagina !== paginaActual) {
-        setPaginaActual(productosRes.value.pagina);
+      } else {
+        setProductosRaw([]);
+        setTotalProductosServidor(0);
+        setTotalPaginasServidor(1);
+        throw productosRes.reason;
       }
-    } else {
-      setProductosRaw([]);
-      setTotalProductosServidor(0);
-      setTotalPaginasServidor(1);
-      throw productosRes.reason;
-    }
 
-    if (categoriasRes.status === "fulfilled") {
-      setCategorias(categoriasRes.value);
-    } else {
-      setCategorias([]);
+      if (categoriasRes.status === "fulfilled") {
+        setCategorias(categoriasRes.value);
+      } else {
+        setCategorias([]);
+      }
+    } catch (err) {
+      if (mostrarLoader) setError(err?.message || "Error inesperado");
+      throw err;
+    } finally {
+      if (mostrarLoader) setLoading(false);
     }
   }, [busqueda, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina]);
 
+  const refrescarProductoPorId = useCallback(async (productoId, opciones = {}) => {
+    const id = Number(productoId || 0);
+    if (!id) return null;
+
+    const params = new URLSearchParams({
+      action: "stock_producto_obtener",
+      id: String(id),
+      _r: String(opciones?.seed || Date.now()),
+    });
+
+    const data = await apiGet(`${API_URL}?${params.toString()}`);
+    if (data?.exito === false) {
+      throw new Error(data?.mensaje || "No se pudo refrescar el producto editado.");
+    }
+
+    const productoActualizado = extractProductoFromApiResponse(data);
+    if (!productoActualizado) return null;
+
+    setProductosRaw((prev) => mergeProductoEnLista(prev, productoActualizado));
+
+    const productoNormalizado = normalizeProductoListItem(productoActualizado);
+    const idNormalizado = getProductoId(productoNormalizado) || id;
+
+    if (Array.isArray(productoActualizado?.variantes)) {
+      setVariantesPorProducto((prev) => ({
+        ...prev,
+        [idNormalizado]: normalizeVariantesCollection(productoActualizado.variantes),
+      }));
+      setErrorVariantesPorProducto((prev) => {
+        const next = { ...prev };
+        delete next[idNormalizado];
+        return next;
+      });
+    }
+
+    return productoNormalizado || productoActualizado;
+  }, []);
+
+  const refrescarListaYProducto = useCallback(async (productoId = 0, opciones = {}) => {
+    const id = Number(productoId || 0);
+    const seed = opciones?.seed || Date.now();
+
+    try {
+      await recargarTodo({ mostrarLoader: opciones?.mostrarLoader === true, seed });
+    } catch {}
+
+    if (id > 0) {
+      if (opciones?.recargarProducto !== false) {
+        try {
+          await refrescarProductoPorId(id, { seed });
+        } catch {}
+      }
+
+      if (opciones?.invalidarImagen !== false) {
+        invalidarMiniaturaProducto(id, seed);
+      }
+    }
+  }, [invalidarMiniaturaProducto, recargarTodo, refrescarProductoPorId]);
+
+  const programarRefrescoPostImagen = useCallback((productoId) => {
+    const id = Number(productoId || 0);
+    if (!id) return;
+
+    limpiarRefreshTimers();
+
+    const timerId = window.setTimeout(() => {
+      refrescarListaYProducto(id, {
+        seed: Date.now(),
+        mostrarLoader: false,
+        invalidarImagen: true,
+        recargarProducto: true,
+      });
+    }, 1600);
+
+    refreshTimersRef.current.push(timerId);
+  }, [limpiarRefreshTimers, refrescarListaYProducto]);
+
   const refrescarDespuesDeGuardar = useCallback(
-    async (productoGuardado = null) => {
-      const productoId = getProductoId(productoGuardado);
+    async (productoGuardado = null, opciones = {}) => {
+      const productoId = getProductoId(productoGuardado) || Number(opciones?.productoId || 0);
+      const imagenActualizada = !!opciones?.imagen_actualizada;
+      const imagenEliminada = !!opciones?.imagen_eliminada;
+      const refrescarImagen =
+        imagenActualizada ||
+        imagenEliminada ||
+        !!productoGuardado?.imagen_actualizada_en;
+
+      if (productoId > 0 && imagenActualizada && opciones?.imagen_file) {
+        aplicarImagenTemporalProducto(productoId, opciones.imagen_file);
+      }
+
+      if (productoId > 0 && imagenEliminada) {
+        limpiarImagenTemporalProducto(productoId);
+      }
 
       if (productoGuardado) {
         setProductosRaw((prev) => mergeProductoEnLista(prev, productoGuardado));
-        invalidarMiniaturaProducto(productoId);
 
         if (productoId > 0 && Array.isArray(productoGuardado?.variantes)) {
           setVariantesPorProducto((prev) => ({
@@ -684,11 +851,25 @@ const Stock = () => {
         }
       }
 
-      try {
-        await recargarTodo();
-      } catch {}
+      if (productoId > 0 && refrescarImagen) {
+        invalidarMiniaturaProducto(productoId, Date.now());
+        programarRefrescoPostImagen(productoId);
+        return;
+      }
+
+      await refrescarListaYProducto(productoId, {
+        seed: Date.now(),
+        mostrarLoader: opciones?.mostrarLoader === true,
+        invalidarImagen: false,
+      });
     },
-    [invalidarMiniaturaProducto, recargarTodo]
+    [
+      aplicarImagenTemporalProducto,
+      invalidarMiniaturaProducto,
+      limpiarImagenTemporalProducto,
+      programarRefrescoPostImagen,
+      refrescarListaYProducto,
+    ]
   );
 
   const fetchCategorias = useCallback(async () => {
@@ -728,6 +909,7 @@ const Stock = () => {
         por_pagina: String(productosPorPagina),
         orden_campo: orden.campo,
         orden_dir: orden.dir,
+        _r: String(Date.now()),
       });
       if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
       if (busqueda.trim()) params.set("buscar", busqueda.trim());
@@ -1794,22 +1976,25 @@ const Stock = () => {
                     productos.map((prod) => {
                       const productoId = getProductoId(prod);
                       const archivoId = Number(prod?.imagen_archivo_id || 0);
+                      const imagenTemporal = imagenesTemporalesPorProducto?.[productoId]?.url || "";
+                      const usandoImagenTemporal = !!imagenTemporal;
                       const intentoImagen = Number(reintentosImagenes?.[productoId] || 0);
-                      const imagenRota = !!erroresImagenes[productoId];
+                      const imagenRota = !usandoImagenTemporal && !!erroresImagenes[productoId];
                       const productoInactivo = Number(prod?.activo ?? 1) === 0;
                       const totalVariantesProducto = Number(prod?.cantidad_variantes_total ?? prod?.cantidad_variantes ?? 0);
                       const variantesActivasProducto = Number(prod?.cantidad_variantes_activas ?? prod?.cantidad_variantes ?? 0);
                       const variantesInactivasProducto = Number(prod?.cantidad_variantes_inactivas ?? 0);
-                      const tieneVariantesParaMostrar = !!prod.tiene_variantes || totalVariantesProducto > 0;
+                      const tieneVariantesParaMostrar = !!prod.tiene_variantes || variantesActivasProducto > 0;
                       const imageUrl =
-                        archivoId > 0
+                        imagenTemporal ||
+                        (archivoId > 0
                           ? getProductoImageUrl(
                               prod,
                               API_URL,
                               versionImagenPorProducto[productoId] || 0,
                               intentoImagen
                             )
-                          : "";
+                          : "");
 
                       return (
                         <React.Fragment key={productoId}>
@@ -1834,7 +2019,7 @@ const Stock = () => {
                           <div className="mov-gridCell is-strong" role="cell" data-label="PRODUCTO">
                             <div className="prod-productCell">
                               <div className="prod-thumb">
-                                {archivoId > 0 && imageUrl && !imagenRota ? (
+                                {imageUrl && !imagenRota ? (
                                   <img
                                     src={imageUrl}
                                     alt={prod.nombre}
@@ -1850,6 +2035,11 @@ const Stock = () => {
                                       });
                                     }}
                                     onError={() => {
+                                      if (usandoImagenTemporal) {
+                                        limpiarImagenTemporalProducto(productoId);
+                                        return;
+                                      }
+
                                       if (intentoImagen < 6) {
                                         programarReintentoImagen(productoId);
                                         return;
@@ -2085,9 +2275,13 @@ const Stock = () => {
           productoId={productoEditarId}
           onClose={handleCerrarEditar}
           onToast={mostrarToast}
-          onGuardado={async (productoGuardado) => {
+          onGuardado={async (productoGuardado, opciones = {}) => {
+            const productoIdEditado = getProductoId(productoGuardado) || Number(opciones?.productoId || productoEditarId || 0);
             handleCerrarEditar();
-            await refrescarDespuesDeGuardar(productoGuardado);
+            await refrescarDespuesDeGuardar(productoGuardado, {
+              ...opciones,
+              productoId: productoIdEditado,
+            });
             notifyListsUpdated();
             mostrarToast("exito", "Producto editado correctamente.");
           }}

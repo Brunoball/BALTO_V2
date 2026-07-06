@@ -996,6 +996,7 @@ export default function ModalEditarProducto({
   const [nuevaImagenFile, setNuevaImagenFile] = useState(null);
   const [nuevaImagenPreview, setNuevaImagenPreview] = useState("");
   const [eliminarImagenActual, setEliminarImagenActual] = useState(false);
+  const [variantesEliminadasIds, setVariantesEliminadasIds] = useState([]);
 
   const [miniCategoriaOpen, setMiniCategoriaOpen] = useState(false);
   const [miniCategoriaNombre, setMiniCategoriaNombre] = useState("");
@@ -1292,6 +1293,7 @@ export default function ModalEditarProducto({
       setLoading(true);
       setCargaActiva("producto");
       setErrores({});
+      setVariantesEliminadasIds([]);
 
       try {
         const url = `${API_URL}?action=stock_producto_obtener&id=${encodeURIComponent(
@@ -1782,6 +1784,11 @@ export default function ModalEditarProducto({
 
   const removeVariant = (idx) => {
     setForm((prev) => {
+      const current = (prev.variantes || [])[idx] || null;
+      const id = Number(current?.id_stock_variante || 0);
+      if (id > 0) {
+        setVariantesEliminadasIds((ids) => Array.from(new Set([...(ids || []), id])));
+      }
       const next = (prev.variantes || []).filter((_, i) => i !== idx);
       return { ...prev, variantes: next.length ? next : [emptyVariantRow(prev.tipos_precio_extra)] };
     });
@@ -2219,6 +2226,7 @@ export default function ModalEditarProducto({
             }))
         : [];
       fd.append("variantes", JSON.stringify(variantesPayload));
+      fd.append("variantes_eliminadas_ids", JSON.stringify(variantesEliminadasIds));
 
       if (idUsuarioMaster > 0) {
         fd.append("idUsuarioMaster", String(idUsuarioMaster));
@@ -2258,9 +2266,15 @@ export default function ModalEditarProducto({
       const productoGuardado =
         data?.producto ?? data?.data?.producto ?? data?.data ?? null;
 
-      onGuardado?.(productoGuardado);
+      await onGuardado?.(productoGuardado, {
+        productoId: Number(formNormalizado.id || productoId || 0),
+        imagen_actualizada: !!nuevaImagenFile,
+        imagen_eliminada: eliminarImagenActual && !nuevaImagenFile,
+        imagen_file: nuevaImagenFile || null,
+        variantes_desactivadas: !formNormalizado.tiene_variantes,
+      });
       mostrarToast("Producto actualizado correctamente", "exito");
-      onClose?.();
+      if (typeof onGuardado !== "function") onClose?.();
     } catch (err) {
       mostrarToast(err.message || "Error al actualizar el producto", "error");
     } finally {
@@ -2775,11 +2789,37 @@ export default function ModalEditarProducto({
                         disabled={isLoading}
                         onChange={(e) => {
                           const checked = e.target.checked;
-                          setForm((prev) => ({
-                            ...prev,
-                            tiene_variantes: checked,
-                            variantes: checked ? syncVariantsExtraPrices(prev.variantes, prev.tipos_precio_extra) : prev.variantes,
-                          }));
+                          setForm((prev) => {
+                            const variantesActuales = Array.isArray(prev.variantes) ? prev.variantes : [];
+                            if (!checked) {
+                              const idsExistentes = variantesActuales
+                                .map((variant) => Number(variant?.id_stock_variante || 0))
+                                .filter((id) => id > 0);
+                              if (idsExistentes.length > 0) {
+                                setVariantesEliminadasIds((ids) =>
+                                  Array.from(new Set([...(ids || []), ...idsExistentes]))
+                                );
+                              }
+
+                              return {
+                                ...prev,
+                                tiene_variantes: false,
+                                // Al apagar variantes, se limpia el formulario para que al guardar
+                                // el backend dé de baja todas las variantes viejas y Tienda Nube no
+                                // las vuelva a reconstruir.
+                                variantes: [emptyVariantRow(prev.tipos_precio_extra)],
+                              };
+                            }
+
+                            return {
+                              ...prev,
+                              tiene_variantes: true,
+                              variantes: syncVariantsExtraPrices(
+                                variantesActuales.length ? variantesActuales : [emptyVariantRow(prev.tipos_precio_extra)],
+                                prev.tipos_precio_extra
+                              ),
+                            };
+                          });
                         }}
                       />
                       Tiene variantes
