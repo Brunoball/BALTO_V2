@@ -22,7 +22,6 @@ import {
   faMoneyBillTrendUp,
   faClockRotateLeft,
   faRotateLeft,
-  faSpinner,
 } from "@fortawesome/free-solid-svg-icons";
 import "./Stock.css";
 import "../Global/Global_css/Global_Section.css";
@@ -2410,17 +2409,10 @@ const Stock = () => {
         </div>
       )}
 
-      {toast && esToastCarga(toast.tipo) ? (
-        <div key={toast.id} className="stock-loadingToast" role="status" aria-live="polite">
-          <span className="stock-loadingToast__spinner">
-            <FontAwesomeIcon icon={faSpinner} spin />
-          </span>
-          <span className="stock-loadingToast__text">{toast.mensaje}</span>
-        </div>
-      ) : toast ? (
+      {toast ? (
         <Toast
           key={toast.id}
-          tipo={toast.tipo}
+          tipo={esToastCarga(toast.tipo) ? "cargando" : toast.tipo}
           mensaje={toast.mensaje}
           duracion={toast.duracion}
           onClose={cerrarToast}
