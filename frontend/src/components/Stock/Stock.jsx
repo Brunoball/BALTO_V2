@@ -2061,7 +2061,7 @@ const Stock = () => {
                               {tieneVariantesParaMostrar ? (
                                 <span className="prod-variantBadge prod-variantBadge--count">
                                   {totalVariantesProducto || variantesActivasProducto || 0} variantes
-                                  {variantesInactivasProducto > 0 ? ` · ${variantesInactivasProducto} baja${variantesInactivasProducto === 1 ? "" : "s"}` : ""}
+                                  {!mostrarDadosDeBaja && variantesInactivasProducto > 0 ? ` · ${variantesInactivasProducto} baja${variantesInactivasProducto === 1 ? "" : "s"}` : ""}
                                 </span>
                               ) : null}
                               {productoInactivo ? <span className="prod-variantBadge prod-variantBadge--inactive">Dado de baja</span> : null}
