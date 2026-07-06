@@ -539,11 +539,7 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado }) => {
                 <h3><FontAwesomeIcon icon={faClockRotateLeft} /> Historial de ajustes</h3>
                 <p>Últimos ajustes guardados con precio anterior y precio nuevo.</p>
               </div>
-              <div className="ap-actionsSmall">
-                <button type="button" className="mov-btn mov-btn--ghost" onClick={recargarHistorial}>
-                  <FontAwesomeIcon icon={faRotateRight} /> Recargar
-                </button>
-              </div>
+
             </div>
 
             <div className="ap-history">

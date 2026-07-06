@@ -46,9 +46,7 @@
   box-shadow: 0 10px 22px rgba(0, 85, 187, 0.22);
 }
 
-.ap-panel--historyOnly {
-  min-height: 360px;
-}
+
 
 .ap-modal--historyProduct {
   width: min(1180px, 96vw);
@@ -115,4 +113,19 @@ html[data-theme="oscuro"] .ap-tab.is-active {
   padding: 5px;
   border-radius: 14px;
   box-shadow: 0 10px 24px -22px rgba(10, 37, 64, 0.42);
+}
+
+/* Historial de precios: clicks más firmes para abrir/cerrar grupos */
+.ap-historyItem__head {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ap-historyItem__head > * {
+  pointer-events: none;
+}
+
+.ap-historyItem__head:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--nv-action, #0055BB) 54%, transparent);
+  outline-offset: -2px;
 }

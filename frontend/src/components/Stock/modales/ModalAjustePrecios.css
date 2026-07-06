@@ -234,6 +234,77 @@
   margin-bottom: 12px;
 }
 
+
+/* Pestañas principales: misma estética que Agregar producto (Producto original / Variantes) */
+.ap-tabs {
+  display: inline-flex;
+  gap: 6px;
+  align-self: flex-start;
+  width: max-content;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid var(--nv-border, rgba(15, 23, 42, .12));
+  border-radius: 999px;
+  background: var(--nv-card, #fff);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .05);
+}
+
+.ap-tab {
+  border: 0;
+  background: transparent;
+  color: var(--nv-muted, #5A6A7E);
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+.ap-tab.is-active {
+  background: var(--nv-action, #0055BB);
+  color: #fff;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--nv-action, #0055BB) 24%, transparent);
+}
+
+.ap-tab:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--nv-action, #0055BB) 58%, transparent);
+  outline-offset: 2px;
+}
+
+html[data-theme="oscuro"] .ap-tabs {
+  background: rgba(15, 23, 42, .78) !important;
+  border-color: rgba(148, 163, 184, .18) !important;
+}
+
+html[data-theme="oscuro"] .ap-tab {
+  color: rgba(203, 213, 225, .82) !important;
+}
+
+html[data-theme="oscuro"] .ap-tab.is-active {
+  background: rgba(78, 161, 255, .95) !important;
+  color: #fff !important;
+}
+
+@media (max-width: 720px) {
+  .ap-tabs {
+    width: 100%;
+  }
+
+  .ap-tab {
+    flex: 1;
+    padding-inline: 10px;
+  }
+}
+
 .ap-table,
 .ap-historyTable {
   border: 1px solid var(--nv-border-md, rgba(10,37,64,.12));
@@ -392,7 +463,7 @@
 }
 
 .ap-historyDetail {
-  padding: 0 14px 14px;
+  padding: 10px;
   border-top: 1px solid var(--nv-border, rgba(10,37,64,.08));
 }
 
@@ -719,4 +790,148 @@ html[data-theme="oscuro"] .ap-historyTable__head {
 html[data-theme="oscuro"] .ap-table__head span,
 html[data-theme="oscuro"] .ap-historyTable__head span {
   color: rgba(226, 232, 240, 0.88) !important;
+}
+
+/* =========================================================
+   Corrección historial: legibilidad modo oscuro + contenedor
+   ========================================================= */
+.ap-modal,
+.ap-modal * {
+  box-sizing: border-box;
+}
+
+.ap-modal {
+  height: min(92vh, 860px);
+  max-width: 96vw;
+}
+
+.ap-modalOverlay {
+  overflow: hidden;
+}
+
+.ap-modal__body.mi-modal__content,
+.ap-modal__body {
+  min-height: 0;
+  overflow: auto;
+  overflow-x: hidden;
+}
+
+.ap-panel--historyOnly,
+.ap-history,
+.ap-historyItem,
+.ap-historyDetail,
+.ap-historyTable {
+  min-width: 0;
+  max-width: 100%;
+}
+
+
+
+.ap-historyDetail {
+  overflow: hidden;
+}
+
+.ap-historyTable {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--nv-border-md, rgba(10, 37, 64, 0.12));
+  border-radius: 14px;
+  background: var(--nv-bg, #fff);
+}
+
+.ap-historyTable__head,
+.ap-historyTable__row {
+  min-width: 0;
+}
+
+.ap-historyTable__row > span,
+.ap-historyItem__head > span {
+  min-width: 0;
+}
+
+.ap-historyTable__row > span:not(:first-child),
+.ap-historyDiff {
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-theme="oscuro"] .ap-panel--historyOnly,
+html[data-theme="oscuro"] .ap-historyItem,
+html[data-theme="oscuro"] .ap-historyTable {
+  background: rgba(7, 16, 28, 0.96) !important;
+  border-color: rgba(148, 163, 184, 0.20) !important;
+}
+
+html[data-theme="oscuro"] .ap-historyItem__head {
+  background: rgba(15, 23, 42, 0.72) !important;
+  color: rgba(241, 245, 249, 0.96) !important;
+}
+
+html[data-theme="oscuro"] .ap-historyItem__head:hover {
+  background: rgba(30, 41, 59, 0.82) !important;
+}
+
+html[data-theme="oscuro"] .ap-historyItem__head strong,
+html[data-theme="oscuro"] .ap-historyTable__row b {
+  color: rgba(226, 232, 240, 0.96) !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="oscuro"] .ap-historyItem__head small,
+html[data-theme="oscuro"] .ap-historyTable__row small {
+  color: rgba(203, 213, 225, 0.78) !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="oscuro"] .ap-historyDetail {
+  border-top-color: rgba(148, 163, 184, 0.16) !important;
+  background: rgba(2, 8, 16, 0.28) !important;
+}
+
+html[data-theme="oscuro"] .ap-historyDetail p {
+  background: rgba(15, 23, 42, 0.86) !important;
+  border: 1px solid rgba(148, 163, 184, 0.14) !important;
+  color: rgba(203, 213, 225, 0.86) !important;
+}
+
+html[data-theme="oscuro"] .ap-historyTable__head {
+  background: rgba(15, 23, 42, 0.98) !important;
+  color: rgba(226, 232, 240, 0.92) !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16) !important;
+}
+
+html[data-theme="oscuro"] .ap-historyTable__row {
+  background: rgba(7, 16, 28, 0.92) !important;
+  color: rgba(203, 213, 225, 0.88) !important;
+  border-top-color: rgba(148, 163, 184, 0.12) !important;
+}
+
+html[data-theme="oscuro"] .ap-historyTable__row:hover {
+  background: rgba(15, 23, 42, 0.98) !important;
+}
+
+html[data-theme="oscuro"] .ap-historyTable__row > span:not(:first-child) {
+  color: rgba(203, 213, 225, 0.90) !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="oscuro"] .ap-historyDiff,
+html[data-theme="oscuro"] .ap-positive {
+  color: #34d399 !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="oscuro"] .ap-negative {
+  color: #fb7185 !important;
+  opacity: 1 !important;
+}
+
+@media (max-width: 720px) {
+  .ap-historyTable {
+    overflow-x: auto;
+  }
+
+  .ap-historyTable__head,
+  .ap-historyTable__row {
+    min-width: 640px;
+  }
 }

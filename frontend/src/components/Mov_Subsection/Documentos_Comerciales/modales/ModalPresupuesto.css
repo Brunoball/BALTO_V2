@@ -252,6 +252,37 @@ body.dark .mp-foot-btn__icon {
 
 .mp-prov-wrap:focus-within { z-index: 400; }
 
+/* Autocomplete cliente — centra el label cuando está vacío y lo flota al escribir/seleccionar */
+.mp-prov-wrap--cliente {
+  position: relative;
+}
+
+.mp-prov-wrap--cliente .mp-input--autocomplete {
+  padding: 10px 12px;
+}
+
+.mp-prov-wrap--cliente .mp-label--autocomplete {
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+}
+
+.mp-prov-wrap--cliente:focus-within .mp-label--autocomplete,
+.mp-prov-wrap--cliente.mp-prov-wrap--filled .mp-label--autocomplete {
+  top: -5px;
+  transform: translateY(0) scale(.82);
+  color: var(--mp-action);
+  background: var(--mp-bg);
+}
+
+html[data-theme="oscuro"] .mp-prov-wrap--cliente:focus-within .mp-label--autocomplete,
+html[data-theme="oscuro"] .mp-prov-wrap--cliente.mp-prov-wrap--filled .mp-label--autocomplete,
+body.dark .mp-prov-wrap--cliente:focus-within .mp-label--autocomplete,
+body.dark .mp-prov-wrap--cliente.mp-prov-wrap--filled .mp-label--autocomplete {
+  color: rgba(140, 190, 255, .92);
+  background: var(--mp-bg);
+}
+
 .mp-cc-info,
 .presupuesto-info {
   border: 1px solid var(--mp-border);

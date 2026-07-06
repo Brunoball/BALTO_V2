@@ -948,7 +948,7 @@ html[data-theme="oscuro"] .sc-editBanner    { color: rgba(78,161,255,.90) !impor
 
 .prod-variantsDetailRow {
   width: 100%;
-  padding: 0 14px 12px 62px;
+  padding: 12px;
   border-bottom: 1px solid var(--mov-border, rgba(10,37,64,.08));
   background: color-mix(in srgb, var(--balto-bg, #f7f9fc) 88%, #fff);
 }
@@ -1294,9 +1294,10 @@ html[data-theme="oscuro"] .prod-variantExtraPrices small {
 
 /* Los estilos específicos de modales de stock se movieron a Stock/modales/*.css. */
 
+/* El estado dado de baja ya no usa borde punteado: queda unificado con los chips de estado. */
 .prod-variantBadge--inactive {
-  opacity: 0.85;
-  border-style: dashed;
+  opacity: 1;
+  border-style: solid;
 }
 
 /* Stock: acciones principales debajo de la tabla desde 1300px */
@@ -1386,4 +1387,306 @@ html[data-theme="oscuro"] .prod-variantExtraPrices small {
 html[data-theme="oscuro"] .stock-tableActionsMobile {
   background: rgba(15, 23, 42, 0.56) !important;
   border-color: rgba(148, 163, 184, 0.16) !important;
+}
+
+/* Stock: botones principales con identidad visual propia */
+.stock-tableActions .stock-actionBtn {
+  border-width: 1px;
+  box-shadow: none !important;
+  transition:
+    transform 140ms ease,
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.stock-tableActions .stock-actionBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.stock-tableActions .stock-actionBtn--bajas {
+  background: rgba(124, 58, 237, 0.10) !important;
+  border-color: rgba(124, 58, 237, 0.24) !important;
+  color: #6d28d9 !important;
+}
+
+.stock-tableActions .stock-actionBtn--bajas:hover:not(:disabled) {
+  background: rgba(124, 58, 237, 0.15) !important;
+  border-color: rgba(124, 58, 237, 0.34) !important;
+}
+
+.stock-tableActions .stock-actionBtn--ajuste {
+  background: rgba(14, 165, 143, 0.10) !important;
+  border-color: rgba(14, 165, 143, 0.24) !important;
+  color: #0f766e !important;
+}
+
+.stock-tableActions .stock-actionBtn--ajuste:hover:not(:disabled) {
+  background: rgba(14, 165, 143, 0.15) !important;
+  border-color: rgba(14, 165, 143, 0.34) !important;
+}
+
+.stock-tableActions .stock-actionBtn:disabled {
+  opacity: 0.48;
+  transform: none !important;
+  cursor: not-allowed;
+}
+
+/* Stock: centrado de columnas puntuales en la subtabla de variantes */
+.prod-variantsMiniTable__head span:nth-child(2),
+.prod-variantsMiniTable__head span:nth-child(3),
+.prod-variantsMiniTable__head span:nth-child(7),
+.prod-variantsMiniTable__head span:nth-child(8),
+.prod-variantsMiniTable__row > span:nth-child(2),
+.prod-variantsMiniTable__row > span:nth-child(3),
+.prod-variantsMiniTable__row > span:nth-child(7),
+.prod-variantsMiniTable__row > span:nth-child(8) {
+  justify-self: center;
+  text-align: center;
+}
+
+.prod-variantsMiniTable__row > span:nth-child(2),
+.prod-variantsMiniTable__row > span:nth-child(3),
+.prod-variantsMiniTable__row > span:nth-child(7),
+.prod-variantsMiniTable__row > span:nth-child(8) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Stock: chips de estado de variantes con la misma lógica visual que los chips de stock */
+.prod-variantBadge {
+  min-height: 24px;
+  margin-top: 0;
+  padding: 3px 10px;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26);
+}
+
+.prod-variantBadge--active {
+  background: rgba(16, 185, 129, 0.13) !important;
+  color: #047857 !important;
+  border-color: rgba(16, 185, 129, 0.26) !important;
+}
+
+.prod-variantBadge--inactive {
+  background: rgba(220, 38, 38, 0.12) !important;
+  color: #b91c1c !important;
+  border-color: rgba(220, 38, 38, 0.24) !important;
+  border-style: solid;
+  opacity: 1;
+}
+
+html[data-theme="oscuro"] .stock-tableActions .stock-actionBtn--bajas {
+  background: rgba(167, 139, 250, 0.13) !important;
+  border-color: rgba(167, 139, 250, 0.28) !important;
+  color: #c4b5fd !important;
+}
+
+html[data-theme="oscuro"] .stock-tableActions .stock-actionBtn--bajas:hover:not(:disabled) {
+  background: rgba(167, 139, 250, 0.18) !important;
+  border-color: rgba(167, 139, 250, 0.38) !important;
+}
+
+html[data-theme="oscuro"] .stock-tableActions .stock-actionBtn--ajuste {
+  background: rgba(45, 212, 191, 0.12) !important;
+  border-color: rgba(45, 212, 191, 0.26) !important;
+  color: #5eead4 !important;
+}
+
+html[data-theme="oscuro"] .stock-tableActions .stock-actionBtn--ajuste:hover:not(:disabled) {
+  background: rgba(45, 212, 191, 0.17) !important;
+  border-color: rgba(45, 212, 191, 0.36) !important;
+}
+
+html[data-theme="oscuro"] .prod-variantBadge--active {
+  background: rgba(16, 185, 129, 0.16) !important;
+  color: #34d399 !important;
+  border-color: rgba(52, 211, 153, 0.28) !important;
+}
+
+html[data-theme="oscuro"] .prod-variantBadge--inactive {
+  background: rgba(220, 38, 38, 0.18) !important;
+  color: #f87171 !important;
+  border-color: rgba(248, 113, 113, 0.28) !important;
+}
+
+@media (max-width: 900px) {
+  .prod-variantsMiniTable__row > span:nth-child(2),
+  .prod-variantsMiniTable__row > span:nth-child(3),
+  .prod-variantsMiniTable__row > span:nth-child(7),
+  .prod-variantsMiniTable__row > span:nth-child(8) {
+    justify-self: stretch;
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
+
+
+/* Stock: chips reales de estado en la subtabla de variantes.
+   Separados del badge de cantidad de variantes para que Activa/Dada de baja no hereden estilos distintos. */
+.prod-statusChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 86px;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  margin: 0 auto;
+  box-shadow: none;
+}
+
+.prod-statusChip--active {
+  background: rgba(16, 185, 129, 0.13) !important;
+  color: #047857 !important;
+  border-color: rgba(16, 185, 129, 0.26) !important;
+}
+
+.prod-statusChip--inactive {
+  background: rgba(220, 38, 38, 0.12) !important;
+  color: #b91c1c !important;
+  border-color: rgba(220, 38, 38, 0.24) !important;
+}
+
+html[data-theme="oscuro"] .prod-statusChip--active {
+  background: rgba(16, 185, 129, 0.16) !important;
+  color: #34d399 !important;
+  border-color: rgba(52, 211, 153, 0.28) !important;
+}
+
+html[data-theme="oscuro"] .prod-statusChip--inactive {
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #fca5a5 !important;
+  border-color: rgba(248, 113, 113, 0.28) !important;
+}
+
+/* Stock: alinear a la derecha las columnas de precios en la subtabla de variantes */
+.prod-variantsMiniTable__head span:nth-child(4),
+.prod-variantsMiniTable__head span:nth-child(5),
+.prod-variantsMiniTable__head span:nth-child(6),
+.prod-variantsMiniTable__row > span:nth-child(4),
+.prod-variantsMiniTable__row > span:nth-child(5),
+.prod-variantsMiniTable__row > span:nth-child(6) {
+  justify-self: end;
+  text-align: right;
+}
+
+.prod-variantsMiniTable__row > span:nth-child(4),
+.prod-variantsMiniTable__row > span:nth-child(5),
+.prod-variantsMiniTable__row > span:nth-child(6) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .prod-variantsMiniTable__head span:nth-child(4),
+  .prod-variantsMiniTable__head span:nth-child(5),
+  .prod-variantsMiniTable__head span:nth-child(6),
+  .prod-variantsMiniTable__row > span:nth-child(4),
+  .prod-variantsMiniTable__row > span:nth-child(5),
+  .prod-variantsMiniTable__row > span:nth-child(6) {
+    justify-self: stretch;
+    text-align: left;
+  }
+
+  .prod-variantsMiniTable__row > span:nth-child(4),
+  .prod-variantsMiniTable__row > span:nth-child(5),
+  .prod-variantsMiniTable__row > span:nth-child(6) {
+    justify-content: flex-start;
+  }
+}
+
+/* Stock: despliegue de variantes desde la fila completa + badge de cantidad */
+.mov-gridTable--row.prod-row--expandable {
+  cursor: pointer;
+  user-select: none;
+  transition: background .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+
+.mov-gridTable--row.prod-row--expandable:hover {
+  background: color-mix(in srgb, var(--nv-action, #0055BB) 5%, var(--balto-card, #fff));
+}
+
+.mov-gridTable--row.prod-row--expandable:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--nv-action, #0055BB) 56%, transparent);
+  outline-offset: -2px;
+}
+
+.mov-gridTable--row.prod-row--expandable.is-variants-open {
+  background: color-mix(in srgb, var(--nv-action, #0055BB) 7%, var(--balto-card, #fff));
+  box-shadow: inset 3px 0 0 var(--nv-action, #0055BB);
+}
+
+.mov-gridTable--row.prod-row--expandable .mov-iconBtn,
+.mov-gridTable--row.prod-row--expandable a,
+.mov-gridTable--row.prod-row--expandable input,
+.mov-gridTable--row.prod-row--expandable button,
+.mov-gridTable--row.prod-row--expandable select,
+.mov-gridTable--row.prod-row--expandable textarea {
+  user-select: auto;
+}
+
+.prod-productCell {
+  gap: 12px;
+}
+
+.prod-variantBadge--count {
+  display: flex;
+  align-items: center;
+  min-height: 30px !important;
+  padding: 0 12px !important;
+  border-radius: 999px !important;
+  border: 1px solid color-mix(in srgb, var(--nv-action, #0055BB) 26%, transparent) !important;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--nv-action, #0055BB) 14%, var(--balto-card, #fff)),
+    color-mix(in srgb, var(--nv-action, #0055BB) 7%, var(--balto-card, #fff))
+  ) !important;
+  color: var(--nv-action, #0055BB) !important;
+  font-size: 12px !important;
+  font-weight: 680 !important;
+  letter-spacing: .01em !important;
+  box-shadow: 0 8px 18px -14px color-mix(in srgb, var(--nv-action, #0055BB) 70%, transparent) !important;
+}
+
+.prod-variantBadge--count::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .72;
+}
+
+.prod-row--expandable.is-variants-open .prod-variantBadge--count {
+  border-color: color-mix(in srgb, var(--nv-action, #0055BB) 42%, transparent) !important;
+  box-shadow: 0 10px 22px -16px color-mix(in srgb, var(--nv-action, #0055BB) 76%, transparent) !important;
+}
+
+html[data-theme="oscuro"] .mov-gridTable--row.prod-row--expandable:hover {
+  background: rgba(78, 161, 255, 0.08) !important;
+}
+
+html[data-theme="oscuro"] .mov-gridTable--row.prod-row--expandable.is-variants-open {
+  background: rgba(78, 161, 255, 0.11) !important;
+  box-shadow: inset 3px 0 0 rgba(78, 161, 255, 0.88);
+}
+
+html[data-theme="oscuro"] .prod-variantBadge--count {
+  background: linear-gradient(135deg, rgba(78, 161, 255, 0.18), rgba(37, 99, 235, 0.10)) !important;
+  color: #93c5fd !important;
+  border-color: rgba(147, 197, 253, 0.24) !important;
+  box-shadow: 0 10px 22px -17px rgba(78, 161, 255, 0.72) !important;
 }

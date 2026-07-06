@@ -1719,7 +1719,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                       <label className="mp-label">Fecha</label>
                     </div>
 
-                    <div className="mp-prov-wrap">
+                    <div className={`mp-prov-wrap mp-prov-wrap--cliente ${cliInput ? "mp-prov-wrap--filled" : ""}`}>
                       <GlobalAutocomplete
                         value={cliInput}
                         onChange={handleClienteInputChange}
@@ -1727,13 +1727,14 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                         options={clientesOptions}
                         getOptionLabel={(c) => isAddClienteOption(c) ? "➕ Agregar cliente" : getClienteNombre(c)}
                         getOptionValue={(c) => isAddClienteOption(c) ? "__add_cliente__" : String(getClienteId(c) || getClienteNombre(c))}
-                        label="Cliente *"
+                        label=""
                         placeholder=" "
                         disabled={saving || addUI.open}
                         showAllOnFocus={true}
                         maxItems={25}
-                        inputClassName="mp-input"
+                        inputClassName="mp-input mp-input--autocomplete"
                       />
+                      <span className="mp-label mp-label--autocomplete">Cliente *</span>
                     </div>
 
 

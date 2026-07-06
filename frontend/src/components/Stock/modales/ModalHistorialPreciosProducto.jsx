@@ -141,9 +141,26 @@ const ModalHistorialPreciosProducto = ({ open, producto, onClose, onToast }) => 
     return { total: items.length, subas, bajas, difTotal };
   }, [items]);
 
-  const toggleGrupo = (key) => {
-    setGrupoAbierto((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
+  const toggleGrupo = useCallback((key) => {
+    setGrupoAbierto((prev) => {
+      const abiertoActual = prev[key] !== false;
+      return { ...prev, [key]: !abiertoActual };
+    });
+  }, []);
+
+  const handleOverlayMouseDown = useCallback((e) => {
+    if (e.target !== overlayRef.current) return;
+    if (!isTopStockModal(overlayRef.current)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof onClose === "function") onClose();
+  }, [onClose]);
+
+  const handleToggleGrupo = useCallback((e, key) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleGrupo(key);
+  }, [toggleGrupo]);
 
   if (!open) return null;
 
@@ -151,8 +168,19 @@ const ModalHistorialPreciosProducto = ({ open, producto, onClose, onToast }) => 
   const skuProducto = productoInfo?.sku || producto?.sku || "—";
 
   return createPortal(
-    <div ref={overlayRef} data-stock-modal-overlay="true" className="mi-modal__overlay ap-modalOverlay" role="dialog" aria-modal="true">
-      <div className="mi-modal__container ap-modal ap-modal--historyProduct">
+    <div
+      ref={overlayRef}
+      data-stock-modal-overlay="true"
+      className="mi-modal__overlay ap-modalOverlay"
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={handleOverlayMouseDown}
+    >
+      <div
+        className="mi-modal__container ap-modal ap-modal--historyProduct"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mi-modal__header ap-modal__head">
           <div className="mi-modal__head-icon ap-modal__titleIcon">
             <FontAwesomeIcon icon={faClockRotateLeft} />
@@ -207,7 +235,13 @@ const ModalHistorialPreciosProducto = ({ open, producto, onClose, onToast }) => 
                   const diferenciaGrupo = grupo.items.reduce((acc, item) => acc + Number(item?.diferencia || 0), 0);
                   return (
                     <div className="ap-historyItem" key={grupo.key}>
-                      <button type="button" className="ap-historyItem__head" onClick={() => toggleGrupo(grupo.key)}>
+                      <button
+                        type="button"
+                        className="ap-historyItem__head"
+                        aria-expanded={abierto}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => handleToggleGrupo(e, grupo.key)}
+                      >
                         <span>
                           <strong>{grupo.label}</strong>
                           <small>{grupo.items.length} cambios registrados</small>

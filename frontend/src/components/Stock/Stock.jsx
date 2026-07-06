@@ -1496,9 +1496,9 @@ const Stock = () => {
                     <span className="prod-promo">{formatMoney(variant.precio_promo)}</span>
                     <span>
                       {varianteInactiva ? (
-                        <span className="prod-variantBadge prod-variantBadge--inactive">Dada de baja</span>
+                        <span className="prod-statusChip prod-statusChip--inactive">Dada de baja</span>
                       ) : (
-                        <span className="prod-variantBadge prod-variantBadge--active">Activa</span>
+                        <span className="prod-statusChip prod-statusChip--active">Activa</span>
                       )}
                     </span>
                     <span className="prod-variantActions">
@@ -1542,7 +1542,12 @@ const Stock = () => {
         {showToggleBajas ? (
           <button
             type="button"
-            className={mostrarDadosDeBaja ? "mov-btn mov-btn--primary" : "mov-btn mov-btn--ghost"}
+            className={[
+              "mov-btn",
+              mostrarDadosDeBaja ? "mov-btn--primary" : "mov-btn--ghost",
+              "stock-actionBtn",
+              "stock-actionBtn--bajas",
+            ].join(" ")}
             onClick={() => {
               setMostrarDadosDeBaja((prev) => !prev);
               setPaginaActual(1);
@@ -1555,7 +1560,7 @@ const Stock = () => {
         {showAjustePrecios ? (
           <button
             type="button"
-            className="mov-btn mov-btn--ghost"
+            className="mov-btn mov-btn--ghost stock-actionBtn stock-actionBtn--ajuste"
             onClick={() => setModalAjustePreciosAbierto(true)}
             disabled={mostrarDadosDeBaja}
           >
@@ -1772,25 +1777,25 @@ const Stock = () => {
                       return (
                         <React.Fragment key={productoId}>
                         <div
-                          className="mov-gridTable mov-gridTable--row"
+                          className={`mov-gridTable mov-gridTable--row ${tieneVariantesParaMostrar ? "prod-row--expandable" : ""} ${variantesAbiertas[productoId] ? "is-variants-open" : ""}`}
                           style={{ gridTemplateColumns: GRID_COLS }}
                           role="row"
+                          tabIndex={tieneVariantesParaMostrar ? 0 : undefined}
+                          aria-expanded={tieneVariantesParaMostrar ? !!variantesAbiertas[productoId] : undefined}
+                          title={tieneVariantesParaMostrar ? (variantesAbiertas[productoId] ? "Ocultar variantes" : "Ver variantes") : undefined}
+                          onClick={() => {
+                            if (tieneVariantesParaMostrar) toggleVariantesProducto(prod);
+                          }}
+                          onKeyDown={(e) => {
+                            if (!tieneVariantesParaMostrar) return;
+                            if (e.target !== e.currentTarget) return;
+                            if (e.key !== "Enter" && e.key !== " ") return;
+                            e.preventDefault();
+                            toggleVariantesProducto(prod);
+                          }}
                         >
                           <div className="mov-gridCell is-strong" role="cell" data-label="PRODUCTO">
                             <div className="prod-productCell">
-                              {tieneVariantesParaMostrar ? (
-                                <button
-                                  type="button"
-                                  className="prod-expandBtn"
-                                  title={variantesAbiertas[productoId] ? "Ocultar variantes" : "Ver variantes"}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleVariantesProducto(prod);
-                                  }}
-                                >
-                                  <FontAwesomeIcon icon={variantesAbiertas[productoId] ? faChevronUp : faChevronDown} />
-                                </button>
-                              ) : null}
                               <div className="prod-thumb">
                                 {archivoId > 0 && imageUrl && !imagenRota ? (
                                   <img
@@ -1828,7 +1833,7 @@ const Stock = () => {
 
                               <span className="mov-ellipsissss">{prod.nombre}</span>
                               {tieneVariantesParaMostrar ? (
-                                <span className="prod-variantBadge">
+                                <span className="prod-variantBadge prod-variantBadge--count">
                                   {totalVariantesProducto || variantesActivasProducto || 0} variantes
                                   {variantesInactivasProducto > 0 ? ` · ${variantesInactivasProducto} baja${variantesInactivasProducto === 1 ? "" : "s"}` : ""}
                                 </span>
@@ -1881,7 +1886,10 @@ const Stock = () => {
                                 type="button"
                                 title="Historial de precios"
                                 className="mov-iconBtn"
-                                onClick={() => setProductoHistorialPrecios(prod)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setProductoHistorialPrecios(prod);
+                                }}
                               >
                                 <FontAwesomeIcon icon={faClockRotateLeft} />
                               </button>
@@ -1892,7 +1900,10 @@ const Stock = () => {
                                   title="Reactivar producto"
                                   className="mov-iconBtn"
                                   disabled={reactivandoId === productoId}
-                                  onClick={() => handleReactivarProducto(prod)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleReactivarProducto(prod);
+                                  }}
                                 >
                                   <FontAwesomeIcon icon={faRotateLeft} />
                                 </button>
@@ -1902,7 +1913,10 @@ const Stock = () => {
                                     type="button"
                                     title="Editar"
                                     className="mov-iconBtn"
-                                    onClick={() => handleAbrirEditar(productoId)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAbrirEditar(productoId);
+                                    }}
                                   >
                                     <FontAwesomeIcon icon={faPenToSquare} />
                                   </button>
@@ -1911,7 +1925,10 @@ const Stock = () => {
                                     type="button"
                                     title="Dar de baja"
                                     className="mov-iconBtn mov-iconBtn--danger"
-                                    onClick={() => handleAbrirEliminar(prod)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAbrirEliminar(prod);
+                                    }}
                                   >
                                     <FontAwesomeIcon icon={faTrashCan} />
                                   </button>
