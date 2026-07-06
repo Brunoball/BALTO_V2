@@ -6,6 +6,7 @@ import ModalHistorialPreciosProducto from "./modales/ModalHistorialPreciosProduc
 import ModalEliminar from "../Global/Modales/ModalEliminar";
 import Toast from "../Global/Toast";
 import BASE_URL from "../../config/config";
+import BaltoCargaGif from "../../imagenes/Balto_Carga.gif";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faPlus,
@@ -21,11 +22,15 @@ import {
   faMoneyBillTrendUp,
   faClockRotateLeft,
   faRotateLeft,
+  faSpinner,
 } from "@fortawesome/free-solid-svg-icons";
 import "./Stock.css";
 import "../Global/Global_css/Global_Section.css";
 
 const API_URL = `${String(BASE_URL || "").replace(/\/+$/, "")}/api.php`;
+const TOAST_LOADING_DURATION = 90000;
+const PRECIOS_MASIVOS_LOADING_THRESHOLD = 10;
+
 
 function buildHeadersGET() {
   const sessionKey = (localStorage.getItem("session_key") || "").trim();
@@ -137,6 +142,11 @@ function toNonNegativeInt(value) {
 
 function pluralize(count, singular, plural = `${singular}s`) {
   return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function esToastCarga(tipo) {
+  const t = String(tipo || "").toLowerCase().trim();
+  return t === "loading" || t === "cargando" || t === "carga" || t === "loader";
 }
 
 function normalizeText(value) {
@@ -496,6 +506,7 @@ const Stock = () => {
   const [errorImpactoEliminar, setErrorImpactoEliminar] = useState("");
 
   const [toast, setToast] = useState(null);
+  const [cargaPreciosMasivos, setCargaPreciosMasivos] = useState(null);
   const [versionImagenPorProducto, setVersionImagenPorProducto] = useState({});
   const [erroresImagenes, setErroresImagenes] = useState({});
   const [reintentosImagenes, setReintentosImagenes] = useState({});
@@ -513,7 +524,29 @@ const Stock = () => {
     setToast({ tipo, mensaje, duracion, id: Date.now() + Math.random() });
   }, []);
 
+  const mostrarToastCarga = useCallback((mensaje) => {
+    mostrarToast("loading", mensaje, TOAST_LOADING_DURATION);
+  }, [mostrarToast]);
+
   const cerrarToast = useCallback(() => setToast(null), []);
+
+  useEffect(() => {
+    if (!toast || !esToastCarga(toast.tipo) || !Number(toast.duracion || 0)) return undefined;
+    const timer = window.setTimeout(() => setToast(null), Number(toast.duracion));
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const handleCargaPreciosMasivos = useCallback((estado) => {
+    if (!estado?.open) {
+      setCargaPreciosMasivos(null);
+      return;
+    }
+
+    setCargaPreciosMasivos({
+      total: Number(estado?.total || 0),
+      startedAt: Date.now(),
+    });
+  }, []);
 
   const limpiarRefreshTimers = useCallback(() => {
     refreshTimersRef.current.forEach((id) => clearTimeout(id));
@@ -1156,6 +1189,8 @@ const Stock = () => {
     if (!productoId || productoId <= 0 || reactivandoId) return;
 
     setReactivandoId(productoId);
+    mostrarToastCarga("Dando de alta producto...");
+
     try {
       const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
       const payload = {
@@ -1173,9 +1208,9 @@ const Stock = () => {
       setProductosRaw((prev) => prev.filter((p) => getProductoId(p) !== productoId));
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
-      mostrarToast("exito", "Producto reactivado correctamente.");
+      mostrarToast("exito", "Producto dado de alta correctamente.");
     } catch (error) {
-      mostrarToast("error", error?.message || "No se pudo reactivar el producto.");
+      mostrarToast("error", error?.message || "No se pudo dar de alta el producto.");
     } finally {
       setReactivandoId(null);
     }
@@ -1214,6 +1249,7 @@ const Stock = () => {
     }
 
     setProcesandoVarianteId(varianteId);
+    mostrarToastCarga("Dando de baja variante...");
 
     try {
       const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
@@ -1249,6 +1285,7 @@ const Stock = () => {
     if (!productoId || !varianteId || procesandoVarianteId) return;
 
     setProcesandoVarianteId(varianteId);
+    mostrarToastCarga("Dando de alta variante...");
 
     try {
       const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
@@ -1268,9 +1305,9 @@ const Stock = () => {
       await cargarVariantesProducto(productoId);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
-      mostrarToast("exito", "Variante reactivada correctamente.");
+      mostrarToast("exito", "Variante dada de alta correctamente.");
     } catch (error) {
-      mostrarToast("error", error?.message || "No se pudo reactivar la variante.");
+      mostrarToast("error", error?.message || "No se pudo dar de alta la variante.");
     } finally {
       setProcesandoVarianteId(null);
     }
@@ -1506,7 +1543,7 @@ const Stock = () => {
                         <button
                           type="button"
                           className="mov-iconBtn"
-                          title="Reactivar variante"
+                          title="Dar de alta variante"
                           disabled={procesandoEstaVariante}
                           onClick={() => handleReactivarVariante(prod, variant)}
                         >
@@ -1897,7 +1934,7 @@ const Stock = () => {
                               {productoInactivo ? (
                                 <button
                                   type="button"
-                                  title="Reactivar producto"
+                                  title="Dar de alta producto"
                                   className="mov-iconBtn"
                                   disabled={reactivandoId === productoId}
                                   onClick={(e) => {
@@ -2007,6 +2044,8 @@ const Stock = () => {
               window.dispatchEvent(new CustomEvent("balto:stock-updated"));
             } catch {}
           }}
+          onProcesoMasivo={handleCargaPreciosMasivos}
+          umbralProcesoMasivo={PRECIOS_MASIVOS_LOADING_THRESHOLD}
         />
       )}
 
@@ -2157,7 +2196,34 @@ const Stock = () => {
         }
       />
 
-      {toast && (
+
+      {cargaPreciosMasivos && (
+        <div className="stock-priceLoadingOverlay" role="status" aria-live="polite">
+          <div className="stock-priceLoadingModal">
+            <div className="stock-priceLoadingModal__icon">
+              <img src={BaltoCargaGif} alt="Balto cargando" className="stock-priceLoadingModal__gif" />
+            </div>
+            <div className="stock-priceLoadingModal__content">
+              <h3>Actualizando precios en Balto y Tienda Nube</h3>
+              <p>Esta acción puede tardar unos segundos.</p>
+              <small>
+                {cargaPreciosMasivos.total > 0
+                  ? `${cargaPreciosMasivos.total} precios en proceso. Si la conexión con Tienda Nube está activa, también se sincronizan allá.`
+                  : "Si la conexión con Tienda Nube está activa, también se sincronizan allá."}
+              </small>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && esToastCarga(toast.tipo) ? (
+        <div key={toast.id} className="stock-loadingToast" role="status" aria-live="polite">
+          <span className="stock-loadingToast__spinner">
+            <FontAwesomeIcon icon={faSpinner} spin />
+          </span>
+          <span className="stock-loadingToast__text">{toast.mensaje}</span>
+        </div>
+      ) : toast ? (
         <Toast
           key={toast.id}
           tipo={toast.tipo}
@@ -2165,7 +2231,7 @@ const Stock = () => {
           duracion={toast.duracion}
           onClose={cerrarToast}
         />
-      )}
+      ) : null}
     </>
   );
 };
