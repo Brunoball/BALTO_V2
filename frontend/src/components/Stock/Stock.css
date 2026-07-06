@@ -1720,3 +1720,105 @@ html[data-theme="oscuro"] .mov-gridCell .prod-productCell > .prod-variantBadge--
   background: rgba(239, 68, 68, 0.18) !important;
   color: #fca5a5 !important;
 }
+
+/* Modal de espera para ajustes masivos de precios */
+.stock-priceLoadingOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  background: rgba(4, 12, 24, 0.58);
+  backdrop-filter: blur(5px);
+}
+
+.stock-priceLoadingModal {
+  width: min(460px, 92vw);
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px 24px;
+  border-radius: 22px;
+  background: var(--nv-bg, #fff);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 28px 80px rgba(10, 37, 64, 0.32);
+}
+
+.stock-priceLoadingModal__icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--nv-action, #0055BB);
+  background: rgba(0, 85, 187, 0.10);
+  font-size: 22px;
+}
+
+.stock-priceLoadingModal__gif {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  display: block;
+}
+
+.stock-priceLoadingModal__content h3 {
+  margin: 1px 0 7px;
+  color: var(--nv-text, #0A2540);
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.stock-priceLoadingModal__content p {
+  margin: 0 0 7px;
+  color: var(--nv-text, #0A2540);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.stock-priceLoadingModal__content small {
+  display: block;
+  color: var(--nv-muted, #5A6A7E);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+
+/* Toast de carga propio de Stock para mantener feedback con spinner */
+.stock-loadingToast {
+  position: fixed;
+  top: 22px;
+  right: 22px;
+  z-index: 1000000001;
+  min-width: min(360px, calc(100vw - 44px));
+  max-width: min(420px, calc(100vw - 44px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  color: var(--nv-text, #0A2540);
+  background: var(--nv-bg, #fff);
+  border: 1px solid rgba(10, 37, 64, 0.10);
+  box-shadow: 0 18px 44px rgba(10, 37, 64, 0.20);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.stock-loadingToast__spinner {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--nv-action, #0055BB);
+  background: rgba(0, 85, 187, 0.10);
+}
+
+.stock-loadingToast__text {
+  min-width: 0;
+  line-height: 1.35;}

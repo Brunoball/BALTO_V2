@@ -27,6 +27,9 @@ import {
 import "./ModalAjustePrecios.css";
 import { isTopStockModal } from "./modalStackUtils";
 
+const TOAST_LOADING_DURATION = 90000;
+const DEFAULT_BULK_LOADING_THRESHOLD = 10;
+
 function formatMoney(value) {
   if (value === null || value === undefined || value === "") return "—";
   const n = Number(String(value).replace(",", "."));
@@ -105,8 +108,9 @@ async function apiPost(action, body) {
   return await parseJsonOrThrow(res);
 }
 
-const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado }) => {
+const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado, onProcesoMasivo, umbralProcesoMasivo = DEFAULT_BULK_LOADING_THRESHOLD }) => {
   const overlayRef = useRef(null);
+  const mountedRef = useRef(true);
   const [tiposPrecio, setTiposPrecio] = useState([]);
   const [idTipoPrecio, setIdTipoPrecio] = useState("");
   const [opciones, setOpciones] = useState([]);
@@ -124,11 +128,18 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado }) => {
   const [tabActiva, setTabActiva] = useState("ajuste");
 
   const avisar = useCallback(
-    (tipo, mensaje) => {
-      if (typeof onToast === "function") onToast(tipo, mensaje);
+    (tipo, mensaje, duracion) => {
+      if (typeof onToast === "function") onToast(tipo, mensaje, duracion);
     },
     [onToast]
   );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const cargarBase = useCallback(async () => {
     setLoading(true);
@@ -176,13 +187,6 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado }) => {
       setLoadingOpciones(false);
     }
   }, [avisar, idTipoPrecio]);
-
-  const recargarHistorial = useCallback(async () => {
-    try {
-      const data = await apiGet({ action: "stock_precios_ajustes_historial", limit: "20" });
-      setHistorial(Array.isArray(data?.ajustes) ? data.ajustes : []);
-    } catch {}
-  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -286,33 +290,53 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado }) => {
       return;
     }
 
-    setGuardando(true);
-    try {
-      const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
-      const payload = {
-        id_tipo_precio_stock: Number(idTipoPrecio),
-        tipo_ajuste: modoAjuste,
-        valor_ajuste: moneyToApi(valorAjuste) || String(valorAjuste).replace(",", "."),
-        observacion,
-        idUsuarioMaster,
-        idTenant,
-        items: seleccionadosArray.map((row) => ({
-          id_stock_producto: Number(row.id_stock_producto),
-          id_stock_variante: row.id_stock_variante === null || row.id_stock_variante === undefined ? null : Number(row.id_stock_variante),
-        })),
-      };
+    const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
+    const payload = {
+      id_tipo_precio_stock: Number(idTipoPrecio),
+      tipo_ajuste: modoAjuste,
+      valor_ajuste: moneyToApi(valorAjuste) || String(valorAjuste).replace(",", "."),
+      observacion,
+      idUsuarioMaster,
+      idTenant,
+      items: seleccionadosArray.map((row) => ({
+        id_stock_producto: Number(row.id_stock_producto),
+        id_stock_variante: row.id_stock_variante === null || row.id_stock_variante === undefined ? null : Number(row.id_stock_variante),
+      })),
+    };
 
+    const totalSeleccionados = seleccionadosArray.length;
+    const mostrarCargaMasiva = totalSeleccionados >= Number(umbralProcesoMasivo || DEFAULT_BULK_LOADING_THRESHOLD);
+    const mensajeCarga = "Actualizando precios en Balto y Tienda Nube...";
+
+    setGuardando(true);
+
+    if (mostrarCargaMasiva && typeof onProcesoMasivo === "function") {
+      onProcesoMasivo({ open: true, total: totalSeleccionados });
+    } else {
+      avisar("loading", mensajeCarga, TOAST_LOADING_DURATION);
+    }
+
+    onClose?.();
+
+    try {
       const data = await apiPost("stock_precios_ajuste_crear", payload);
-      avisar("exito", data?.mensaje || "Ajuste de precios guardado correctamente.");
-      setValorAjuste("");
-      setObservacion("");
-      setSeleccionados({});
-      await Promise.all([cargarOpciones(), recargarHistorial()]);
-      if (typeof onGuardado === "function") onGuardado(data);
+      if (typeof onGuardado === "function") await onGuardado(data);
+
+      const sync = data?.tiendanube_sync;
+      const sincronizados = Number(sync?.sincronizados || 0);
+      const totalSync = Number(sync?.total_productos || 0);
+      const mensajeExito = sincronizados > 0
+        ? `Precios actualizados correctamente en Balto y Tienda Nube (${sincronizados}/${totalSync || sincronizados} productos sincronizados).`
+        : data?.mensaje || "Precios actualizados correctamente.";
+
+      avisar("exito", mensajeExito);
     } catch (err) {
-      avisar("error", err?.message || "No se pudo guardar el ajuste de precios.");
+      avisar("error", err?.message || "No se pudo actualizar los precios.");
     } finally {
-      setGuardando(false);
+      if (mostrarCargaMasiva && typeof onProcesoMasivo === "function") {
+        onProcesoMasivo({ open: false });
+      }
+      if (mountedRef.current) setGuardando(false);
     }
   };
 
