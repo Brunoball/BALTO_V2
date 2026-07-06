@@ -1690,3 +1690,33 @@ html[data-theme="oscuro"] .prod-variantBadge--count {
   border-color: rgba(147, 197, 253, 0.24) !important;
   box-shadow: 0 10px 22px -17px rgba(78, 161, 255, 0.72) !important;
 }
+
+/* Stock: chip de producto dado de baja en la fila principal.
+   Se separa del badge de variantes para que no quede como etiqueta plana sin fondo. */
+.prod-productCell > .prod-variantBadge--inactive,
+.mov-gridCell .prod-productCell > .prod-variantBadge--inactive {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: fit-content !important;
+  min-height: 28px !important;
+  margin-top: 4px !important;
+  padding: 0 12px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(220, 38, 38, 0.28) !important;
+  background: rgba(220, 38, 38, 0.12) !important;
+  color: #b91c1c !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.01em !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="oscuro"] .prod-productCell > .prod-variantBadge--inactive,
+html[data-theme="oscuro"] .mov-gridCell .prod-productCell > .prod-variantBadge--inactive {
+  border-color: rgba(248, 113, 113, 0.30) !important;
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #fca5a5 !important;
+}
