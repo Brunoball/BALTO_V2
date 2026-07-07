@@ -102,3 +102,35 @@ html[data-theme="oscuro"] .stock-eliminarModal__confirm {
   border-color: rgba(248, 113, 113, .36) !important;
   color: rgba(255, 255, 255, .96) !important;
 }
+
+/* Scroll propio para que el modal de eliminar no se corte en pantallas chicas */
+.stock-eliminarModal {
+  max-height: calc(100vh - 32px);
+}
+
+.stock-eliminarModal__content {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.stock-eliminarModal > .mit-actions {
+  flex: 0 0 auto;
+}
+
+@media (max-height: 640px) {
+  .stock-eliminarModal {
+    max-height: calc(100vh - 20px);
+  }
+
+  .stock-eliminarModal__content {
+    padding-block: 12px;
+  }
+}
+
+@media (max-width: 520px) {
+  .stock-eliminarModal__detail {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+}

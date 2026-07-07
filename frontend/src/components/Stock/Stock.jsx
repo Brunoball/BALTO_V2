@@ -1363,15 +1363,26 @@ const Stock = () => {
   };
 
   const ejecutarAccionProducto = async ({ permanente = false } = {}) => {
-    const productoId = getProductoId(productoEliminar);
+    const productoAccion = productoEliminar;
+    const productoId = getProductoId(productoAccion);
 
     if (!productoId || productoId <= 0) {
       mostrarToast("error", "ID de producto inválido.");
       return;
     }
 
+    const accion = permanente ? "eliminar" : "baja";
+
+    setModalDarBajaProductoAbierto(false);
+    setModalEliminarAbierto(false);
+    setProductoEliminar(null);
+    setImpactoEliminar(null);
+    setErrorImpactoEliminar("");
+    setCargandoImpactoEliminar(false);
     setEliminando(true);
-    setAccionEliminacionProducto(permanente ? "eliminar" : "baja");
+    setAccionEliminacionProducto(accion);
+
+    mostrarToastCarga(permanente ? "Eliminando producto definitivamente..." : "Dando de baja producto...");
 
     try {
       const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
@@ -1393,9 +1404,6 @@ const Stock = () => {
       }
 
       limpiarEstadoVisualProducto(productoId);
-      setModalDarBajaProductoAbierto(false);
-      setModalEliminarAbierto(false);
-      setProductoEliminar(null);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
       mostrarToast("exito", permanente ? "Producto eliminado permanentemente." : "Producto dado de baja correctamente.");
@@ -1486,16 +1494,23 @@ const Stock = () => {
   };
 
   const ejecutarAccionVariante = async ({ permanente = false } = {}) => {
-    const varianteId = getVarianteId(varianteBaja);
-    const productoId = Number(varianteBaja?.productoId || varianteBaja?.id_stock_producto || 0);
+    const varianteAccion = varianteBaja;
+    const varianteId = getVarianteId(varianteAccion);
+    const productoId = Number(varianteAccion?.productoId || varianteAccion?.id_stock_producto || 0);
 
     if (!varianteId || varianteId <= 0 || !productoId || productoId <= 0) {
       mostrarToast("error", "ID de variante inválido.");
       return;
     }
 
+    const accion = permanente ? "eliminar" : "baja";
+
+    setModalBajaVarianteAbierto(false);
+    setModalEliminarVarianteAbierto(false);
+    setVarianteBaja(null);
     setProcesandoVarianteId(varianteId);
-    setAccionEliminacionVariante(permanente ? "eliminar" : "baja");
+    setAccionEliminacionVariante(accion);
+
     mostrarToastCarga(permanente ? "Eliminando variante definitivamente..." : "Dando de baja variante...");
 
     try {
@@ -1516,9 +1531,6 @@ const Stock = () => {
       await cargarVariantesProducto(productoId);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
-      setModalBajaVarianteAbierto(false);
-      setModalEliminarVarianteAbierto(false);
-      setVarianteBaja(null);
       mostrarToast("exito", permanente ? "Variante eliminada permanentemente." : "Variante dada de baja correctamente.");
     } catch (error) {
       mostrarToast("error", error?.message || (permanente ? "No se pudo eliminar la variante." : "No se pudo dar de baja la variante."));
