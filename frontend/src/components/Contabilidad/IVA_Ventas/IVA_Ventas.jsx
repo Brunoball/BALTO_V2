@@ -164,6 +164,39 @@ function slugifySheetName(name) {
     .slice(0, 31) || "IVA Ventas";
 }
 
+
+const SKELETON_ROWS = 10;
+
+function IvaTableSkeleton() {
+  const widths = ["54%", "72%", "58%", "48%", "62%"];
+
+  return (
+    <div className="mov-skeletonWrap contabilidad-skeletonWrap" aria-label="Cargando registros">
+      {Array.from({ length: SKELETON_ROWS }).map((_, rowIndex) => (
+        <div
+          key={`iva-skeleton-${rowIndex}`}
+          className="mov-gridTable mov-gridTable--row mov-row--skeleton contabilidad-skeletonRow"
+          style={{ gridTemplateColumns: gridCols }}
+          role="row"
+        >
+          {widths.map((width, colIndex) => (
+            <div
+              key={`iva-skeleton-${rowIndex}-${colIndex}`}
+              className={[
+                "mov-gridCell",
+                colIndex >= 2 ? "is-right" : "",
+              ].join(" ")}
+              role="cell"
+            >
+              <span className="mov-skeletonBar" style={{ width }} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function buildExportRows(rows) {
   return (Array.isArray(rows) ? rows : []).map((row) => ({
     FECHA: formatFechaDMY(row?.fecha),
@@ -442,7 +475,9 @@ export default function IVAVentas() {
 
         <div className="mov-tableWrap contabilidad-tableWrap" role="rowgroup">
           <div className="mov-gridBody mov-gridBody--relative">
-            {filteredRegistros.length === 0 ? (
+            {loading ? (
+              <IvaTableSkeleton />
+            ) : filteredRegistros.length === 0 ? (
               <div className="cc-emptyState contabilidad-emptyState">
                 <FontAwesomeIcon icon={faBoxOpen} className="cc-emptyIcon" />
                 <div className="cc-emptyText">{emptyText}</div>
@@ -466,7 +501,28 @@ export default function IVAVentas() {
           </div>
         </div>
 
-        {filteredRegistros.length > 0 && (
+        {loading ? (
+          <div
+            className="mov-gridTable contabilidad-totalRow contabilidad-totalRow--skeleton"
+            style={{ gridTemplateColumns: gridCols }}
+            role="row"
+            aria-hidden="true"
+          >
+            <div className="mov-gridCell is-strong" role="cell">
+              <span className="mov-skeletonBar" style={{ width: "58%" }} />
+            </div>
+            <div className="mov-gridCell" role="cell" />
+            <div className="mov-gridCell is-right is-strong" role="cell">
+              <span className="mov-skeletonBar" style={{ width: "58%" }} />
+            </div>
+            <div className="mov-gridCell is-right is-strong" role="cell">
+              <span className="mov-skeletonBar" style={{ width: "48%" }} />
+            </div>
+            <div className="mov-gridCell is-right is-strong" role="cell">
+              <span className="mov-skeletonBar" style={{ width: "62%" }} />
+            </div>
+          </div>
+        ) : filteredRegistros.length > 0 && (
           <div
             className="mov-gridTable contabilidad-totalRow"
             style={{ gridTemplateColumns: gridCols }}
