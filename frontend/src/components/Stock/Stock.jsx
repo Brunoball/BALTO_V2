@@ -245,7 +245,14 @@ function normalizeProductoListItem(prod = {}) {
     precio_promo: prod?.precio_promo ?? null,
     descripcion: prod?.descripcion ?? "",
     imagen_archivo_id:
-      Number(prod?.imagen_archivo_id ?? prod?.id_archivo_imagen ?? prod?.archivo_id ?? 0) || 0,
+      Number(prod?.imagen_archivo_id ?? prod?.id_archivo_imagen ?? prod?.archivo_id ?? prod?.id_archivo ?? 0) || 0,
+    id_archivo_imagen:
+      Number(prod?.id_archivo_imagen ?? prod?.imagen_archivo_id ?? prod?.archivo_id ?? prod?.id_archivo ?? 0) || 0,
+    archivo_id:
+      Number(prod?.archivo_id ?? prod?.imagen_archivo_id ?? prod?.id_archivo_imagen ?? prod?.id_archivo ?? 0) || 0,
+    imagen_path: String(prod?.imagen_path ?? prod?.archivo_path ?? prod?.path_imagen ?? ""),
+    archivo_path: String(prod?.archivo_path ?? prod?.imagen_path ?? prod?.path_imagen ?? ""),
+    imagen_actualizada_en: prod?.imagen_actualizada_en ?? prod?.updated_at ?? prod?.fecha_actualizacion ?? "",
     id_stock_categoria: categoriaId || null,
     id_categoria_stock: categoriaId || null,
     activo: Number(prod?.activo ?? 1),
@@ -393,8 +400,10 @@ function getProductoImageRefreshToken(prod, refreshKey = 0, intento = 0) {
     prod?.imagen_actualizada_en ??
     prod?.ultima_actualizacion ??
     "";
+  const estadoToken = Number(prod?.activo ?? 1) === 0 ? "baja" : "activo";
+  const pathToken = String(prod?.imagen_path ?? prod?.archivo_path ?? "");
 
-  return `${archivoId}-${String(updateToken || "")}-${String(refreshKey)}-${String(intento)}`;
+  return `${archivoId}-${estadoToken}-${String(updateToken || "")}-${pathToken}-${String(refreshKey)}-${String(intento)}`;
 }
 
 function getProductoImageUrl(prod, apiUrl, refreshKey = 0, intento = 0) {
@@ -536,6 +545,7 @@ const Stock = () => {
 
   const refreshTimersRef = useRef([]);
   const imagenesTemporalesRef = useRef({});
+  const imagenesConocidasPorProductoRef = useRef({});
   const impactoEliminarRequestRef = useRef(0);
   const categoriaFiltroDropdownRef = useRef(null);
   const productosPorPagina = 20;
@@ -625,6 +635,97 @@ const Stock = () => {
     }));
   }, []);
 
+  const registrarImagenConocidaProducto = useCallback((producto = null) => {
+    const id = getProductoId(producto);
+    if (!id) return false;
+
+    const archivoId =
+      Number(
+        producto?.imagen_archivo_id ??
+          producto?.id_archivo_imagen ??
+          producto?.archivo_id ??
+          producto?.id_archivo ??
+          0
+      ) || 0;
+    const imagenPath = String(
+      producto?.imagen_path ?? producto?.archivo_path ?? producto?.path_imagen ?? ""
+    ).trim();
+
+    if (!archivoId && !imagenPath) return false;
+
+    const actual = imagenesConocidasPorProductoRef.current?.[id] || {};
+    imagenesConocidasPorProductoRef.current = {
+      ...(imagenesConocidasPorProductoRef.current || {}),
+      [id]: {
+        ...actual,
+        imagen_archivo_id: archivoId || Number(actual?.imagen_archivo_id || 0),
+        id_archivo_imagen: archivoId || Number(actual?.id_archivo_imagen || 0),
+        archivo_id: archivoId || Number(actual?.archivo_id || 0),
+        imagen_path: imagenPath || actual?.imagen_path || "",
+        archivo_path: imagenPath || actual?.archivo_path || "",
+        imagen_actualizada_en:
+          producto?.imagen_actualizada_en ??
+          producto?.updated_at ??
+          producto?.fecha_actualizacion ??
+          actual?.imagen_actualizada_en ??
+          "",
+      },
+    };
+
+    return true;
+  }, []);
+
+  const completarProductoConImagenConocida = useCallback((producto = null) => {
+    if (!producto) return producto;
+
+    const normalizado = normalizeProductoListItem(producto);
+    if (!normalizado) return producto;
+
+    const id = getProductoId(normalizado);
+    const conocida = imagenesConocidasPorProductoRef.current?.[id];
+    if (!conocida) return normalizado;
+
+    const archivoActual = Number(
+      normalizado?.imagen_archivo_id ??
+        normalizado?.id_archivo_imagen ??
+        normalizado?.archivo_id ??
+        0
+    );
+    const archivoConocido = Number(
+      conocida?.imagen_archivo_id ?? conocida?.id_archivo_imagen ?? conocida?.archivo_id ?? 0
+    );
+
+    if (archivoActual > 0) {
+      return {
+        ...normalizado,
+        imagen_path: normalizado.imagen_path || conocida.imagen_path || "",
+        archivo_path: normalizado.archivo_path || conocida.archivo_path || "",
+      };
+    }
+
+    if (archivoConocido <= 0) return normalizado;
+
+    return {
+      ...normalizado,
+      imagen_archivo_id: archivoConocido,
+      id_archivo_imagen: archivoConocido,
+      archivo_id: archivoConocido,
+      imagen_path: normalizado.imagen_path || conocida.imagen_path || "",
+      archivo_path: normalizado.archivo_path || conocida.archivo_path || "",
+      imagen_actualizada_en:
+        normalizado.imagen_actualizada_en || conocida.imagen_actualizada_en || normalizado.updated_at || "",
+    };
+  }, []);
+
+  const prepararProductosParaMostrar = useCallback(
+    (items = []) => {
+      const normalizados = normalizeProductosCollection(items);
+      normalizados.forEach((item) => registrarImagenConocidaProducto(item));
+      return normalizados.map((item) => completarProductoConImagenConocida(item));
+    },
+    [completarProductoConImagenConocida, registrarImagenConocidaProducto]
+  );
+
   const invalidarMiniaturaProducto = useCallback((productoId, seed = Date.now()) => {
     const id = Number(productoId || 0);
     if (!id) return;
@@ -648,6 +749,60 @@ const Stock = () => {
       return next;
     });
   }, []);
+
+  const rearmarMiniaturasProductos = useCallback((listaProductos = [], seed = Date.now()) => {
+    const ids = new Set();
+    const idsConImagen = new Set();
+    const listaNormalizada = (Array.isArray(listaProductos) ? listaProductos : [])
+      .map((item) => {
+        registrarImagenConocidaProducto(item);
+        return completarProductoConImagenConocida(item);
+      })
+      .filter(Boolean);
+
+    listaNormalizada.forEach((item) => {
+      const id = getProductoId(item);
+      if (!id) return;
+      ids.add(id);
+      if (Number(item?.imagen_archivo_id || 0) > 0) idsConImagen.add(id);
+    });
+
+    if (ids.size === 0) return;
+
+    setErroresImagenes((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      ids.forEach((id) => {
+        if (Object.prototype.hasOwnProperty.call(next, id)) {
+          delete next[id];
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+
+    setReintentosImagenes((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      ids.forEach((id) => {
+        if (Object.prototype.hasOwnProperty.call(next, id)) {
+          delete next[id];
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+
+    if (idsConImagen.size > 0) {
+      setVersionImagenPorProducto((prev) => {
+        const next = { ...prev };
+        idsConImagen.forEach((id) => {
+          next[id] = seed;
+        });
+        return next;
+      });
+    }
+  }, [completarProductoConImagenConocida, registrarImagenConocidaProducto]);
 
   const programarReintentoImagen = useCallback((productoId) => {
     const timerId = setTimeout(() => {
@@ -695,7 +850,7 @@ const Stock = () => {
           }
 
           return {
-            productos: normalizeProductosCollection(data?.productos),
+            productos: prepararProductosParaMostrar(data?.productos),
             total: Number(data?.total ?? 0),
             pagina: Number(data?.pagina ?? paginaActual),
             totalPaginas: Math.max(1, Number(data?.total_paginas ?? 1)),
@@ -721,6 +876,7 @@ const Stock = () => {
 
       if (productosRes.status === "fulfilled") {
         setProductosRaw(productosRes.value.productos);
+        rearmarMiniaturasProductos(productosRes.value.productos, seed);
         setTotalProductosServidor(productosRes.value.total);
         setTotalPaginasServidor(productosRes.value.totalPaginas);
         if (productosRes.value.pagina && productosRes.value.pagina !== paginaActual) {
@@ -744,7 +900,7 @@ const Stock = () => {
     } finally {
       if (mostrarLoader) setLoading(false);
     }
-  }, [busqueda, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina]);
+  }, [busqueda, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina, prepararProductosParaMostrar, rearmarMiniaturasProductos]);
 
   const refrescarProductoPorId = useCallback(async (productoId, opciones = {}) => {
     const id = Number(productoId || 0);
@@ -764,9 +920,13 @@ const Stock = () => {
     const productoActualizado = extractProductoFromApiResponse(data);
     if (!productoActualizado) return null;
 
-    setProductosRaw((prev) => mergeProductoEnLista(prev, productoActualizado));
+    registrarImagenConocidaProducto(productoActualizado);
+    const productoConImagen = completarProductoConImagenConocida(productoActualizado);
 
-    const productoNormalizado = normalizeProductoListItem(productoActualizado);
+    setProductosRaw((prev) => mergeProductoEnLista(prev, productoConImagen));
+    rearmarMiniaturasProductos([productoConImagen], opciones?.seed || Date.now());
+
+    const productoNormalizado = normalizeProductoListItem(productoConImagen);
     const idNormalizado = getProductoId(productoNormalizado) || id;
 
     if (Array.isArray(productoActualizado?.variantes)) {
@@ -782,7 +942,7 @@ const Stock = () => {
     }
 
     return productoNormalizado || productoActualizado;
-  }, []);
+  }, [completarProductoConImagenConocida, rearmarMiniaturasProductos, registrarImagenConocidaProducto]);
 
   const refrescarListaYProducto = useCallback(async (productoId = 0, opciones = {}) => {
     const id = Number(productoId || 0);
@@ -842,12 +1002,16 @@ const Stock = () => {
       }
 
       if (productoGuardado) {
-        setProductosRaw((prev) => mergeProductoEnLista(prev, productoGuardado));
+        registrarImagenConocidaProducto(productoGuardado);
+        const productoConImagen = completarProductoConImagenConocida(productoGuardado);
 
-        if (productoId > 0 && Array.isArray(productoGuardado?.variantes)) {
+        setProductosRaw((prev) => mergeProductoEnLista(prev, productoConImagen));
+        rearmarMiniaturasProductos([productoConImagen], Date.now());
+
+        if (productoId > 0 && Array.isArray(productoConImagen?.variantes)) {
           setVariantesPorProducto((prev) => ({
             ...prev,
-            [productoId]: normalizeVariantesCollection(productoGuardado.variantes),
+            [productoId]: normalizeVariantesCollection(productoConImagen.variantes),
           }));
           setErrorVariantesPorProducto((prev) => {
             const next = { ...prev };
@@ -871,9 +1035,12 @@ const Stock = () => {
     },
     [
       aplicarImagenTemporalProducto,
+      completarProductoConImagenConocida,
       invalidarMiniaturaProducto,
       limpiarImagenTemporalProducto,
       programarRefrescoPostImagen,
+      rearmarMiniaturasProductos,
+      registrarImagenConocidaProducto,
       refrescarListaYProducto,
     ]
   );
@@ -925,7 +1092,9 @@ const Stock = () => {
         throw new Error(data.mensaje || "Error al obtener productos");
       }
 
-      setProductosRaw(normalizeProductosCollection(data.productos));
+      const productosNormalizados = prepararProductosParaMostrar(data.productos);
+      setProductosRaw(productosNormalizados);
+      rearmarMiniaturasProductos(productosNormalizados, Date.now());
       setTotalProductosServidor(Number(data?.total ?? 0));
       setTotalPaginasServidor(Math.max(1, Number(data?.total_paginas ?? 1)));
       const paginaServidor = Number(data?.pagina ?? paginaActual);
@@ -940,7 +1109,7 @@ const Stock = () => {
     } finally {
       setLoading(false);
     }
-  }, [busqueda, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina]);
+  }, [busqueda, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina, prepararProductosParaMostrar, rearmarMiniaturasProductos]);
 
   const cargarVariantesProducto = useCallback(async (productoId) => {
     const id = Number(productoId || 0);
@@ -1326,23 +1495,13 @@ const Stock = () => {
   };
 
   const limpiarEstadoVisualProducto = useCallback((productoId) => {
-    setProductosRaw((prev) => prev.filter((p) => getProductoId(p) !== productoId));
-    setErroresImagenes((prev) => {
-      const next = { ...prev };
-      delete next[productoId];
-      return next;
-    });
-    setReintentosImagenes((prev) => {
-      const next = { ...prev };
-      delete next[productoId];
-      return next;
-    });
-    setImagenesTemporalesPorProducto((prev) => {
-      const next = { ...prev };
-      delete next[productoId];
-      return next;
-    });
-  }, []);
+    const id = Number(productoId || 0);
+    if (!id) return;
+
+    setProductosRaw((prev) => prev.filter((p) => getProductoId(p) !== id));
+    limpiarImagenTemporalProducto(id);
+    invalidarMiniaturaProducto(id, Date.now());
+  }, [invalidarMiniaturaProducto, limpiarImagenTemporalProducto]);
 
   const handleCerrarBajaProducto = () => {
     if (eliminando) return;
@@ -1363,26 +1522,17 @@ const Stock = () => {
   };
 
   const ejecutarAccionProducto = async ({ permanente = false } = {}) => {
-    const productoAccion = productoEliminar;
-    const productoId = getProductoId(productoAccion);
+    const productoId = getProductoId(productoEliminar);
 
     if (!productoId || productoId <= 0) {
       mostrarToast("error", "ID de producto inválido.");
       return;
     }
 
-    const accion = permanente ? "eliminar" : "baja";
+    registrarImagenConocidaProducto(productoEliminar);
 
-    setModalDarBajaProductoAbierto(false);
-    setModalEliminarAbierto(false);
-    setProductoEliminar(null);
-    setImpactoEliminar(null);
-    setErrorImpactoEliminar("");
-    setCargandoImpactoEliminar(false);
     setEliminando(true);
-    setAccionEliminacionProducto(accion);
-
-    mostrarToastCarga(permanente ? "Eliminando producto definitivamente..." : "Dando de baja producto...");
+    setAccionEliminacionProducto(permanente ? "eliminar" : "baja");
 
     try {
       const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
@@ -1403,7 +1553,16 @@ const Stock = () => {
         throw new Error(data.mensaje || (permanente ? "Error al eliminar el producto" : "Error al dar de baja el producto"));
       }
 
+      if (permanente) {
+        const conocidas = { ...(imagenesConocidasPorProductoRef.current || {}) };
+        delete conocidas[productoId];
+        imagenesConocidasPorProductoRef.current = conocidas;
+      }
+
       limpiarEstadoVisualProducto(productoId);
+      setModalDarBajaProductoAbierto(false);
+      setModalEliminarAbierto(false);
+      setProductoEliminar(null);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
       mostrarToast("exito", permanente ? "Producto eliminado permanentemente." : "Producto dado de baja correctamente.");
@@ -1422,6 +1581,9 @@ const Stock = () => {
     const productoId = getProductoId(producto);
     if (!productoId || productoId <= 0 || reactivandoId) return;
 
+    registrarImagenConocidaProducto(producto);
+    invalidarMiniaturaProducto(productoId, Date.now());
+
     setReactivandoId(productoId);
     mostrarToastCarga("Dando de alta producto...");
 
@@ -1439,7 +1601,13 @@ const Stock = () => {
         throw new Error(data?.mensaje || "No se pudo reactivar el producto.");
       }
 
-      setProductosRaw((prev) => prev.filter((p) => getProductoId(p) !== productoId));
+      const productoReactivado = extractProductoFromApiResponse(data);
+      if (productoReactivado) {
+        registrarImagenConocidaProducto({ ...producto, ...productoReactivado });
+        rearmarMiniaturasProductos([productoReactivado], Date.now());
+      }
+
+      limpiarEstadoVisualProducto(productoId);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
       mostrarToast("exito", "Producto dado de alta correctamente.");
@@ -1494,23 +1662,16 @@ const Stock = () => {
   };
 
   const ejecutarAccionVariante = async ({ permanente = false } = {}) => {
-    const varianteAccion = varianteBaja;
-    const varianteId = getVarianteId(varianteAccion);
-    const productoId = Number(varianteAccion?.productoId || varianteAccion?.id_stock_producto || 0);
+    const varianteId = getVarianteId(varianteBaja);
+    const productoId = Number(varianteBaja?.productoId || varianteBaja?.id_stock_producto || 0);
 
     if (!varianteId || varianteId <= 0 || !productoId || productoId <= 0) {
       mostrarToast("error", "ID de variante inválido.");
       return;
     }
 
-    const accion = permanente ? "eliminar" : "baja";
-
-    setModalBajaVarianteAbierto(false);
-    setModalEliminarVarianteAbierto(false);
-    setVarianteBaja(null);
     setProcesandoVarianteId(varianteId);
-    setAccionEliminacionVariante(accion);
-
+    setAccionEliminacionVariante(permanente ? "eliminar" : "baja");
     mostrarToastCarga(permanente ? "Eliminando variante definitivamente..." : "Dando de baja variante...");
 
     try {
@@ -1531,6 +1692,9 @@ const Stock = () => {
       await cargarVariantesProducto(productoId);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
+      setModalBajaVarianteAbierto(false);
+      setModalEliminarVarianteAbierto(false);
+      setVarianteBaja(null);
       mostrarToast("exito", permanente ? "Variante eliminada permanentemente." : "Variante dada de baja correctamente.");
     } catch (error) {
       mostrarToast("error", error?.message || (permanente ? "No se pudo eliminar la variante." : "No se pudo dar de baja la variante."));
@@ -1857,6 +2021,17 @@ const Stock = () => {
               "stock-actionBtn--bajas",
             ].join(" ")}
             onClick={() => {
+              const seed = Date.now();
+              setErroresImagenes({});
+              setReintentosImagenes({});
+              setVersionImagenPorProducto((prev) => {
+                const next = { ...prev };
+                productosRaw.forEach((item) => {
+                  const id = getProductoId(item);
+                  if (id && Number(item?.imagen_archivo_id || 0) > 0) next[id] = seed;
+                });
+                return next;
+              });
               setMostrarDadosDeBaja((prev) => !prev);
               setPaginaActual(1);
             }}
@@ -2063,22 +2238,23 @@ const Stock = () => {
                     </div>
                   ) : (
                     productos.map((prod) => {
-                      const productoId = getProductoId(prod);
-                      const archivoId = Number(prod?.imagen_archivo_id || 0);
+                      const prodConImagen = completarProductoConImagenConocida(prod);
+                      const productoId = getProductoId(prodConImagen);
+                      const archivoId = Number(prodConImagen?.imagen_archivo_id || 0);
                       const imagenTemporal = imagenesTemporalesPorProducto?.[productoId]?.url || "";
                       const usandoImagenTemporal = !!imagenTemporal;
                       const intentoImagen = Number(reintentosImagenes?.[productoId] || 0);
                       const imagenRota = !usandoImagenTemporal && !!erroresImagenes[productoId];
-                      const productoInactivo = Number(prod?.activo ?? 1) === 0;
-                      const totalVariantesProducto = Number(prod?.cantidad_variantes_total ?? prod?.cantidad_variantes ?? 0);
-                      const variantesActivasProducto = Number(prod?.cantidad_variantes_activas ?? prod?.cantidad_variantes ?? 0);
-                      const variantesInactivasProducto = Number(prod?.cantidad_variantes_inactivas ?? 0);
-                      const tieneVariantesParaMostrar = !!prod.tiene_variantes || variantesActivasProducto > 0;
+                      const productoInactivo = Number(prodConImagen?.activo ?? 1) === 0;
+                      const totalVariantesProducto = Number(prodConImagen?.cantidad_variantes_total ?? prodConImagen?.cantidad_variantes ?? 0);
+                      const variantesActivasProducto = Number(prodConImagen?.cantidad_variantes_activas ?? prodConImagen?.cantidad_variantes ?? 0);
+                      const variantesInactivasProducto = Number(prodConImagen?.cantidad_variantes_inactivas ?? 0);
+                      const tieneVariantesParaMostrar = !!prodConImagen.tiene_variantes || variantesActivasProducto > 0;
                       const imageUrl =
                         imagenTemporal ||
                         (archivoId > 0
                           ? getProductoImageUrl(
-                              prod,
+                              prodConImagen,
                               API_URL,
                               versionImagenPorProducto[productoId] || 0,
                               intentoImagen
@@ -2095,14 +2271,14 @@ const Stock = () => {
                           aria-expanded={tieneVariantesParaMostrar ? !!variantesAbiertas[productoId] : undefined}
                           title={tieneVariantesParaMostrar ? (variantesAbiertas[productoId] ? "Ocultar variantes" : "Ver variantes") : undefined}
                           onClick={() => {
-                            if (tieneVariantesParaMostrar) toggleVariantesProducto(prod);
+                            if (tieneVariantesParaMostrar) toggleVariantesProducto(prodConImagen);
                           }}
                           onKeyDown={(e) => {
                             if (!tieneVariantesParaMostrar) return;
                             if (e.target !== e.currentTarget) return;
                             if (e.key !== "Enter" && e.key !== " ") return;
                             e.preventDefault();
-                            toggleVariantesProducto(prod);
+                            toggleVariantesProducto(prodConImagen);
                           }}
                         >
                           <div className="mov-gridCell is-strong" role="cell" data-label="PRODUCTO">
@@ -2110,8 +2286,9 @@ const Stock = () => {
                               <div className="prod-thumb">
                                 {imageUrl && !imagenRota ? (
                                   <img
+                                    key={`${productoId}-${archivoId}-${versionImagenPorProducto[productoId] || 0}-${intentoImagen}-${mostrarDadosDeBaja ? "baja" : "alta"}`}
                                     src={imageUrl}
-                                    alt={prod.nombre}
+                                    alt={prodConImagen.nombre}
                                     className="prod-thumb__img"
                                     loading="lazy"
                                     decoding="async"
@@ -2129,7 +2306,7 @@ const Stock = () => {
                                         return;
                                       }
 
-                                      if (intentoImagen < 6) {
+                                      if (intentoImagen < 14) {
                                         programarReintentoImagen(productoId);
                                         return;
                                       }
@@ -2147,7 +2324,7 @@ const Stock = () => {
                                 )}
                               </div>
 
-                              <span className="mov-ellipsissss">{prod.nombre}</span>
+                              <span className="mov-ellipsissss">{prodConImagen.nombre}</span>
                               {tieneVariantesParaMostrar ? (
                                 <span className="prod-variantBadge prod-variantBadge--count">
                                   {totalVariantesProducto || variantesActivasProducto || 0} variantes
@@ -2159,11 +2336,11 @@ const Stock = () => {
                           </div>
 
                           <div className="mov-gridCell is-center" role="cell" data-label="SKU">
-                            <span className="mov-ellipsissss prod-sku">{prod.sku || "—"}</span>
+                            <span className="mov-ellipsissss prod-sku">{prodConImagen.sku || "—"}</span>
                           </div>
 
                           <div className="mov-gridCell is-center" role="cell" data-label="STOCK">
-                            {renderStockChip(prod.stock)}
+                            {renderStockChip(prodConImagen.stock)}
                           </div>
 
                           <div
@@ -2171,7 +2348,7 @@ const Stock = () => {
                             role="cell"
                             data-label="PRECIO COSTO"
                           >
-                            <span className="mov-ellipsissss">{formatMoney(prod.precio_costo)}</span>
+                            <span className="mov-ellipsissss">{formatMoney(prodConImagen.precio_costo)}</span>
                           </div>
 
                           <div
@@ -2179,7 +2356,7 @@ const Stock = () => {
                             role="cell"
                             data-label="PRECIO VENTA"
                           >
-                            <span className="mov-ellipsissss">{formatMoney(prod.precio)}</span>
+                            <span className="mov-ellipsissss">{formatMoney(prodConImagen.precio)}</span>
                           </div>
 
                           <div
@@ -2188,7 +2365,7 @@ const Stock = () => {
                             data-label="PRECIO PROMO"
                           >
                             <span className="mov-ellipsissss prod-promo">
-                              {formatMoney(prod.precio_promo)}
+                              {formatMoney(prodConImagen.precio_promo)}
                             </span>
                           </div>
 
@@ -2204,7 +2381,7 @@ const Stock = () => {
                                 className="mov-iconBtn"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setProductoHistorialPrecios(prod);
+                                  setProductoHistorialPrecios(prodConImagen);
                                 }}
                               >
                                 <FontAwesomeIcon icon={faClockRotateLeft} />
@@ -2218,7 +2395,7 @@ const Stock = () => {
                                   disabled={reactivandoId === productoId}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleReactivarProducto(prod);
+                                    handleReactivarProducto(prodConImagen);
                                   }}
                                 >
                                   <FontAwesomeIcon icon={faRotateLeft} />
@@ -2243,7 +2420,7 @@ const Stock = () => {
                                     className="mov-iconBtn mov-iconBtn--danger"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleAbrirBajaProducto(prod);
+                                      handleAbrirBajaProducto(prodConImagen);
                                     }}
                                   >
                                     <FontAwesomeIcon icon={faBoxOpen} />
@@ -2258,7 +2435,7 @@ const Stock = () => {
                                 disabled={reactivandoId === productoId}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleAbrirEliminar(prod);
+                                  handleAbrirEliminar(prodConImagen);
                                 }}
                               >
                                 <FontAwesomeIcon icon={faTrashCan} />
@@ -2266,7 +2443,7 @@ const Stock = () => {
                             </div>
                           </div>
                         </div>
-                        {variantesAbiertas[productoId] ? renderVariantesProducto(prod) : null}
+                        {variantesAbiertas[productoId] ? renderVariantesProducto(prodConImagen) : null}
                         </React.Fragment>
                       );
                     })
