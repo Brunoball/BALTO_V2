@@ -25,6 +25,7 @@ import {
   faGear,
   faBoxesStacked,
   faMoneyCheckDollar,
+  faBookOpen,
 } from "@fortawesome/free-solid-svg-icons";
 
 import "./principal.css";
@@ -180,6 +181,12 @@ const ROUTE_PREFETCH = {
   "/panel/cuentas-corrientes/proveedores": () =>
     import("../Cuentas_Corrientes/Proveedores/Proveedores"),
   "/panel/stock": () => import("../Stock/Stock"),
+  "/panel/contabilidad": () =>
+    import("../Contabilidad/IVA_Ventas/IVA_Ventas"),
+  "/panel/contabilidad/iva-compras": () =>
+    import("../Contabilidad/IVA_Compras/IVA_Compras"),
+  "/panel/contabilidad/iva-ventas": () =>
+    import("../Contabilidad/IVA_Ventas/IVA_Ventas"),
   "/panel/analisis-financiero": () =>
     import("../Analisis_Financiero/Analisis_Financiero"),
   "/panel/configuracion": () => import("../Configuracion/Configuracion"),
@@ -376,6 +383,7 @@ const PLAN_BASICO_NAV_KEYS = new Set([
   "flujo-de-caja",
   "cuentas-corrientes",
   "stock",
+  "contabilidad",
   "configuracion",
 ]);
 
@@ -413,6 +421,7 @@ function getModuleKeyByPath(pathname) {
   if (path.startsWith("/panel/flujo-de-caja")) return "flujo-de-caja";
   if (path.startsWith("/panel/cuentas-corrientes")) return "cuentas-corrientes";
   if (path.startsWith("/panel/stock")) return "stock";
+  if (path.startsWith("/panel/contabilidad")) return "contabilidad";
   if (path.startsWith("/panel/cheques")) return "cheques";
   if (path.startsWith("/panel/analisis-financiero")) return "analisis-financiero";
   if (path.startsWith("/panel/configuracion")) return "configuracion";
@@ -442,6 +451,7 @@ function pickIcon(label) {
   if (s.includes("analisis")) return faChartLine;
   if (s.includes("config")) return faGear;
   if (s.includes("stock")) return faBoxesStacked;
+  if (s.includes("contabilidad")) return faBookOpen;
 
   return faChartLine;
 }
@@ -564,6 +574,7 @@ const Principal = () => {
   const [openCCSub, setOpenCCSub] = useState(false);
   const [openChequesSub, setOpenChequesSub] = useState(false);
   const [openStockSub, setOpenStockSub] = useState(false);
+  const [openContabilidadSub, setOpenContabilidadSub] = useState(false);
 
   const closingRef = useRef(false);
   const [closingUI, setClosingUI] = useState(false);
@@ -582,6 +593,7 @@ const Principal = () => {
       "cuentas-corrientes": "/panel/cuentas-corrientes/clientes",
       cheques: "/panel/cheques/cartera",
       stock: "/panel/stock",
+      contabilidad: "/panel/contabilidad/iva-ventas",
     }),
     []
   );
@@ -755,6 +767,7 @@ const Principal = () => {
         setOpenCCSub(false);
         setOpenChequesSub(false);
         setOpenStockSub(false);
+        setOpenContabilidadSub(false);
 
         if (!silent) {
           setClosingUI(false);
@@ -1088,6 +1101,14 @@ const Principal = () => {
         ruta: "/panel/stock",
       },
       {
+        label: "Contabilidad",
+        ruta: "/panel/contabilidad",
+        children: [
+          { label: "IVA Compras", ruta: "/panel/contabilidad/iva-compras" },
+          { label: "IVA Ventas", ruta: "/panel/contabilidad/iva-ventas" },
+        ],
+      },
+      {
         label: "Cheques",
         ruta: "/panel/cheques",
         children: [
@@ -1164,6 +1185,7 @@ const Principal = () => {
 
     if (location.pathname.startsWith("/panel/cheques")) return "cheques";
     if (location.pathname.startsWith("/panel/stock")) return "stock";
+    if (location.pathname.startsWith("/panel/contabilidad")) return "contabilidad";
     if (location.pathname.startsWith("/panel/configuracion")) return "configuracion";
 
     const found = navItems.find((x) => location.pathname.startsWith(x.ruta));
@@ -1198,6 +1220,8 @@ const Principal = () => {
     if (location.pathname === "/panel/stock") return "Stock";
     if (location.pathname.startsWith("/panel/stock")) return "Stock";
 
+    if (location.pathname.startsWith("/panel/contabilidad")) return "Contabilidad";
+
     if (location.pathname.startsWith("/panel/cheques")) return "Cheques";
 
     if (location.pathname.startsWith("/panel/configuracion/tiendanube")) {
@@ -1218,6 +1242,7 @@ const Principal = () => {
     setOpenCCSub(false);
     setOpenChequesSub(false);
     setOpenStockSub(false);
+    setOpenContabilidadSub(false);
   }, []);
 
   const handleNavigate = useCallback(
@@ -1298,6 +1323,7 @@ const Principal = () => {
   const isCCDropdown = (itemKey) => itemKey === "cuentas-corrientes";
   const isChequesDropdown = (itemKey) => itemKey === "cheques";
   const isStockDropdown = (itemKey) => itemKey === "stock";
+  const isContabilidadDropdown = (itemKey) => itemKey === "contabilidad";
 
   const getSubmenuKeyByPath = useCallback((pathname = "") => {
     if (
@@ -1319,6 +1345,7 @@ const Principal = () => {
     }
 
     if (pathname.startsWith("/panel/cheques")) return "cheques";
+    if (pathname.startsWith("/panel/contabilidad")) return "contabilidad";
 
     return "";
   }, []);
@@ -1328,6 +1355,7 @@ const Principal = () => {
     setOpenCCSub(itemKey === "cuentas-corrientes");
     setOpenChequesSub(itemKey === "cheques");
     setOpenStockSub(itemKey === "stock");
+    setOpenContabilidadSub(itemKey === "contabilidad");
   }, []);
 
   useEffect(() => {
@@ -1559,6 +1587,7 @@ const Principal = () => {
             const isCC = isCCDropdown(item.key);
             const isCheques = isChequesDropdown(item.key);
             const isStock = isStockDropdown(item.key);
+            const isContabilidad = isContabilidadDropdown(item.key);
 
             const isActive =
               activeKey === item.key ||
@@ -1575,13 +1604,15 @@ const Principal = () => {
               (isCC &&
                 location.pathname.startsWith("/panel/cuentas-corrientes")) ||
               (isCheques && location.pathname.startsWith("/panel/cheques")) ||
-              (isStock && location.pathname.startsWith("/panel/stock"));
+              (isStock && location.pathname.startsWith("/panel/stock")) ||
+              (isContabilidad && location.pathname.startsWith("/panel/contabilidad"));
 
             const isOpen =
               (isMov && openMovSub) ||
               (isCC && openCCSub) ||
               (isCheques && openChequesSub) ||
-              (isStock && openStockSub);
+              (isStock && openStockSub) ||
+              (isContabilidad && openContabilidadSub);
 
             return (
               <div

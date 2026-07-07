@@ -23,6 +23,10 @@ import Remitos from "./components/Mov_Subsection/Documentos_Comerciales/Remitos"
 import OrdenesPago from "./components/Mov_Subsection/OrdenesPago/OrdenesPago";
 import Flujo_Caja from "./components/Flujo_de_Caja/Flujo_Caja";
 
+/* Contabilidad */
+import IVACompras from "./components/Contabilidad/IVA_Compras/IVA_Compras";
+import IVAVentas from "./components/Contabilidad/IVA_Ventas/IVA_Ventas";
+
 /* Configuración */
 import Configuracion from "./components/Configuracion/Configuracion";
 import ConfigTiendaNube from "./components/Configuracion/ConfiguracionTiendaNube/ConfigTiendaNube";
@@ -224,6 +228,7 @@ const PLAN_BASICO_MODULES = new Set([
   "flujo-caja",
   "cuentas-corrientes",
   "stock",
+  "contabilidad",
   "configuracion",
 ]);
 
@@ -468,6 +473,32 @@ export default function App() {
               <RutaModulo modulo="stock">
                 <RutaAdmin>
                   <Stock />
+                </RutaAdmin>
+              </RutaModulo>
+            }
+          />
+
+          {/* CONTABILIDAD */}
+          <Route
+            path="contabilidad"
+            element={<Navigate to="/panel/contabilidad/iva-ventas" replace />}
+          />
+          <Route
+            path="contabilidad/iva-compras"
+            element={
+              <RutaModulo modulo="contabilidad">
+                <RutaAdmin>
+                  <IVACompras />
+                </RutaAdmin>
+              </RutaModulo>
+            }
+          />
+          <Route
+            path="contabilidad/iva-ventas"
+            element={
+              <RutaModulo modulo="contabilidad">
+                <RutaAdmin>
+                  <IVAVentas />
                 </RutaAdmin>
               </RutaModulo>
             }

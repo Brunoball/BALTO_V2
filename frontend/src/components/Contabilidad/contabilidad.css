@@ -1,0 +1,39 @@
+/* src/components/Contabilidad/contabilidad.css
+   Estilos propios mínimos de Contabilidad.
+   La base visual de cards, tablas, tipografías, sombras y modo oscuro se toma de Global_Section.css. */
+
+.contabilidad-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0;
+}
+
+.contabilidad-cardTable {
+  overflow: hidden;
+}
+
+
+.contabilidad-gridHead {
+  background: var(--color-primary-strong);
+}
+
+.contabilidad-tableWrap {
+  overflow-x: hidden;
+}
+
+/* Estado vacío: usa la estética global de Ventas/Cuentas Corrientes (.cc-emptyState, .cc-emptyIcon, .cc-emptyText).
+   Esta clase queda solo como gancho propio, sin bordes ni alturas extra para no partir la tabla. */
+.contabilidad-emptyState {
+  border: 0;
+}
+
+.contabilidad-totalRow {
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 75%, #fff);
+  background: color-mix(in srgb, var(--color-primary-soft) 64%, var(--color-surface));
+}
+
+.contabilidad-totalRow .mov-gridCell {
+  min-height: 48px;
+}
+

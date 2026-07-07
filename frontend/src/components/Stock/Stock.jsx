@@ -3,6 +3,8 @@ import ModalCargaMasiva from "./modales/ModalCargaMasiva";
 import ModalEditarProducto from "./modales/ModalEditarStock";
 import ModalAjustePrecios from "./modales/ModalAjustePrecios";
 import ModalHistorialPreciosProducto from "./modales/ModalHistorialPreciosProducto";
+import ModalDarBajaStock from "./modales/ModalDarBajaStock";
+import ModalEliminarStock from "./modales/ModalEliminarStock";
 import Toast from "../Global/Toast";
 import BASE_URL from "../../config/config";
 import BaltoCargaGif from "../../imagenes/Balto_Carga.gif";
@@ -461,11 +463,11 @@ function getUsuarioAuditData() {
 const COLUMNS = [
   { key: "nombre", label: "PRODUCTO", fr: 2.2, align: "left", sortable: true },
   { key: "sku", label: "SKU", fr: 0.95, align: "center", sortable: true },
-  { key: "stock", label: "STOCK", fr: 0.8, align: "center", sortable: true },
+  { key: "stock", label: "STOCK", fr: 0.7, align: "center", sortable: true },
   { key: "precio_costo", label: "PRECIO COSTO", fr: 1.0, align: "right", sortable: true },
   { key: "precio", label: "PRECIO VENTA", fr: 1.0, align: "right", sortable: true },
   { key: "precio_promo", label: "PRECIO PROMO", fr: 1.0, align: "right", sortable: true },
-  { key: "acciones", label: "ACCIONES", fr: 0.75, align: "center", sortable: false },
+  { key: "acciones", label: "ACCIONES", fr: 1, align: "center", sortable: false },
 ];
 
 const GRID_COLS = COLUMNS.map((c) => `${c.fr}fr`).join(" ");
@@ -481,99 +483,6 @@ const SKEL_WIDTHS = {
 };
 
 
-function ModalBajaEliminarStock({
-  open,
-  title,
-  message,
-  warning,
-  details = [],
-  extraContent = null,
-  loading = false,
-  processingAction = "",
-  onClose,
-  onDarBaja,
-  onEliminar,
-  darBajaDisabled = false,
-  eliminarDisabled = false,
-  entidadLabel = "registro",
-}) {
-  if (!open) return null;
-
-  const labelProcesando = processingAction === "eliminar"
-    ? `Eliminando ${entidadLabel}...`
-    : `Dando de baja ${entidadLabel}...`;
-
-  return (
-    <div className="stock-deleteModalOverlay" role="presentation" onMouseDown={loading ? undefined : onClose}>
-      <div
-        className="stock-deleteModal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="stock-deleteModal-title"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="stock-deleteModal__head">
-          <div>
-            <h3 id="stock-deleteModal-title">{title}</h3>
-            <p>{message}</p>
-          </div>
-          <button
-            type="button"
-            className="stock-deleteModal__close"
-            onClick={onClose}
-            disabled={loading}
-            aria-label="Cerrar"
-          >
-            <FontAwesomeIcon icon={faTimes} />
-          </button>
-        </div>
-
-        {details.length > 0 ? (
-          <div className="stock-deleteModal__details">
-            {details.map((item, idx) => (
-              <div className="stock-deleteModal__detail" key={`${item.label}-${idx}`}>
-                <span>{item.label}</span>
-                <b>{item.value}</b>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {warning ? <div className="stock-deleteModal__warning">{warning}</div> : null}
-        {extraContent}
-
-        {loading ? <div className="stock-deleteModal__loading">{labelProcesando}</div> : null}
-
-        <div className="stock-deleteModal__actions">
-          <button
-            type="button"
-            className="mov-btn mov-btn--ghost"
-            onClick={onClose}
-            disabled={loading}
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            className="mov-btn stock-deleteModal__btnBaja"
-            onClick={onDarBaja}
-            disabled={loading || darBajaDisabled}
-          >
-            {processingAction === "baja" ? labelProcesando : "Dar de baja"}
-          </button>
-          <button
-            type="button"
-            className="mov-btn mov-btn--danger stock-deleteModal__btnEliminar"
-            onClick={onEliminar}
-            disabled={loading || eliminarDisabled}
-          >
-            {processingAction === "eliminar" ? labelProcesando : "Eliminar"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 const Stock = () => {
   const [productosRaw, setProductosRaw] = useState([]);
@@ -599,11 +508,13 @@ const Stock = () => {
   const [modalAjustePreciosAbierto, setModalAjustePreciosAbierto] = useState(false);
   const [productoHistorialPrecios, setProductoHistorialPrecios] = useState(null);
 
+  const [modalDarBajaProductoAbierto, setModalDarBajaProductoAbierto] = useState(false);
   const [modalEliminarAbierto, setModalEliminarAbierto] = useState(false);
   const [productoEliminar, setProductoEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
   const [accionEliminacionProducto, setAccionEliminacionProducto] = useState("");
   const [modalBajaVarianteAbierto, setModalBajaVarianteAbierto] = useState(false);
+  const [modalEliminarVarianteAbierto, setModalEliminarVarianteAbierto] = useState(false);
   const [varianteBaja, setVarianteBaja] = useState(null);
   const [procesandoVarianteId, setProcesandoVarianteId] = useState(null);
   const [accionEliminacionVariante, setAccionEliminacionVariante] = useState("");
@@ -1377,18 +1288,36 @@ const Stock = () => {
     }
   }, []);
 
-  const handleAbrirEliminar = (producto) => {
+  const prepararProductoAccion = (producto) => {
     const productoId = getProductoId(producto);
 
     if (!productoId || productoId <= 0) {
       mostrarToast("error", "ID de producto inválido.");
-      return;
+      return null;
     }
 
     setProductoEliminar({
       ...producto,
       id: productoId,
     });
+    return productoId;
+  };
+
+  const handleAbrirBajaProducto = (producto) => {
+    const productoId = prepararProductoAccion(producto);
+    if (!productoId) return;
+
+    impactoEliminarRequestRef.current += 1;
+    setImpactoEliminar(null);
+    setErrorImpactoEliminar("");
+    setCargandoImpactoEliminar(false);
+    setModalDarBajaProductoAbierto(true);
+  };
+
+  const handleAbrirEliminar = (producto) => {
+    const productoId = prepararProductoAccion(producto);
+    if (!productoId) return;
+
     setImpactoEliminar(null);
     setErrorImpactoEliminar("");
     setCargandoImpactoEliminar(true);
@@ -1414,6 +1343,13 @@ const Stock = () => {
       return next;
     });
   }, []);
+
+  const handleCerrarBajaProducto = () => {
+    if (eliminando) return;
+    setModalDarBajaProductoAbierto(false);
+    setProductoEliminar(null);
+    setAccionEliminacionProducto("");
+  };
 
   const handleCerrarEliminar = () => {
     if (eliminando) return;
@@ -1457,6 +1393,7 @@ const Stock = () => {
       }
 
       limpiarEstadoVisualProducto(productoId);
+      setModalDarBajaProductoAbierto(false);
       setModalEliminarAbierto(false);
       setProductoEliminar(null);
       await refrescarDespuesDeGuardar();
@@ -1505,13 +1442,13 @@ const Stock = () => {
     }
   };
 
-  const handleAbrirBajaVariante = (producto, variante) => {
+  const prepararVarianteAccion = (producto, variante) => {
     const productoId = getProductoId(producto);
     const varianteId = getVarianteId(variante);
 
     if (!productoId || !varianteId) {
       mostrarToast("error", "ID de variante inválido.");
-      return;
+      return null;
     }
 
     setVarianteBaja({
@@ -1520,12 +1457,30 @@ const Stock = () => {
       ...variante,
       id: varianteId,
     });
+
+    return { productoId, varianteId };
+  };
+
+  const handleAbrirBajaVariante = (producto, variante) => {
+    if (!prepararVarianteAccion(producto, variante)) return;
     setModalBajaVarianteAbierto(true);
+  };
+
+  const handleAbrirEliminarVariante = (producto, variante) => {
+    if (!prepararVarianteAccion(producto, variante)) return;
+    setModalEliminarVarianteAbierto(true);
   };
 
   const handleCerrarBajaVariante = () => {
     if (procesandoVarianteId) return;
     setModalBajaVarianteAbierto(false);
+    setVarianteBaja(null);
+    setAccionEliminacionVariante("");
+  };
+
+  const handleCerrarEliminarVariante = () => {
+    if (procesandoVarianteId) return;
+    setModalEliminarVarianteAbierto(false);
     setVarianteBaja(null);
     setAccionEliminacionVariante("");
   };
@@ -1562,6 +1517,7 @@ const Stock = () => {
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
       setModalBajaVarianteAbierto(false);
+      setModalEliminarVarianteAbierto(false);
       setVarianteBaja(null);
       mostrarToast("exito", permanente ? "Variante eliminada permanentemente." : "Variante dada de baja correctamente.");
     } catch (error) {
@@ -1850,9 +1806,19 @@ const Stock = () => {
                           disabled={procesandoEstaVariante}
                           onClick={() => handleAbrirBajaVariante(prod, variant)}
                         >
-                          <FontAwesomeIcon icon={faTrashCan} />
+                          <FontAwesomeIcon icon={faBoxOpen} />
                         </button>
                       )}
+
+                      <button
+                        type="button"
+                        className="mov-iconBtn mov-iconBtn--danger"
+                        title="Eliminar variante definitivamente"
+                        disabled={procesandoEstaVariante}
+                        onClick={() => handleAbrirEliminarVariante(prod, variant)}
+                      >
+                        <FontAwesomeIcon icon={faTrashCan} />
+                      </button>
                     </span>
                   </div>
                 );
@@ -2265,13 +2231,26 @@ const Stock = () => {
                                     className="mov-iconBtn mov-iconBtn--danger"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleAbrirEliminar(prod);
+                                      handleAbrirBajaProducto(prod);
                                     }}
                                   >
-                                    <FontAwesomeIcon icon={faTrashCan} />
+                                    <FontAwesomeIcon icon={faBoxOpen} />
                                   </button>
                                 </>
                               )}
+
+                              <button
+                                type="button"
+                                title="Eliminar producto definitivamente"
+                                className="mov-iconBtn mov-iconBtn--danger"
+                                disabled={reactivandoId === productoId}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAbrirEliminar(prod);
+                                }}
+                              >
+                                <FontAwesomeIcon icon={faTrashCan} />
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -2399,19 +2378,47 @@ const Stock = () => {
         />
       )}
 
-      <ModalBajaEliminarStock
-        open={modalEliminarAbierto}
-        loading={eliminando}
-        processingAction={accionEliminacionProducto}
-        onClose={handleCerrarEliminar}
-        onDarBaja={handleConfirmarBajaProducto}
-        onEliminar={handleConfirmarEliminarPermanenteProducto}
-        darBajaDisabled={cargandoImpactoEliminar}
-        eliminarDisabled={cargandoImpactoEliminar}
+      <ModalDarBajaStock
+        open={modalDarBajaProductoAbierto}
+        loading={eliminando && accionEliminacionProducto === "baja"}
+        onClose={handleCerrarBajaProducto}
+        onConfirm={handleConfirmarBajaProducto}
         entidadLabel="producto"
-        title="Eliminar producto"
-        message="Podés ocultarlo para usarlo más adelante o borrarlo para siempre."
-        warning="Dar de baja: oculta el producto y permite volver a activarlo después. Eliminar: borra para siempre el producto junto con sus variantes, precios, categorías e imágenes. Usalo solo si fue cargado por error o ya no debe existir."
+        title="Dar de baja producto"
+        message="El producto se ocultará de la lista principal y vas a poder volver a activarlo desde dados de baja."
+        confirmLabel="Dar de baja"
+        details={
+          productoEliminar
+            ? [
+                { label: "ID Producto", value: `#${getProductoId(productoEliminar)}` },
+                { label: "Nombre", value: productoEliminar.nombre || "—" },
+                { label: "SKU", value: productoEliminar.sku || "—" },
+                {
+                  label: "Stock",
+                  value:
+                    productoEliminar.stock === null ||
+                    productoEliminar.stock === undefined ||
+                    productoEliminar.stock === ""
+                      ? "—"
+                      : String(productoEliminar.stock),
+                },
+                { label: "Precio costo", value: formatMoney(productoEliminar.precio_costo) },
+                { label: "Precio venta", value: formatMoney(productoEliminar.precio) },
+              ]
+            : []
+        }
+      />
+
+      <ModalEliminarStock
+        open={modalEliminarAbierto}
+        loading={eliminando && accionEliminacionProducto === "eliminar"}
+        onClose={handleCerrarEliminar}
+        onConfirm={handleConfirmarEliminarPermanenteProducto}
+        confirmDisabled={cargandoImpactoEliminar}
+        entidadLabel="producto"
+        title="Eliminar producto definitivamente"
+        message="Esta acción borra el producto para siempre junto con sus variantes, precios, categorías e imágenes."
+        warning="Usalo solo si fue cargado por error o ya no debe existir en el sistema. Si querés conservarlo para poder recuperarlo, usá Dar de baja."
         extraContent={impactoEliminacionProducto}
         details={
           productoEliminar
@@ -2435,18 +2442,47 @@ const Stock = () => {
         }
       />
 
-
-      <ModalBajaEliminarStock
+      <ModalDarBajaStock
         open={modalBajaVarianteAbierto}
-        loading={!!procesandoVarianteId}
-        processingAction={accionEliminacionVariante}
+        loading={!!procesandoVarianteId && accionEliminacionVariante === "baja"}
         onClose={handleCerrarBajaVariante}
-        onDarBaja={handleConfirmarBajaVariante}
-        onEliminar={handleConfirmarEliminarPermanenteVariante}
+        onConfirm={handleConfirmarBajaVariante}
         entidadLabel="variante"
-        title="Eliminar variante"
-        message="Podés ocultarla para usarla más adelante o borrarla para siempre."
-        warning="Dar de baja: oculta la variante y permite volver a activarla después. Eliminar: borra para siempre la variante junto con sus precios, categorías e información asociada. Usalo solo si fue cargada por error o ya no debe existir."
+        title="Dar de baja variante"
+        message="La variante se ocultará de la lista principal y vas a poder volver a activarla desde dados de baja."
+        confirmLabel="Dar de baja"
+        details={
+          varianteBaja
+            ? [
+                { label: "ID Variante", value: `#${getVarianteId(varianteBaja)}` },
+                { label: "Producto", value: varianteBaja.productoNombre || "—" },
+                { label: "Variante", value: varianteBaja.nombre_variante || "—" },
+                { label: "SKU", value: varianteBaja.sku || "—" },
+                {
+                  label: "Stock",
+                  value:
+                    varianteBaja.stock === null ||
+                    varianteBaja.stock === undefined ||
+                    varianteBaja.stock === ""
+                      ? "—"
+                      : String(varianteBaja.stock),
+                },
+                { label: "Precio costo", value: formatMoney(varianteBaja.precio_costo) },
+                { label: "Precio venta", value: formatMoney(varianteBaja.precio) },
+              ]
+            : []
+        }
+      />
+
+      <ModalEliminarStock
+        open={modalEliminarVarianteAbierto}
+        loading={!!procesandoVarianteId && accionEliminacionVariante === "eliminar"}
+        onClose={handleCerrarEliminarVariante}
+        onConfirm={handleConfirmarEliminarPermanenteVariante}
+        entidadLabel="variante"
+        title="Eliminar variante definitivamente"
+        message="Esta acción borra la variante para siempre junto con sus precios, categorías e información asociada."
+        warning="Usalo solo si fue cargada por error o ya no debe existir en el sistema. Si querés conservarla para poder recuperarla, usá Dar de baja."
         details={
           varianteBaja
             ? [
