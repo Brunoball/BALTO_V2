@@ -3,7 +3,6 @@ import ModalCargaMasiva from "./modales/ModalCargaMasiva";
 import ModalEditarProducto from "./modales/ModalEditarStock";
 import ModalAjustePrecios from "./modales/ModalAjustePrecios";
 import ModalHistorialPreciosProducto from "./modales/ModalHistorialPreciosProducto";
-import ModalEliminar from "../Global/Modales/ModalEliminar";
 import Toast from "../Global/Toast";
 import BASE_URL from "../../config/config";
 import BaltoCargaGif from "../../imagenes/Balto_Carga.gif";
@@ -481,6 +480,101 @@ const SKEL_WIDTHS = {
   precio_promo: ["46%", "38%", "42%", "34%"],
 };
 
+
+function ModalBajaEliminarStock({
+  open,
+  title,
+  message,
+  warning,
+  details = [],
+  extraContent = null,
+  loading = false,
+  processingAction = "",
+  onClose,
+  onDarBaja,
+  onEliminar,
+  darBajaDisabled = false,
+  eliminarDisabled = false,
+  entidadLabel = "registro",
+}) {
+  if (!open) return null;
+
+  const labelProcesando = processingAction === "eliminar"
+    ? `Eliminando ${entidadLabel}...`
+    : `Dando de baja ${entidadLabel}...`;
+
+  return (
+    <div className="stock-deleteModalOverlay" role="presentation" onMouseDown={loading ? undefined : onClose}>
+      <div
+        className="stock-deleteModal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="stock-deleteModal-title"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="stock-deleteModal__head">
+          <div>
+            <h3 id="stock-deleteModal-title">{title}</h3>
+            <p>{message}</p>
+          </div>
+          <button
+            type="button"
+            className="stock-deleteModal__close"
+            onClick={onClose}
+            disabled={loading}
+            aria-label="Cerrar"
+          >
+            <FontAwesomeIcon icon={faTimes} />
+          </button>
+        </div>
+
+        {details.length > 0 ? (
+          <div className="stock-deleteModal__details">
+            {details.map((item, idx) => (
+              <div className="stock-deleteModal__detail" key={`${item.label}-${idx}`}>
+                <span>{item.label}</span>
+                <b>{item.value}</b>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {warning ? <div className="stock-deleteModal__warning">{warning}</div> : null}
+        {extraContent}
+
+        {loading ? <div className="stock-deleteModal__loading">{labelProcesando}</div> : null}
+
+        <div className="stock-deleteModal__actions">
+          <button
+            type="button"
+            className="mov-btn mov-btn--ghost"
+            onClick={onClose}
+            disabled={loading}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="mov-btn stock-deleteModal__btnBaja"
+            onClick={onDarBaja}
+            disabled={loading || darBajaDisabled}
+          >
+            {processingAction === "baja" ? labelProcesando : "Dar de baja"}
+          </button>
+          <button
+            type="button"
+            className="mov-btn mov-btn--danger stock-deleteModal__btnEliminar"
+            onClick={onEliminar}
+            disabled={loading || eliminarDisabled}
+          >
+            {processingAction === "eliminar" ? labelProcesando : "Eliminar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const Stock = () => {
   const [productosRaw, setProductosRaw] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -508,9 +602,11 @@ const Stock = () => {
   const [modalEliminarAbierto, setModalEliminarAbierto] = useState(false);
   const [productoEliminar, setProductoEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
+  const [accionEliminacionProducto, setAccionEliminacionProducto] = useState("");
   const [modalBajaVarianteAbierto, setModalBajaVarianteAbierto] = useState(false);
   const [varianteBaja, setVarianteBaja] = useState(null);
   const [procesandoVarianteId, setProcesandoVarianteId] = useState(null);
+  const [accionEliminacionVariante, setAccionEliminacionVariante] = useState("");
   const [reactivandoId, setReactivandoId] = useState(null);
   const [impactoEliminar, setImpactoEliminar] = useState(null);
   const [cargandoImpactoEliminar, setCargandoImpactoEliminar] = useState(false);
@@ -1264,7 +1360,7 @@ const Stock = () => {
 
       const data = await apiGet(`${API_URL}?${params.toString()}`);
       if (data?.exito === false) {
-        throw new Error(data?.mensaje || "No se pudo consultar el impacto de la baja.");
+        throw new Error(data?.mensaje || "No se pudo revisar si este producto está usado en ventas, compras o presupuestos.");
       }
 
       if (impactoEliminarRequestRef.current !== requestId) return;
@@ -1272,7 +1368,7 @@ const Stock = () => {
     } catch (err) {
       if (impactoEliminarRequestRef.current !== requestId) return;
       setErrorImpactoEliminar(
-        err?.message || "No se pudo consultar cuántos movimientos se afectarían."
+        err?.message || "No se pudo revisar si este producto está usado en ventas, compras o presupuestos."
       );
     } finally {
       if (impactoEliminarRequestRef.current === requestId) {
@@ -1300,6 +1396,25 @@ const Stock = () => {
     consultarImpactoEliminacion(productoId);
   };
 
+  const limpiarEstadoVisualProducto = useCallback((productoId) => {
+    setProductosRaw((prev) => prev.filter((p) => getProductoId(p) !== productoId));
+    setErroresImagenes((prev) => {
+      const next = { ...prev };
+      delete next[productoId];
+      return next;
+    });
+    setReintentosImagenes((prev) => {
+      const next = { ...prev };
+      delete next[productoId];
+      return next;
+    });
+    setImagenesTemporalesPorProducto((prev) => {
+      const next = { ...prev };
+      delete next[productoId];
+      return next;
+    });
+  }, []);
+
   const handleCerrarEliminar = () => {
     if (eliminando) return;
     impactoEliminarRequestRef.current += 1;
@@ -1308,22 +1423,25 @@ const Stock = () => {
     setImpactoEliminar(null);
     setErrorImpactoEliminar("");
     setCargandoImpactoEliminar(false);
+    setAccionEliminacionProducto("");
   };
 
-  const handleConfirmarEliminar = async () => {
+  const ejecutarAccionProducto = async ({ permanente = false } = {}) => {
     const productoId = getProductoId(productoEliminar);
 
     if (!productoId || productoId <= 0) {
-      throw new Error("ID de producto inválido.");
+      mostrarToast("error", "ID de producto inválido.");
+      return;
     }
 
     setEliminando(true);
+    setAccionEliminacionProducto(permanente ? "eliminar" : "baja");
 
     try {
       const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
 
       const payload = {
-        action: "stock_productos_eliminar",
+        action: permanente ? "stock_producto_eliminar_permanente" : "stock_productos_eliminar",
         id: productoId,
         idUsuarioMaster,
       };
@@ -1335,35 +1453,25 @@ const Stock = () => {
       const data = await apiPost(API_URL, payload);
 
       if (data.exito === false) {
-        throw new Error(data.mensaje || "Error al dar de baja el producto");
+        throw new Error(data.mensaje || (permanente ? "Error al eliminar el producto" : "Error al dar de baja el producto"));
       }
 
-      setProductosRaw((prev) =>
-        prev.filter((p) => getProductoId(p) !== productoId)
-      );
-      
-      setErroresImagenes((prev) => {
-        const next = { ...prev };
-        delete next[productoId];
-        return next;
-      });
-      setReintentosImagenes((prev) => {
-        const next = { ...prev };
-        delete next[productoId];
-        return next;
-      });
-
+      limpiarEstadoVisualProducto(productoId);
       setModalEliminarAbierto(false);
       setProductoEliminar(null);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
-      mostrarToast("exito", "Producto dado de baja correctamente.");
+      mostrarToast("exito", permanente ? "Producto eliminado permanentemente." : "Producto dado de baja correctamente.");
     } catch (error) {
-      mostrarToast("error", error.message || "No se pudo dar de baja el producto.");
+      mostrarToast("error", error.message || (permanente ? "No se pudo eliminar el producto." : "No se pudo dar de baja el producto."));
     } finally {
       setEliminando(false);
+      setAccionEliminacionProducto("");
     }
   };
+
+  const handleConfirmarBajaProducto = async () => ejecutarAccionProducto({ permanente: false });
+  const handleConfirmarEliminarPermanenteProducto = async () => ejecutarAccionProducto({ permanente: true });
 
   const handleReactivarProducto = async (producto) => {
     const productoId = getProductoId(producto);
@@ -1419,23 +1527,26 @@ const Stock = () => {
     if (procesandoVarianteId) return;
     setModalBajaVarianteAbierto(false);
     setVarianteBaja(null);
+    setAccionEliminacionVariante("");
   };
 
-  const handleConfirmarBajaVariante = async () => {
+  const ejecutarAccionVariante = async ({ permanente = false } = {}) => {
     const varianteId = getVarianteId(varianteBaja);
     const productoId = Number(varianteBaja?.productoId || varianteBaja?.id_stock_producto || 0);
 
     if (!varianteId || varianteId <= 0 || !productoId || productoId <= 0) {
-      throw new Error("ID de variante inválido.");
+      mostrarToast("error", "ID de variante inválido.");
+      return;
     }
 
     setProcesandoVarianteId(varianteId);
-    mostrarToastCarga("Dando de baja variante...");
+    setAccionEliminacionVariante(permanente ? "eliminar" : "baja");
+    mostrarToastCarga(permanente ? "Eliminando variante definitivamente..." : "Dando de baja variante...");
 
     try {
       const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
       const payload = {
-        action: "stock_variante_dar_baja",
+        action: permanente ? "stock_variante_eliminar_permanente" : "stock_variante_dar_baja",
         id: varianteId,
         id_stock_variante: varianteId,
         idUsuarioMaster,
@@ -1444,7 +1555,7 @@ const Stock = () => {
 
       const data = await apiPost(API_URL, payload);
       if (data?.exito === false) {
-        throw new Error(data?.mensaje || "No se pudo dar de baja la variante.");
+        throw new Error(data?.mensaje || (permanente ? "No se pudo eliminar la variante." : "No se pudo dar de baja la variante."));
       }
 
       await cargarVariantesProducto(productoId);
@@ -1452,13 +1563,17 @@ const Stock = () => {
       notifyListsUpdated();
       setModalBajaVarianteAbierto(false);
       setVarianteBaja(null);
-      mostrarToast("exito", "Variante dada de baja correctamente.");
+      mostrarToast("exito", permanente ? "Variante eliminada permanentemente." : "Variante dada de baja correctamente.");
     } catch (error) {
-      mostrarToast("error", error?.message || "No se pudo dar de baja la variante.");
+      mostrarToast("error", error?.message || (permanente ? "No se pudo eliminar la variante." : "No se pudo dar de baja la variante."));
     } finally {
       setProcesandoVarianteId(null);
+      setAccionEliminacionVariante("");
     }
   };
+
+  const handleConfirmarBajaVariante = async () => ejecutarAccionVariante({ permanente: false });
+  const handleConfirmarEliminarPermanenteVariante = async () => ejecutarAccionVariante({ permanente: true });
 
   const handleReactivarVariante = async (producto, variante) => {
     const productoId = getProductoId(producto);
@@ -1520,8 +1635,8 @@ const Stock = () => {
     if (cargandoImpactoEliminar) {
       return (
         <div style={baseStyle}>
-          <strong>Consultando movimientos...</strong>
-          <div>Se está verificando en la base de datos cuántos registros usan este producto.</div>
+          <strong>Revisando uso del producto...</strong>
+          <div>Estamos verificando si este producto aparece en ventas, compras o presupuestos ya cargados.</div>
         </div>
       );
     }
@@ -1536,7 +1651,7 @@ const Stock = () => {
             color: "#991b1b",
           }}
         >
-          <strong>No se pudo consultar el impacto.</strong>
+          <strong>No se pudo revisar el uso del producto.</strong>
           <div>{errorImpactoEliminar}</div>
         </div>
       );
@@ -1563,29 +1678,26 @@ const Stock = () => {
             color: "#166534",
           }}
         >
-          <strong>Impacto en movimientos</strong>
-          <div>Este producto no está usado en ningún movimiento.</div>
+          <strong>Uso del producto</strong>
+          <div>Este producto no aparece en ventas, compras ni presupuestos cargados. Podés eliminarlo sin afectar registros anteriores.</div>
         </div>
       );
     }
 
     return (
       <div style={baseStyle}>
-        <strong>Impacto en movimientos</strong>
+        <strong>Uso del producto</strong>
         <div>
-          Este producto está usado en {pluralize(itemsAfectados, "ítem", "ítems")} de {" "}
-          {pluralize(movimientosAfectados, "movimiento")}.
+          Este producto aparece en {pluralize(itemsAfectados, "renglón", "renglones")} de {" "}
+          {pluralize(movimientosAfectados, "registro cargado", "registros cargados")}. Si lo eliminás, esos registros siguen existiendo, pero ya no quedarán unidos a este producto.
         </div>
         {movimientosSinProductos > 0 ? (
           <div style={{ marginTop: "6px", fontWeight: 700 }}>
-            Atención: {pluralize(movimientosSinProductos, "movimiento")} {" "}
-            {movimientosSinProductos === 1 ? "quedaría" : "quedarían"} sin productos asociados.
+            Atención: en {pluralize(movimientosSinProductos, "registro", "registros")} este era el único producto cargado.
           </div>
         ) : (
           <div style={{ marginTop: "6px" }}>
-            Ningún movimiento quedaría vacío, porque {" "}
-            {pluralize(movimientosConOtrosProductos, "movimiento")} {" "}
-            {movimientosConOtrosProductos === 1 ? "tiene" : "tienen"} otros productos cargados.
+            Los registros donde aparece también tienen otros productos cargados, así que no quedan vacíos.
           </div>
         )}
       </div>
@@ -2287,34 +2399,19 @@ const Stock = () => {
         />
       )}
 
-      <ModalEliminar
+      <ModalBajaEliminarStock
         open={modalEliminarAbierto}
-        row={
-          productoEliminar
-            ? {
-                id: getProductoId(productoEliminar),
-                nombre: productoEliminar.nombre,
-                sku: productoEliminar.sku,
-                stock: productoEliminar.stock,
-                precio_costo: productoEliminar.precio_costo,
-                precio: productoEliminar.precio,
-              }
-            : null
-        }
         loading={eliminando}
+        processingAction={accionEliminacionProducto}
         onClose={handleCerrarEliminar}
-        onConfirm={handleConfirmarEliminar}
-        onToast={mostrarToast}
-        title="Dar de baja producto"
-        message="¿Seguro que querés dar de baja este producto?"
-        warning="No se borra historial, precios, variantes ni movimientos. Vas a poder reactivarlo desde la vista de dados de baja."
-        loadingMessage="Dando de baja producto..."
-        successMessage="Producto dado de baja correctamente."
-        errorMessage="No se pudo dar de baja el producto."
-        confirmLabel="Dar de baja"
-        cancelLabel="Cancelar"
-        confirmDisabled={cargandoImpactoEliminar}
-        confirmVariant="danger"
+        onDarBaja={handleConfirmarBajaProducto}
+        onEliminar={handleConfirmarEliminarPermanenteProducto}
+        darBajaDisabled={cargandoImpactoEliminar}
+        eliminarDisabled={cargandoImpactoEliminar}
+        entidadLabel="producto"
+        title="Eliminar producto"
+        message="Podés ocultarlo para usarlo más adelante o borrarlo para siempre."
+        warning="Dar de baja: oculta el producto y permite volver a activarlo después. Eliminar: borra para siempre el producto junto con sus variantes, precios, categorías e imágenes. Usalo solo si fue cargado por error o ya no debe existir."
         extraContent={impactoEliminacionProducto}
         details={
           productoEliminar
@@ -2339,33 +2436,17 @@ const Stock = () => {
       />
 
 
-      <ModalEliminar
+      <ModalBajaEliminarStock
         open={modalBajaVarianteAbierto}
-        row={
-          varianteBaja
-            ? {
-                id: getVarianteId(varianteBaja),
-                nombre: varianteBaja.nombre_variante || `Variante #${getVarianteId(varianteBaja)}`,
-                sku: varianteBaja.sku,
-                stock: varianteBaja.stock,
-                precio_costo: varianteBaja.precio_costo,
-                precio: varianteBaja.precio,
-              }
-            : null
-        }
         loading={!!procesandoVarianteId}
+        processingAction={accionEliminacionVariante}
         onClose={handleCerrarBajaVariante}
-        onConfirm={handleConfirmarBajaVariante}
-        onToast={mostrarToast}
-        title="Dar de baja variante"
-        message="¿Seguro que querés dar de baja esta variante?"
-        warning="No se borra historial, precios, categorías, atributos ni movimientos. Vas a poder reactivarla desde el detalle de variantes del producto."
-        loadingMessage="Dando de baja variante..."
-        successMessage="Variante dada de baja correctamente."
-        errorMessage="No se pudo dar de baja la variante."
-        confirmLabel="Dar de baja"
-        cancelLabel="Cancelar"
-        confirmVariant="danger"
+        onDarBaja={handleConfirmarBajaVariante}
+        onEliminar={handleConfirmarEliminarPermanenteVariante}
+        entidadLabel="variante"
+        title="Eliminar variante"
+        message="Podés ocultarla para usarla más adelante o borrarla para siempre."
+        warning="Dar de baja: oculta la variante y permite volver a activarla después. Eliminar: borra para siempre la variante junto con sus precios, categorías e información asociada. Usalo solo si fue cargada por error o ya no debe existir."
         details={
           varianteBaja
             ? [
