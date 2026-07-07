@@ -1104,8 +1104,8 @@ const Principal = () => {
         label: "Contabilidad",
         ruta: "/panel/contabilidad",
         children: [
-          { label: "IVA Compras", ruta: "/panel/contabilidad/iva-compras" },
           { label: "IVA Ventas", ruta: "/panel/contabilidad/iva-ventas" },
+          { label: "IVA Compras", ruta: "/panel/contabilidad/iva-compras" },
         ],
       },
       {
