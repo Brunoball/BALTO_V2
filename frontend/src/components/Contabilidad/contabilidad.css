@@ -66,6 +66,37 @@
   gap: 10px;
 }
 
+/* Buscador IVA: evita que se achique dentro del header compacto.
+   El ancho base lo toma de .cc-filter--search global, y acá solo se ajusta
+   para que conviva bien con el calendario y el botón Exportar, sin pasar de 340px. */
+.contabilidad-cardTable .mov-headFilters {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+.contabilidad-cardTable .contabilidad-searchFilter {
+  flex: 1 1 340px;
+  min-width: 260px;
+  max-width: 340px;
+}
+
+.contabilidad-cardTable .cc-filter--cal {
+  flex: 0 0 auto;
+}
+
+.contabilidad-cardTable .cc-floatingField--search,
+.contabilidad-cardTable .cc-searchInput,
+.contabilidad-cardTable .cc-searchInput__fieldWrap {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .contabilidad-cardTable .contabilidad-searchFilter {
+    min-width: 0;
+    max-width: none;
+  }
+}
+
 .contabilidad-cardTable .cc-floatingField,
 .contabilidad-cardTable .cc-calTrigger,
 .contabilidad-cardTable .cc-input {
