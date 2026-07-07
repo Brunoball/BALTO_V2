@@ -410,7 +410,7 @@ export default function IVACompras() {
                 </div>
               </div>
 
-              <div className="cc-filter">
+              <div className="cc-filter cc-filter--search contabilidad-searchFilter">
                 <div className="cc-floatingField cc-floatingField--search is-active">
                   <div className="cc-searchInput">
                     <div className="cc-searchInput__fieldWrap">
