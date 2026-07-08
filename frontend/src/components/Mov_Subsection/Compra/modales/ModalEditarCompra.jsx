@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/Global_Modals.css";
+import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "./ModalCompra.css";
 import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
@@ -154,7 +155,7 @@ function ChequesCarteraCardsCompra({
   if (!Array.isArray(cheques) || cheques.length === 0) return null;
 
   return (
-    <div className="nc-cheques-list">
+    <div className="gm-checks-list">
       {cheques.map((ch, idx) => {
         const idChequeStr = String(ch?.id_cheque || "");
         const checked = idsSeleccionados.includes(idChequeStr);
@@ -167,7 +168,7 @@ function ChequesCarteraCardsCompra({
         return (
           <div
             key={ch?.id_cheque || idx}
-            className={`nc-cheque-item ${checked ? "nc-cheque-item--selected" : ""} ${esEcheq ? "nc-cheque-item--echeq" : ""}`}
+            className={`gm-check-item ${checked ? "gm-check-item--selected" : ""} ${esEcheq ? "gm-check-item--echeq" : ""}`}
             role={soloLectura ? undefined : "button"}
             tabIndex={soloLectura ? undefined : 0}
             onClick={handleSelect}
@@ -177,21 +178,21 @@ function ChequesCarteraCardsCompra({
             }}
             style={soloLectura ? { cursor: "default" } : undefined}
           >
-            <div className="nc-cheque-main">
-              <div className="nc-cheque-top">
-                <span className="nc-cheque-number">N° {safeText(ch?.numero_cheque) || "-"}</span>
-                {esEcheq && <span className="nc-cheque-badge nc-cheque-badge--echeq">eCheq</span>}
+            <div className="gm-check-main">
+              <div className="gm-check-top">
+                <span className="gm-check-number">N° {safeText(ch?.numero_cheque) || "-"}</span>
+                {esEcheq && <span className="gm-check-badge gm-check-badge--echeck">eCheq</span>}
               </div>
-              <div className="nc-cheque-meta">
-                <span className="nc-cheque-emisor" title={safeText(ch?.emisor) || "-"}>{safeText(ch?.emisor) || "-"}</span>
-                <span className="nc-cheque-separator">·</span>
+              <div className="gm-check-meta">
+                <span className="gm-check-issuer" title={safeText(ch?.emisor) || "-"}>{safeText(ch?.emisor) || "-"}</span>
+                <span className="gm-check-separator">·</span>
                 <span>Pago: {formatFechaDMY(ch?.fecha_pago)}</span>
               </div>
             </div>
-            <span className="nc-cheque-importe">{moneyARS(ch?.importe || 0)}</span>
+            <span className="gm-check-amount">{moneyARS(ch?.importe || 0)}</span>
 
             {!soloLectura && (
-              <div className="nc-cheque-check-icon nc-cheque-check-icon--corner nc-cheque-check-icon--echeq nc-cheque-check-icon--cheque">
+              <div className="gm-check-icon gm-check-icon--corner gm-check-icon--echeck gm-check-icon--check">
                 {checked && (
                   <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
                     <path d="M1 3.5L3.5 6L8 1" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -305,10 +306,10 @@ function MedioPagoInlineCompraRow({
   }, [importeCheques, esCheque, chequesSeleccionados.length, onUpdate, row.id]);
 
   return (
-    <div className="nc-mp-card">
-      <div className="nc-mp-row nc-mp-row--medio">
-        <div className="nc-field" style={{ position: "relative" }}>
-          <select className="nc-input nc-select" value={String(row.id_medio_pago || "")} onChange={(e) => handleChangeMedio(e.target.value)} disabled={saving}>
+    <div className="gm-payment-card">
+      <div className="gm-payment-row gm-payment-row--method">
+        <div className="gm-field" style={{ position: "relative" }}>
+          <select className="gm-input gm-select" value={String(row.id_medio_pago || "")} onChange={(e) => handleChangeMedio(e.target.value)} disabled={saving}>
             <option value="">Seleccionar…</option>
             {mediosPagoList.map((x) => (
               <option key={getMedioPagoId(x) || x?.nombre} value={String(getMedioPagoId(x) || "")}>
@@ -316,16 +317,16 @@ function MedioPagoInlineCompraRow({
               </option>
             ))}
           </select>
-          <label className={`nc-label${row.id_medio_pago && row.id_medio_pago !== "" ? " nc-label--up" : ""}`}>
+          <label className={`gm-label${row.id_medio_pago && row.id_medio_pago !== "" ? " gm-label--up" : ""}`}>
             Medio de pago
           </label>
         </div>
       </div>
 
-      <div className="nc-mp-row nc-mp-row--monto">
-        <div className="nc-field nc-mp-monto-field" style={{ position: "relative" }}>
+      <div className="gm-payment-row gm-payment-row--amount">
+        <div className="gm-field gm-payment-amount-field" style={{ position: "relative" }}>
           <input
-            className="nc-input nc-mp-monto-input"
+            className="gm-input gm-payment-amount-input"
             type="text"
             inputMode="decimal"
             value={row.montoFocused ? row.montoDraft ?? "" : formatMoneyInputARS(esCheque ? importeCheques : row.monto)}
@@ -364,14 +365,14 @@ function MedioPagoInlineCompraRow({
               textAlign: "right",
             }}
           />
-          <label className="nc-label nc-label--up">Monto</label>
+          <label className="gm-label gm-label--up">Monto</label>
         </div>
 
-        <div className="nc-mp-actions-col">
+        <div className="gm-payment-actions-col">
           {!esCheque && (
             <button
               type="button"
-              className="nc-mp-completar"
+              className="gm-payment-complete"
               onClick={() => onUpdate(row.id, { monto: restanteParaEstaFila, montoDraft: "", montoFocused: false })}
               disabled={!puedeCompletarRestante}
               title="Completar importe restante"
@@ -380,7 +381,7 @@ function MedioPagoInlineCompraRow({
             </button>
           )}
           {canRemove && (
-            <button type="button" className="nc-mp-del-btn" onClick={() => onRemove(row.id)} disabled={saving} title="Quitar medio de pago">
+            <button type="button" className="gm-payment-delete" onClick={() => onRemove(row.id)} disabled={saving} title="Quitar medio de pago">
               ×
             </button>
           )}
@@ -388,20 +389,20 @@ function MedioPagoInlineCompraRow({
       </div>
 
       {esCheque && (
-        <div className="nc-mp-cheques">
-          <div className="nc-mp-cheques-title">
+        <div className="gm-payment-checks">
+          <div className="gm-payment-checks-title">
             <FontAwesomeIcon icon={faMoneyCheckDollar} style={{ fontSize: 11 }} />
             {soloChequeVinculado
               ? esEcheq ? "eCheq vinculado" : "Cheque vinculado"
               : esEcheq ? "eCheqs en cartera" : "Cheques en cartera"}
           </div>
           {row.loadingCheques ? (
-            <div className="nc-mp-cheques-loading">
+            <div className="gm-payment-checks-loading">
               <FontAwesomeIcon icon={faCircleNotch} spin style={{ marginRight: 6 }} />
               Cargando…
             </div>
           ) : !Array.isArray(chequesAMostrar) || chequesAMostrar.length === 0 ? (
-            <div className="nc-mp-cheques-empty">
+            <div className="gm-payment-checks-empty">
               {soloChequeVinculado
                 ? `No se encontró el ${esEcheq ? "eCheq" : "cheque"} vinculado.`
                 : `No hay ${esEcheq ? "eCheqs" : "cheques"} activos en cartera.`}
@@ -458,12 +459,12 @@ function PanelMediosPagoCompraLocal({
           BASE_URL={BASE_URL}
         />
       ))}
-      <div className="nc-mp-totals">
-        <span className="nc-mp-totals-asignado">Asignado: <b>{moneyARS(sumaMediosPago)}</b></span>
-        {diferenciaRestante > 0.01 && <span className="nc-mp-totals-falta">Falta: {moneyARS(diferenciaRestante)}</span>}
-        {diferenciaRestante <= 0.01 && safeNumber(totalCompra) > 0 && <span className="nc-mp-totals-ok">✓ Cubierto</span>}
+      <div className="gm-payment-totals">
+        <span className="gm-payment-totals-assigned">Asignado: <b>{moneyARS(sumaMediosPago)}</b></span>
+        {diferenciaRestante > 0.01 && <span className="gm-payment-totals-missing">Falta: {moneyARS(diferenciaRestante)}</span>}
+        {diferenciaRestante <= 0.01 && safeNumber(totalCompra) > 0 && <span className="gm-payment-totals-ok">✓ Cubierto</span>}
       </div>
-      <button type="button" className="nc-pago-btn" onClick={onAdd} disabled={saving}>
+      <button type="button" className="gm-payment-btn" onClick={onAdd} disabled={saving}>
         <FontAwesomeIcon icon={faPlus} style={{ fontSize: 11 }} /> Agregar otro medio
       </button>
     </>
@@ -1980,7 +1981,7 @@ export default function ModalEditarCompra({
   if (!open) return null;
 
   const overlayClass = ["mi-modal__overlay", dark ? "mi-modal__overlay--dark" : ""].join(" ").trim();
-  const containerClass = ["mi-modal__container", "mi-modal__container--mov", "nc-modal", dark ? "mi-modal--dark" : ""].join(" ").trim();
+  const containerClass = ["mi-modal__container", "mi-modal__container--mov", "gm-modal-v2", "nc-modal", dark ? "mi-modal--dark" : ""].join(" ").trim();
   const miniTitle = addUI.catalogo === "proveedores" ? "Nuevo proveedor" : addUI.catalogo === "detalles" ? "Nuevo detalle" : "Nuevo";
 
   return createPortal(
@@ -2014,24 +2015,24 @@ export default function ModalEditarCompra({
 
           <div className="mi-modal__content">
             <div className="mi-cr-grid">
-              <section className="mi-cr-table">
-                <div className="mi-cr-table__head">
-                  <div style={{ paddingLeft: 10 }}>Detalle</div>
-                  <div>Cant.</div>
-                  <div className="right">Precio</div>
-                  <div>IVA %</div>
-                  <div className="right">IVA $</div>
-                  <div className="right">Total</div>
-                  <div />
+              <section className="mi-cr-table gm-table gm-table--movement cmp-table">
+                <div className="mi-cr-table__head gm-table-head">
+                  <div className="gm-table-th" style={{ paddingLeft: 10 }}>Detalle</div>
+                  <div className="gm-table-th">Cant.</div>
+                  <div className="gm-table-th right">Precio</div>
+                  <div className="gm-table-th">IVA %</div>
+                  <div className="gm-table-th right">IVA $</div>
+                  <div className="gm-table-th right">Total</div>
+                  <div className="gm-table-th" />
                 </div>
 
-                <div ref={rowsContainerRef} className={`mi-cr-table__rows${hasScroll ? " has-scroll" : ""}`}>
-                  <div className="mi-cr-row">
-                    <div className="mi-cr-cell mi-cr-cell--detalle">
+                <div ref={rowsContainerRef} className={`mi-cr-table__rows gm-table-body ${hasScroll ? "has-scroll" : ""}`}>
+                  <div className="mi-cr-row gm-table-row">
+                    <div className="mi-cr-cell gm-table-cell mi-cr-cell--detalle gm-table-cell--detail">
                       <div className="fl-field mi-autocomplete" style={{ width: "100%" }}>
                         <input
                           ref={detalleInputRef}
-                          className="nc-cell-input"
+                          className="gm-cell-input"
                           placeholder=" "
                           value={detalleInput}
                           onChange={handleDetalleInputChange}
@@ -2073,9 +2074,9 @@ export default function ModalEditarCompra({
                       </div>
                     </div>
 
-                    <div className="mi-cr-cell mi-cr-cell--center stock_cant">
+                    <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center stock_cant">
                       <input
-                        className="nc-cell-input nc-cell-input--center"
+                        className="gm-cell-input gm-cell-input--center"
                         type="number"
                         min="0.001"
                         step="0.001"
@@ -2085,9 +2086,9 @@ export default function ModalEditarCompra({
                       />
                     </div>
 
-                    <div className="mi-cr-cell mi-cr-cell--center">
+                    <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
                       <input
-                        className="nc-cell-input nc-cell-input--right"
+                        className="gm-cell-input gm-cell-input--right"
                         type="number"
                         min="0"
                         step="0.01"
@@ -2097,9 +2098,9 @@ export default function ModalEditarCompra({
                       />
                     </div>
 
-                    <div className="mi-cr-cell mi-cr-cell--center">
+                    <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
                       <select
-                        className="nc-cell-input nc-cell-input--center nc-cell-input--select"
+                        className="gm-cell-input gm-cell-input--center gm-cell-input--select"
                         value={String(form.iva_pct)}
                         onChange={(e) => onIvaPctChange(e.target.value)}
                         disabled={saving}
@@ -2108,19 +2109,19 @@ export default function ModalEditarCompra({
                       </select>
                     </div>
 
-                    <div className="mi-cr-cell mi-cr-cell--right mi-cr-cell--mono mi-cr-cell--soft">
+                    <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--soft gm-table-cell--soft">
                       {moneyARS(form.iva_monto)}
                     </div>
-                    <div className="mi-cr-cell mi-cr-cell--right mi-cr-cell--mono mi-cr-cell--total-val">
+                    <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--total-val gm-table-cell--total">
                       {moneyARS(form.total)}
                     </div>
-                    <div className="mi-cr-cell mi-cr-cell--center" id="delete_cell" />
+                    <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center" id="delete_cell" />
                   </div>
                 </div>
 
-                <div className="mi-cr-table__foot">
+                <div className="mi-cr-table__foot gm-table-foot">
                   <div className="mi-cr-foot-actions">
-                    <div className="nc-foot-sep" />
+                    <div className="gm-foot-sep" />
                   </div>
                   <div className="mi-cr-totals">
                     <div className="mi-cr-totalLine mi-cr-totalLine--sub">
@@ -2137,19 +2138,19 @@ export default function ModalEditarCompra({
               </section>
 
               <div className="mi-cr-filters">
-                <aside className="nc-aside">
-                  <div className="nc-section">
-                    <div className="nc-section-head">
-                      <div className="nc-section-dot" />
+                <aside className="gm-aside">
+                  <div className="gm-section">
+                    <div className="gm-section-head">
+                      <div className="gm-section-dot" />
                       <span>Datos de compra</span>
                     </div>
 
-                    <div className="nc-section-body">
+                    <div className="gm-section-body">
                       {/* ⭐ INPUT DE FECHA CON VALIDACIONES ⭐ */}
-                      <div className="nc-field" onClick={openDatePicker}>
+                      <div className="gm-field" onClick={openDatePicker}>
                         <input
                           ref={fechaRef}
-                          className="nc-input"
+                          className="gm-input"
                           type="date"
                           placeholder=" "
                           value={form.fecha}
@@ -2157,14 +2158,14 @@ export default function ModalEditarCompra({
                           onChange={(e) => onFechaChange(e.target.value)}
                           disabled={saving}
                         />
-                        <label className="nc-label">Fecha</label>
+                        <label className="gm-label">Fecha</label>
                       </div>
 
                       <div className="nc-prov-wrap">
                         <div className="fl-field mi-autocomplete">
                           <input
                             ref={proveedorInputRef}
-                            className="nc-input"
+                            className="gm-input"
                             placeholder=" "
                             value={proveedorInput}
                             onChange={handleProveedorInputChange}
@@ -2207,9 +2208,9 @@ export default function ModalEditarCompra({
                         </div>
                       </div>
 
-                      <div className="nc-field">
+                      <div className="gm-field">
                         <select
-                          className="nc-input nc-select"
+                          className="gm-input gm-select"
                           value={String(form.id_tipo_venta ?? "")}
                           onChange={(e) => setForm((p) => ({ ...p, id_tipo_venta: String(e.target.value || "") }))}
                           disabled={saving}
@@ -2225,7 +2226,7 @@ export default function ModalEditarCompra({
                             );
                           })}
                         </select>
-                        <label className={`nc-label${form.id_tipo_venta ? " nc-label--up" : ""}`}>
+                        <label className={`gm-label${form.id_tipo_venta ? " gm-label--up" : ""}`}>
                           Forma de compra *
                         </label>
                       </div>
@@ -2336,13 +2337,13 @@ export default function ModalEditarCompra({
                       </div>
                     </div>
 
-                    <div className="nc-section-divider" />
+                    <div className="gm-section-divider" />
 
                   </div>
 
 
                 </aside>
-                <div className="nc-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+                <div className="gm-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
                   <button
                     type="button"
                     className="mit-btn mit-btn--solid mit-btn--block"

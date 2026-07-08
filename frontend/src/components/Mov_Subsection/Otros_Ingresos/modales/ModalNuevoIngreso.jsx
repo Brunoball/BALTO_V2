@@ -9,6 +9,7 @@ import ModalNuevoCheque from "../../../Global/Modales/ModalNuevoCheque.jsx";
 import ModalNuevaDescripcion from "./ModalNuevaDescripcion.jsx";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import "../../../Global/Global_css/Global_Modals.css";
+import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
@@ -254,26 +255,26 @@ function ChequeResumen({ cheque, tipoCheque }) {
   if (!cheque) return null;
   const esEcheq = tipoCheque === "echeq";
   return (
-    <div className="oi-cheques-list">
-      <div className={`oi-cheque-item oi-cheque-item--selected${esEcheq ? " oi-cheque-item--echeq" : ""}`}>
-        <div className="oi-cheque-main">
-          <div className="oi-cheque-top">
-            <span className="oi-cheque-number">N° {safeText(cheque?.numero_cheque)}</span>
-            {esEcheq && <span className="oi-cheque-badge oi-cheque-badge--echeq">eCheq</span>}
+    <div className="gm-checks-list">
+      <div className={`gm-check-item gm-check-item--selected${esEcheq ? " gm-check-item--echeck" : ""}`}>
+        <div className="gm-check-main">
+          <div className="gm-check-top">
+            <span className="gm-check-number">N° {safeText(cheque?.numero_cheque)}</span>
+            {esEcheq && <span className="gm-check-badge gm-check-badge--echeck">eCheq</span>}
           </div>
-          <div className="oi-cheque-meta">
-            <span className="oi-cheque-emisor" title={safeText(cheque?.emisor)}>
+          <div className="gm-check-meta">
+            <span className="gm-check-issuer" title={safeText(cheque?.emisor)}>
               {safeText(cheque?.emisor)}
             </span>
-            <span className="oi-cheque-separator">·</span>
+            <span className="gm-check-separator">·</span>
             <span>Pago: {formatFechaDMY(cheque?.fecha_pago)}</span>
           </div>
         </div>
-        <span className="oi-cheque-importe">{moneyARS(cheque?.importe || 0)}</span>
+        <span className="gm-check-amount">{moneyARS(cheque?.importe || 0)}</span>
         <div
           aria-hidden="true"
-          className={`oi-cheque-check-icon oi-cheque-check-icon--corner${
-            esEcheq ? " oi-cheque-check-icon--echeq" : " oi-cheque-check-icon--cheque"
+          className={`gm-check-icon gm-check-icon--corner${
+            esEcheq ? " gm-check-icon--echeck" : " gm-check-icon--check"
           }`}
         >
           <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
@@ -413,12 +414,12 @@ function MedioPagoRow({
   );
 
   return (
-    <div className="oi-mp-card">
+    <div className="gm-payment-card">
       {/* Selector de medio */}
-      <div className="oi-mp-row oi-mp-row--medio">
-        <div className="oi-field" style={{ position: "relative" }}>
+      <div className="gm-payment-row gm-payment-row--method">
+        <div className="gm-field" style={{ position: "relative" }}>
           <select
-            className="oi-input oi-select"
+            className="gm-input gm-select"
             value={String(row.id_medio_pago || "")}
             onChange={(e) => handleChangeMedio(e.target.value)}
             disabled={saving}
@@ -433,17 +434,17 @@ function MedioPagoRow({
               );
             })}
           </select>
-          <label className={`oi-label${row.id_medio_pago && row.id_medio_pago !== "" ? " oi-label--up" : ""}`}>
+          <label className={`gm-label${row.id_medio_pago && row.id_medio_pago !== "" ? " gm-label--up" : ""}`}>
             Medio de pago
           </label>
         </div>
       </div>
 
       {/* Monto */}
-      <div className="oi-mp-row oi-mp-row--monto">
-        <div className="oi-field oi-mp-monto-field" style={{ position: "relative" }}>
+      <div className="gm-payment-row gm-payment-row--amount">
+        <div className="gm-field gm-payment-amount-field" style={{ position: "relative" }}>
           <input
-            className="oi-input oi-mp-monto-input"
+            className="gm-input gm-payment-amount-input"
             type="text"
             inputMode="decimal"
             value={row.montoFocused ? row.montoDraft ?? "" : formatMoneyInputARS(montoActual)}
@@ -476,14 +477,14 @@ function MedioPagoRow({
             disabled={saving || (esCheque && !!row.cheque)}
             style={{ height: 32, padding: "0 10px", fontSize: 13, textAlign: "right" }}
           />
-          <label className="oi-label oi-label--up">Monto</label>
+          <label className="gm-label gm-label--up">Monto</label>
         </div>
 
-        <div className="oi-mp-actions-col">
+        <div className="gm-payment-actions-col">
           {!esCheque && (
             <button
               type="button"
-              className="oi-mp-completar"
+              className="gm-payment-complete"
               onClick={() =>
                 onUpdate(row.id, { monto: restanteParaEstaFila, montoDraft: "", montoFocused: false })
               }
@@ -495,7 +496,7 @@ function MedioPagoRow({
           )}
           <button
             type="button"
-            className="oi-mp-del-btn"
+            className="gm-payment-delete"
             onClick={() => onRemove(row.id)}
             disabled={saving}
             title="Quitar"
@@ -507,8 +508,8 @@ function MedioPagoRow({
 
       {/* Cheque */}
       {esCheque && (
-        <div className="oi-mp-cheques">
-          <div className="oi-mp-cheques-title">
+        <div className="gm-payment-checks">
+          <div className="gm-payment-checks-title">
             <FontAwesomeIcon icon={faMoneyCheckDollar} style={{ fontSize: 12 }} />
             {tipoCheque === "echeq" ? "eCheq cargado" : "Cheque cargado"}
           </div>
@@ -518,7 +519,7 @@ function MedioPagoRow({
               <ChequeResumen cheque={row.cheque} tipoCheque={tipoCheque} />
               <button
                 type="button"
-                className="oi-pago-btn"
+                className="gm-payment-btn"
                 onClick={() => setOpenChequeModal(true)}
                 disabled={saving}
               >
@@ -528,7 +529,7 @@ function MedioPagoRow({
           ) : (
             <button
               type="button"
-              className="oi-pago-btn"
+              className="gm-payment-btn"
               onClick={() => setOpenChequeModal(true)}
               disabled={saving}
             >
@@ -618,21 +619,21 @@ function PanelMediosPago({
         />
       ))}
 
-      <div className="oi-mp-totals">
-        <span className="oi-mp-totals-asignado">
+      <div className="gm-payment-totals">
+        <span className="gm-payment-totals-assigned">
           Asignado: <b>{moneyARS(sumaMediosPago)}</b>
         </span>
         {diferenciaRestante > 0.01 && (
-          <span className="oi-mp-totals-falta">Pendiente: {moneyARS(diferenciaRestante)}</span>
+          <span className="gm-payment-totals-missing">Pendiente: {moneyARS(diferenciaRestante)}</span>
         )}
         {diferenciaRestante <= 0.01 && sumaMediosPago > 0 && (
-          <span className="oi-mp-totals-ok">✓ Cobro completo</span>
+          <span className="gm-payment-totals-ok">✓ Cobro completo</span>
         )}
       </div>
 
       <button
         type="button"
-        className="oi-pago-btn"
+        className="gm-payment-btn"
         onClick={onAdd}
         disabled={saving}
       >
@@ -1250,7 +1251,7 @@ export default function ModalNuevoIngreso({
     <>
       <div className="mi-modal__overlay">
         <div
-          className="mi-modal__container mi-modal__container--mov oi-modal"
+          className="mi-modal__container mi-modal__container--mov gm-modal-v2 oi-modal"
           role="dialog"
           aria-modal="true"
           onMouseDown={(e) => e.stopPropagation()}
@@ -1281,28 +1282,28 @@ export default function ModalNuevoIngreso({
           <div className="mi-modal__content">
             <div className="mi-cr-grid">
               {/* Tabla de ítems */}
-              <section className="mi-cr-table">
-                <div className="mi-cr-table__head">
-                  <div style={{ paddingLeft: 10 }}>Descripción</div>
-                  <div>Cant.</div>
-                  <div className="right">Importe</div>
-                  <div>IVA %</div>
-                  <div className="right">IVA $</div>
-                  <div className="right">Total</div>
-                  <div />
+              <section className="mi-cr-table gm-table gm-table--movement oi-table">
+                <div className="mi-cr-table__head gm-table-head">
+                  <div className="gm-table-th" style={{ paddingLeft: 10 }}>Descripción</div>
+                  <div className="gm-table-th">Cant.</div>
+                  <div className="gm-table-th right">Importe</div>
+                  <div className="gm-table-th">IVA %</div>
+                  <div className="gm-table-th right">IVA $</div>
+                  <div className="gm-table-th right">Total</div>
+                  <div className="gm-table-th" />
                 </div>
 
                 <div
                   ref={rowsContainerRef}
-                  className={`mi-cr-table__rows${hasScroll ? " has-scroll" : ""}`}
+                  className={`mi-cr-table__rows gm-table-body${hasScroll ? " has-scroll" : ""}`}
                 >
                   {rowsCalc.map((r) => {
                     return (
                       <div
                         key={r.id}
-                        className="mi-cr-row"
+                        className="mi-cr-row gm-table-row"
                       >
-                        <div className="mi-cr-cell mi-cr-cell--detalle">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--detalle gm-table-cell--detail">
                           <GlobalAutocomplete
                             value={r.detalle}
                             onChange={(val) =>
@@ -1321,13 +1322,13 @@ export default function ModalNuevoIngreso({
                             disabled={saving}
                             showAllOnFocus={false}
                             maxItems={18}
-                            inputClassName="oi-cell-input"
+                            inputClassName="gm-cell-input"
                           />
                         </div>
 
-                        <div className="mi-cr-cell mi-cr-cell--center">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
                           <input
-                            className="oi-cell-input oi-cell-input--center"
+                            className="gm-cell-input gm-cell-input--center"
                             type="number"
                             min="1"
                             step="1"
@@ -1345,9 +1346,9 @@ export default function ModalNuevoIngreso({
                           />
                         </div>
 
-                        <div className="mi-cr-cell mi-cr-cell--right">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right">
                           <input
-                            className="oi-cell-input oi-cell-input--right"
+                            className="gm-cell-input gm-cell-input--right"
                             type="text"
                             inputMode="decimal"
                             value={
@@ -1389,9 +1390,9 @@ export default function ModalNuevoIngreso({
                           />
                         </div>
 
-                        <div className="mi-cr-cell mi-cr-cell--center">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
                           <select
-                            className="oi-cell-input oi-cell-input--center oi-cell-input--select"
+                            className="gm-cell-input gm-cell-input--center gm-cell-input--select"
                             value={String(r.ivaPct)}
                             onChange={(e) => updateRow(r.id, { ivaPct: Number(e.target.value) })}
                             disabled={saving}
@@ -1405,15 +1406,15 @@ export default function ModalNuevoIngreso({
                           </select>
                         </div>
 
-                        <div className="mi-cr-cell mi-cr-cell--right mi-cr-cell--mono mi-cr-cell--soft">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--soft gm-table-cell--soft">
                           {moneyARS(r.ivaMonto)}
                         </div>
 
-                        <div className="mi-cr-cell mi-cr-cell--right mi-cr-cell--mono mi-cr-cell--total-val">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--total-val gm-table-cell--total">
                           {moneyARS(r.total)}
                         </div>
 
-                        <div className="mi-cr-cell mi-cr-cell--center" id="delete_cell">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center" id="delete_cell">
                           <button
                             type="button"
                             className="mi-cr-del"
@@ -1429,10 +1430,10 @@ export default function ModalNuevoIngreso({
                   })}
                 </div>
 
-                <div className="mi-cr-table__foot">
+                <div className="mi-cr-table__foot gm-table-foot">
                   <div className="mi-cr-foot-actions">
-                    <button type="button" className="oi-foot-btn" onClick={addRow} disabled={saving}>
-                      <span className="oi-foot-btn__icon">
+                    <button type="button" className="gm-foot-btn" onClick={addRow} disabled={saving}>
+                      <span className="gm-foot-btn__icon">
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M5 1.5V8.5M1.5 5H8.5" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
                         </svg>
@@ -1459,19 +1460,19 @@ export default function ModalNuevoIngreso({
 
               {/* Sidebar */}
               <div className="mi-cr-filters">
-                <aside className="oi-aside">
-                  <div className="oi-section">
-                    <div className="oi-section-head">
-                      <div className="oi-section-dot" />
+                <aside className="gm-aside">
+                  <div className="gm-section">
+                    <div className="gm-section-head">
+                      <div className="gm-section-dot" />
                       <span>Datos del ingreso</span>
                     </div>
 
-                    <div className="oi-section-body">
+                    <div className="gm-section-body">
                       {/* ⭐ FECHA CON VALIDACIONES ⭐ */}
-                      <div className="oi-field" onClick={openDatePicker}>
+                      <div className="gm-field" onClick={openDatePicker}>
                         <input
                           ref={fechaRef}
-                          className="oi-input"
+                          className="gm-input"
                           type="date"
                           placeholder=" "
                           value={fecha}
@@ -1479,7 +1480,7 @@ export default function ModalNuevoIngreso({
                           onChange={handleFechaChange}
                           disabled={saving}
                         />
-                        <label className="oi-label">Fecha</label>
+                        <label className="gm-label">Fecha</label>
                       </div>
 
                       {/* Medios de pago integrados */}
@@ -1571,7 +1572,7 @@ export default function ModalNuevoIngreso({
                   </div>
                 </aside>
 
-                <div className="oi-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+                <div className="gm-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
                   <button
                     type="button"
                     className="mit-btn mit-btn--solid mit-btn--block"

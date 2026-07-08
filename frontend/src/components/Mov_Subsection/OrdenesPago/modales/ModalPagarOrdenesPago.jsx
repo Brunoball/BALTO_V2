@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/Global_Modals.css";
+import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
@@ -281,12 +282,8 @@ function EstadoChip({ row, pagado }) {
 function ChequesCarteraCards({ cheques, idsSeleccionados, onToggle, esEcheq = false }) {
   if (!cheques.length) return null;
 
-  const accent = esEcheq ? "#0055BB" : "#0f766e";
-  const accentBg = esEcheq ? "rgba(0,85,187,.07)" : "rgba(15,118,110,.07)";
-  const accentBorder = esEcheq ? "rgba(0,85,187,.28)" : "rgba(15,118,110,.28)";
-
   return (
-    <div className="nc-cheques-list">
+    <div className="gm-checks-list">
       {cheques.map((ch, idx) => {
         const checked = idsSeleccionados.includes(String(ch?.id_cheque));
 
@@ -296,14 +293,17 @@ function ChequesCarteraCards({ cheques, idsSeleccionados, onToggle, esEcheq = fa
             role="checkbox"
             aria-checked={checked}
             tabIndex={0}
-            className={`nc-cheque-item ${checked ? "nc-cheque-item--selected" : ""} ${esEcheq ? "nc-cheque-item--echeq" : ""}`}
+            className={`gm-check-item ${checked ? "gm-check-item--selected" : ""} ${esEcheq ? "gm-check-item--echeck" : ""}`}
             onClick={() => onToggle(String(ch?.id_cheque || ""))}
             onKeyDown={(e) =>
               (e.key === " " || e.key === "Enter") &&
               onToggle(String(ch?.id_cheque || ""))
             }
           >
-            <div className="nc-cheque-check-icon nc-cheque-check-icon--corner nc-cheque-check-icon--echeq nc-cheque-check-icon--cheque"
+            <div
+              className={`gm-check-icon gm-check-icon--corner ${
+                esEcheq ? "gm-check-icon--echeck" : "gm-check-icon--check"
+              }`}
             >
               {checked && (
                 <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
@@ -318,65 +318,22 @@ function ChequesCarteraCards({ cheques, idsSeleccionados, onToggle, esEcheq = fa
               )}
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span
-                  style={{
-                    fontFamily: "'Courier New', monospace",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: "var(--nv-text)",
-                    letterSpacing: ".04em",
-                  }}
-                >
-                  N°&nbsp;{safeText(ch?.numero_cheque)}
-                </span>
-                {esEcheq && (
-                  <span
-                    style={{
-                      fontSize: 9,
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: ".07em",
-                      color: accent,
-                      background: accentBg,
-                      border: `1px solid ${accentBorder}`,
-                      borderRadius: 999,
-                      padding: "1px 5px",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    eCheq
-                  </span>
-                )}
+            <div className="gm-check-main">
+              <div className="gm-check-top">
+                <span className="gm-check-number">N° {safeText(ch?.numero_cheque)}</span>
+                {esEcheq && <span className="gm-check-badge gm-check-badge--echeck">eCheq</span>}
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "2px 8px",
-                  fontSize: 11,
-                  color: "var(--nv-muted)",
-                  lineHeight: 1.3,
-                }}
-              >
-                <span
-                  style={{
-                    maxWidth: 120,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
+              <div className="gm-check-meta">
+                <span className="gm-check-issuer" title={safeText(ch?.emisor)}>
                   {safeText(ch?.emisor)}
                 </span>
-                <span style={{ opacity: 0.4 }}>·</span>
-                <span>Pago:&nbsp;{safeText(formatFechaDMY(ch?.fecha_pago))}</span>
+                <span className="gm-check-separator">·</span>
+                <span>Pago: {safeText(formatFechaDMY(ch?.fecha_pago))}</span>
               </div>
             </div>
 
-            <span className="nc-cheque-importe">{moneyARS(ch?.importe || 0)}</span>
+            <span className="gm-check-amount">{moneyARS(ch?.importe || 0)}</span>
           </div>
         );
       })}
@@ -489,12 +446,12 @@ function MedioPagoRow({
   }, [importeCheques, esCheque]);
 
   return (
-    <div className="nc-mp-card">
+    <div className="gm-payment-card">
       {/* Fila: selector de medio */}
-      <div className="nc-mp-row nc-mp-row--medio">
-        <div className="nc-field" style={{ position: "relative" }}>
+      <div className="gm-payment-row gm-payment-row--method">
+        <div className="gm-field" style={{ position: "relative" }}>
           <select
-            className="nc-input nc-select"
+            className="gm-input gm-select"
             value={String(row.id_medio_pago || "")}
             onChange={(e) => handleChangeMedio(e.target.value)}
             disabled={saving}
@@ -506,17 +463,17 @@ function MedioPagoRow({
               </option>
             ))}
           </select>
-          <label className={`nc-label${row.id_medio_pago ? " nc-label--up" : ""}`}>
+          <label className={`gm-label${row.id_medio_pago ? " gm-label--up" : ""}`}>
             Medio de pago
           </label>
         </div>
       </div>
 
       {/* Fila: monto + acciones */}
-      <div className="nc-mp-row nc-mp-row--monto">
-        <div className="nc-field nc-mp-monto-field" style={{ position: "relative" }}>
+      <div className="gm-payment-row gm-payment-row--amount">
+        <div className="gm-field gm-payment-amount-field" style={{ position: "relative" }}>
 <input
-  className="nc-input nc-mp-monto-input"
+  className={`gm-input gm-payment-amount-input${esCheque ? " gm-payment-amount-input--locked" : ""}`}
   type="text"
   inputMode="decimal"
   value={
@@ -562,14 +519,14 @@ function MedioPagoRow({
     textAlign: "right",
   }}
 />
-          <label className="nc-label nc-label--up">Monto</label>
+          <label className="gm-label gm-label--up">Monto</label>
         </div>
 
-        <div className="nc-mp-actions-col">
+        <div className="gm-payment-actions-col">
           {!esCheque && (
             <button
               type="button"
-              className="nc-mp-completar"
+              className="gm-payment-complete"
               onClick={() =>
                 onUpdate(row.id, {
                   monto: restanteParaEstaFila,
@@ -586,7 +543,7 @@ function MedioPagoRow({
           {canRemove && (
             <button
               type="button"
-              className="nc-mp-del-btn"
+              className="gm-payment-delete"
               onClick={() => onRemove(row.id)}
               disabled={saving}
               title="Quitar medio de pago"
@@ -599,19 +556,19 @@ function MedioPagoRow({
 
       {/* Sección cheques de cartera */}
       {esCheque && (
-        <div className="nc-mp-cheques">
-          <div className="nc-mp-cheques-title">
+        <div className="gm-payment-checks">
+          <div className="gm-payment-checks-title">
             <FontAwesomeIcon icon={faMoneyCheckDollar} style={{ fontSize: 11 }} />
             {esEcheq ? "eCheqs en cartera" : "Cheques en cartera"}
           </div>
 
           {row.loadingCheques ? (
-            <div className="nc-mp-cheques-loading">
+            <div className="gm-payment-checks-loading">
               <FontAwesomeIcon icon={faCircleNotch} spin style={{ marginRight: 6 }} />
               Cargando…
             </div>
           ) : row.chequesDisponibles.length === 0 ? (
-            <div className="nc-mp-cheques-empty">
+            <div className="gm-payment-checks-empty">
               No hay {esEcheq ? "eCheqs" : "cheques"} activos en cartera.
             </div>
           ) : (
@@ -683,23 +640,23 @@ function PanelMediosPago({
         />
       ))}
 
-      <div className="nc-mp-totals">
-        <span className="nc-mp-totals-asignado">
+      <div className="gm-payment-totals">
+        <span className="gm-payment-totals-assigned">
           Asignado: <b>{moneyARS(sumaMediosPago)}</b>
         </span>
         {diferenciaRestante > 0.01 && (
-          <span className="nc-mp-totals-falta">
+          <span className="gm-payment-totals-missing">
             Saldo restante: {moneyARS(diferenciaRestante)}
           </span>
         )}
         {diferenciaRestante <= 0.01 && totalSeleccionado > 0 && (
-          <span className="nc-mp-totals-ok">✓ Cubierto</span>
+          <span className="gm-payment-totals-ok">✓ Cubierto</span>
         )}
       </div>
 
       <button
         type="button"
-        className="nc-pago-btn"
+        className="gm-payment-btn"
         onClick={onAdd}
         disabled={saving}
       >
@@ -1218,6 +1175,7 @@ export default function ModalPagarOrdenesPago({
   const modalClass = [
     "mi-modal__container",
     "mi-modal__container--mov",
+    "gm-modal-v2",
     "mpr-modal",
     dark ? "mi-modal--dark" : "",
   ]
@@ -1270,19 +1228,19 @@ export default function ModalPagarOrdenesPago({
               <div className="mi-cr-grid">
 
                 {/* Tabla de deudas */}
-                <section className="mi-cr-table">
-                  <div className="mpr-thead">
-                    <div className="mpr-th mpr-th--sel">Sel</div>
-                    <div className="mpr-th">Fecha</div>
-                    <div className="mpr-th mpr-th--desc">Descripción</div>
-                    <div className="mpr-th mpr-th--center">Estado</div>
-                    <div className="mpr-th mpr-th--right">Monto</div>
-                    <div className="mpr-th mpr-th--info">Info</div>
+                <section className="mi-cr-table gm-table mpr-table">
+                  <div className="mpr-thead gm-table-head">
+                    <div className="mpr-th gm-table-th mpr-th--sel gm-table-cell--center">Sel</div>
+                    <div className="mpr-th gm-table-th">Fecha</div>
+                    <div className="mpr-th gm-table-th mpr-th--desc">Descripción</div>
+                    <div className="mpr-th gm-table-th mpr-th--center gm-table-cell--center">Estado</div>
+                    <div className="mpr-th gm-table-th mpr-th--right gm-table-cell--right">Monto</div>
+                    <div className="mpr-th gm-table-th mpr-th--info gm-table-cell--center">Info</div>
                   </div>
 
                   <div
                     ref={tbodyRef}
-                    className={`mpr-tbody ${tbodyHasScroll ? "mpr-tbody--scroll" : ""}`}
+                    className={`mpr-tbody gm-table-body ${tbodyHasScroll ? "mpr-tbody--scroll" : ""}`}
                   >
                     {!deudasOrdenadas.length && (
                       <div className="mpr-empty">
@@ -1299,13 +1257,13 @@ export default function ModalPagarOrdenesPago({
                       return (
                         <div
                           key={id || `${r?.fecha}-${idx}`}
-                          className={`mpr-row ${checked ? "is-checked" : ""} ${pagado ? "is-paid" : ""}`}
+                          className={`mpr-row gm-table-row ${checked ? "is-checked" : ""} ${pagado ? "is-paid" : ""}`}
                           role="row"
                           onClick={() => id && toggleOne(id, r)}
                           title={pagado ? "Este registro ya está PAGADO" : undefined}
                         >
                           <div
-                            className="mpr-td mpr-td--sel"
+                            className="mpr-td gm-table-cell mpr-td--sel gm-table-cell--center"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <label
@@ -1321,26 +1279,26 @@ export default function ModalPagarOrdenesPago({
                             </label>
                           </div>
 
-                          <div className="mpr-td">
+                          <div className="mpr-td gm-table-cell">
                             {safeText(formatFechaDMY(r?.fecha))}
                           </div>
 
                           <div
-                            className="mpr-td mpr-td--desc"
+                            className="mpr-td gm-table-cell mpr-td--desc"
                             title={safeText(r?.detalle ?? r?.descripcion ?? r?.concepto)}
                           >
                             {productosLabel(r)}
                           </div>
 
-                          <div className="mpr-td mpr-td--center">
+                          <div className="mpr-td gm-table-cell mpr-td--center gm-table-cell--center">
                             <EstadoChip row={r} pagado={pagado} />
                           </div>
 
-                          <div className="mpr-td mpr-td--right mpr-td--mono">
+                          <div className="mpr-td gm-table-cell mpr-td--right gm-table-cell--right mpr-td--mono gm-table-cell--mono">
                             {moneyARS(saldoPendiente)}
                           </div>
 
-                          <div className="mpr-td mpr-td--info" onClick={(e) => e.stopPropagation()}>
+                          <div className="mpr-td gm-table-cell mpr-td--info gm-table-cell--center" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
                               className="mpr-info-btn"
@@ -1356,7 +1314,7 @@ export default function ModalPagarOrdenesPago({
                     })}
                   </div>
 
-                  <div className="mpr-tfoot">
+                  <div className="mpr-tfoot gm-table-foot">
                     <div className="mpr-tfoot-stats">
                       <span className="mpr-stat">
                         Total <b>{deudasOrdenadas.length}</b>
@@ -1377,14 +1335,14 @@ export default function ModalPagarOrdenesPago({
 
                 {/* Aside de pago */}
                 <div className="mi-cr-filters">
-                  <aside className="nc-aside">
-                    <div className="nc-section">
-                      <div className="nc-section-head">
-                        <div className="nc-section-dot" />
+                  <aside className="gm-aside">
+                    <div className="gm-section">
+                      <div className="gm-section-head">
+                        <div className="gm-section-dot" />
                         <span>Datos del pago</span>
                       </div>
 
-                      <div className="nc-section-body">
+                      <div className="gm-section-body">
                         <button
                           type="button"
                           className="nv-foot-btn mpr-btn-selall"
@@ -1398,7 +1356,7 @@ export default function ModalPagarOrdenesPago({
                           {pagaTodo ? "Deseleccionar todas" : "Seleccionar todas"}
                         </button>
 
-                        <div className="nc-section-divider" />
+                        <div className="gm-section-divider" />
 
                         <PanelMediosPago
                           mediosFilas={mediosFilas}
@@ -1417,7 +1375,7 @@ export default function ModalPagarOrdenesPago({
                     </div>
                   </aside>
 
-                  <div className="nc-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+                  <div className="gm-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
                     <button
                       type="button"
                       className="mit-btn mit-btn--solid mit-btn--block"

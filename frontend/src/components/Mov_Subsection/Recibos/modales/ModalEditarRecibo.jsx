@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/Global_Modals.css";
+import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/roots.css";
 import "../../modalcss/AltasMovimientos.css";
@@ -611,7 +612,7 @@ export default function ModalEditarRecibo({
     <>
       <div className={`mi-modal__overlay ${darkOn ? "mi-modal__overlay--dark" : ""}`}>
         <div
-          className="mi-modal__container"
+          className="mi-modal__container gm-modal-v2"
           id="mov--modaleditarrecibo"
           role="dialog"
           aria-modal="true"
@@ -642,13 +643,13 @@ export default function ModalEditarRecibo({
             <div className="mi-er-layout">
               <section className="mi-er-main">
                 <form onSubmit={submit} className="mi-er-form">
-                  <div className="nc-section">
-                    <div className="nc-section-head"><div className="nc-section-dot" /><span>Producto</span></div>
-                    <div className="nc-section-body">
+                  <div className="gm-section">
+                    <div className="gm-section-head"><div className="gm-section-dot" /><span>Producto</span></div>
+                    <div className="gm-section-body">
                       <div className="mi-er-rel">
-                        <div className="nc-field">
+                        <div className="gm-field">
                           <input
-                            className="nc-input"
+                            className="gm-input"
                             placeholder=" "
                             value={form.productoInput}
                             onChange={handleProductoInputChange}
@@ -657,7 +658,7 @@ export default function ModalEditarRecibo({
                             disabled={saving}
                             autoComplete="off"
                           />
-                          <label className="nc-label">Producto de stock</label>
+                          <label className="gm-label">Producto de stock</label>
                         </div>
 
                         {!!filteredProductos.length && (
@@ -683,13 +684,13 @@ export default function ModalEditarRecibo({
                     </div>
                   </div>
 
-                  <div className="nc-section">
-                    <div className="nc-section-head"><div className="nc-section-dot" /><span>Cantidad y precio</span></div>
-                    <div className="nc-section-body">
+                  <div className="gm-section">
+                    <div className="gm-section-head"><div className="gm-section-dot" /><span>Cantidad y precio</span></div>
+                    <div className="gm-section-body">
                       <div className="mi-er-grid-3">
-                        <div className="nc-field">
+                        <div className="gm-field">
                           <input
-                            className="nc-input"
+                            className="gm-input"
                             type="number"
                             step="0.001"
                             min="0"
@@ -698,12 +699,12 @@ export default function ModalEditarRecibo({
                             onChange={(e) => setForm((p) => ({ ...p, cantidad: e.target.value }))}
                             disabled={saving}
                           />
-                          <label className="nc-label">Cantidad</label>
+                          <label className="gm-label">Cantidad</label>
                         </div>
 
-                        <div className="nc-field">
+                        <div className="gm-field">
                           <input
-                            className="nc-input"
+                            className="gm-input"
                             type="number"
                             step="0.01"
                             min="0"
@@ -712,12 +713,12 @@ export default function ModalEditarRecibo({
                             onChange={(e) => setForm((p) => ({ ...p, precio: e.target.value }))}
                             disabled={saving}
                           />
-                          <label className="nc-label">Precio unitario</label>
+                          <label className="gm-label">Precio unitario</label>
                         </div>
 
-                        <div className="nc-field">
+                        <div className="gm-field">
                           <select
-                            className="nc-input"
+                            className="gm-input"
                             value={form.iva_pct}
                             onChange={(e) => setForm((p) => ({ ...p, iva_pct: e.target.value }))}
                             disabled={saving}
@@ -728,23 +729,23 @@ export default function ModalEditarRecibo({
                               </option>
                             ))}
                           </select>
-                          <label className="nc-label">IVA %</label>
+                          <label className="gm-label">IVA %</label>
                         </div>
                       </div>
 
-                      <div className="nc-cc-info">
+                      <div className="gm-info-box">
                         <b>Subtotal:</b> {moneyARS(totals.subtotal)} · <b>IVA:</b> {moneyARS(totals.iva_monto)} · <b>Total:</b> {moneyARS(totals.total)}
                       </div>
                     </div>
                   </div>
 
-                  <div className="nc-section">
-                    <div className="nc-section-head"><div className="nc-section-dot" /><span>Cliente</span></div>
-                    <div className="nc-section-body">
+                  <div className="gm-section">
+                    <div className="gm-section-head"><div className="gm-section-dot" /><span>Cliente</span></div>
+                    <div className="gm-section-body">
                       <div className="mi-er-rel">
-                        <div className="nc-field">
+                        <div className="gm-field">
                           <input
-                            className="nc-input"
+                            className="gm-input"
                             placeholder=" "
                             value={form.clienteInput}
                             onChange={handleClienteInputChange}
@@ -753,7 +754,7 @@ export default function ModalEditarRecibo({
                             disabled={saving}
                             autoComplete="off"
                           />
-                          <label className="nc-label">Cliente</label>
+                          <label className="gm-label">Cliente</label>
                         </div>
 
                         {!!filteredClientes.length && (
@@ -781,14 +782,14 @@ export default function ModalEditarRecibo({
                 </form>
               </section>
 
-              <aside className="nc-aside">
-                <div className="nc-section">
-                  <div className="nc-section-head"><div className="nc-section-dot" /><span>Fecha</span></div>
-                  <div className="nc-section-body">
-                    <div className="nc-field" onClick={() => openNativeDatePicker(fechaInputRef.current)}>
+              <aside className="gm-aside">
+                <div className="gm-section">
+                  <div className="gm-section-head"><div className="gm-section-dot" /><span>Fecha</span></div>
+                  <div className="gm-section-body">
+                    <div className="gm-field" onClick={() => openNativeDatePicker(fechaInputRef.current)}>
                       <input
                         ref={fechaInputRef}
-                        className="nc-input"
+                        className="gm-input"
                         type="date"
                         placeholder=" "
                         value={form.fecha}
@@ -802,15 +803,15 @@ export default function ModalEditarRecibo({
                         onChange={handleFechaChange}
                         disabled={saving}
                       />
-                      <label className="nc-label">Fecha</label>
+                      <label className="gm-label">Fecha</label>
                     </div>
                   </div>
                 </div>
 
-                <div className="nc-section">
-                  <div className="nc-section-head"><div className="nc-section-dot" /><span>Resumen del recibo</span></div>
-                  <div className="nc-section-body">
-                    <div className="nc-cc-info">
+                <div className="gm-section">
+                  <div className="gm-section-head"><div className="gm-section-dot" /><span>Resumen del recibo</span></div>
+                  <div className="gm-section-body">
+                    <div className="gm-info-box">
                       <div className="mi-er-summary-row"><FontAwesomeIcon icon={faCalendarDays} /><span><b>Fecha:</b> {form.fecha || "--"}</span></div>
                       <div className="mi-er-summary-row"><FontAwesomeIcon icon={faUser} /><span><b>Cliente:</b> {resumen.cliente}</span></div>
                       <div className="mi-er-summary-row"><FontAwesomeIcon icon={faBoxOpen} /><span><b>Producto:</b> {resumen.producto}</span></div>
@@ -820,7 +821,7 @@ export default function ModalEditarRecibo({
                   </div>
                 </div>
 
-                <div className="nc-actions">
+                <div className="gm-actions">
                   <button
                     type="button"
                     className="mit-btn mit-btn--solid mi-er-action"

@@ -112,7 +112,31 @@ html[data-theme="oscuro"] .extraContent-ventas { background: #3a2a0069; border-c
   height: 32px;
  border-radius :5px;
  padding: 0;
-}/* =========================================================
+}/* ── Botón configurar pago compartido ── */
+.nc-pago-btn {
+  appearance: none;
+  width: 100%;
+  height: 34px;
+  border: 1.5px dashed rgba(0, 85, 187, .3);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--blue-action);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background .14s;
+  font-family: inherit;
+  margin-top: 4px;
+}
+
+.nc-pago-btn:hover:not(:disabled) { background: rgba(0, 85, 187, .05); }
+.nc-pago-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* =========================================================
    MEDIOS DE PAGO INLINE — nc-mp-card (panel lateral ventas)
    Layout:
      Fila 1 → select de medio (ancho completo, estética nc-input)

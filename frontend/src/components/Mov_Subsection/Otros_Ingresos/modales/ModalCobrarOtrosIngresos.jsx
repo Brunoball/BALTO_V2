@@ -211,11 +211,11 @@ function MedioPagoRowIngreso({ row, mediosPagoList, onUpdate, onRemove, onComple
   const puedeCompletarRestante = !saving && restanteParaEstaFila > 0.009;
 
   return (
-    <div className="nc-mp-card">
-      <div className="nc-mp-row nc-mp-row--medio">
-        <div className="nc-field" style={{ position: "relative" }}>
+    <div className="gm-payment-card">
+      <div className="gm-payment-row gm-payment-row--method">
+        <div className="gm-field" style={{ position: "relative" }}>
           <select
-            className="nc-input nc-select"
+            className="gm-input gm-select"
             value={String(row.id_medio_pago || "")}
             onChange={(e) => onUpdate(row.id, { id_medio_pago: e.target.value })}
             disabled={saving}
@@ -231,10 +231,10 @@ function MedioPagoRowIngreso({ row, mediosPagoList, onUpdate, onRemove, onComple
         </div>
       </div>
 
-      <div className="nc-mp-row nc-mp-row--monto">
-        <div className="nc-field nc-mp-monto-field" style={{ position: "relative" }}>
+      <div className="gm-payment-row gm-payment-row--amount">
+        <div className="gm-field gm-payment-amount-field" style={{ position: "relative" }}>
           <input
-            className="nc-input nc-mp-monto-input"
+            className="gm-input gm-payment-amount-input"
             type="text"
             inputMode="decimal"
             value={row.montoFocused ? row.montoDraft ?? "" : formatMoneyInputARS(montoVisible)}
@@ -277,10 +277,10 @@ function MedioPagoRowIngreso({ row, mediosPagoList, onUpdate, onRemove, onComple
           <label className="nc-label nc-label--up">Monto</label>
         </div>
 
-        <div className="nc-mp-actions-col">
+        <div className="gm-payment-actions-col">
           <button
             type="button"
-            className="nc-mp-completar"
+            className="gm-payment-complete"
             onClick={() => onCompletar(row.id)}
             disabled={!puedeCompletarRestante}
             title="Completar importe restante"
@@ -290,7 +290,7 @@ function MedioPagoRowIngreso({ row, mediosPagoList, onUpdate, onRemove, onComple
           {canRemove && (
             <button
               type="button"
-              className="nc-mp-del-btn"
+              className="gm-payment-delete"
               onClick={() => onRemove(row.id)}
               disabled={saving}
               title="Quitar medio de pago"
@@ -340,15 +340,15 @@ function PanelMediosPagoIngreso({ medios, mediosPagoList, saldo, onUpdate, onRem
         );
       })}
 
-      <div className="nc-mp-totals">
-        <span className="nc-mp-totals-asignado">
+      <div className="gm-payment-totals">
+        <span className="gm-payment-totals-assigned">
           Asignado: <b>{moneyARS(suma)}</b>
         </span>
-        {diferencia > 0.01 && <span className="nc-mp-totals-falta">Saldo sin cubrir: {moneyARS(diferencia)}</span>}
-        {diferencia <= 0.01 && saldo > 0 && <span className="nc-mp-totals-ok">✓ Saldo cubierto</span>}
+        {diferencia > 0.01 && <span className="gm-payment-totals-missing">Saldo sin cubrir: {moneyARS(diferencia)}</span>}
+        {diferencia <= 0.01 && saldo > 0 && <span className="gm-payment-totals-ok">✓ Saldo cubierto</span>}
       </div>
 
-      <button type="button" className="nc-pago-btn" onClick={onAdd} disabled={saving}>
+      <button type="button" className="gm-payment-btn" onClick={onAdd} disabled={saving}>
         <FontAwesomeIcon icon={faPlus} style={{ fontSize: 11 }} /> Agregar otro medio
       </button>
     </>

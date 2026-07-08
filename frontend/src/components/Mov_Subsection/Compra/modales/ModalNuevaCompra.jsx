@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/Global_Modals.css";
+import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "./ModalCompra.css";
 import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
@@ -187,7 +188,7 @@ function ChequesCarteraCardsCompra({ cheques, idsSeleccionados, onToggle, esEche
   const accentBorder = esEcheq ? "rgba(0,85,187,.28)" : "rgba(15,118,110,.28)";
 
   return (
-    <div className="nc-cheques-list">
+    <div className="gm-checks-list">
       {cheques.map((ch, idx) => {
         const checked = idsSeleccionados.includes(String(ch?.id_cheque));
         return (
@@ -196,13 +197,13 @@ function ChequesCarteraCardsCompra({ cheques, idsSeleccionados, onToggle, esEche
             role="checkbox"
             aria-checked={checked}
             tabIndex={0}
-            className={`nc-cheque-item ${checked ? "nc-cheque-item--selected" : ""} ${
-              esEcheq ? "nc-cheque-item--echeq" : ""
+            className={`gm-check-item ${checked ? "gm-check-item--selected" : ""} ${
+              esEcheq ? "gm-check-item--echeq" : ""
             }`}
             onClick={() => onToggle(String(ch?.id_cheque || ""))}
             onKeyDown={(e) => (e.key === " " || e.key === "Enter") && onToggle(String(ch?.id_cheque || ""))}
           >
-            <div className="nc-cheque-check-icon nc-cheque-check-icon--corner nc-cheque-check-icon--echeq nc-cheque-check-icon--cheque"
+            <div className="gm-check-icon gm-check-icon--corner gm-check-icon--echeck gm-check-icon--check"
             >
               {checked && (
                 <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
@@ -274,7 +275,7 @@ function ChequesCarteraCardsCompra({ cheques, idsSeleccionados, onToggle, esEche
               </div>
             </div>
 
-            <span className="nc-cheque-importe">{moneyARS(ch?.importe || 0)}</span>
+            <span className="gm-check-amount">{moneyARS(ch?.importe || 0)}</span>
           </div>
         );
       })}
@@ -368,10 +369,10 @@ function MedioPagoInlineCompraRow({
   }, [importeCheques, esCheque, chequesSeleccionados.length, onUpdate, row.id]);
 
   return (
-    <div className="nc-mp-card">
-      <div className="nc-mp-row nc-mp-row--medio">
-        <div className="nc-field" style={{ position: "relative" }}>
-          <select className="nc-input nc-select" value={String(row.id_medio_pago || "")} onChange={(e) => handleChangeMedio(e.target.value)} disabled={saving}>
+    <div className="gm-payment-card">
+      <div className="gm-payment-row gm-payment-row--method">
+        <div className="gm-field" style={{ position: "relative" }}>
+          <select className="gm-input gm-select" value={String(row.id_medio_pago || "")} onChange={(e) => handleChangeMedio(e.target.value)} disabled={saving}>
             <option value="">Seleccionar…</option>
             {mediosPagoList.map((x) => (
               <option key={getMedioPagoId(x) || x?.nombre} value={String(getMedioPagoId(x) || "")}>
@@ -379,16 +380,16 @@ function MedioPagoInlineCompraRow({
               </option>
             ))}
           </select>
-          <label className={`nc-label${row.id_medio_pago && row.id_medio_pago !== "" ? " nc-label--up" : ""}`}>
+          <label className={`gm-label${row.id_medio_pago && row.id_medio_pago !== "" ? " gm-label--up" : ""}`}>
             Medio de pago
           </label>
         </div>
       </div>
 
-      <div className="nc-mp-row nc-mp-row--monto">
-        <div className="nc-field nc-mp-monto-field" style={{ position: "relative" }}>
+      <div className="gm-payment-row gm-payment-row--amount">
+        <div className="gm-field gm-payment-amount-field" style={{ position: "relative" }}>
           <input
-            className="nc-input nc-mp-monto-input"
+            className="gm-input gm-payment-amount-input"
             type="text"
             inputMode="decimal"
             value={
@@ -431,14 +432,14 @@ function MedioPagoInlineCompraRow({
               textAlign: "right",
             }}
           />
-          <label className="nc-label nc-label--up">Monto</label>
+          <label className="gm-label gm-label--up">Monto</label>
         </div>
 
-        <div className="nc-mp-actions-col">
+        <div className="gm-payment-actions-col">
           {!esCheque && (
             <button
               type="button"
-              className="nc-mp-completar"
+              className="gm-payment-complete"
               onClick={() => onUpdate(row.id, { monto: restanteParaEstaFila, montoDraft: "", montoFocused: false })}
               disabled={!puedeCompletarRestante}
               title="Completar importe restante"
@@ -447,7 +448,7 @@ function MedioPagoInlineCompraRow({
             </button>
           )}
           {canRemove && (
-            <button type="button" className="nc-mp-del-btn" onClick={() => onRemove(row.id)} disabled={saving} title="Quitar medio de pago">
+            <button type="button" className="gm-payment-delete" onClick={() => onRemove(row.id)} disabled={saving} title="Quitar medio de pago">
               ×
             </button>
           )}
@@ -455,18 +456,18 @@ function MedioPagoInlineCompraRow({
       </div>
 
       {esCheque && (
-        <div className="nc-mp-cheques">
-          <div className="nc-mp-cheques-title">
+        <div className="gm-payment-checks">
+          <div className="gm-payment-checks-title">
             <FontAwesomeIcon icon={faMoneyCheckDollar} style={{ fontSize: 11 }} />
             {esEcheq ? "eCheqs en cartera" : "Cheques en cartera"}
           </div>
           {row.loadingCheques ? (
-            <div className="nc-mp-cheques-loading">
+            <div className="gm-payment-checks-loading">
               <FontAwesomeIcon icon={faCircleNotch} spin style={{ marginRight: 6 }} />
               Cargando…
             </div>
           ) : row.chequesDisponibles.length === 0 ? (
-            <div className="nc-mp-cheques-empty">No hay {esEcheq ? "eCheqs" : "cheques"} activos en cartera.</div>
+            <div className="gm-payment-checks-empty">No hay {esEcheq ? "eCheqs" : "cheques"} activos en cartera.</div>
           ) : (
             <ChequesCarteraCardsCompra
               cheques={row.chequesDisponibles}
@@ -520,19 +521,19 @@ function PanelMediosPagoCompraLocal({
         />
       ))}
 
-      <div className="nc-mp-totals">
-        <span className="nc-mp-totals-asignado">
+      <div className="gm-payment-totals">
+        <span className="gm-payment-totals-assigned">
           Asignado: <b>{moneyARS(sumaMediosPago)}</b>
         </span>
         {diferenciaRestante > 0.01 && (
-          <span className="nc-mp-totals-falta">Falta: {moneyARS(diferenciaRestante)}</span>
+          <span className="gm-payment-totals-missing">Falta: {moneyARS(diferenciaRestante)}</span>
         )}
         {diferenciaRestante <= 0.01 && safeNumber(totalCompra) > 0 && (
-          <span className="nc-mp-totals-ok">✓ Cubierto</span>
+          <span className="gm-payment-totals-ok">✓ Cubierto</span>
         )}
       </div>
 
-      <button type="button" className="nc-pago-btn" onClick={onAdd} disabled={saving}>
+      <button type="button" className="gm-payment-btn" onClick={onAdd} disabled={saving}>
         <FontAwesomeIcon icon={faPlus} style={{ fontSize: 11 }} /> Agregar otro medio
       </button>
     </>
@@ -1763,7 +1764,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
     <>
       <div className="mi-modal__overlay">
         <div
-          className="mi-modal__container mi-modal__container--mov nc-modal"
+          className="mi-modal__container mi-modal__container--mov gm-modal-v2 nc-modal"
           role="dialog"
           aria-modal="true"
           onMouseDown={(e) => e.stopPropagation()}
@@ -1789,22 +1790,22 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
 
           <div className="mi-modal__content">
             <div className="mi-cr-grid">
-              <section className="mi-cr-table">
-                <div className="mi-cr-table__head">
-                  <div style={{ paddingLeft: 10 }}>Detalle</div>
-                  <div>Cant.</div>
-                  <div className="right">Precio</div>
-                  <div>IVA %</div>
-                  <div className="right">IVA $</div>
-                  <div className="right">Total</div>
-                  <div />
+              <section className="mi-cr-table gm-table gm-table--movement cmp-table">
+                <div className="mi-cr-table__head gm-table-head">
+                  <div className="gm-table-th" style={{ paddingLeft: 10 }}>Detalle</div>
+                  <div className="gm-table-th">Cant.</div>
+                  <div className="gm-table-th right">Precio</div>
+                  <div className="gm-table-th">IVA %</div>
+                  <div className="gm-table-th right">IVA $</div>
+                  <div className="gm-table-th right">Total</div>
+                  <div className="gm-table-th" />
                 </div>
 
-                <div ref={rowsContainerRef} className={`mi-cr-table__rows${hasScroll ? " has-scroll" : ""}`}>
+                <div ref={rowsContainerRef} className={`mi-cr-table__rows gm-table-body ${hasScroll ? "has-scroll" : ""}`}>
                   {rowsCalc.map((r) => {
                     return (
-                      <div key={r.id} className="mi-cr-row">
-                        <div className="mi-cr-cell mi-cr-cell--detalle">
+                      <div key={r.id} className="mi-cr-row gm-table-row">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--detalle gm-table-cell--detail">
                           <ProductStockAutocomplete
                             value={r.detalleText}
                             onChange={(val) =>
@@ -1825,13 +1826,13 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                             maxItems={18}
                             allowOutOfStock
                             emptyMessage="Sin productos activos"
-                            inputClassName="nc-cell-input"
+                            inputClassName="gm-cell-input"
                           />
                         </div>
 
-                        <div className="mi-cr-cell mi-cr-cell--center stock_cant">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center stock_cant">
                           <input
-                            className="nc-cell-input nc-cell-input--center"
+                            className="gm-cell-input gm-cell-input--center"
                             type="number"
                             min="0"
                             step="1"
@@ -1857,9 +1858,9 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                           )}
                         </div>
 
-                        <div className="mi-cr-cell mi-cr-cell--center">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
                           <input
-                            className="nc-cell-input nc-cell-input--right"
+                            className="gm-cell-input gm-cell-input--right"
                             type="text"
                             inputMode="decimal"
                             value={r.precioFocused ? r.precioDraft ?? "" : formatMoneyInputARS(r.precio)}
@@ -1898,9 +1899,9 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                           />
                         </div>
 
-                        <div className="mi-cr-cell mi-cr-cell--center">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
                           <select
-                            className="nc-cell-input nc-cell-input--center nc-cell-input--select"
+                            className="gm-cell-input gm-cell-input--center gm-cell-input--select"
                             value={String(r.ivaPct)}
                             onChange={(e) => updateRow(r.id, { ivaPct: Number(e.target.value) })}
                             onKeyDown={(e) => {
@@ -1919,13 +1920,13 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                           </select>
                         </div>
 
-                        <div className="mi-cr-cell mi-cr-cell--right mi-cr-cell--mono mi-cr-cell--soft">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--soft gm-table-cell--soft">
                           {moneyARS(r.ivaMonto)}
                         </div>
-                        <div className="mi-cr-cell mi-cr-cell--right mi-cr-cell--mono mi-cr-cell--total-val">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--total-val gm-table-cell--total">
                           {moneyARS(r.total)}
                         </div>
-                        <div className="mi-cr-cell mi-cr-cell--center" id="delete_cell">
+                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center" id="delete_cell">
                           <button
                             type="button"
                             className="mi-cr-del"
@@ -1941,17 +1942,17 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                   })}
                 </div>
 
-                <div className="mi-cr-table__foot">
+                <div className="mi-cr-table__foot gm-table-foot">
                   <div className="mi-cr-foot-actions">
-                    <button type="button" className="nc-foot-btn" onClick={addRow} disabled={saving}>
-                      <span className="nc-foot-btn__icon">
+                    <button type="button" className="gm-foot-btn" onClick={addRow} disabled={saving}>
+                      <span className="gm-foot-btn__icon">
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M5 1.5V8.5M1.5 5H8.5" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
                         </svg>
                       </span>
                       Agregar fila
                     </button>
-                    <div className="nc-foot-sep" />
+                    <div className="gm-foot-sep" />
                   </div>
 
                   <div className="mi-cr-totals">
@@ -1972,20 +1973,20 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
               </section>
 
               <div className="mi-cr-filters">
-                <aside className="nc-aside">
-                  <div className="nc-section">
-                    <div className="nc-section-head">
-                      <div className="nc-section-dot" />
+                <aside className="gm-aside">
+                  <div className="gm-section">
+                    <div className="gm-section-head">
+                      <div className="gm-section-dot" />
                       <span>Datos de compra</span>
                     </div>
 
-                    <div className="nc-section-body">
+                    <div className="gm-section-body">
                       {/* ⭐ INPUT DE FECHA CON VALIDACIONES ⭐ */}
-                      <div className="nc-field" onClick={() => fechaInputRef.current?.showPicker?.()}>
+                      <div className="gm-field" onClick={() => fechaInputRef.current?.showPicker?.()}>
                         <input
                           ref={fechaInputRef}
                           id="nc-fecha-input"
-                          className="nc-input"
+                          className="gm-input"
                           type="date"
                           placeholder=" "
                           value={fecha}
@@ -2003,7 +2004,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                           }}
                           disabled={saving}
                         />
-                        <label className="nc-label">Fecha</label>
+                        <label className="gm-label">Fecha</label>
                       </div>
 
                       <div className="nc-prov-wrap">
@@ -2019,13 +2020,13 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                           disabled={saving || addUI.open}
                           showAllOnFocus={true}
                           maxItems={25}
-                          inputClassName="nc-input"
+                          inputClassName="gm-input"
                         />
                       </div>
 
-                      <div className="nc-field">
+                      <div className="gm-field">
                         <select
-                          className="nc-input nc-select"
+                          className="gm-input gm-select"
                           value={forma === NULL_OPTION ? "" : forma}
                           onChange={(e) => setForma(String(e.target.value || ""))}
                           disabled={saving}
@@ -2035,7 +2036,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                           <option value="CUENTA_CORRIENTE">CUENTA CORRIENTE</option>
                         </select>
 
-                        <label className={`nc-label${forma !== NULL_OPTION && forma ? " nc-label--up" : ""}`}>
+                        <label className={`gm-label${forma !== NULL_OPTION && forma ? " gm-label--up" : ""}`}>
                           Forma de compra *
                         </label>
                       </div>
@@ -2141,14 +2142,14 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                       </div>
                     </div>
 
-                    <div className="nc-section-divider" />
+                    <div className="gm-section-divider" />
 
 
                   </div>
 
 
                 </aside>
-                <div className="nc-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+                <div className="gm-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
                   <button type="button" className="mit-btn mit-btn--solid mit-btn--block" onClick={submit} disabled={saving}>
                     {saving ? "Guardando..." : "Guardar compra"}
                   </button>

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/Global_Modals.css";
+import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/roots.css";
 import "../../Recibos/modales/ModalPagarRecibos.css";
@@ -652,7 +653,7 @@ export default function ModalOrdenPagoGenerada({
   if (!open) return null;
 
   const overlayClass = "mi-modal__overlay mi-modal__overlay--mov";
-  const modalClass = "mi-modal__container mi-modal__container--mov mpr-modal";
+  const modalClass = "mi-modal__container mi-modal__container--mov gm-modal-v2 mpr-modal";
 
   return createPortal(
     <div
