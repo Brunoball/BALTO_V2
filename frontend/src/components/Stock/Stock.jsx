@@ -502,6 +502,7 @@ const Stock = () => {
   const [error, setError] = useState(null);
 
   const [busqueda, setBusqueda] = useState("");
+  const [busquedaConsulta, setBusquedaConsulta] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
   const [mostrarDadosDeBaja, setMostrarDadosDeBaja] = useState(false);
   const [categoriaDropdownAbierto, setCategoriaDropdownAbierto] = useState(false);
@@ -547,6 +548,7 @@ const Stock = () => {
   const imagenesTemporalesRef = useRef({});
   const imagenesConocidasPorProductoRef = useRef({});
   const impactoEliminarRequestRef = useRef(0);
+  const productosRequestRef = useRef(0);
   const categoriaFiltroDropdownRef = useRef(null);
   const productosPorPagina = 20;
 
@@ -565,6 +567,15 @@ const Stock = () => {
     const timer = window.setTimeout(() => setToast(null), Number(toast.duracion));
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    const valorNormalizado = busqueda.trim();
+    const timer = window.setTimeout(() => {
+      setBusquedaConsulta((prev) => (prev === valorNormalizado ? prev : valorNormalizado));
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [busqueda]);
 
   const handleCargaPreciosMasivos = useCallback((estado) => {
     if (!estado?.open) {
@@ -842,7 +853,7 @@ const Stock = () => {
             _r: String(seed),
           });
           if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
-          if (busqueda.trim()) params.set("buscar", busqueda.trim());
+          if (busquedaConsulta) params.set("buscar", busquedaConsulta);
 
           const data = await apiGet(`${API_URL}?${params.toString()}`);
           if (data?.exito === false) {
@@ -900,7 +911,7 @@ const Stock = () => {
     } finally {
       if (mostrarLoader) setLoading(false);
     }
-  }, [busqueda, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina, prepararProductosParaMostrar, rearmarMiniaturasProductos]);
+  }, [busquedaConsulta, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina, prepararProductosParaMostrar, rearmarMiniaturasProductos]);
 
   const refrescarProductoPorId = useCallback(async (productoId, opciones = {}) => {
     const id = Number(productoId || 0);
@@ -1071,6 +1082,9 @@ const Stock = () => {
   }, [mostrarToast]);
 
   const fetchProductos = useCallback(async () => {
+    const requestId = productosRequestRef.current + 1;
+    productosRequestRef.current = requestId;
+
     setLoading(true);
     setError(null);
 
@@ -1085,14 +1099,18 @@ const Stock = () => {
         _r: String(Date.now()),
       });
       if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
-      if (busqueda.trim()) params.set("buscar", busqueda.trim());
+      if (busquedaConsulta) params.set("buscar", busquedaConsulta);
 
       const data = await apiGet(`${API_URL}?${params.toString()}`);
+      if (productosRequestRef.current !== requestId) return;
+
       if (data.exito === false) {
         throw new Error(data.mensaje || "Error al obtener productos");
       }
 
       const productosNormalizados = prepararProductosParaMostrar(data.productos);
+      if (productosRequestRef.current !== requestId) return;
+
       setProductosRaw(productosNormalizados);
       rearmarMiniaturasProductos(productosNormalizados, Date.now());
       setTotalProductosServidor(Number(data?.total ?? 0));
@@ -1102,14 +1120,17 @@ const Stock = () => {
         setPaginaActual(paginaServidor);
       }
     } catch (err) {
+      if (productosRequestRef.current !== requestId) return;
       setProductosRaw([]);
       setTotalProductosServidor(0);
       setTotalPaginasServidor(1);
       setError(err.message || "Error inesperado");
     } finally {
-      setLoading(false);
+      if (productosRequestRef.current === requestId) {
+        setLoading(false);
+      }
     }
-  }, [busqueda, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina, prepararProductosParaMostrar, rearmarMiniaturasProductos]);
+  }, [busquedaConsulta, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina, prepararProductosParaMostrar, rearmarMiniaturasProductos]);
 
   const cargarVariantesProducto = useCallback(async (productoId) => {
     const id = Number(productoId || 0);
@@ -1391,6 +1412,12 @@ const Stock = () => {
 
   const handleBusqueda = (e) => {
     setBusqueda(e.target.value);
+    setPaginaActual(1);
+  };
+
+  const limpiarBusqueda = () => {
+    setBusqueda("");
+    setBusquedaConsulta("");
     setPaginaActual(1);
   };
 
@@ -2153,7 +2180,6 @@ const Stock = () => {
                           value={busqueda}
                           onChange={handleBusqueda}
                           placeholder="Buscar por nombre, SKU o variante..."
-                          disabled={loading}
                         />
                         <span className="cc-floatingLabel">
                           <FontAwesomeIcon icon={faMagnifyingGlass} /> Búsqueda
@@ -2164,10 +2190,7 @@ const Stock = () => {
                             type="button"
                             className="cc-clearSearch cc-clearSearch--inside"
                             title="Limpiar búsqueda"
-                            onClick={() => {
-                              setBusqueda("");
-                              setPaginaActual(1);
-                            }}
+                            onClick={limpiarBusqueda}
                           >
                             <FontAwesomeIcon icon={faTimes} />
                           </button>

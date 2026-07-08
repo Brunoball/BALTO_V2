@@ -544,8 +544,8 @@ export default function Dashboard() {
         formatter: formatMoney,
         detail: (
           <>
-            <AnimatedValue value={kpis.productos_con_stock} formatter={formatNumber} />
-            {" productos con stock"}
+            <AnimatedValue value={kpis.productos_activos} formatter={formatNumber} />
+            {" productos activos"}
           </>
         ),
         icon: faBoxesStacked,

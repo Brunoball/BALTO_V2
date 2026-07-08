@@ -684,7 +684,7 @@ function describeLineProblem(r, idx1based) {
   return `Fila ${idx1based}: ${issues.join(", ")}.`;
 }
 
-const SAFE_LISTS = { proveedores: [], detalles: [], medios_pago: [] };
+const SAFE_LISTS = { proveedores: [], detalles: [], detalles_compras: [], medios_pago: [] };
 const ADD_PROVEEDOR_OPTION = {
   __action: "add_proveedor",
   id: "__add_proveedor__",
@@ -732,9 +732,18 @@ function normalizeLists(lists) {
     ? pick("medios")
     : pick("medios_de_pago");
 
+  const detallesCompras = pick("detalles_compras").length
+    ? pick("detalles_compras")
+    : pick("detallesCompras").length
+    ? pick("detallesCompras")
+    : pick("detalles_todos").length
+    ? pick("detalles_todos")
+    : pick("detallesTodos");
+
   return {
     proveedores: pick("proveedores"),
     detalles: pick("detalles"),
+    detalles_compras: Array.isArray(detallesCompras) ? detallesCompras : [],
     medios_pago: Array.isArray(mediosPago) ? mediosPago : [],
   };
 }
@@ -810,6 +819,19 @@ async function apiGet(url) {
   const res = await fetch(url, { method: "GET", headers: buildAuthHeaders(false) });
   return await parseJsonOrThrow(res);
 }
+
+async function fetchComprasListasFresh() {
+  const base = String(BASE_URL || "").replace(/\/+$/, "");
+  const sep = base.includes("?") ? "&" : "?";
+  const url = `${base}/api.php${sep}action=global_obtener_listas&contexto=compras&include_sin_stock=1&_=${Date.now()}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: buildAuthHeaders(false),
+    cache: "no-store",
+  });
+  return await parseJsonOrThrow(res);
+}
+
 async function apiPostJson(url, payload) {
   const res = await fetch(url, {
     method: "POST",
@@ -911,14 +933,41 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
   const [localLists, setLocalLists] = useState(() => ({ ...SAFE_LISTS, ...normalizeLists(lists) }));
   useEffect(() => setLocalLists({ ...SAFE_LISTS, ...normalizeLists(lists) }), [lists]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+
+    let alive = true;
+    (async () => {
+      try {
+        const data = await fetchComprasListasFresh();
+        if (!alive || !data?.exito) return;
+
+        const fresh = normalizeLists(data);
+        setLocalLists((prev) => ({
+          ...SAFE_LISTS,
+          ...prev,
+          ...fresh,
+          // Para compras, la lista completa manda sobre cualquier lista filtrada/cacheada.
+          detalles: fresh.detalles_compras?.length ? fresh.detalles_compras : fresh.detalles,
+        }));
+      } catch {
+        // Si falla el refresco puntual, el modal sigue funcionando con las listas del contexto.
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [open]);
+
   const mediosPagoList = useMemo(
     () => filtrarMediosPagoPorPlan(Array.isArray(localLists.medios_pago) ? localLists.medios_pago : []),
     [localLists.medios_pago]
   );
-  const detallesList = useMemo(
-    () => (Array.isArray(localLists.detalles) ? localLists.detalles : []),
-    [localLists.detalles]
-  );
+  const detallesList = useMemo(() => {
+    const detallesCompras = Array.isArray(localLists.detalles_compras) ? localLists.detalles_compras : [];
+    return detallesCompras.length ? detallesCompras : Array.isArray(localLists.detalles) ? localLists.detalles : [];
+  }, [localLists.detalles, localLists.detalles_compras]);
   const proveedoresList = useMemo(
     () => (Array.isArray(localLists.proveedores) ? localLists.proveedores : []),
     [localLists.proveedores]
@@ -1774,6 +1823,8 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                             disabled={saving || addUI.open}
                             showAllOnFocus={false}
                             maxItems={18}
+                            allowOutOfStock
+                            emptyMessage="Sin productos activos"
                             inputClassName="nc-cell-input"
                           />
                         </div>

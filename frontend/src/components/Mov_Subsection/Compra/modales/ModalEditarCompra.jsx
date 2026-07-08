@@ -601,6 +601,19 @@ async function apiGet(url) {
   const res = await fetch(url, { method: "GET", headers: buildAuthHeaders(false) });
   return await parseJsonOrThrow(res);
 }
+
+async function fetchComprasListasFresh() {
+  const base = String(BASE_URL || "").replace(/\/+$/, "");
+  const sep = base.includes("?") ? "&" : "?";
+  const url = `${base}/api.php${sep}action=global_obtener_listas&contexto=compras&include_sin_stock=1&_=${Date.now()}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: buildAuthHeaders(false),
+    cache: "no-store",
+  });
+  return await parseJsonOrThrow(res);
+}
+
 async function apiPostJson(url, payload) {
   const res = await fetch(url, {
     method: "POST",
@@ -748,12 +761,20 @@ function normalizeIncomingLists(lists) {
       ? src.proveedores
       : Array.isArray(src.proveedor) ? src.proveedor : [];
 
+  const detallesCompras = Array.isArray(src.detalles_compras) && src.detalles_compras.length
+    ? src.detalles_compras
+    : Array.isArray(src.detallesCompras) && src.detallesCompras.length
+    ? src.detallesCompras
+    : Array.isArray(src.detalles_todos) && src.detalles_todos.length
+    ? src.detalles_todos
+    : Array.isArray(src.detallesTodos) ? src.detallesTodos : [];
+
   return {
     tiposVenta: Array.isArray(tiposVenta) ? tiposVenta : [],
     cuentasCorrientes: Array.isArray(cuentas) ? cuentas : [],
     tiposMovimiento: Array.isArray(tiposMov) ? tiposMov : [],
     proveedores,
-    detalles: Array.isArray(src.detalles) ? src.detalles : [],
+    detalles: detallesCompras.length ? detallesCompras : Array.isArray(src.detalles) ? src.detalles : [],
     mediosPago: Array.isArray(medios) ? medios : [],
   };
 }
@@ -1134,6 +1155,33 @@ export default function ModalEditarCompra({
   useEffect(() => {
     setLocalLists({ ...SAFE_LISTS, ...normalizeIncomingLists(lists) });
   }, [lists]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    let alive = true;
+    (async () => {
+      try {
+        const data = await fetchComprasListasFresh();
+        if (!alive || !data?.exito) return;
+
+        const fresh = normalizeIncomingLists(data);
+        setLocalLists((prev) => ({
+          ...SAFE_LISTS,
+          ...prev,
+          ...fresh,
+          // En compras, la lista completa de productos debe pisar cualquier cache filtrado por stock.
+          detalles: Array.isArray(fresh.detalles) ? fresh.detalles : [],
+        }));
+      } catch {
+        // Si falla el refresco puntual, queda la lista recibida por contexto.
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [open]);
 
   const safeLists = useMemo(
     () => ({

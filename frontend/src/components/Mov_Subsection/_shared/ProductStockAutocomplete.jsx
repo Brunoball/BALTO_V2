@@ -53,13 +53,16 @@ function hasPositiveStock(x) {
   return stock !== null && stock > 0;
 }
 
-function filterAvailableProduct(product) {
+function filterAvailableProduct(product, allowOutOfStock = false) {
   if (!product) return null;
 
-  const variants = Array.isArray(product?.variantes)
-    ? product.variantes.filter((v) => Number(v?.activo ?? 1) !== 0 && hasPositiveStock(v))
+  const activeVariants = Array.isArray(product?.variantes)
+    ? product.variantes.filter((v) => Number(v?.activo ?? 1) !== 0)
     : [];
-  const productHasStock = hasPositiveStock(product);
+  const variants = allowOutOfStock
+    ? activeVariants
+    : activeVariants.filter((v) => hasPositiveStock(v));
+  const productHasStock = allowOutOfStock || hasPositiveStock(product);
 
   if (!productHasStock && variants.length === 0) return null;
 
@@ -130,6 +133,7 @@ export default function ProductStockAutocomplete({
   className = "",
   inputClassName = "",
   emptyMessage = "Sin productos",
+  allowOutOfStock = false,
   name,
   id,
 }) {
@@ -144,8 +148,8 @@ export default function ProductStockAutocomplete({
 
   const availableOptions = useMemo(() => {
     const arr = Array.isArray(options) ? options : [];
-    return arr.map(filterAvailableProduct).filter(Boolean);
-  }, [options]);
+    return arr.map((p) => filterAvailableProduct(p, allowOutOfStock)).filter(Boolean);
+  }, [options, allowOutOfStock]);
 
   const q = normalizeText(value);
 
@@ -253,7 +257,7 @@ export default function ProductStockAutocomplete({
 
   const selectProduct = useCallback((product) => {
     const variants = Array.isArray(product?.variantes)
-      ? product.variantes.filter((v) => Number(v?.activo ?? 1) !== 0 && hasPositiveStock(v))
+      ? product.variantes.filter((v) => Number(v?.activo ?? 1) !== 0 && (allowOutOfStock || hasPositiveStock(v)))
       : [];
     if (variants.length > 0) {
       toggleProduct(product);
@@ -261,7 +265,7 @@ export default function ProductStockAutocomplete({
     }
     onSelect?.(product);
     closeList();
-  }, [closeList, onSelect, toggleProduct]);
+  }, [allowOutOfStock, closeList, onSelect, toggleProduct]);
 
   const selectVariant = useCallback((product, variant) => {
     onSelect?.(buildVariantSelection(product, variant));
@@ -340,7 +344,7 @@ export default function ProductStockAutocomplete({
       {filteredProducts.length > 0 ? filteredProducts.map((product) => {
         const pKey = `p:${getProductId(product) || getProductName(product)}`;
         const variants = Array.isArray(product?.variantes)
-          ? product.variantes.filter((v) => Number(v?.activo ?? 1) !== 0 && hasPositiveStock(v))
+          ? product.variantes.filter((v) => Number(v?.activo ?? 1) !== 0 && (allowOutOfStock || hasPositiveStock(v)))
           : [];
         const variantsMatch = q ? variants.filter((v) => normalizeText([getVariantName(v), v?.sku, getProductName(product)].filter(Boolean).join(" ")).includes(q)) : variants;
         const productMatches = !q || normalizeText([getProductName(product), product?.sku].filter(Boolean).join(" ")).includes(q);

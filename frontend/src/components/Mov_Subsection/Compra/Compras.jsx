@@ -584,6 +584,31 @@ export default function Compras() {
     } catch {}
   }, [refreshLists]);
 
+  const hasComprasProductList = useMemo(() => {
+    const raw = listasCtx && typeof listasCtx === "object" ? listasCtx : {};
+    const l = raw.listas && typeof raw.listas === "object" ? raw.listas : raw;
+    return (
+      (Array.isArray(l.detalles_compras) && l.detalles_compras.length > 0) ||
+      (Array.isArray(l.detallesCompras) && l.detallesCompras.length > 0) ||
+      (Array.isArray(l.detalles_todos) && l.detalles_todos.length > 0) ||
+      (Array.isArray(l.detallesTodos) && l.detallesTodos.length > 0)
+    );
+  }, [listasCtx]);
+
+  const ensureComprasProductList = useCallback(async () => {
+    if (hasComprasProductList) return;
+    try {
+      if (typeof ensureListsLoaded === "function") {
+        await ensureListsLoaded({ force: true, background: false });
+        return;
+      }
+    } catch {}
+
+    try {
+      if (typeof refreshLists === "function") await refreshLists();
+    } catch {}
+  }, [ensureListsLoaded, hasComprasProductList, refreshLists]);
+
   /* =========================
      OBTENER URL FIRMADA
   ========================= */
@@ -1092,8 +1117,9 @@ export default function Compras() {
       .join(" ");
   }, [columns]);
 
-  const openEditModal = (r) => {
+  const openEditModal = async (r) => {
     setSelectedRow(r);
+    await ensureComprasProductList();
     setOpenEdit(true);
   };
 
@@ -1500,10 +1526,11 @@ export default function Compras() {
             <button
               type="button"
               className="mov-btn mov-btn--primary"
-              onClick={() => {
+              onClick={async () => {
                 if (loadingListsCtx) {
                   showToast?.("cargando", "Cargando listas… podés ir completando igual.", 2400);
                 }
+                await ensureComprasProductList();
                 setOpenNueva(true);
               }}
               title="Crear nueva compra"
