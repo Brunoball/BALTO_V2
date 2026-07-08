@@ -368,6 +368,21 @@ function getFirstErrorText(errs) {
   return errorToText(first, "Revisá los campos marcados");
 }
 
+function variantHasContent(variant = {}) {
+  return (
+    String(variant.nombre_variante || variant.sku || "").trim() ||
+    (Array.isArray(variant.atributos) ? variant.atributos : []).some((attr) =>
+      String(attr.atributo || attr.valor || "").trim()
+    )
+  );
+}
+
+function isValidMoneyValue(value) {
+  if (!hasMoneyValue(value)) return false;
+  const parsed = Number(String(value).replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(parsed) && parsed >= 0;
+}
+
 function FloatingField({ label, icon, error, children, style }) {
   return (
     <div
@@ -1265,40 +1280,49 @@ export default function ModalCargaIndividualProducto({
 
     if (!sourceForm.nombre.trim()) errs.nombre = "El nombre es obligatorio";
 
-    if (precioCosto !== null && (Number.isNaN(precioCosto) || precioCosto < 0)) {
-      errs.precio_costo = "Ingresá un costo válido";
-    }
+    if (!sourceForm.tiene_variantes) {
+      if (precioCosto !== null && (Number.isNaN(precioCosto) || precioCosto < 0)) {
+        errs.precio_costo = "Ingresá un costo válido";
+      }
 
-    if (!sourceForm.precio || Number.isNaN(precioVenta) || precioVenta < 0) {
-      errs.precio = "Ingresá un precio de venta válido";
-    }
+      if (!sourceForm.precio || Number.isNaN(precioVenta) || precioVenta < 0) {
+        errs.precio = "Ingresá un precio de venta válido";
+      }
 
-    if (sourceForm.precio_promo && (Number.isNaN(promo) || promo < 0)) {
-      errs.precio_promo = "Precio promocional inválido";
-    }
+      if (sourceForm.precio_promo && (Number.isNaN(promo) || promo < 0)) {
+        errs.precio_promo = "Precio promocional inválido";
+      }
 
-    if (!sourceForm.tiene_variantes && sourceForm.stock !== "" && (Number.isNaN(Number(sourceForm.stock)) || Number(sourceForm.stock) < 0)) {
-      errs.stock = "Stock inválido";
+      if (sourceForm.stock !== "" && (Number.isNaN(Number(sourceForm.stock)) || Number(sourceForm.stock) < 0)) {
+        errs.stock = "Stock inválido";
+      }
     }
 
     if (sourceForm.tiene_variantes) {
-      const variantesValidas = (sourceForm.variantes || []).filter((variant) =>
-        String(variant.nombre_variante || variant.sku || "").trim() ||
-        (variant.atributos || []).some((attr) => String(attr.atributo || attr.valor || "").trim())
-      );
+      const variantesValidas = (sourceForm.variantes || []).filter(variantHasContent);
 
       if (variantesValidas.length === 0) {
         errs.variantes = "Agregá al menos una variante";
       }
 
       variantesValidas.forEach((variant, idx) => {
-        if (variant.stock !== "" && (Number.isNaN(Number(variant.stock)) || Number(variant.stock) < 0)) {
-          errs[`variante_${idx}`] = "Stock inválido en variante";
+        const numero = idx + 1;
+        if (!String(variant.nombre_variante || "").trim()) {
+          errs[`variante_${idx}_nombre`] = `La variante #${numero} necesita nombre.`;
+        }
+        if (!String(variant.sku || "").trim()) {
+          errs[`variante_${idx}_sku`] = `La variante #${numero} necesita SKU.`;
+        }
+        if (variant.stock === "" || Number.isNaN(Number(variant.stock)) || Number(variant.stock) < 0) {
+          errs[`variante_${idx}_stock`] = `La variante #${numero} necesita stock válido.`;
+        }
+        if (!isValidMoneyValue(variant.precio)) {
+          errs[`variante_${idx}_precio`] = `La variante #${numero} necesita precio de venta propio.`;
         }
       });
     }
 
-    sourceForm.tipos_precio_extra.forEach((item, idx) => {
+    if (!sourceForm.tiene_variantes) sourceForm.tipos_precio_extra.forEach((item, idx) => {
       if (!item.id_tipo_precio_stock) {
         errs[`tipo_${idx}`] = "Tipo de precio inválido";
       }
@@ -1504,13 +1528,15 @@ export default function ModalCargaIndividualProducto({
 
       fd.append("nombre", toCapitalizedText(formNormalizado.nombre));
       fd.append("sku", toUpperCaseValue(formNormalizado.sku.trim()));
-      fd.append("precio_costo", moneyToApi(formNormalizado.precio_costo));
-      fd.append("precio", moneyToApi(formNormalizado.precio));
-      fd.append("margen_venta_porcentaje", moneyToApi(formNormalizado.margen_venta_porcentaje));
-      fd.append("margen_venta_valor", moneyToApi(formNormalizado.margen_venta_valor));
-      fd.append("precio_promo", moneyToApi(formNormalizado.precio_promo));
-      fd.append("margen_promo_porcentaje", moneyToApi(formNormalizado.margen_promo_porcentaje));
-      fd.append("margen_promo_valor", moneyToApi(formNormalizado.margen_promo_valor));
+      const usaVariantes = !!formNormalizado.tiene_variantes;
+
+      fd.append("precio_costo", usaVariantes ? "" : moneyToApi(formNormalizado.precio_costo));
+      fd.append("precio", usaVariantes ? "" : moneyToApi(formNormalizado.precio));
+      fd.append("margen_venta_porcentaje", usaVariantes ? "" : moneyToApi(formNormalizado.margen_venta_porcentaje));
+      fd.append("margen_venta_valor", usaVariantes ? "" : moneyToApi(formNormalizado.margen_venta_valor));
+      fd.append("precio_promo", usaVariantes ? "" : moneyToApi(formNormalizado.precio_promo));
+      fd.append("margen_promo_porcentaje", usaVariantes ? "" : moneyToApi(formNormalizado.margen_promo_porcentaje));
+      fd.append("margen_promo_valor", usaVariantes ? "" : moneyToApi(formNormalizado.margen_promo_valor));
       fd.append(
         "stock",
         formNormalizado.tiene_variantes ? "0" : formNormalizado.stock !== "" ? String(formNormalizado.stock) : ""
@@ -1564,9 +1590,9 @@ export default function ModalCargaIndividualProducto({
         id_tipo_precio_stock: Number(item.id_tipo_precio_stock) || 0,
         tipo_nombre: toCapitalizedText(item.tipo_nombre),
         nombre: toCapitalizedText(item.tipo_nombre),
-        precio: moneyToApi(item.precio),
-        margen_porcentaje: moneyToApi(item.margen_porcentaje),
-        margen_valor: moneyToApi(item.margen_valor),
+        precio: usaVariantes ? "" : moneyToApi(item.precio),
+        margen_porcentaje: usaVariantes ? "" : moneyToApi(item.margen_porcentaje),
+        margen_valor: usaVariantes ? "" : moneyToApi(item.margen_valor),
       }));
 
       fd.append("tipos_precio", JSON.stringify(tiposPrecioPayload));
@@ -1593,7 +1619,9 @@ export default function ModalCargaIndividualProducto({
 
   if (!open) return null;
 
-  const hasCosto = !!form.precio_costo;
+  const productoConVariantes = !!form.tiene_variantes;
+  const preciosProductoBloqueados = productoConVariantes || guardando;
+  const hasCosto = !!form.precio_costo && !productoConVariantes;
 
   return (
     <div style={{ display: visible ? "contents" : "none" }}>
@@ -1661,7 +1689,7 @@ export default function ModalCargaIndividualProducto({
                   className="cmi-input"
                   placeholder="Ej: 25"
                   inputMode="numeric"
-                  disabled={form.tiene_variantes}
+                  disabled={productoConVariantes}
                 />
               </FloatingField>
 
@@ -1795,14 +1823,16 @@ export default function ModalCargaIndividualProducto({
             </div>
           </section>
 
-          <div className="cmi-priceBlock">
+          <div className={`cmi-priceBlock ${productoConVariantes ? "cmi-priceBlock--disabledByVariants" : ""}`}>
             <div className="cmi-priceBlock__title">
               <FontAwesomeIcon icon={faMoneyBillTrendUp} />
               Precios principales
             </div>
 
             <p className="cmi-priceBlock__subtitle">
-              Con el costo cargado podés escribir el precio final o el margen (% / $) y se calcula automáticamente.
+              {productoConVariantes
+                ? "Este producto usa variantes: el precio general queda bloqueado para no pisar los precios de Tienda Nube. Cargá precio, stock y SKU en cada variante."
+                : "Con el costo cargado podés escribir el precio final o el margen (% / $) y se calcula automáticamente."}
             </p>
 
             <FloatingField label="Precio de costo" error={errores.precio_costo}>
@@ -1821,6 +1851,7 @@ export default function ModalCargaIndividualProducto({
                   handlePriceEnter(e, () => recalcularTodoConCosto(e.currentTarget.value, true))
                 }
                 placeholder="0,00"
+                disabled={preciosProductoBloqueados}
               />
             </FloatingField>
 
@@ -1849,6 +1880,7 @@ export default function ModalCargaIndividualProducto({
                     onEnter={(e) =>
                       handlePriceEnter(e, () => handlePricingBlur("price", "venta", true))
                     }
+                    disabled={preciosProductoBloqueados}
                   />
                 </FloatingField>
 
@@ -1867,7 +1899,7 @@ export default function ModalCargaIndividualProducto({
                     onEnter={(e) =>
                       handlePriceEnter(e, () => handlePricingBlur("marginPct", "venta", true))
                     }
-                    disabled={!hasCosto}
+                    disabled={preciosProductoBloqueados || !hasCosto}
                   />
                 </FloatingField>
 
@@ -1886,7 +1918,7 @@ export default function ModalCargaIndividualProducto({
                     onEnter={(e) =>
                       handlePriceEnter(e, () => handlePricingBlur("marginValue", "venta", true))
                     }
-                    disabled={!hasCosto}
+                    disabled={preciosProductoBloqueados || !hasCosto}
                   />
                 </FloatingField>
               </div>
@@ -1909,6 +1941,7 @@ export default function ModalCargaIndividualProducto({
                     onEnter={(e) =>
                       handlePriceEnter(e, () => handlePricingBlur("price", "promo", true))
                     }
+                    disabled={preciosProductoBloqueados}
                   />
                 </FloatingField>
 
@@ -1927,7 +1960,7 @@ export default function ModalCargaIndividualProducto({
                     onEnter={(e) =>
                       handlePriceEnter(e, () => handlePricingBlur("marginPct", "promo", true))
                     }
-                    disabled={!hasCosto}
+                    disabled={preciosProductoBloqueados || !hasCosto}
                   />
                 </FloatingField>
 
@@ -1946,18 +1979,24 @@ export default function ModalCargaIndividualProducto({
                     onEnter={(e) =>
                       handlePriceEnter(e, () => handlePricingBlur("marginValue", "promo", true))
                     }
-                    disabled={!hasCosto}
+                    disabled={preciosProductoBloqueados || !hasCosto}
                   />
                 </FloatingField>
               </div>
             </PriceGroupSection>
           </div>
 
-          <div className="cmi-priceBlock">
+          <div className={`cmi-priceBlock ${productoConVariantes ? "cmi-priceBlock--typesForVariants" : ""}`}>
             <div className="cmi-priceBlock__title">
               <FontAwesomeIcon icon={faLayerGroup} />
-              Tipos de precio adicionales
+              {productoConVariantes ? "Tipos de precio para variantes" : "Tipos de precio adicionales"}
             </div>
+
+            <p className="cmi-priceBlock__subtitle">
+              {productoConVariantes
+                ? "Agregá acá las listas de precio que necesitás. Los importes se cargan dentro de cada variante."
+                : "Agregá listas o precios alternativos del producto simple."}
+            </p>
 
             <FloatingField label="Agregar tipo de precio">
               <select
@@ -2016,6 +2055,7 @@ export default function ModalCargaIndividualProducto({
                       name={`extra_precio_${idx}`}
                       value={item.precio}
                       onChange={(e) => handleExtraPriceChange(idx, "precio", e.target.value)}
+                      disabled={preciosProductoBloqueados}
                       onBlur={() => handleExtraPriceBlur(idx, "price", true)}
                       onEnter={(e) =>
                         handlePriceEnter(e, () => handleExtraPriceBlur(idx, "price", true))
@@ -2032,7 +2072,7 @@ export default function ModalCargaIndividualProducto({
                       onEnter={(e) =>
                         handlePriceEnter(e, () => handleExtraPriceBlur(idx, "marginPct", true))
                       }
-                      disabled={!hasCosto}
+                      disabled={preciosProductoBloqueados || !hasCosto}
                     />
                   </FloatingField>
 
@@ -2045,7 +2085,7 @@ export default function ModalCargaIndividualProducto({
                       onEnter={(e) =>
                         handlePriceEnter(e, () => handleExtraPriceBlur(idx, "marginValue", true))
                       }
-                      disabled={!hasCosto}
+                      disabled={preciosProductoBloqueados || !hasCosto}
                     />
                   </FloatingField>
                 </div>
@@ -2091,10 +2131,16 @@ export default function ModalCargaIndividualProducto({
             </div>
 
             <p className="cmi-priceBlock__subtitle">
-              Usalo para talles, colores, medidas, materiales o presentaciones. Si está activo, el stock vive en cada variante.
+              Usalo para talles, colores, medidas, materiales o presentaciones. Si está activo, Tienda Nube toma SKU, stock y precios desde cada variante.
             </p>
 
             {errores.variantes ? <div className="cmi-errorText">{errores.variantes}</div> : null}
+
+            {form.tiene_variantes ? (
+              <div className="cmi-v2-variantModeNotice">
+                Producto con variantes: el precio general y el stock general quedan bloqueados. Cargá nombre, SKU, stock y precio de venta en cada variante.
+              </div>
+            ) : null}
 
             {form.tiene_variantes ? (
               <div className="cmi-v2-variantsWrap">
@@ -2113,7 +2159,7 @@ export default function ModalCargaIndividualProducto({
                     </div>
 
                     <div className="fl-row" style={{ gridTemplateColumns: "1.3fr 1fr .75fr" }}>
-                      <FloatingField label="Nombre variante">
+                      <FloatingField label="Nombre variante *">
                         <input
                           className="cmi-input"
                           value={variant.nombre_variante}
@@ -2121,7 +2167,7 @@ export default function ModalCargaIndividualProducto({
                           placeholder="Ej: TALLE M / NEGRO"
                         />
                       </FloatingField>
-                      <FloatingField label="SKU variante">
+                      <FloatingField label="SKU variante *">
                         <input
                           className="cmi-input"
                           value={variant.sku}
@@ -2130,7 +2176,7 @@ export default function ModalCargaIndividualProducto({
                           style={{ textTransform: "uppercase" }}
                         />
                       </FloatingField>
-                      <FloatingField label="Stock">
+                      <FloatingField label="Stock *">
                         <input
                           className="cmi-input"
                           value={variant.stock}
@@ -2169,7 +2215,7 @@ export default function ModalCargaIndividualProducto({
                       <FloatingField label="Precio de costo">
                         <PriceInput value={variant.precio_costo} onChange={(e) => updateVariant(variantIdx, { precio_costo: normalizeMoneyInput(e.target.value) })} />
                       </FloatingField>
-                      <FloatingField label="Precio de venta">
+                      <FloatingField label="Precio de venta *">
                         <PriceInput value={variant.precio} onChange={(e) => updateVariant(variantIdx, { precio: normalizeMoneyInput(e.target.value) })} />
                       </FloatingField>
                       <FloatingField label="Precio promocional">
@@ -2192,7 +2238,7 @@ export default function ModalCargaIndividualProducto({
                               <PriceInput
                                 name={`variant_extra_precio_${variantIdx}_${tipoIdx}`}
                                 value={tipoItem.precio}
-                                placeholder={precioProducto ? `Hereda ${formatPriceDisplay(precioProducto)}` : "Opcional"}
+                                placeholder={productoConVariantes ? "Cargar en esta variante" : precioProducto ? `Hereda ${formatPriceDisplay(precioProducto)}` : "Opcional"}
                                 onChange={(e) => {
                                   const value = normalizeMoneyInput(e.target.value);
                                   setForm((p) => ({

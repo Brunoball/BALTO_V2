@@ -22,6 +22,9 @@ import Toast from "../../Global/Toast";
 import "./configTiendanube.css";
 
 const API_RELATIVE = "api.php";
+const IMPORT_BATCH_SIZE = 5;
+const IMPORT_TIMEOUT_MS = 90000;
+
 
 function buildApiUrl(paramsObj = {}) {
   const baseRaw = String(BASE_URL || "").trim();
@@ -80,33 +83,55 @@ function formatearFecha(fecha) {
 }
 
 async function apiFetch(paramsObj = {}, options = {}) {
-  const sessionKey = getSessionKey();
+  const {
+    timeoutMs = 0,
+    dispatchUnauthorized = true,
+    ...fetchOptions
+  } = options || {};
 
-  const headers = new Headers(options.headers || {});
+  const sessionKey = getSessionKey();
+  const headers = new Headers(fetchOptions.headers || {});
   if (sessionKey) headers.set("X-Session", sessionKey);
 
-  if (options.body && !headers.has("Content-Type")) {
+  if (fetchOptions.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
   const url = buildApiUrl(paramsObj);
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  const externalSignal = fetchOptions.signal;
+  let timeoutId = null;
 
-  const res = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  if (res.status === 401 || res.status === 403) {
-    try {
-      window.dispatchEvent(
-        new CustomEvent("auth:unauthorized", {
-          detail: { status: res.status },
-        })
-      );
-    } catch {}
+  if (controller && externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener("abort", () => controller.abort(), { once: true });
   }
 
-  return res;
+  if (controller) {
+    timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  }
+
+  try {
+    const res = await fetch(url, {
+      ...fetchOptions,
+      headers,
+      signal: controller?.signal || externalSignal,
+    });
+
+    if (dispatchUnauthorized && (res.status === 401 || res.status === 403)) {
+      try {
+        window.dispatchEvent(
+          new CustomEvent("auth:unauthorized", {
+            detail: { status: res.status },
+          })
+        );
+      } catch {}
+    }
+
+    return res;
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId);
+  }
 }
 
 const EstadoBadge = ({ connected }) => {
@@ -165,11 +190,86 @@ function armarMensajeImportacion(resultado) {
   if (Number(productos.omitidas || 0) > 0) {
     partes.push(`${Number(productos.omitidas)} productos omitidos`);
   }
+  if (Number(productos.variantes || 0) > 0) {
+    partes.push(`${Number(productos.variantes)} variantes sincronizadas`);
+  }
+  if (Number(productos.imagenes || 0) > 0) {
+    partes.push(`${Number(productos.imagenes)} imágenes importadas`);
+  }
   if (totalErrores > 0) {
     partes.push(`${totalErrores} errores`);
   }
 
   return `Importación terminada. ${partes.join(" · ")}.`;
+}
+
+function crearAcumuladorImportacion() {
+  return {
+    store_id: "",
+    categorias: {
+      total_remotas: 0,
+      procesadas: 0,
+      creadas: 0,
+      actualizadas: 0,
+      errores: 0,
+    },
+    productos: {
+      total_remotos: 0,
+      procesados: 0,
+      creadas: 0,
+      actualizadas: 0,
+      omitidas: 0,
+      errores: 0,
+      variantes: 0,
+      variantes_baja: 0,
+      imagenes: 0,
+      imagenes_errores: 0,
+    },
+  };
+}
+
+function sumarNumero(a, b) {
+  return Number(a || 0) + Number(b || 0);
+}
+
+function acumularImportacion(actual, lote) {
+  const next = {
+    ...actual,
+    store_id: lote?.store_id || actual.store_id,
+    categorias: { ...actual.categorias },
+    productos: { ...actual.productos },
+  };
+
+  const cat = lote?.categorias || {};
+  const prod = lote?.productos || {};
+
+  next.categorias.total_remotas = Math.max(
+    Number(next.categorias.total_remotas || 0),
+    Number(cat.total_remotas || 0)
+  );
+  ["procesadas", "creadas", "actualizadas", "errores"].forEach((k) => {
+    next.categorias[k] = sumarNumero(next.categorias[k], cat[k]);
+  });
+
+  next.productos.total_remotos = Math.max(
+    Number(next.productos.total_remotos || 0),
+    Number(prod.total_remotos || 0)
+  );
+  [
+    "procesados",
+    "creadas",
+    "actualizadas",
+    "omitidas",
+    "errores",
+    "variantes",
+    "variantes_baja",
+    "imagenes",
+    "imagenes_errores",
+  ].forEach((k) => {
+    next.productos[k] = sumarNumero(next.productos[k], prod[k]);
+  });
+
+  return next;
 }
 
 function ModalInstructivo({ isOpen, onClose }) {
@@ -338,6 +438,7 @@ export default function ConfigTiendaNube() {
   const [loadingConnect, setLoadingConnect] = useState(false);
   const [loadingWebhook, setLoadingWebhook] = useState(false);
   const [loadingImport, setLoadingImport] = useState(false);
+  const [importProgress, setImportProgress] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [toast, setToast] = useState(null);
@@ -531,6 +632,12 @@ export default function ConfigTiendaNube() {
   const handleImportarCatalogo = async () => {
     limpiarMensajes();
     setLoadingImport(true);
+    setImportProgress({
+      page: 1,
+      procesados: 0,
+      totalEstimado: 0,
+      mensaje: "Preparando importación segura por lotes...",
+    });
 
     try {
       if (!tenantId) {
@@ -538,36 +645,82 @@ export default function ConfigTiendaNube() {
         return;
       }
 
-      const res = await apiFetch(
-        {
-          action: "tiendanube_importar_catalogo",
+      let page = 1;
+      let acumulado = crearAcumuladorImportacion();
+
+      while (true) {
+        setImportProgress((prev) => ({
+          ...prev,
+          page,
+          mensaje: `Importando lote ${page}. Balto lo hace por partes para evitar cortes de conexión.`,
+        }));
+
+        const body = {
           idTenant: tenantId,
-        },
-        {
-          method: "POST",
-          body: JSON.stringify({
+          modo_lote: 1,
+          page,
+          per_page: IMPORT_BATCH_SIZE,
+          importar_imagenes: 1,
+          max_imagenes_por_producto: 1,
+        };
+
+        const res = await apiFetch(
+          {
+            action: "tiendanube_importar_catalogo",
             idTenant: tenantId,
-          }),
-        }
-      );
-
-      const txt = await res.text();
-      const data = safeJsonParse(txt);
-
-      if (!res.ok || !data?.exito) {
-        throw new Error(
-          data?.mensaje ||
-            data?.error ||
-            "No se pudo importar el catálogo desde Tienda Nube."
+            modo_lote: 1,
+            page,
+            per_page: IMPORT_BATCH_SIZE,
+            importar_imagenes: 1,
+            max_imagenes_por_producto: 1,
+          },
+          {
+            method: "POST",
+            body: JSON.stringify(body),
+            timeoutMs: IMPORT_TIMEOUT_MS,
+            dispatchUnauthorized: false,
+          }
         );
+
+        const txt = await res.text();
+        const data = safeJsonParse(txt);
+
+        if (!res.ok || !data?.exito) {
+          throw new Error(
+            data?.mensaje ||
+              data?.error ||
+              (txt ? `La API no devolvió JSON válido. Respuesta: ${txt.slice(0, 220)}` : "No se pudo importar el catálogo desde Tienda Nube.")
+          );
+        }
+
+        const resultadoLote = data?.resultado || {};
+        acumulado = acumularImportacion(acumulado, resultadoLote);
+
+        setImportProgress({
+          page,
+          procesados: Number(acumulado.productos.procesados || 0),
+          totalEstimado: Number(acumulado.productos.total_remotos || 0),
+          mensaje: `Productos importados: ${Number(acumulado.productos.procesados || 0)}. Último lote: ${Number(resultadoLote?.productos?.procesados || 0)} productos.`,
+        });
+
+        if (!resultadoLote?.hay_mas) {
+          break;
+        }
+
+        page = Number(resultadoLote?.siguiente_pagina || page + 1);
+        await new Promise((resolve) => window.setTimeout(resolve, 180));
       }
 
-      mostrarToast("exito", armarMensajeImportacion(data?.resultado || {}), 5200);
+      mostrarToast("exito", armarMensajeImportacion(acumulado), 6500);
       await cargarEstado();
     } catch (e) {
-      mostrarToast("error", e?.message || "Error al importar productos y categorías.", 4200);
+      const mensaje = e?.name === "AbortError"
+        ? "La importación tardó demasiado en este lote. Probá de nuevo: lo ya importado queda guardado y Balto no te va a cerrar la sesión por este corte."
+        : e?.message || "Error al importar productos y categorías.";
+      mostrarToast("error", mensaje, 6500);
     } finally {
       setLoadingImport(false);
+      setImportProgress(null);
     }
   };
 
@@ -786,15 +939,34 @@ export default function ConfigTiendaNube() {
               <div className="tn-actionRow__text">
                 <span className="tn-actionRow__title">
                   {loadingImport
-                    ? "Obteniendo catálogo..."
+                    ? "Obteniendo catálogo por lotes..."
                     : "Obtener todo lo de Tienda Nube"}
                 </span>
                 <span className="tn-actionRow__desc">
-                  Importa las categorías y productos que ya existen en la tienda.
+                  Importa las categorías y productos que ya existen en la tienda sin cortar la sesión.
                 </span>
               </div>
               <FontAwesomeIcon icon={loadingImport ? faPlug : faDownload} />
             </button>
+
+            {loadingImport && importProgress && (
+              <div className="tn-importProgress" role="status" aria-live="polite">
+                <div className="tn-importProgress__top">
+                  <span>Importación en curso</span>
+                  <strong>Lote {importProgress.page}</strong>
+                </div>
+                <div className="tn-importProgress__bar">
+                  <span />
+                </div>
+                <p>{importProgress.mensaje}</p>
+                <small>
+                  Procesados: {Number(importProgress.procesados || 0)}
+                  {Number(importProgress.totalEstimado || 0) > 0
+                    ? ` / ${Number(importProgress.totalEstimado || 0)}`
+                    : ""}
+                </small>
+              </div>
+            )}
           </div>
         </div>
 

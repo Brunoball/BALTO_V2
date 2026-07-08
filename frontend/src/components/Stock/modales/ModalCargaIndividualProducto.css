@@ -17,3 +17,30 @@
   padding: 20px 22px;
   background: var(--nv-surface, var(--mi-bg-soft));
 }
+
+.cmi-priceBlock--disabledByVariants {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.045);
+}
+
+.cmi-priceBlock--disabledByVariants .cmi-input:disabled,
+.cmi-priceBlock--disabledByVariants input:disabled,
+.cmi-priceBlock--disabledByVariants select:disabled,
+.cmi-priceBlock--disabledByVariants textarea:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.cmi-priceBlock--typesForVariants {
+  border-color: rgba(59, 130, 246, 0.22);
+}
+
+.cmi-v2-variantModeNotice {
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  border-radius: 14px;
+  background: rgba(59, 130, 246, 0.07);
+  color: var(--nv-text, #0f172a);
+  font-size: 12.5px;
+  line-height: 1.45;
+  padding: 10px 12px;
+}

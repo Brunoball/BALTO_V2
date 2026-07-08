@@ -964,3 +964,66 @@ body.dark .tn-infoButton:hover {
   border-color: rgba(255, 255, 255, 0.20);
   color: rgba(255, 255, 255, 0.92);
 }
+/* ── PROGRESO DE IMPORTACIÓN POR LOTES ── */
+.tn-importProgress {
+  width: 100%;
+  border: 1px solid #dbe3ec;
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.tn-importProgress__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10px;
+  color: #6a7989;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tn-importProgress__top strong {
+  color: var(--balto-ink, #0a2540);
+  font-size: 10.5px;
+}
+
+.tn-importProgress__bar {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef3f8;
+  position: relative;
+}
+
+.tn-importProgress__bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 38%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(10, 37, 64, 0.18), rgba(10, 37, 64, 0.48), rgba(10, 37, 64, 0.18));
+  animation: tn-import-progress 1.15s ease-in-out infinite;
+}
+
+@keyframes tn-import-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(275%); }
+}
+
+.tn-importProgress p {
+  margin: 0;
+  color: #43546a;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.tn-importProgress small {
+  color: #6a7989;
+  font-size: 10.5px;
+  font-weight: 600;
+}

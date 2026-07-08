@@ -188,6 +188,16 @@ function parseNumberFromInput(value) {
   return Number.isNaN(num) ? null : num;
 }
 
+function hasMoneyValue(value) {
+  return value !== null && value !== undefined && String(value).trim() !== "";
+}
+
+function isValidMoneyValue(value) {
+  if (!hasMoneyValue(value)) return false;
+  const parsed = parseNumberFromInput(value);
+  return parsed !== null && parsed >= 0;
+}
+
 function formatNumberForDisplay(value) {
   if (value === null || value === undefined || value === "") return "";
 
@@ -907,6 +917,15 @@ function mapPreciosByTipo(precios = []) {
   return map;
 }
 
+function variantHasContent(variant = {}) {
+  return (
+    String(variant.nombre_variante || variant.sku || "").trim() ||
+    (Array.isArray(variant.atributos) ? variant.atributos : []).some((attr) =>
+      String(attr.atributo || attr.valor || "").trim()
+    )
+  );
+}
+
 function buildVariantPricePayload(variant) {
   const precios = [];
 
@@ -1085,6 +1104,9 @@ export default function ModalEditarProducto({
   );
 
   const isLoading = loading || guardando;
+  const productoConVariantes = !!form.tiene_variantes;
+  const preciosProductoBloqueados = productoConVariantes || guardando;
+  const hasCostoProducto = !!form.precio_costo && !productoConVariantes;
 
   const categoriasSafe = useMemo(
     () => (Array.isArray(categorias) ? categorias.filter(Boolean) : []),
@@ -2027,44 +2049,52 @@ export default function ModalEditarProducto({
       errs.nombre = "El nombre es obligatorio";
     }
 
-    if (precioCosto !== null && precioCosto < 0) {
-      errs.precio_costo = "Ingresá un costo válido";
-    }
+    if (!sourceForm.tiene_variantes) {
+      if (precioCosto !== null && precioCosto < 0) {
+        errs.precio_costo = "Ingresá un costo válido";
+      }
 
-    if (!sourceForm.precio || precioVenta === null || precioVenta < 0) {
-      errs.precio = "Ingresá un precio de venta válido";
-    }
+      if (!sourceForm.precio || precioVenta === null || precioVenta < 0) {
+        errs.precio = "Ingresá un precio de venta válido";
+      }
 
-    if (sourceForm.precio_promo && (promo === null || promo < 0)) {
-      errs.precio_promo = "Precio promocional inválido";
-    }
+      if (sourceForm.precio_promo && (promo === null || promo < 0)) {
+        errs.precio_promo = "Precio promocional inválido";
+      }
 
-    if (
-      !sourceForm.tiene_variantes &&
-      sourceForm.stock !== "" &&
-      (Number.isNaN(Number(sourceForm.stock)) || Number(sourceForm.stock) < 0)
-    ) {
-      errs.stock = "Stock inválido";
+      if (
+        sourceForm.stock !== "" &&
+        (Number.isNaN(Number(sourceForm.stock)) || Number(sourceForm.stock) < 0)
+      ) {
+        errs.stock = "Stock inválido";
+      }
     }
 
     if (sourceForm.tiene_variantes) {
-      const variantesValidas = (sourceForm.variantes || []).filter((variant) =>
-        String(variant.nombre_variante || variant.sku || "").trim() ||
-        (variant.atributos || []).some((attr) => String(attr.atributo || attr.valor || "").trim())
-      );
+      const variantesValidas = (sourceForm.variantes || []).filter(variantHasContent);
 
       if (variantesValidas.length === 0) {
         errs.variantes = "Agregá al menos una variante";
       }
 
       variantesValidas.forEach((variant, idx) => {
-        if (variant.stock !== "" && (Number.isNaN(Number(variant.stock)) || Number(variant.stock) < 0)) {
-          errs[`variante_${idx}`] = "Stock inválido en variante";
+        const numero = idx + 1;
+        if (!String(variant.nombre_variante || "").trim()) {
+          errs[`variante_${idx}_nombre`] = `La variante #${numero} necesita nombre.`;
+        }
+        if (!String(variant.sku || "").trim()) {
+          errs[`variante_${idx}_sku`] = `La variante #${numero} necesita SKU.`;
+        }
+        if (variant.stock === "" || Number.isNaN(Number(variant.stock)) || Number(variant.stock) < 0) {
+          errs[`variante_${idx}_stock`] = `La variante #${numero} necesita stock válido.`;
+        }
+        if (variant.precio_heredado || !isValidMoneyValue(variant.precio)) {
+          errs[`variante_${idx}_precio`] = `La variante #${numero} necesita precio de venta propio.`;
         }
       });
     }
 
-    sourceForm.tipos_precio_extra.forEach((item, idx) => {
+    if (!sourceForm.tiene_variantes) sourceForm.tipos_precio_extra.forEach((item, idx) => {
       if (!item.id_tipo_precio_stock) {
         errs[`tipo_${idx}`] = "Tipo de precio inválido";
       }
@@ -2145,48 +2175,62 @@ export default function ModalEditarProducto({
       fd.append("nombre", toUpperCaseValue(formNormalizado.nombre.trim()));
       fd.append("sku", toUpperCaseValue(formNormalizado.sku.trim()));
 
+      const usaVariantes = !!formNormalizado.tiene_variantes;
+
       fd.append(
         "precio_costo",
-        formNormalizado.precio_costo !== ""
-          ? String(formatNumberForApi(formNormalizado.precio_costo) ?? "")
-          : ""
+        usaVariantes
+          ? ""
+          : formNormalizado.precio_costo !== ""
+            ? String(formatNumberForApi(formNormalizado.precio_costo) ?? "")
+            : ""
       );
 
-      fd.append("precio", String(formatNumberForApi(formNormalizado.precio) ?? ""));
+      fd.append("precio", usaVariantes ? "" : String(formatNumberForApi(formNormalizado.precio) ?? ""));
 
       fd.append(
         "margen_venta_porcentaje",
-        formNormalizado.margen_venta_porcentaje !== ""
-          ? String(formatNumberForApi(formNormalizado.margen_venta_porcentaje) ?? "")
-          : ""
+        usaVariantes
+          ? ""
+          : formNormalizado.margen_venta_porcentaje !== ""
+            ? String(formatNumberForApi(formNormalizado.margen_venta_porcentaje) ?? "")
+            : ""
       );
 
       fd.append(
         "margen_venta_valor",
-        formNormalizado.margen_venta_valor !== ""
-          ? String(formatNumberForApi(formNormalizado.margen_venta_valor) ?? "")
-          : ""
+        usaVariantes
+          ? ""
+          : formNormalizado.margen_venta_valor !== ""
+            ? String(formatNumberForApi(formNormalizado.margen_venta_valor) ?? "")
+            : ""
       );
 
       fd.append(
         "precio_promo",
-        formNormalizado.precio_promo !== ""
-          ? String(formatNumberForApi(formNormalizado.precio_promo) ?? "")
-          : ""
+        usaVariantes
+          ? ""
+          : formNormalizado.precio_promo !== ""
+            ? String(formatNumberForApi(formNormalizado.precio_promo) ?? "")
+            : ""
       );
 
       fd.append(
         "margen_promo_porcentaje",
-        formNormalizado.margen_promo_porcentaje !== ""
-          ? String(formatNumberForApi(formNormalizado.margen_promo_porcentaje) ?? "")
-          : ""
+        usaVariantes
+          ? ""
+          : formNormalizado.margen_promo_porcentaje !== ""
+            ? String(formatNumberForApi(formNormalizado.margen_promo_porcentaje) ?? "")
+            : ""
       );
 
       fd.append(
         "margen_promo_valor",
-        formNormalizado.margen_promo_valor !== ""
-          ? String(formatNumberForApi(formNormalizado.margen_promo_valor) ?? "")
-          : ""
+        usaVariantes
+          ? ""
+          : formNormalizado.margen_promo_valor !== ""
+            ? String(formatNumberForApi(formNormalizado.margen_promo_valor) ?? "")
+            : ""
       );
 
       fd.append(
@@ -2240,9 +2284,9 @@ export default function ModalEditarProducto({
         id_tipo_precio_stock: Number(item.id_tipo_precio_stock) || 0,
         tipo_nombre: String(item.tipo_nombre || "").trim(),
         nombre: String(item.tipo_nombre || "").trim(),
-        precio: formatNumberForApi(item.precio),
-        margen_porcentaje: formatNumberForApi(item.margen_porcentaje),
-        margen_valor: formatNumberForApi(item.margen_valor),
+        precio: usaVariantes ? "" : formatNumberForApi(item.precio),
+        margen_porcentaje: usaVariantes ? "" : formatNumberForApi(item.margen_porcentaje),
+        margen_valor: usaVariantes ? "" : formatNumberForApi(item.margen_valor),
       }));
 
       fd.append("tipos_precio", JSON.stringify(tiposPrecioPayload));
@@ -2411,7 +2455,7 @@ export default function ModalEditarProducto({
                       className="cmi-input"
                       placeholder="Ej: 25"
                       inputMode="numeric"
-                      disabled={guardando || form.tiene_variantes}
+                      disabled={guardando || productoConVariantes}
                     />
                   </FloatingField>
 
@@ -2543,13 +2587,15 @@ export default function ModalEditarProducto({
                   </div>
                 </div>
 
-                <div className="cmi-priceBlock">
+                <div className={`cmi-priceBlock ${productoConVariantes ? "cmi-priceBlock--disabledByVariants" : ""}`}>
                   <div className="cmi-priceBlock__title">
                     <FontAwesomeIcon icon={faMoneyBillTrendUp} /> Precios principales
                   </div>
 
                   <div className="cmi-priceBlock__subtitle">
-                    Con el costo cargado podés escribir el precio final o el margen en % / $ y se calcula solo.
+                    {productoConVariantes
+                      ? "Este producto usa variantes: el precio general queda bloqueado para no pisar los precios de Tienda Nube. Cargá precio, stock y SKU en cada variante."
+                      : "Con el costo cargado podés escribir el precio final o el margen en % / $ y se calcula solo."}
                   </div>
 
                   <FloatingField label="Precio de costo" error={errores.precio_costo}>
@@ -2564,7 +2610,7 @@ export default function ModalEditarProducto({
                         )
                       }
                       placeholder="0,00"
-                      disabled={guardando}
+                      disabled={preciosProductoBloqueados}
                     />
                   </FloatingField>
 
@@ -2580,7 +2626,7 @@ export default function ModalEditarProducto({
                             handlePricingBlur("price", "venta", true)
                           )
                         }
-                        disabled={guardando}
+                        disabled={preciosProductoBloqueados}
                       />
                     </FloatingField>
 
@@ -2595,7 +2641,7 @@ export default function ModalEditarProducto({
                             handlePricingBlur("marginPct", "venta", true)
                           )
                         }
-                        disabled={!form.precio_costo || guardando}
+                        disabled={preciosProductoBloqueados || !hasCostoProducto}
                       />
                     </FloatingField>
 
@@ -2610,7 +2656,7 @@ export default function ModalEditarProducto({
                             handlePricingBlur("marginValue", "venta", true)
                           )
                         }
-                        disabled={!form.precio_costo || guardando}
+                        disabled={preciosProductoBloqueados || !hasCostoProducto}
                       />
                     </FloatingField>
                   </div>
@@ -2627,7 +2673,7 @@ export default function ModalEditarProducto({
                             handlePricingBlur("price", "promo", true)
                           )
                         }
-                        disabled={guardando}
+                        disabled={preciosProductoBloqueados}
                       />
                     </FloatingField>
 
@@ -2642,7 +2688,7 @@ export default function ModalEditarProducto({
                             handlePricingBlur("marginPct", "promo", true)
                           )
                         }
-                        disabled={!form.precio_costo || guardando}
+                        disabled={preciosProductoBloqueados || !hasCostoProducto}
                       />
                     </FloatingField>
 
@@ -2657,15 +2703,21 @@ export default function ModalEditarProducto({
                             handlePricingBlur("marginValue", "promo", true)
                           )
                         }
-                        disabled={!form.precio_costo || guardando}
+                        disabled={preciosProductoBloqueados || !hasCostoProducto}
                       />
                     </FloatingField>
                   </div>
                 </div>
 
-                <div className="cmi-priceBlock">
+                <div className={`cmi-priceBlock ${productoConVariantes ? "cmi-priceBlock--typesForVariants" : ""}`}>
                   <div className="cmi-priceBlock__title">
-                    <FontAwesomeIcon icon={faLayerGroup} /> Tipos de precio adicionales
+                    <FontAwesomeIcon icon={faLayerGroup} /> {productoConVariantes ? "Tipos de precio para variantes" : "Tipos de precio adicionales"}
+                  </div>
+
+                  <div className="cmi-priceBlock__subtitle">
+                    {productoConVariantes
+                      ? "Agregá acá las listas de precio que necesitás. Los importes se cargan dentro de cada variante."
+                      : "Agregá listas o precios alternativos del producto simple."}
                   </div>
 
                   <div className="cmi-addPriceRow">
@@ -2730,7 +2782,7 @@ export default function ModalEditarProducto({
                                 handleExtraPriceBlur(idx, "price", true)
                               )
                             }
-                            disabled={guardando}
+                            disabled={preciosProductoBloqueados}
                           />
                         </FloatingField>
 
@@ -2751,7 +2803,7 @@ export default function ModalEditarProducto({
                                 handleExtraPriceBlur(idx, "marginPct", true)
                               )
                             }
-                            disabled={!form.precio_costo || guardando}
+                            disabled={preciosProductoBloqueados || !hasCostoProducto}
                           />
                         </FloatingField>
 
@@ -2768,7 +2820,7 @@ export default function ModalEditarProducto({
                                 handleExtraPriceBlur(idx, "marginValue", true)
                               )
                             }
-                            disabled={!form.precio_costo || guardando}
+                            disabled={preciosProductoBloqueados || !hasCostoProducto}
                           />
                         </FloatingField>
                       </div>
@@ -2827,10 +2879,16 @@ export default function ModalEditarProducto({
                   </div>
 
                   <p className="cmi-priceBlock__subtitle">
-                    Usalo para talles, colores, medidas, materiales o presentaciones. Si está activo, el stock vive en cada variante.
+                    Usalo para talles, colores, medidas, materiales o presentaciones. Si está activo, Tienda Nube toma SKU, stock y precios desde cada variante.
                   </p>
 
                   {errores.variantes ? <div className="cmi-errorText">{errores.variantes}</div> : null}
+
+                  {form.tiene_variantes ? (
+                    <div className="cmi-v2-variantModeNotice">
+                      Producto con variantes: el precio general y el stock general quedan bloqueados. Cargá nombre, SKU, stock y precio de venta en cada variante.
+                    </div>
+                  ) : null}
 
                   {form.tiene_variantes ? (
                     <div className="cmi-v2-variantsWrap">
@@ -2850,13 +2908,13 @@ export default function ModalEditarProducto({
                           </div>
 
                           <div className="fl-row" style={{ gridTemplateColumns: "1.3fr 1fr .75fr" }}>
-                            <FloatingField label="Nombre variante">
+                            <FloatingField label="Nombre variante *">
                               <input className="cmi-input" value={variant.nombre_variante} onChange={(e) => updateVariant(variantIdx, { nombre_variante: toUpperCaseValue(e.target.value) })} disabled={isLoading} placeholder="Ej: TALLE M / NEGRO" />
                             </FloatingField>
-                            <FloatingField label="SKU variante">
+                            <FloatingField label="SKU variante *">
                               <input className="cmi-input" value={variant.sku} onChange={(e) => updateVariant(variantIdx, { sku: toUpperCaseValue(e.target.value) })} disabled={isLoading} placeholder="SKU" style={{ textTransform: "uppercase" }} />
                             </FloatingField>
-                            <FloatingField label="Stock">
+                            <FloatingField label="Stock *">
                               <input className="cmi-input" value={variant.stock} onChange={(e) => updateVariant(variantIdx, { stock: e.target.value.replace(/[^\d]/g, "") })} disabled={isLoading} inputMode="numeric" />
                             </FloatingField>
                           </div>
@@ -2888,9 +2946,9 @@ export default function ModalEditarProducto({
                           ) : null}
 
                           <div className="fl-row" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
-                            <FloatingField label="Precio de costo"><PriceInput value={variant.precio_costo} onChange={(e) => updateVariant(variantIdx, { precio_costo: e.target.value })} disabled={isLoading} /></FloatingField>
-                            <FloatingField label="Precio de venta"><PriceInput value={variant.precio} onChange={(e) => updateVariant(variantIdx, { precio: e.target.value })} disabled={isLoading} /></FloatingField>
-                            <FloatingField label="Precio promocional"><PriceInput value={variant.precio_promo} onChange={(e) => updateVariant(variantIdx, { precio_promo: e.target.value })} disabled={isLoading} /></FloatingField>
+                            <FloatingField label="Precio de costo"><PriceInput value={variant.precio_costo} onChange={(e) => updateVariant(variantIdx, { precio_costo: e.target.value, precio_costo_heredado: false })} disabled={isLoading} /></FloatingField>
+                            <FloatingField label="Precio de venta *"><PriceInput value={variant.precio} onChange={(e) => updateVariant(variantIdx, { precio: e.target.value, precio_heredado: false })} disabled={isLoading} /></FloatingField>
+                            <FloatingField label="Precio promocional"><PriceInput value={variant.precio_promo} onChange={(e) => updateVariant(variantIdx, { precio_promo: e.target.value, precio_promo_heredado: false })} disabled={isLoading} /></FloatingField>
                           </div>
 
                           {(variant.tipos_precio_extra || []).length > 0 ? (
@@ -2908,7 +2966,7 @@ export default function ModalEditarProducto({
                                     <PriceInput
                                       name={`variant_extra_precio_${variantIdx}_${tipoIdx}`}
                                       value={tipoItem.precio}
-                                      placeholder={precioProducto ? `Hereda ${formatPriceDisplay(precioProducto)}` : "Opcional"}
+                                      placeholder={productoConVariantes ? "Cargar en esta variante" : precioProducto ? `Hereda ${formatPriceDisplay(precioProducto)}` : "Opcional"}
                                       onChange={(e) => {
                                         const value = normalizeMoneyInput(e.target.value);
                                         setForm((prev) => ({
