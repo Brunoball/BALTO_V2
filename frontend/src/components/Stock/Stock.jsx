@@ -2009,6 +2009,55 @@ const Stock = () => {
     );
   };
 
+  const renderStockPagination = (extraClassName = "") => {
+    if (totalPaginas <= 1) return null;
+
+    return (
+      <div className={["prod-pagination", extraClassName].filter(Boolean).join(" ")}>
+        <button
+          type="button"
+          className="prod-pagination__btn prod-pagination__btn--nav"
+          onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
+          disabled={paginaActual === 1}
+        >
+          Anterior
+        </button>
+
+        <div className="prod-pagination__pages">
+          {paginasVisibles.map((p, i) =>
+            p === "..." ? (
+              <span key={`dots-${i}`} className="prod-page-dots">
+                …
+              </span>
+            ) : (
+              <button
+                key={p}
+                type="button"
+                className={["prod-pagination__btn", p === paginaActual ? "is-active" : ""].filter(Boolean).join(" ")}
+                onClick={() => setPaginaActual(p)}
+              >
+                {p}
+              </button>
+            )
+          )}
+        </div>
+
+        <span className="prod-pagination__summary">
+          Página {paginaActual} de {totalPaginas}
+        </span>
+
+        <button
+          type="button"
+          className="prod-pagination__btn prod-pagination__btn--nav"
+          onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
+          disabled={paginaActual === totalPaginas}
+        >
+          Siguiente
+        </button>
+      </div>
+    );
+  };
+
   const renderStockToolbarActions = (extraClassName = "", options = {}) => {
     const { showToggleBajas = true, showAjustePrecios = true, showAgregarProducto = true } = options;
 
@@ -2456,52 +2505,11 @@ const Stock = () => {
             </div>
           </div>
 
-          {renderStockToolbarActions("stock-tableActionsMobile", { showAgregarProducto: false })}
-        </section>
-
-        {totalPaginas > 1 && (
-          <div className="prod-pagination">
-            <button
-              type="button"
-              className="mov-btn mov-btn--ghost"
-              onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
-              disabled={paginaActual === 1}
-            >
-              ← Anterior
-            </button>
-
-            {paginasVisibles.map((p, i) =>
-              p === "..." ? (
-                <span key={`dots-${i}`} className="prod-page-dots">
-                  …
-                </span>
-              ) : (
-                <button
-                  key={p}
-                  type="button"
-                  className={`mov-btn ${p === paginaActual ? "mov-btn--primary" : "mov-btn--ghost"}`}
-                  onClick={() => setPaginaActual(p)}
-                  style={{ minWidth: 40, padding: "0 10px" }}
-                >
-                  {p}
-                </button>
-              )
-            )}
-
-            <span className="prod-pagination__summary">
-              Página {paginaActual} de {totalPaginas}
-            </span>
-
-            <button
-              type="button"
-              className="mov-btn mov-btn--ghost"
-              onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
-              disabled={paginaActual === totalPaginas}
-            >
-              Siguiente →
-            </button>
+          <div className={["stock-tableFooter", totalPaginas <= 1 ? "stock-tableFooter--onlyActions" : ""].filter(Boolean).join(" ")}>
+            {renderStockPagination("stock-pagination--footer")}
+            {renderStockToolbarActions("stock-tableActionsMobile", { showAgregarProducto: false })}
           </div>
-        )}
+        </section>
       </div>
 
 
