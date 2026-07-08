@@ -501,8 +501,8 @@
   background: var(--color-primary-strong);
   color: rgba(255,255,255,.92);
   border-bottom: 1px solid rgba(255,255,255,.10);
-  overflow: auto;
-  scrollbar-gutter: stable;
+  overflow: hidden;
+  scrollbar-gutter: auto;
 }
 
 /* Chips de estado (tabla) */

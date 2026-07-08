@@ -16,6 +16,8 @@
 
 .contabilidad-gridHead {
   background: var(--color-primary-strong);
+  overflow: hidden;
+  scrollbar-gutter: auto;
 }
 
 .contabilidad-tableWrap {
@@ -112,8 +114,14 @@
 }
 
 .contabilidad-tableWrap .mov-gridBody--relative {
-  height: auto;
+  height: 100%;
   min-height: 100%;
+}
+
+.contabilidad-tableWrap .mov-gridBody--relative:has(.contabilidad-emptyState) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .contabilidad-gridHead .mov-gridCell--head,
@@ -168,6 +176,10 @@
   .contabilidad-totalRow {
     min-width: 760px;
   }
+
+  .contabilidad-gridHead {
+    overflow: hidden;
+  }
 }
 
 /* Estado de carga y vacío propio de la tabla IVA */
@@ -188,7 +200,8 @@
 
 .contabilidad-emptyState {
   width: 100%;
-  min-height: calc(100vh - 410px);
+  min-height: 100%;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
