@@ -20,6 +20,11 @@
   scrollbar-gutter: auto;
 }
 
+.contabilidad-gridHead.has-scrollbar-gutter {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
 .contabilidad-tableWrap {
   overflow-x: hidden;
 }
@@ -110,6 +115,10 @@
   max-height: calc(100vh - 360px);
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: auto;
+}
+
+.contabilidad-cardTable.has-table-scroll .contabilidad-tableWrap {
   scrollbar-gutter: stable;
 }
 

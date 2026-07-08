@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faBoxOpen,
@@ -156,6 +156,45 @@ function downloadBlob(content, fileName, mimeType) {
   window.URL.revokeObjectURL(url);
 }
 
+function useTableScrollWatcher() {
+  const tableWrapRef = useRef(null);
+  const [hasTableScroll, setHasTableScroll] = useState(false);
+
+  useEffect(() => {
+    const tableWrap = tableWrapRef.current;
+    if (!tableWrap) return undefined;
+
+    let frameId = 0;
+
+    const checkScroll = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        const nextHasScroll = tableWrap.scrollHeight > tableWrap.clientHeight + 1;
+        setHasTableScroll(nextHasScroll);
+      });
+    };
+
+    checkScroll();
+
+    const resizeObserver = new ResizeObserver(checkScroll);
+    resizeObserver.observe(tableWrap);
+
+    if (tableWrap.firstElementChild) {
+      resizeObserver.observe(tableWrap.firstElementChild);
+    }
+
+    window.addEventListener("resize", checkScroll);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", checkScroll);
+    };
+  }, []);
+
+  return { tableWrapRef, hasTableScroll };
+}
+
 function slugifySheetName(name) {
   return String(name || "IVA Ventas")
     .replace(/[\[\]\*\/\\\?\:]/g, " ")
@@ -250,6 +289,8 @@ export default function IVAVentas() {
   const filteredRegistros = useMemo(() => {
     return registros.filter((row) => rowInDateRange(row, range.from, range.to) && rowMatchesQuery(row, q));
   }, [registros, range.from, range.to, q]);
+
+  const { tableWrapRef, hasTableScroll } = useTableScrollWatcher();
 
   const totales = useMemo(() => {
     return filteredRegistros.reduce(
@@ -365,7 +406,12 @@ export default function IVAVentas() {
         />
       )}
 
-      <section className="mov-card mov-card--table contabilidad-cardTable">
+      <section
+        className={[
+          "mov-card mov-card--table contabilidad-cardTable",
+          hasTableScroll ? "has-table-scroll" : "",
+        ].join(" ")}
+      >
         <div className="mov-card__head">
           <div className="mov-card__headLeft">
             <div className="title-mov">
@@ -454,7 +500,10 @@ export default function IVAVentas() {
         </div>
 
         <div
-          className="mov-gridTable mov-gridTable--head contabilidad-gridHead"
+          className={[
+            "mov-gridTable mov-gridTable--head contabilidad-gridHead",
+            hasTableScroll ? "has-scrollbar-gutter" : "",
+          ].join(" ")}
           style={{ gridTemplateColumns: gridCols }}
           role="row"
         >
@@ -473,7 +522,7 @@ export default function IVAVentas() {
           ))}
         </div>
 
-        <div className="mov-tableWrap contabilidad-tableWrap" role="rowgroup">
+        <div ref={tableWrapRef} className="mov-tableWrap contabilidad-tableWrap" role="rowgroup">
           <div className="mov-gridBody mov-gridBody--relative">
             {loading ? (
               <IvaTableSkeleton />
