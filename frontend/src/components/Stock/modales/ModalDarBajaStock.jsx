@@ -50,8 +50,6 @@ export default function ModalDarBajaStock({
 
   if (!open) return null;
 
-  const loadingText = `Dando de baja ${entidadLabel}...`;
-
   return createPortal(
     <div
       ref={overlayRef}
@@ -103,7 +101,6 @@ export default function ModalDarBajaStock({
             Esta acción no elimina información: solo oculta el {entidadLabel} y permite volver a activarlo más adelante.
           </div>
 
-          {loading ? <div className="stock-bajaModal__loading">{loadingText}</div> : null}
         </div>
 
         <div className="mit-actions">
@@ -111,7 +108,7 @@ export default function ModalDarBajaStock({
             {cancelLabel}
           </button>
           <button type="button" className="mit-btn mit-btn--solid" onClick={onConfirm} disabled={loading}>
-            {loading ? loadingText : confirmLabel}
+            {confirmLabel}
           </button>
         </div>
       </div>

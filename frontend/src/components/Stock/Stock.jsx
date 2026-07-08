@@ -1522,17 +1522,22 @@ const Stock = () => {
   };
 
   const ejecutarAccionProducto = async ({ permanente = false } = {}) => {
-    const productoId = getProductoId(productoEliminar);
+    const productoActual = productoEliminar;
+    const productoId = getProductoId(productoActual);
 
     if (!productoId || productoId <= 0) {
       mostrarToast("error", "ID de producto inválido.");
       return;
     }
 
-    registrarImagenConocidaProducto(productoEliminar);
+    registrarImagenConocidaProducto(productoActual);
 
     setEliminando(true);
     setAccionEliminacionProducto(permanente ? "eliminar" : "baja");
+    setModalDarBajaProductoAbierto(false);
+    setModalEliminarAbierto(false);
+    setProductoEliminar(null);
+    mostrarToastCarga(permanente ? "Eliminando producto..." : "Dando de baja producto...");
 
     try {
       const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
@@ -1560,9 +1565,6 @@ const Stock = () => {
       }
 
       limpiarEstadoVisualProducto(productoId);
-      setModalDarBajaProductoAbierto(false);
-      setModalEliminarAbierto(false);
-      setProductoEliminar(null);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
       mostrarToast("exito", permanente ? "Producto eliminado permanentemente." : "Producto dado de baja correctamente.");
@@ -1662,8 +1664,9 @@ const Stock = () => {
   };
 
   const ejecutarAccionVariante = async ({ permanente = false } = {}) => {
-    const varianteId = getVarianteId(varianteBaja);
-    const productoId = Number(varianteBaja?.productoId || varianteBaja?.id_stock_producto || 0);
+    const varianteActual = varianteBaja;
+    const varianteId = getVarianteId(varianteActual);
+    const productoId = Number(varianteActual?.productoId || varianteActual?.id_stock_producto || 0);
 
     if (!varianteId || varianteId <= 0 || !productoId || productoId <= 0) {
       mostrarToast("error", "ID de variante inválido.");
@@ -1672,7 +1675,10 @@ const Stock = () => {
 
     setProcesandoVarianteId(varianteId);
     setAccionEliminacionVariante(permanente ? "eliminar" : "baja");
-    mostrarToastCarga(permanente ? "Eliminando variante definitivamente..." : "Dando de baja variante...");
+    setModalBajaVarianteAbierto(false);
+    setModalEliminarVarianteAbierto(false);
+    setVarianteBaja(null);
+    mostrarToastCarga(permanente ? "Eliminando variante..." : "Dando de baja variante...");
 
     try {
       const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
@@ -1692,9 +1698,6 @@ const Stock = () => {
       await cargarVariantesProducto(productoId);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
-      setModalBajaVarianteAbierto(false);
-      setModalEliminarVarianteAbierto(false);
-      setVarianteBaja(null);
       mostrarToast("exito", permanente ? "Variante eliminada permanentemente." : "Variante dada de baja correctamente.");
     } catch (error) {
       mostrarToast("error", error?.message || (permanente ? "No se pudo eliminar la variante." : "No se pudo dar de baja la variante."));
