@@ -631,3 +631,94 @@ body.dark .dc-asignar-head-subtitle {
     grid-template-columns: minmax(190px, 2.2fr) 66px minmax(96px, .9fr) 72px minmax(84px, .85fr) minmax(92px, .95fr) 34px !important;
   }
 }
+
+/* Medios de pago en presupuesto ya convertido: vista simple, sin bloque falso de cheque */
+.dc-payment-readonly-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.dc-payment-readonly-card {
+  border: 1px solid var(--mp-border-md);
+  border-radius: 14px;
+  background: var(--mp-bg);
+  padding: 12px 14px;
+  display: grid;
+  gap: 10px;
+  box-shadow: var(--mp-shadow-sm);
+}
+
+.dc-payment-readonly-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dc-payment-readonly-main > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.dc-payment-readonly-main b {
+  color: var(--mp-text);
+  font-size: .95rem;
+  font-weight: 900;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.dc-payment-readonly-main span {
+  color: var(--mp-muted);
+  font-size: .75rem;
+  font-weight: 700;
+}
+
+.dc-payment-readonly-main strong {
+  color: var(--mp-action);
+  font-family: 'DM Mono', 'Fira Mono', monospace;
+  font-size: .98rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.dc-payment-readonly-cheque {
+  border: 1px solid rgba(0, 133, 111, .20);
+  border-radius: 12px;
+  background: rgba(0, 133, 111, .055);
+  padding: 10px 12px;
+  display: grid;
+  gap: 5px;
+  color: var(--mp-text);
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.dc-payment-readonly-cheque > b {
+  color: #00796b;
+  font-size: .82rem;
+  font-weight: 900;
+}
+
+.dc-asignar-actions .gm-action-btn {
+  width: 100%;
+  min-width: 0;
+}
+
+html[data-theme="oscuro"] .dc-payment-readonly-card,
+body.dark .dc-payment-readonly-card {
+  background: rgba(255, 255, 255, .06);
+  border-color: rgba(255, 255, 255, .12);
+}
+
+html[data-theme="oscuro"] .dc-payment-readonly-cheque,
+body.dark .dc-payment-readonly-cheque {
+  background: rgba(0, 133, 111, .12);
+  border-color: rgba(0, 133, 111, .28);
+}
+
+.presupuesto-actions .gm-action-btn {
+  width: 100%;
+  min-width: 0;
+}

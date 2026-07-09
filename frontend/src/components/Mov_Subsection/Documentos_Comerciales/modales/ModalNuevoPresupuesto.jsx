@@ -1744,19 +1744,19 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                 </div>
               </aside>
 
-              <div className="gm-actions gm-actions--sticky">
+              <div className="gm-actions gm-actions--sticky presupuesto-actions">
                 <button
                   type="submit"
                   disabled={saving}
-                  className="mit-btn mit-btn--solid mit-btn--block"
+                  className="gm-action-btn gm-action-btn--save"
                 >
-                  {saving ? "Generando..." : "Guardar"}
+                  {saving ? "Guardando..." : "Guardar"}
                 </button>
                 <button
                   type="button"
                   onClick={requestClose}
                   disabled={saving}
-                  className="mit-btn mit-btn--ghost mit-btn--block"
+                  className="gm-action-btn gm-action-btn--cancel"
                 >
                   Cancelar
                 </button>

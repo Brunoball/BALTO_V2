@@ -9,7 +9,6 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCheckCircle,
   faFileInvoiceDollar,
-  faFloppyDisk,
   faSpinner,
 } from "@fortawesome/free-solid-svg-icons";
 import ModalFacturaBaltoResumen from "../../Facturacion/ModalFacturaBaltoResumen.jsx";
@@ -533,15 +532,21 @@ function getMedioPagoNombreFromSource(mp, mediosPagoList) {
 function buildChequeFromMedioSource(mp, medioNombre, monto) {
   const source = mp && typeof mp === "object" ? mp : {};
   const chequeSource = source.cheque && typeof source.cheque === "object" ? source.cheque : source;
-  const tipoDetectado = normalizeChequeTipoFromMedio(
+  const medioIndicaCheque = normalizeChequeTipoFromMedio(medioNombre);
+  const tipoExplicito = normalizeChequeTipoFromMedio(
     source.cheque_tipo ||
       source.tipo_cheque ||
       source.tipo ||
       chequeSource.cheque_tipo ||
       chequeSource.tipo_cheque ||
       chequeSource.tipo ||
-      medioNombre
+      ""
   );
+  const tipoDetectado = tipoExplicito || medioIndicaCheque;
+  const hasChequeObject = !!(source.cheque && typeof source.cheque === "object");
+  const hasChequeObjectData = hasChequeObject
+    ? Object.values(source.cheque).some((v) => v !== null && v !== undefined && String(v).trim() !== "")
+    : false;
 
   const idCheque = Number(source.id_cheque || chequeSource.id_cheque || 0) || null;
   const numeroCheque = safeStr(
@@ -580,8 +585,13 @@ function buildChequeFromMedioSource(mp, medioNombre, monto) {
       ""
   );
 
-  const hasChequeData = idCheque || numeroCheque || emisor || fechaEmision || fechaPago || tipoDetectado;
-  if (!hasChequeData) return null;
+  const hasChequeIdentity = idCheque || numeroCheque || emisor || tipoDetectado;
+  const hasChequePayload = hasChequeObjectData && (fechaEmision || fechaPago || importe || observaciones);
+
+  // Los pagos comunes también traen fecha_pago. No alcanza para tratarlos como cheque:
+  // solo mostramos el bloque de cheque si el medio/tipo lo indica, viene id_cheque,
+  // número/emisor o un objeto cheque explícito.
+  if (!hasChequeIdentity && !hasChequePayload) return null;
 
   return {
     id_cheque: idCheque,
@@ -654,12 +664,8 @@ function getChequeFileFromRows(rows, uid) {
 }
 
 
-function ReadOnlyMediosPagoVenta({ mediosFilas, mediosPagoList, totalCompra }) {
+function ReadOnlyMediosPagoVenta({ mediosFilas, mediosPagoList }) {
   const rows = (Array.isArray(mediosFilas) ? mediosFilas : []).filter((mp) => mp?.id_medio_pago);
-  const asignado = rows.reduce((acc, mp) => {
-    const monto = mp?.cheque ? safeNumber(mp.cheque.importe ?? mp.monto) : safeNumber(mp.monto);
-    return acc + monto;
-  }, 0);
 
   if (!rows.length) {
     return (
@@ -670,68 +676,37 @@ function ReadOnlyMediosPagoVenta({ mediosFilas, mediosPagoList, totalCompra }) {
   }
 
   return (
-    <div className="dc-payment-readonly-panel" style={{ display: "grid", gap: 10 }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: "#34495e", textTransform: "uppercase", letterSpacing: ".04em" }}>
-        Medio de pago asignado
-      </div>
-
+    <div className="dc-payment-readonly-panel">
       {rows.map((mp, idx) => {
         const found = mediosPagoList.find((m) => String(getMedioPagoId(m) ?? "") === String(mp.id_medio_pago ?? ""));
         const medioNombre = safeText(getMedioPagoNombre(found));
         const cheque = mp?.cheque || null;
         const monto = cheque ? safeNumber(cheque.importe ?? mp.monto) : safeNumber(mp.monto);
+        const chequeTipo = normalizeChequeTipoFromMedio(cheque?.tipo || medioNombre);
 
         return (
-          <div
-            key={mp.id || `readonly-mp-${idx}`}
-            style={{
-              border: "1px solid #dbe4ee",
-              borderRadius: 12,
-              background: "#fff",
-              padding: 12,
-              display: "grid",
-              gap: 8,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-              <b style={{ color: "#21384f" }}>{medioNombre}</b>
-              <b style={{ color: "#007f5f" }}>{moneyARS(monto)}</b>
+          <div key={mp.id || `readonly-mp-${idx}`} className="dc-payment-readonly-card">
+            <div className="dc-payment-readonly-main">
+              <div>
+                <b>{medioNombre}</b>
+                <span>Pago registrado</span>
+              </div>
+              <strong>{moneyARS(monto)}</strong>
             </div>
 
             {cheque ? (
-              <div
-                style={{
-                  border: "1px solid #cfe7e4",
-                  borderRadius: 12,
-                  background: "#f8fffd",
-                  padding: 12,
-                  display: "grid",
-                  gap: 6,
-                  fontSize: 13,
-                  color: "#2f4358",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-                  <b style={{ color: "#00796b" }}>
-                    {normalizeChequeTipoFromMedio(cheque?.tipo || medioNombre) === "echeq" ? "E-Cheq cargado" : "Cheque cargado"}
-                  </b>
-                  <FontAwesomeIcon icon={faCheckCircle} style={{ color: "#00856f" }} />
-                </div>
-                <div><b>N°:</b> {safeText(cheque.numero_cheque)}</div>
-                <div><b>Emisor:</b> {safeText(cheque.emisor)}</div>
-                <div><b>Emisión:</b> {formatFechaDMY(cheque.fecha_emision)}</div>
-                <div><b>Pago:</b> {formatFechaDMY(cheque.fecha_pago)}</div>
-                <div><b>Importe:</b> {moneyARS(monto)}</div>
+              <div className="dc-payment-readonly-cheque">
+                <b>{chequeTipo === "echeq" ? "E-Cheq cargado" : "Cheque cargado"}</b>
+                {cheque.numero_cheque ? <span><b>N°:</b> {cheque.numero_cheque}</span> : null}
+                {cheque.emisor ? <span><b>Emisor:</b> {cheque.emisor}</span> : null}
+                {cheque.fecha_emision ? <span><b>Emisión:</b> {formatFechaDMY(cheque.fecha_emision)}</span> : null}
+                {cheque.fecha_pago ? <span><b>Pago:</b> {formatFechaDMY(cheque.fecha_pago)}</span> : null}
+                <span><b>Importe:</b> {moneyARS(monto)}</span>
               </div>
             ) : null}
           </div>
         );
       })}
-
-      <div style={{ fontSize: 13, color: "#34495e" }}>
-        Asignado: <b>{moneyARS(asignado)}</b>{" "}
-        {asignado >= safeNumber(totalCompra) - 0.05 ? <b style={{ color: "#00856f" }}>✓ Cubierto</b> : null}
-      </div>
     </div>
   );
 }
@@ -1477,9 +1452,6 @@ export default function ModalAsignarPresupuestoVenta({
             </div>
             <div className="gm-modal-head-left">
               <h2 className="gm-modal-title">Asignar como venta</h2>
-              <p className="dc-asignar-head-subtitle">
-                Convertí el presupuesto en una venta respetando cliente, detalle y productos.
-              </p>
             </div>
             <button type="button" className="gm-modal-close" onClick={onClose} disabled={saving} aria-label="Cerrar">
               ✕
@@ -1693,7 +1665,6 @@ export default function ModalAsignarPresupuestoVenta({
                           <ReadOnlyMediosPagoVenta
                             mediosFilas={mediosFilas}
                             mediosPagoList={mediosPagoList}
-                            totalCompra={total}
                           />
                         ) : isContado ? (
                           <PanelMediosPagoInlineVenta
@@ -1738,13 +1709,21 @@ export default function ModalAsignarPresupuestoVenta({
                   </aside>
 
                   <div className="gm-actions gm-actions--sticky dc-asignar-actions">
-                    <button type="button" className="mit-btn mit-btn--solid mit-btn--block" onClick={guardarComoVenta} disabled={saving || loading || convertido}>
-                      {saving ? <FontAwesomeIcon icon={faSpinner} spin /> : <FontAwesomeIcon icon={faFloppyDisk} />}
-                      Guardar
+                    <button
+                      type="button"
+                      className="gm-action-btn gm-action-btn--save"
+                      onClick={guardarComoVenta}
+                      disabled={saving || loading || convertido}
+                    >
+                      {saving ? "Guardando..." : "Guardar venta"}
                     </button>
-                    <button type="button" className="mit-btn mit-btn--ghost mit-btn--block" onClick={abrirFacturacion} disabled={saving || loading || convertido}>
-                      {saving ? <FontAwesomeIcon icon={faSpinner} spin /> : <FontAwesomeIcon icon={faFileInvoiceDollar} />}
-                      Facturar en ARCA
+                    <button
+                      type="button"
+                      className="gm-action-btn gm-action-btn--invoice"
+                      onClick={abrirFacturacion}
+                      disabled={saving || loading || convertido}
+                    >
+                      {saving ? "Procesando..." : "Facturar"}
                     </button>
                   </div>
                 </div>
