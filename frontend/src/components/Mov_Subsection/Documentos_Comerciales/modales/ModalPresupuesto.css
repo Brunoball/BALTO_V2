@@ -635,70 +635,122 @@ body.dark .dc-asignar-head-subtitle {
 /* Medios de pago en presupuesto ya convertido: vista simple, sin bloque falso de cheque */
 .dc-payment-readonly-panel {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .dc-payment-readonly-card {
-  border: 1px solid var(--mp-border-md);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(33, 82, 130, .12);
   border-radius: 14px;
-  background: var(--mp-bg);
-  padding: 12px 14px;
+  background: #ffffff;
+  padding: 12px 13px;
   display: grid;
   gap: 10px;
-  box-shadow: var(--mp-shadow-sm);
+  box-shadow: 0 8px 18px rgba(15, 44, 76, .06);
+}
+
+.dc-payment-readonly-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: rgba(47, 128, 237, .55);
 }
 
 .dc-payment-readonly-main {
+  position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .dc-payment-readonly-main > div {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .dc-payment-readonly-main b {
-  color: var(--mp-text);
-  font-size: .95rem;
-  font-weight: 900;
-  line-height: 1.1;
+  color: #17324b;
+  font-size: .86rem;
+  font-weight: 700;
+  line-height: 1.12;
   text-transform: uppercase;
+  letter-spacing: .01em;
 }
 
 .dc-payment-readonly-main span {
-  color: var(--mp-muted);
-  font-size: .75rem;
-  font-weight: 700;
+  color: #718094;
+  font-size: .72rem;
+  font-weight: 500;
 }
 
 .dc-payment-readonly-main strong {
-  color: var(--mp-action);
+  max-width: 142px;
+  color: #2168b8;
   font-family: 'DM Mono', 'Fira Mono', monospace;
-  font-size: .98rem;
-  font-weight: 900;
-  white-space: nowrap;
+  font-size: .84rem;
+  font-weight: 700;
+  line-height: 1.14;
+  letter-spacing: -.025em;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .dc-payment-readonly-cheque {
-  border: 1px solid rgba(0, 133, 111, .20);
+  position: relative;
+  border: 1px solid rgba(23, 50, 75, .10);
   border-radius: 12px;
-  background: rgba(0, 133, 111, .055);
-  padding: 10px 12px;
+  background: #f9fbfc;
+  padding: 10px 11px 8px;
   display: grid;
-  gap: 5px;
-  color: var(--mp-text);
-  font-size: .78rem;
-  font-weight: 700;
+  gap: 0;
+  color: #2d4156;
+  font-size: .74rem;
+  font-weight: 500;
 }
 
 .dc-payment-readonly-cheque > b {
-  color: #00796b;
-  font-size: .82rem;
-  font-weight: 900;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  color: #0f766e;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.dc-payment-readonly-cheque > b::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, .72);
+}
+
+.dc-payment-readonly-cheque span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px 0;
+  border-top: 1px solid rgba(23, 50, 75, .07);
+  line-height: 1.2;
+}
+
+.dc-payment-readonly-cheque span b {
+  color: #41566d;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dc-payment-readonly-cheque span:not(:has(b)) {
+  justify-content: flex-end;
+  text-align: right;
 }
 
 .dc-asignar-actions .gm-action-btn {
@@ -708,14 +760,56 @@ body.dark .dc-asignar-head-subtitle {
 
 html[data-theme="oscuro"] .dc-payment-readonly-card,
 body.dark .dc-payment-readonly-card {
-  background: rgba(255, 255, 255, .06);
-  border-color: rgba(255, 255, 255, .12);
+  background: rgba(15, 30, 48, .96);
+  border-color: rgba(255, 255, 255, .10);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, .24);
+}
+
+html[data-theme="oscuro"] .dc-payment-readonly-card::before,
+body.dark .dc-payment-readonly-card::before {
+  background: rgba(119, 185, 255, .48);
+}
+
+html[data-theme="oscuro"] .dc-payment-readonly-main b,
+body.dark .dc-payment-readonly-main b {
+  color: rgba(238, 246, 255, .88);
+}
+
+html[data-theme="oscuro"] .dc-payment-readonly-main span,
+body.dark .dc-payment-readonly-main span {
+  color: rgba(210, 220, 235, .58);
+}
+
+html[data-theme="oscuro"] .dc-payment-readonly-main strong,
+body.dark .dc-payment-readonly-main strong {
+  color: #77b9ff;
 }
 
 html[data-theme="oscuro"] .dc-payment-readonly-cheque,
 body.dark .dc-payment-readonly-cheque {
-  background: rgba(0, 133, 111, .12);
-  border-color: rgba(0, 133, 111, .28);
+  background: rgba(255, 255, 255, .04);
+  border-color: rgba(255, 255, 255, .09);
+  color: rgba(238, 246, 255, .78);
+}
+
+html[data-theme="oscuro"] .dc-payment-readonly-cheque > b,
+body.dark .dc-payment-readonly-cheque > b {
+  color: rgba(118, 229, 210, .88);
+}
+
+html[data-theme="oscuro"] .dc-payment-readonly-cheque > b::before,
+body.dark .dc-payment-readonly-cheque > b::before {
+  background: rgba(118, 229, 210, .65);
+}
+
+html[data-theme="oscuro"] .dc-payment-readonly-cheque span,
+body.dark .dc-payment-readonly-cheque span {
+  border-top-color: rgba(255, 255, 255, .07);
+}
+
+html[data-theme="oscuro"] .dc-payment-readonly-cheque span b,
+body.dark .dc-payment-readonly-cheque span b {
+  color: rgba(220, 235, 245, .68);
 }
 
 .presupuesto-actions .gm-action-btn {

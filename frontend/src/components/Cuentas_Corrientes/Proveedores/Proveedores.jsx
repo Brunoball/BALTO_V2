@@ -1058,6 +1058,35 @@ export default function ProveedoresCC() {
   const detailTotales = isHistorialTab ? historialTotales : totales;
   const detailCount = detailRows.length;
 
+  const renderDetailTabs = (extraClass = "") => (
+    <div
+      className={`cc-detailTabs ${extraClass}`}
+      role="tablist"
+      aria-label="Detalle de cuenta corriente"
+    >
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeDetailTab === "cuenta"}
+        className={`cc-detailTab ${activeDetailTab === "cuenta" ? "is-active" : ""}`}
+        onClick={() => handleDetailTabChange("cuenta")}
+        disabled={loading}
+      >
+        Cuenta corriente
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeDetailTab === "historial"}
+        className={`cc-detailTab ${activeDetailTab === "historial" ? "is-active" : ""}`}
+        onClick={() => handleDetailTabChange("historial")}
+        disabled={loading}
+      >
+        Historial
+      </button>
+    </div>
+  );
+
   return (
     <div className="contenedor-cards mov-page">
       {toast && (
@@ -1140,44 +1169,48 @@ export default function ProveedoresCC() {
             </div>
           </div>
 
+          {isDetailMode && renderDetailTabs("cc-detailTabs--top cc-detailTabs--between-title-period")}
+
           <div className="mov-headFilters">
             {isDetailMode && (
-              <div className="cc-filter cc-filter--cal">
-                <div
-                  className={`cc-floatingField cc-floatingField--calendar is-active ${
-                    calOpen ? "is-open" : ""
-                  }`}
-                >
-                  <button
-                    type="button"
-                    className={`cc-calTrigger ${calOpen ? "is-open" : ""}`}
-                    onClick={() => setCalOpen((v) => !v)}
-                    disabled={loading}
+              <>
+                <div className="cc-filter cc-filter--cal">
+                  <div
+                    className={`cc-floatingField cc-floatingField--calendar is-active ${
+                      calOpen ? "is-open" : ""
+                    }`}
                   >
-                    {rangeLabel}
-                    <span className="cc-calTrigger__iconRight">
-                      <FontAwesomeIcon icon={faChevronDown} />
+                    <button
+                      type="button"
+                      className={`cc-calTrigger ${calOpen ? "is-open" : ""}`}
+                      onClick={() => setCalOpen((v) => !v)}
+                      disabled={loading}
+                    >
+                      {rangeLabel}
+                      <span className="cc-calTrigger__iconRight">
+                        <FontAwesomeIcon icon={faChevronDown} />
+                      </span>
+                    </button>
+
+                    <span className="cc-floatingLabel cc-floatingLabel--active">
+                      <FontAwesomeIcon icon={faCalendarDays} /> Período
                     </span>
-                  </button>
 
-                  <span className="cc-floatingLabel cc-floatingLabel--active">
-                    <FontAwesomeIcon icon={faCalendarDays} /> Período
-                  </span>
-
-                  {calOpen && (
-                    <div className="cc-calDropdown">
-                      <Calendario
-                        value={dateRange}
-                        onChange={(range) => {
-                          setDateRange(range);
-                          if (range?.from && range?.to) setCalOpen(false);
-                        }}
-                        onClose={() => setCalOpen(false)}
-                      />
-                    </div>
-                  )}
+                    {calOpen && (
+                      <div className="cc-calDropdown">
+                        <Calendario
+                          value={dateRange}
+                          onChange={(range) => {
+                            setDateRange(range);
+                            if (range?.from && range?.to) setCalOpen(false);
+                          }}
+                          onClose={() => setCalOpen(false)}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              </>
             )}
 
             <div className="cc-filter cc-filter--search" id="vents-comppr-wits">
@@ -1247,31 +1280,6 @@ export default function ProveedoresCC() {
         </div>
       </div>
 
-      {isDetailMode && (
-        <div className="cc-detailTabs" role="tablist" aria-label="Detalle de cuenta corriente">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeDetailTab === "cuenta"}
-            className={`cc-detailTab ${activeDetailTab === "cuenta" ? "is-active" : ""}`}
-            onClick={() => handleDetailTabChange("cuenta")}
-            disabled={loading}
-          >
-            Cuenta corriente
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeDetailTab === "historial"}
-            className={`cc-detailTab ${activeDetailTab === "historial" ? "is-active" : ""}`}
-            onClick={() => handleDetailTabChange("historial")}
-            disabled={loading}
-          >
-            Historial
-          </button>
-        </div>
-      )}
-
       {!isDetailMode ? (
         <div className="cc-cliente-table">
           <div
@@ -1311,7 +1319,7 @@ export default function ProveedoresCC() {
           </div>
         </div>
       ) : (
-        <div className="cc-cliente-table">
+        <div className="cc-cliente-table cc-cliente-table--detail">
           <div
             className="mov-gridTable mov-gridTable--head cc-cliente-table__desktopHead"
             style={{ gridTemplateColumns: ".8fr 2.2fr 1fr 1fr 1fr .9fr" }}
@@ -1447,6 +1455,8 @@ export default function ProveedoresCC() {
           </div>
         </div>
       )}
+
+      {isDetailMode && renderDetailTabs("cc-detailTabs--bottom")}
     </div>
   );
 }
