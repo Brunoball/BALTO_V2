@@ -10,7 +10,7 @@ import ModalDetalleMovimiento from "../../Global/Modales/ModalDetalleMovimiento.
 
 import Calendario from "../../Global/Calendario/Calendario.jsx";
 import "../../Global/Calendario/calendario.css";
-import "../modalcss/globalmodalsmov.css";
+
 
 import Toast from "../../Global/Toast.jsx";
 

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "../Global_css/Global_Modals.css";
 import "../Global_css/Global_oscuro.css";
-import "../../Mov_Subsection/Recibos/modales/ModalPagarRecibos.css";
+import "../Global_css/GlobalsModalsV2.css";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -658,7 +658,7 @@ export default function ModalVerComprobante({
   if (!open) return null;
 
   const overlayClass = "mi-modal__overlay mi-modal__overlay--mov";
-  const modalClass = "mi-modal__container mi-modal__container--mov mpr-modal";
+  const modalClass = "mi-modal__container mi-modal__container--mov gm-modal-v2 gm-view-modal";
 
   return createPortal(
     <div
@@ -675,9 +675,9 @@ export default function ModalVerComprobante({
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 1100 }}
       >
-        <div className="mi-modal__header mpr-header">
-          <div className="mpr-headLeft">
-            <div className="mi-modal__title mpr-title">
+        <div className="mi-modal__header gm-view-header">
+          <div className="gm-view-head-left">
+            <div className="mi-modal__title gm-view-title">
               <span>{modalTitle}</span>
             </div>
           </div>
@@ -695,14 +695,14 @@ export default function ModalVerComprobante({
         </div>
 
         {tabs.length > 1 && (
-          <div className="mpr-tabsBar" role="tablist" aria-label="Comprobantes vinculados">
+          <div className="gm-view-tabs" role="tablist" aria-label="Comprobantes vinculados">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
                 role="tab"
                 aria-selected={tab.key === activeTabKey}
-                className={["mpr-tabBtn", tab.key === activeTabKey ? "is-active" : ""].filter(Boolean).join(" ")}
+                className={["gm-view-tab", tab.key === activeTabKey ? "is-active" : ""].filter(Boolean).join(" ")}
                 onClick={() => setActiveTabKey(tab.key)}
               >
                 {tab.label}
@@ -711,9 +711,9 @@ export default function ModalVerComprobante({
           </div>
         )}
 
-        <div className="mi-modal__body mpr-body">
-          <div className="mpr-content">
-            <div className="mpr-card mpr-viewCard">
+        <div className="mi-modal__body gm-view-body">
+          <div className="gm-view-content">
+            <div className="gm-view-card">
               {!activeUrl && <div className="mov-emptyRow">No hay comprobante.</div>}
 
               {!!activeUrl && loading && (
@@ -729,22 +729,22 @@ export default function ModalVerComprobante({
               )}
 
               {!!previewUrl && !loading && !errorMsg && kind === "pdf" && (
-                <div className="mpr-previewScroll" aria-label="Vista previa PDF">
+                <div className="gm-view-preview" aria-label="Vista previa PDF">
                   <iframe
                     title={displayFileName || "Comprobante PDF"}
                     src={previewUrl}
-                    className="mpr-pdfFrame"
+                    className="gm-view-pdf-frame"
                   />
                 </div>
               )}
 
               {!!previewUrl && !loading && !errorMsg && kind === "img" && (
-                <div className="mpr-previewScroll" aria-label="Vista previa imagen">
-                  <div className="mpr-imgWrap">
+                <div className="gm-view-preview" aria-label="Vista previa imagen">
+                  <div className="gm-view-img-wrap">
                     <img
                       src={previewUrl}
                       alt={displayFileName || "Comprobante"}
-                      className="mpr-img"
+                      className="gm-view-img"
                     />
                   </div>
                 </div>
@@ -752,7 +752,7 @@ export default function ModalVerComprobante({
 
               {!!activeUrl && !loading && !errorMsg && kind === "csv" && (
                 <div
-                  className="mpr-previewScroll"
+                  className="gm-view-preview"
                   aria-label="Vista previa CSV"
                   style={{ padding: 12 }}
                 >
@@ -832,7 +832,7 @@ export default function ModalVerComprobante({
 
               {!!activeUrl && !loading && !errorMsg && kind === "json" && (
                 <div
-                  className="mpr-previewScroll"
+                  className="gm-view-preview"
                   aria-label="Vista previa JSON"
                   style={{ padding: 12 }}
                 >
@@ -858,7 +858,7 @@ export default function ModalVerComprobante({
 
               {!!activeUrl && !loading && !errorMsg && kind === "text" && (
                 <div
-                  className="mpr-previewScroll"
+                  className="gm-view-preview"
                   aria-label="Vista previa texto"
                   style={{ padding: 12 }}
                 >
@@ -878,11 +878,11 @@ export default function ModalVerComprobante({
               )}
 
               {!!activeUrl && !loading && !errorMsg && kind === "html" && (
-                <div className="mpr-previewScroll" aria-label="Vista previa HTML">
+                <div className="gm-view-preview" aria-label="Vista previa HTML">
                   <iframe
                     title={displayFileName || "Vista previa HTML"}
                     srcDoc={htmlPreview}
-                    className="mpr-pdfFrame"
+                    className="gm-view-pdf-frame"
                     sandbox=""
                   />
                 </div>
@@ -908,16 +908,16 @@ export default function ModalVerComprobante({
           </div>
         </div>
 
-        <div className="mi-modal__footer mpr-footer">
-          <div className="mpr-footerActions">
+        <div className="mi-modal__footer gm-view-footer">
+          <div className="gm-view-footer-actions">
             <button
               type="button"
-              className="mit-btn mit-btn--solid mpr-actionBtn mpr-actionBtn--open"
+              className="mit-btn mit-btn--solid gm-view-action-btn gm-view-action-btn--open"
               onClick={handleOpen}
               disabled={!blobUrl && !activeUrl}
               title={`Abrir ${displayFileName} en nueva pestaña`}
             >
-              <FontAwesomeIcon icon={faUpRightFromSquare} className="mpr-actionBtn__icon" />
+              <FontAwesomeIcon icon={faUpRightFromSquare} className="gm-view-action-btn__icon" />
               Abrir
             </button>
           </div>

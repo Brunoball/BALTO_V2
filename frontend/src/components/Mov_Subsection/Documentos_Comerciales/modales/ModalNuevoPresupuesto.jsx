@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import "../../../Global/Global_css/Global_Modals.css";
-import "../../modalcss/globalmodalsmov.css";
+import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalPresupuesto.css";
-import "../../modalcss/AltasMovimientos.css";
 import BASE_URL from "../../../../config/config";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
 import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
@@ -1392,29 +1390,29 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
 
   return createPortal(
     <div
-      className="mi-modal__overlay presupuesto-overlay"
+      className="gm-modal-overlay presupuesto-overlay"
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) requestClose();
       }}
     >
       <div
-        className="mi-modal__container mi-modal__container--mov presupuesto-modal"
+        className="gm-modal-container gm-modal-container--movement gm-modal-v2 presupuesto-modal"
         role="dialog"
         aria-modal="true"
         aria-label="Nuevo presupuesto"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="mi-modal__header">
-          <div className="mi-modal__head-icon" aria-hidden="true">
+        <div className="gm-modal-header">
+          <div className="gm-modal-head-icon" aria-hidden="true">
             <FontAwesomeIcon icon={faFileInvoiceDollar} />
           </div>
-          <div className="mi-modal__head-left">
-            <h2 className="mi-modal__title">Nuevo presupuesto</h2>
+          <div className="gm-modal-head-left">
+            <h2 className="gm-modal-title">Nuevo presupuesto</h2>
           </div>
           <button
             type="button"
-            className="mi-modal__close"
+            className="gm-modal-close"
             onClick={requestClose}
             disabled={saving}
             title="Cerrar"
@@ -1424,20 +1422,20 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
           </button>
         </div>
 
-        <form className="mi-modal__content presupuesto-modal__content" onSubmit={handleSubmit}>
-          <div className="mi-cr-grid">
-            <section className="mi-cr-table">
-              <div className="mi-cr-table__head">
-                <div style={{ paddingLeft: 10 }}>Detalle</div>
-                <div>Cant.</div>
-                <div className="right">Precio</div>
-                <div>IVA %</div>
-                <div className="right">IVA $</div>
-                <div className="right">Total</div>
-                <div />
+        <form className="gm-modal-content presupuesto-modal__content" onSubmit={handleSubmit}>
+          <div className="gm-movement-layout">
+            <section className="gm-table gm-table--movement gm-movement-main dc-presupuesto-table">
+              <div className="gm-table-head">
+                <div className="gm-table-th" style={{ paddingLeft: 10 }}>Detalle</div>
+                <div className="gm-table-th">Cant.</div>
+                <div className="gm-table-th right">Precio</div>
+                <div className="gm-table-th">IVA %</div>
+                <div className="gm-table-th right">IVA $</div>
+                <div className="gm-table-th right">Total</div>
+                <div className="gm-table-th" />
               </div>
 
-              <div className="mi-cr-table__rows">
+              <div className="gm-table-body">
                 {computedRows.map((r) => {
                   const stockNum =
                     r.stock_disponible !== null && r.stock_disponible !== undefined
@@ -1446,8 +1444,8 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                   const rowSinStock = r.sinStock || isSinStock(stockNum);
 
                   return (
-                    <div key={r.id} className={`mi-cr-row ${rowSinStock ? "mi-cr-row--sin-stock" : ""}`}>
-                      <div className="mi-cr-cell mi-cr-cell--detalle">
+                    <div key={r.id} className={`gm-table-row ${rowSinStock ? "gm-table-row--sin-stock" : ""}`}>
+                      <div className="gm-table-cell gm-table-cell--detail">
                         <ProductStockAutocomplete
                           value={r.detalleText}
                           onChange={(val) => handleDetalleInputChange(r.id, val)}
@@ -1457,13 +1455,13 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                           disabled={saving}
                           showAllOnFocus={false}
                           maxItems={18}
-                          inputClassName="mp-cell-input"
+                          inputClassName="gm-cell-input"
                         />
                       </div>
 
-                      <div className="mi-cr-cell mi-cr-cell--center stock_cant">
+                      <div className="gm-table-cell gm-table-cell--center stock_cant">
                         <input
-                          className="mp-cell-input mp-cell-input--center"
+                          className="gm-cell-input gm-cell-input--center"
                           type="number"
                           min={rowSinStock ? undefined : "1"}
                           step="1"
@@ -1496,7 +1494,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                         )}
                       </div>
 
-                    <div className="mi-cr-cell mi-cr-cell--center">
+                    <div className="gm-table-cell gm-table-cell--center">
                       {Array.isArray(r.precios_disponibles) && r.precios_disponibles.length > 0 ? (
                         <PrecioDropdown
                           precios={r.precios_disponibles}
@@ -1506,7 +1504,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                         />
                       ) : (
                         <input
-                          className="mp-cell-input mp-cell-input--right"
+                          className="gm-cell-input gm-cell-input--right"
                           type="text"
                           inputMode="decimal"
                           value={r.precioFocused ? r.precioDraft : moneyARS(r.precio)}
@@ -1522,9 +1520,9 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                       )}
                     </div>
 
-                    <div className="mi-cr-cell mi-cr-cell--center">
+                    <div className="gm-table-cell gm-table-cell--center">
                       <select
-                        className="mp-cell-input mp-cell-input--center mp-cell-input--select"
+                        className="gm-cell-input gm-cell-input--center gm-cell-input--select"
                         value={r.ivaPct}
                         onChange={(e) => updateRow(r.id, { ivaPct: Number(e.target.value) })}
                         disabled={saving}
@@ -1536,16 +1534,16 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                       </select>
                     </div>
 
-                    <div className="mi-cr-cell mi-cr-cell--right mi-cr-cell--mono mi-cr-cell--soft">
+                    <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--soft">
                       {moneyARS(r.iva_monto)}
                     </div>
-                    <div className="mi-cr-cell mi-cr-cell--right mi-cr-cell--mono mi-cr-cell--total-val">
+                    <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--total">
                       {moneyARS(r.total)}
                     </div>
-                    <div className="mi-cr-cell mi-cr-cell--center" id="delete_cell">
+                    <div className="gm-table-cell gm-table-cell--center" id="delete_cell">
                       <button
                         type="button"
-                        className="mi-cr-del"
+                        className="gm-row-delete dc-row-delete"
                         onClick={() => removeRow(r.id)}
                         disabled={saving || rows.length <= 1}
                         title="Eliminar fila"
@@ -1561,9 +1559,9 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
               <div className="presupuesto-terms" aria-label="Condiciones comerciales del presupuesto">
                 <div className="presupuesto-terms__title">Condiciones comerciales</div>
                 <div className="presupuesto-terms__row">
-                  <div className="mp-field presupuesto-terms__field presupuesto-terms__field--small">
+                  <div className="gm-field presupuesto-terms__field presupuesto-terms__field--small">
                     <input
-                      className="mp-input"
+                      className="gm-input"
                       type="number"
                       min="0"
                       max="3650"
@@ -1572,7 +1570,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                       onChange={(e) => updateCondicion("validezDias", e.target.value)}
                       disabled={saving}
                     />
-                    <label className="mp-label">Validez (días)</label>
+                    <label className="gm-label">Validez (días)</label>
                   </div>
                   <div className="presupuesto-terms__hint">
                     {condicionesPreview.fecha_validez
@@ -1581,103 +1579,103 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                   </div>
                 </div>
 
-                <div className="mp-field presupuesto-terms__field">
+                <div className="gm-field presupuesto-terms__field">
                   <textarea
-                    className="mp-input presupuesto-terms__textarea"
+                    className="gm-input presupuesto-terms__textarea"
                     rows={2}
                     placeholder=" "
                     value={condiciones.plazoEntrega}
                     onChange={(e) => updateCondicion("plazoEntrega", e.target.value)}
                     disabled={saving}
                   />
-                  <label className="mp-label">Plazo de entrega / ejecución</label>
+                  <label className="gm-label">Plazo de entrega / ejecución</label>
                 </div>
 
                 <div className="presupuesto-terms__row presupuesto-terms__row--split">
-                  <div className="mp-field presupuesto-terms__field">
+                  <div className="gm-field presupuesto-terms__field">
                     <textarea
-                      className="mp-input presupuesto-terms__textarea"
+                      className="gm-input presupuesto-terms__textarea"
                       rows={2}
                       placeholder=" "
                       value={condiciones.lugarEntrega}
                       onChange={(e) => updateCondicion("lugarEntrega", e.target.value)}
                       disabled={saving}
                     />
-                    <label className="mp-label">Lugar de entrega / instalación</label>
+                    <label className="gm-label">Lugar de entrega / instalación</label>
                   </div>
-                  <div className="mp-field presupuesto-terms__field">
+                  <div className="gm-field presupuesto-terms__field">
                     <textarea
-                      className="mp-input presupuesto-terms__textarea"
+                      className="gm-input presupuesto-terms__textarea"
                       rows={2}
                       placeholder=" "
                       value={condiciones.garantia}
                       onChange={(e) => updateCondicion("garantia", e.target.value)}
                       disabled={saving}
                     />
-                    <label className="mp-label">Garantía / soporte</label>
+                    <label className="gm-label">Garantía / soporte</label>
                   </div>
                 </div>
 
-                <div className="mp-field presupuesto-terms__field">
+                <div className="gm-field presupuesto-terms__field">
                   <textarea
-                    className="mp-input presupuesto-terms__textarea"
+                    className="gm-input presupuesto-terms__textarea"
                     rows={3}
                     placeholder=" "
                     value={condiciones.formaPago}
                     onChange={(e) => updateCondicion("formaPago", e.target.value)}
                     disabled={saving}
                   />
-                  <label className="mp-label">Forma de pago</label>
+                  <label className="gm-label">Forma de pago</label>
                 </div>
 
-                <div className="mp-field presupuesto-terms__field">
+                <div className="gm-field presupuesto-terms__field">
                   <textarea
-                    className="mp-input presupuesto-terms__textarea"
+                    className="gm-input presupuesto-terms__textarea"
                     rows={3}
                     placeholder=" "
                     value={condiciones.condicionesComerciales}
                     onChange={(e) => updateCondicion("condicionesComerciales", e.target.value)}
                     disabled={saving}
                   />
-                  <label className="mp-label">Aclaraciones / condiciones</label>
+                  <label className="gm-label">Aclaraciones / condiciones</label>
                 </div>
 
-                <div className="mp-field presupuesto-terms__field">
+                <div className="gm-field presupuesto-terms__field">
                   <textarea
-                    className="mp-input presupuesto-terms__textarea"
+                    className="gm-input presupuesto-terms__textarea"
                     rows={2}
                     placeholder=" "
                     value={condiciones.notas}
                     onChange={(e) => updateCondicion("notas", e.target.value)}
                     disabled={saving}
                   />
-                  <label className="mp-label">Notas adicionales</label>
+                  <label className="gm-label">Notas adicionales</label>
                 </div>
               </div>
 
-              <div className="mi-cr-table__foot">
-                <div className="mi-cr-foot-actions">
-                  <button type="button" className="mp-foot-btn" onClick={addRow} disabled={saving}>
-                    <span className="mp-foot-btn__icon">
+              <div className="gm-table-foot">
+                <div className="gm-foot-actions">
+                  <button type="button" className="gm-foot-btn" onClick={addRow} disabled={saving}>
+                    <span className="gm-foot-btn__icon">
                       <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M5 1.5V8.5M1.5 5H8.5" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
                       </svg>
                     </span>
                     Agregar fila
                   </button>
-                  <div className="mp-foot-sep" />
+                  <div className="gm-foot-sep" />
                 </div>
 
-                <div className="mi-cr-totals">
-                  <div className="mi-cr-totalLine mi-cr-totalLine--sub">
+                <div className="gm-summary-chips">
+                  <div className="gm-summary-chip gm-summary-chip--sub">
                     <span>Subtotal</span>
                     <b>{moneyARS(totals.subtotal)}</b>
                   </div>
-                  <div className="mi-cr-totalLine mi-cr-totalLine--iva">
+                  <div className="gm-summary-chip gm-summary-chip--iva">
                     <span>IVA</span>
                     <b>{moneyARS(totals.iva)}</b>
                   </div>
-                  <div className="mi-cr-totalLine mi-cr-totalLine--total">
+                  <div className="gm-summary-chip gm-summary-chip--total">
                     <span>Total</span>
                     <b>{moneyARS(totals.total)}</b>
                   </div>
@@ -1686,17 +1684,17 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
 
             </section>
 
-            <div className="mi-cr-filters">
-              <aside className="mp-aside">
-                <div className="mp-section">
-                  <div className="mp-section-head">
-                    <div className="mp-section-dot" />
+            <div className="gm-movement-side">
+              <aside className="gm-aside">
+                <div className="gm-section">
+                  <div className="gm-section-head">
+                    <div className="gm-section-dot" />
                     <span>Datos del presupuesto</span>
                   </div>
 
-                  <div className="mp-section-body">
+                  <div className="gm-section-body">
                     <div
-                      className="mp-field"
+                      className="gm-field"
                       onMouseDown={(e) => {
                         if (e.target !== fechaInputRef.current) {
                           e.preventDefault();
@@ -1706,7 +1704,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                     >
                       <input
                         ref={fechaInputRef}
-                        className="mp-input"
+                        className="gm-input"
                         type="date"
                         placeholder=" "
                         value={fecha}
@@ -1716,10 +1714,10 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                         onChange={(e) => setFecha(clampFechaHastaHoy(e.target.value))}
                         disabled={saving}
                       />
-                      <label className="mp-label">Fecha</label>
+                      <label className="gm-label">Fecha</label>
                     </div>
 
-                    <div className={`mp-prov-wrap mp-prov-wrap--cliente ${cliInput ? "mp-prov-wrap--filled" : ""}`}>
+                    <div className={`dc-prov-wrap dc-prov-wrap--cliente ${cliInput ? "dc-prov-wrap--filled" : ""}`}>
                       <GlobalAutocomplete
                         value={cliInput}
                         onChange={handleClienteInputChange}
@@ -1732,21 +1730,21 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                         disabled={saving || addUI.open}
                         showAllOnFocus={true}
                         maxItems={25}
-                        inputClassName="mp-input mp-input--autocomplete"
+                        inputClassName="gm-input dc-autocomplete-input"
                       />
-                      <span className="mp-label mp-label--autocomplete">Cliente *</span>
+                      <span className="gm-label dc-label--autocomplete">Cliente *</span>
                     </div>
 
 
 
-                    <div className="mp-cc-info presupuesto-info">
+                    <div className="dc-info presupuesto-info">
                       Se guarda como presupuesto y genera PDF con validez, entrega, pago y condiciones. No impacta caja, ARCA ni medio de pago.
                     </div>
                   </div>
                 </div>
               </aside>
 
-              <div className="mp-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+              <div className="gm-actions gm-actions--sticky">
                 <button
                   type="submit"
                   disabled={saving}

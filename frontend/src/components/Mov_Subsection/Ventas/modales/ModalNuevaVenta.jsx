@@ -1,13 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
-import "../../../Global/Global_css/Global_Modals.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
-import "../../modalcss/globalmodalsmov.css";
 import "./ModalNuevaVenta.css";
-import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
-import "../../modalcss/AltasMovimientos.css";
 import BASE_URL from "../../../../config/config";
 import ModalFacturaBaltoResumen from "../../Facturacion/ModalFacturaBaltoResumen.jsx";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -3234,9 +3230,9 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
 
   return createPortal(
     <>
-      <div className={["mi-modal__overlay", dark ? "mi-modal__overlay--dark" : ""].join(" ").trim()}>
+      <div className="gm-modal-overlay">
         <div
-          className={["mi-modal__container", "mi-modal__container--mov", "gm-modal-v2", "nv-modal", dark ? "mi-modal--dark" : ""].join(" ").trim()}
+          className="gm-modal-container gm-modal-container--movement gm-modal-v2 nv-modal"
           role="dialog"
           aria-modal="true"
           onMouseDown={(e) => e.stopPropagation()}
@@ -3261,9 +3257,9 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
           </div>
 
           <div className="gm-modal-content">
-            <div className="mi-cr-grid gm-movement-layout">
-              <section className="mi-cr-table gm-table gm-table--movement gm-movement-main nv-table">
-                <div className={`mi-cr-table__head gm-table-head ${hasScroll ? "gm-table-head--body-scroll" : ""}`}>
+            <div className="gm-movement-layout">
+              <section className="gm-table gm-table--movement gm-movement-main nv-table">
+                <div className={`gm-table-head ${hasScroll ? "gm-table-head--body-scroll" : ""}`}>
                   <div className="gm-table-th" style={{ paddingLeft: 10 }}>Detalle</div>
                   <div className="gm-table-th">Cant.</div>
                   <div className="gm-table-th right">Precio</div>
@@ -3273,7 +3269,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                   <div className="gm-table-th" />
                 </div>
 
-                <div ref={rowsContainerRef} className={`mi-cr-table__rows gm-table-body ${hasScroll ? "has-scroll gm-table-body--scroll" : ""}`}>
+                <div ref={rowsContainerRef} className={`gm-table-body ${hasScroll ? "has-scroll gm-table-body--scroll" : ""}`}>
                   {rowsCalc.map((r) => {
                     const stockNum =
                       r.stock_disponible !== null && r.stock_disponible !== undefined
@@ -3282,8 +3278,8 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                     const rowSinStock = r.sinStock || isSinStock(stockNum);
 
                     return (
-                      <div key={r.id} className={`mi-cr-row gm-table-row ${rowSinStock ? "mi-cr-row--sin-stock" : ""}`}>
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--detalle gm-table-cell--detail">
+                      <div key={r.id} className={`gm-table-row ${rowSinStock ? "nv-row--sin-stock" : ""}`}>
+                        <div className="gm-table-cell gm-table-cell--detail">
                           <ProductStockAutocomplete
                             value={r.detalleText}
                             onChange={(val) =>
@@ -3310,7 +3306,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                           />
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center stock_cant">
+                        <div className="gm-table-cell gm-table-cell--center stock_cant">
                           <input
                             className="gm-cell-input gm-cell-input--center"
                             type="number"
@@ -3339,7 +3335,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                           )}
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
+                        <div className="gm-table-cell gm-table-cell--center">
                           {Array.isArray(r.precios_disponibles) && r.precios_disponibles.length > 0 ? (
                             <PrecioDropdown
                               precios={r.precios_disponibles}
@@ -3365,7 +3361,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                           )}
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
+                        <div className="gm-table-cell gm-table-cell--center">
                           <select
                             className="gm-cell-input gm-cell-input--center gm-cell-input--select"
                             value={String(r.ivaPct)}
@@ -3381,16 +3377,16 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                           </select>
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--soft gm-table-cell--soft">
+                        <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--soft">
                           {moneyARS(r.ivaMonto)}
                         </div>
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--total-val gm-table-cell--total">
+                        <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--total">
                           {moneyARS(r.total)}
                         </div>
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center" id="delete_cell">
+                        <div className="gm-table-cell gm-table-cell--center" id="delete_cell">
                           <button
                             type="button"
-                            className="mi-cr-del gm-row-delete"
+                            className="gm-row-delete"
                             onClick={() => removeRow(r.id)}
                             disabled={saving}
                             title="Eliminar fila"
@@ -3403,8 +3399,8 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                   })}
                 </div>
 
-                <div className="mi-cr-table__foot gm-table-foot">
-                  <div className="mi-cr-foot-actions gm-foot-actions">
+                <div className="gm-table-foot">
+                  <div className="gm-foot-actions">
                     <button type="button" className="gm-foot-btn" onClick={addRow} disabled={saving}>
                       <span className="gm-foot-btn__icon">
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -3432,7 +3428,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                 </div>
               </section>
 
-              <div className="mi-cr-filters gm-movement-side">
+              <div className="gm-movement-side">
                 <aside className="gm-aside">
                   <div className="gm-section">
                     <div className="gm-section-head">
@@ -3593,7 +3589,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                   </div>
                 </aside>
 
-                <div className="gm-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+                <div className="gm-actions gm-actions--sticky nv-actions">
                   <button
                     type="button"
                     onClick={submit}

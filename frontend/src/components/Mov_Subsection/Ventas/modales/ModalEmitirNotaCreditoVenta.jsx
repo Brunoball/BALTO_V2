@@ -4,6 +4,8 @@ import BASE_URL from "../../../../config/config.jsx";
 import ModalFacturaBaltoResumen from "../../Facturacion/ModalFacturaBaltoResumen.jsx";
 import { saveNotaCreditoPdf } from "../../../../utils/NotaCreditoPdfBuilder.js";
 import "../../../Global/Global_css/roots.css";
+import "../../../Global/Global_css/GlobalsModalsV2.css";
+import "./ModalNuevaVenta.css";
 import { DEMO_BLOCK_MESSAGE, isBaltoDemoMode } from "../../../../utils/demoMode";
 
 function todayISO() {
@@ -120,12 +122,6 @@ function extractFacturaPayload(factEmitida) {
   return factEmitida;
 }
 
-function isTemaOscuro() {
-  return (
-    document.documentElement.getAttribute("data-theme") === "oscuro" ||
-    document.body?.classList?.contains("dark")
-  );
-}
 
 export default function ModalEmitirNotaCreditoVenta({
   open,
@@ -141,30 +137,6 @@ export default function ModalEmitirNotaCreditoVenta({
   const [motivo, setMotivo] = useState("Anulación de venta");
   const [contexto, setContexto] = useState(null);
   const [openResumen, setOpenResumen] = useState(false);
-  const [dark, setDark] = useState(isTemaOscuro);
-
-  useEffect(() => {
-    const update = () => setDark(isTemaOscuro());
-    const o1 = new MutationObserver(update);
-    o1.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-
-    const o2 = new MutationObserver(update);
-    if (document.body) {
-      o2.observe(document.body, {
-        attributes: true,
-        attributeFilter: ["class"],
-      });
-    }
-
-    return () => {
-      o1.disconnect();
-      o2.disconnect();
-    };
-  }, []);
-
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -455,28 +427,15 @@ useEffect(() => {
 
   return createPortal(
     <>
-      <div
-        className={[
-          "mi-modal__overlay",
-          dark ? "mi-modal__overlay--dark" : "",
-        ]
-          .join(" ")
-          .trim()}
-      >
+      <div className="gm-modal-overlay">
         <div
-          className={[
-            "mi-modal__container",
-            "modal-nc-container",
-            dark ? "mi-modal--dark" : "",
-          ]
-            .join(" ")
-            .trim()}
+          className="gm-modal-container gm-modal-v2 modal-nc-container"
           role="dialog"
           aria-modal="true"
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div className="mi-modal__header">
-            <div className="mi-modal__head-icon" aria-hidden="true">
+          <div className="gm-modal-header">
+            <div className="gm-modal-head-icon" aria-hidden="true">
               <svg
                 width="18"
                 height="18"
@@ -494,16 +453,16 @@ useEffect(() => {
               </svg>
             </div>
 
-            <div className="mi-modal__head-left">
-              <h2 className="mi-modal__title">Emitir nota de crédito</h2>
+            <div className="gm-modal-head-left">
+              <h2 className="gm-modal-title">Emitir nota de crédito</h2>
               {row?.id_movimiento && (
-                <p className="mi-modal__subtitle">Movimiento #{row.id_movimiento}</p>
+                <p className="gm-modal-subtitle">Movimiento #{row.id_movimiento}</p>
               )}
             </div>
 
             <button
               type="button"
-              className="mi-modal__close"
+              className="gm-modal-close"
               onClick={onClose}
               disabled={loading}
               aria-label="Cerrar"
@@ -512,7 +471,7 @@ useEffect(() => {
             </button>
           </div>
 
-          <div className="mi-modal__content modal-nc-body">
+          <div className="gm-modal-content modal-nc-body">
             {loading && !contexto && (
               <div className="modal-nc-loading">
                 <span className="modal-nc-loading__dot" />

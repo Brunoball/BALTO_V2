@@ -3,13 +3,10 @@ import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
 import BASE_URL from "../../../../config/config.jsx";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
-import "../../../Global/Global_css/Global_Modals.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
-import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalEgreso.css";
-import "../../modalcss/AltasMovimientos.css";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -531,9 +528,9 @@ function ChequeFields({ cheque, saving, onUpdate }) {
         : "";
 
   return (
-    <div className="mi-cr-table__rows" style={{ overflowX: "auto", overflowY: "hidden" }}>
+    <div className="gm-table-body" style={{ overflowX: "auto", overflowY: "hidden" }}>
       <div
-        className="mi-cr-table__head mi-cr-table__head--cheque"
+        className="gm-table-head--cheque"
         style={{
           display: "grid",
           gridTemplateColumns: "110px 120px 1.2fr 1.2fr 150px 150px 140px",
@@ -549,13 +546,13 @@ function ChequeFields({ cheque, saving, onUpdate }) {
       </div>
 
       <div
-        className="mi-cr-row mi-cr-row--cheque"
+        className="gm-table-row--cheque"
         style={{
           display: "grid",
           gridTemplateColumns: "110px 120px 1.2fr 1.2fr 150px 150px 140px",
         }}
       >
-        <div className="mi-cr-cell">
+        <div className="gm-table-cell">
           <input
             className="gm-cell-input"
             value={String(cheque?.id_cheque || "")}
@@ -563,7 +560,7 @@ function ChequeFields({ cheque, saving, onUpdate }) {
           />
         </div>
 
-        <div className="mi-cr-cell">
+        <div className="gm-table-cell">
           <input
             className="gm-cell-input"
             value={tipoActual}
@@ -571,7 +568,7 @@ function ChequeFields({ cheque, saving, onUpdate }) {
           />
         </div>
 
-        <div className="mi-cr-cell">
+        <div className="gm-table-cell">
           <input
             className="gm-cell-input"
             type="text"
@@ -583,7 +580,7 @@ function ChequeFields({ cheque, saving, onUpdate }) {
           />
         </div>
 
-        <div className="mi-cr-cell">
+        <div className="gm-table-cell">
           <input
             className="gm-cell-input"
             type="text"
@@ -596,7 +593,7 @@ function ChequeFields({ cheque, saving, onUpdate }) {
         </div>
 
         <div
-          className="mi-cr-cell"
+          className="gm-table-cell"
           onClick={() => openPicker(fechaEmisionRef)}
           style={{ cursor: saving ? "not-allowed" : "pointer" }}
         >
@@ -620,7 +617,7 @@ function ChequeFields({ cheque, saving, onUpdate }) {
         </div>
 
         <div
-          className="mi-cr-cell"
+          className="gm-table-cell"
           onClick={() => openPicker(fechaPagoRef)}
           style={{ cursor: saving ? "not-allowed" : "pointer" }}
         >
@@ -640,7 +637,7 @@ function ChequeFields({ cheque, saving, onUpdate }) {
           />
         </div>
 
-        <div className="mi-cr-cell mi-cr-cell--right">
+        <div className="gm-table-cell gm-table-cell--right">
           <input
             className="gm-cell-input gm-cell-input--right"
             type="number"
@@ -956,7 +953,7 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
           )}
 
           {chequesSeleccionados.length > 0 && (
-            <div className="mi-uploadCard__sub">
+            <div className="gm-upload-card__sub">
               ✓ {chequesSeleccionados.length} cheque(s) — {moneyARS(importeCheques)}
             </div>
           )}
@@ -1601,26 +1598,26 @@ export default function ModalEditarEgreso({
 
   return createPortal(
     <>
-      <div className="mi-modal__overlay">
+      <div className="gm-modal-overlay">
         <div
-          className="mi-modal__container mi-modal__container--mov gm-modal-v2 oe-modal"
+          className="gm-modal-container gm-modal-container--movement gm-modal-v2 oe-modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="mi-ee-title"
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div className="mi-modal__header">
-            <div className="mi-modal__head-icon" aria-hidden="true">
+          <div className="gm-modal-header">
+            <div className="gm-modal-head-icon" aria-hidden="true">
               <FontAwesomeIcon icon={faPenToSquare} />
             </div>
-            <div className="mi-modal__head-left">
-              <h2 id="mi-ee-title" className="mi-modal__title">
+            <div className="gm-modal-head-left">
+              <h2 id="mi-ee-title" className="gm-modal-title">
                 {esMovCheque ? "Editar cheque / eCheq" : "Editar egreso"}
               </h2>
             </div>
             <button
               ref={closeBtnRef}
-              className="mi-modal__close"
+              className="gm-modal-close"
               onClick={() => !saving && onClose?.()}
               aria-label="Cerrar"
               disabled={saving}
@@ -1630,15 +1627,15 @@ export default function ModalEditarEgreso({
             </button>
           </div>
 
-          <div className="mi-modal__content">
+          <div className="gm-modal-content">
             <form
               onSubmit={submit}
               style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
             >
-              <div className="mi-cr-grid">
+              <div className="gm-movement-layout">
                 {!esMovCheque ? (
-                  <section className="mi-cr-table gm-table gm-table--movement oe-table">
-                    <div className="mi-cr-table__head gm-table-head">
+                  <section className="gm-movement-main gm-table gm-table--movement oe-table">
+                    <div className="gm-table-head">
                       <div className="gm-table-th" style={{ paddingLeft: 10 }}>Descripción</div>
                       <div className="gm-table-th">Cant.</div>
                       <div className="gm-table-th right">Importe</div>
@@ -1648,10 +1645,10 @@ export default function ModalEditarEgreso({
                       <div className="gm-table-th" />
                     </div>
 
-                    <div className="mi-cr-table__rows gm-table-body">
+                    <div className="gm-table-body">
                       {(form.items || []).map((it) => (
-                        <div key={it.uid} className="mi-cr-row gm-table-row">
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--detalle gm-table-cell--detail">
+                        <div key={it.uid} className="gm-table-row">
+                          <div className="gm-table-cell gm-table-cell--detail">
                             <GlobalAutocomplete
                               value={it.detalle}
                               onChange={(val) =>
@@ -1680,7 +1677,7 @@ export default function ModalEditarEgreso({
                             />
                           </div>
 
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center stock_cant">
+                          <div className="gm-table-cell gm-table-cell--center stock_cant">
                             <input
                               className="gm-cell-input gm-cell-input--center"
                               type="text"
@@ -1694,7 +1691,7 @@ export default function ModalEditarEgreso({
                             />
                           </div>
 
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
+                          <div className="gm-table-cell gm-table-cell--center">
                             <input
                               className="gm-cell-input gm-cell-input--right"
                               type="text"
@@ -1733,7 +1730,7 @@ export default function ModalEditarEgreso({
                             />
                           </div>
 
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
+                          <div className="gm-table-cell gm-table-cell--center">
                             <select
                               className="gm-cell-input gm-cell-input--center gm-cell-input--select"
                               value={String(it.iva_pct)}
@@ -1753,18 +1750,18 @@ export default function ModalEditarEgreso({
                             </select>
                           </div>
 
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--soft gm-table-cell--soft">
+                          <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--soft">
                             {moneyARS(it.iva_monto)}
                           </div>
 
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--total-val gm-table-cell--total">
+                          <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--total">
                             {moneyARS(it.total)}
                           </div>
 
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center" id="delete_cell">
+                          <div className="gm-table-cell gm-table-cell--center" id="delete_cell">
                             <button
                               type="button"
-                              className="mi-cr-del"
+                              className="gm-row-delete"
                               onClick={() => removeItem(it.uid)}
                               disabled={saving || (form.items || []).length <= 1}
                               title="Eliminar ítem"
@@ -1776,8 +1773,8 @@ export default function ModalEditarEgreso({
                       ))}
                     </div>
 
-                    <div className="mi-cr-table__foot gm-table-foot">
-                      <div className="mi-cr-foot-actions">
+                    <div className="gm-table-foot">
+                      <div className="gm-foot-actions">
                         <button
                           type="button"
                           className="gm-foot-btn"
@@ -1788,16 +1785,16 @@ export default function ModalEditarEgreso({
                         </button>
                         <div className="gm-foot-sep" />
                       </div>
-                      <div className="mi-cr-totals">
-                        <div className="mi-cr-totalLine mi-cr-totalLine--sub">
+                      <div className="gm-summary-chips">
+                        <div className="gm-summary-chip gm-summary-chip--sub">
                           <span>Subtotal</span>
                           <b>{moneyARS(totalSubtotal)}</b>
                         </div>
-                        <div className="mi-cr-totalLine mi-cr-totalLine--iva">
+                        <div className="gm-summary-chip gm-summary-chip--iva">
                           <span>IVA</span>
                           <b>{moneyARS(totalIva)}</b>
                         </div>
-                        <div className="mi-cr-totalLine mi-cr-totalLine--total">
+                        <div className="gm-summary-chip gm-summary-chip--total">
                           <span>Total</span>
                           <b>{moneyARS(totalGeneral)}</b>
                         </div>
@@ -1805,8 +1802,8 @@ export default function ModalEditarEgreso({
                     </div>
                   </section>
                 ) : (
-                  <section className="mi-cr-table gm-table gm-table--movement oe-table" style={{ overflow: "hidden" }}>
-                    <div className="mi-cr-table__head gm-table-head">
+                  <section className="gm-movement-main gm-table gm-table--movement oe-table" style={{ overflow: "hidden" }}>
+                    <div className="gm-table-head">
                       <div style={{ paddingLeft: 10 }}>{chequeTitulo}</div>
                     </div>
 
@@ -1816,9 +1813,9 @@ export default function ModalEditarEgreso({
                       onUpdate={updateChequeField}
                     />
 
-                    <div className="mi-cr-table__foot gm-table-foot" style={{ justifyContent: "flex-end" }}>
-                      <div className="mi-cr-totals">
-                        <div className="mi-cr-totalLine mi-cr-totalLine--total">
+                    <div className="gm-table-foot" style={{ justifyContent: "flex-end" }}>
+                      <div className="gm-summary-chips">
+                        <div className="gm-summary-chip gm-summary-chip--total">
                           <span>Importe del cheque</span>
                           <b>{moneyARS(totalGeneral)}</b>
                         </div>
@@ -1827,7 +1824,7 @@ export default function ModalEditarEgreso({
                   </section>
                 )}
 
-                <div className="mi-cr-filters">
+                <div className="gm-movement-side">
                   <aside className="gm-aside">
                     <div className="gm-section">
                       <div className="gm-section-head">
@@ -1889,15 +1886,15 @@ export default function ModalEditarEgreso({
                           </div>
                         )}
 
-                        <div className="mi-uploadCard">
-                          <div className="mi-uploadCard__head">
-                            <div className="mi-uploadCard__title">Comprobante</div>
-                            <div className="mi-uploadCard__sub">
+                        <div className="gm-upload-card">
+                          <div className="gm-upload-card__head">
+                            <div className="gm-upload-card__title">Comprobante</div>
+                            <div className="gm-upload-card__sub">
                               Seleccioná, visualizá o quitá el archivo antes de guardar
                             </div>
                           </div>
 
-                          <div className="mi-uploadCard__body">
+                          <div className="gm-upload-card__body">
                             {loadingComprobante ? (
                               <div style={{ fontSize: 12, opacity: 0.75, padding: "6px 0" }}>
                                 Cargando comprobante…
@@ -1905,19 +1902,19 @@ export default function ModalEditarEgreso({
                             ) : (
                               <>
                                 {mostrarArchivoActual && (
-                                  <div className="mi-uploadFile is-filled">
-                                    <div className="mi-uploadFile__icon">
+                                  <div className="gm-upload-file is-filled">
+                                    <div className="gm-upload-file__icon">
                                       <FontAwesomeIcon icon={faFileInvoiceDollar} />
                                     </div>
-                                    <div className="mi-uploadFile__meta">
-                                      <div className="mi-uploadFile__name" title={nombreComprobanteVisible}>
+                                    <div className="gm-upload-file__meta">
+                                      <div className="gm-upload-file__name" title={nombreComprobanteVisible}>
                                         {nombreComprobanteVisible}
                                       </div>
                                     </div>
                                     <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
                                       <button
                                         type="button"
-                                        className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                        className="gm-upload-btn gm-upload-btn--ghost"
                                         onClick={abrirViewer}
                                         disabled={viewerBtnDisabled}
                                         title={loadingViewer ? "Cargando comprobante…" : "Ver comprobante"}
@@ -1929,7 +1926,7 @@ export default function ModalEditarEgreso({
                                       </button>
                                       <button
                                         type="button"
-                                        className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                        className="gm-upload-btn gm-upload-btn--ghost"
                                         onClick={marcarEliminar}
                                         disabled={saving}
                                         title="Quitar comprobante"
@@ -1941,22 +1938,22 @@ export default function ModalEditarEgreso({
                                 )}
 
                                 {archivoNuevo && (
-                                  <div className="mi-uploadFile is-filled">
-                                    <div className="mi-uploadFile__icon">
+                                  <div className="gm-upload-file is-filled">
+                                    <div className="gm-upload-file__icon">
                                       <FontAwesomeIcon icon={faFileInvoiceDollar} />
                                     </div>
-                                    <div className="mi-uploadFile__meta">
-                                      <div className="mi-uploadFile__name" title={NOMBRE_COMPROBANTE_GENERICO}>
+                                    <div className="gm-upload-file__meta">
+                                      <div className="gm-upload-file__name" title={NOMBRE_COMPROBANTE_GENERICO}>
                                         {NOMBRE_COMPROBANTE_GENERICO}
                                       </div>
-                                      <div className="mi-uploadFile__size">
+                                      <div className="gm-upload-file__size">
                                         {Math.max(1, Math.round((archivoNuevo.size || 0) / 1024))} KB
                                       </div>
                                     </div>
                                     <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
                                       <button
                                         type="button"
-                                        className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                        className="gm-upload-btn gm-upload-btn--ghost"
                                         onClick={abrirViewer}
                                         disabled={viewerBtnDisabled}
                                         title="Ver comprobante"
@@ -1965,7 +1962,7 @@ export default function ModalEditarEgreso({
                                       </button>
                                       <button
                                         type="button"
-                                        className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                        className="gm-upload-btn gm-upload-btn--ghost"
                                         onClick={quitarArchivoNuevo}
                                         disabled={saving}
                                         title="Quitar archivo"
@@ -1977,8 +1974,8 @@ export default function ModalEditarEgreso({
                                 )}
 
                                 {!mostrarArchivoActual && !archivoNuevo && (
-                                  <div className="mi-uploadFile is-empty">
-                                    <div className="mi-uploadFile__empty">
+                                  <div className="gm-upload-file is-empty">
+                                    <div className="gm-upload-file__empty">
                                       {marcarEliminarComprobante
                                         ? "El comprobante actual será eliminado al guardar"
                                         : "No hay comprobante seleccionado"}
@@ -1986,11 +1983,11 @@ export default function ModalEditarEgreso({
                                   </div>
                                 )}
 
-                                <div className="mi-uploadBar" style={{ marginTop: 10 }}>
+                                <div className="gm-upload-bar" style={{ marginTop: 10 }}>
                                   {marcarEliminarComprobante && !archivoNuevo && (
                                     <button
                                       type="button"
-                                      className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                      className="gm-upload-btn gm-upload-btn--ghost"
                                       onClick={restaurarComprobanteActual}
                                       disabled={saving}
                                     >
@@ -2007,7 +2004,7 @@ export default function ModalEditarEgreso({
                                   />
                                   <button
                                     type="button"
-                                    className="mi-uploadBar__btn mi-uploadBar__btn--primary"
+                                    className="gm-upload-btn gm-upload-btn--primary"
                                     onClick={() => inputFileRef.current?.click()}
                                     disabled={saving}
                                   >
@@ -2024,11 +2021,11 @@ export default function ModalEditarEgreso({
                       </div>
                     </div>
                   </aside>
-                  <div className="gm-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+                  <div className="gm-actions gm-actions--sticky">
                     <button
                       type="submit"
                       disabled={saving}
-                      className="mit-btn mit-btn--solid mit-btn--block"
+                      className="gm-action-btn gm-action-btn--save"
                     >
                       {saving ? "Guardando..." : "Guardar cambios"}
                     </button>
@@ -2036,7 +2033,7 @@ export default function ModalEditarEgreso({
                       type="button"
                       onClick={() => !saving && onClose?.()}
                       disabled={saving}
-                      className="mit-btn mit-btn--ghost mit-btn--block"
+                      className="gm-action-btn gm-action-btn--cancel"
                     >
                       Cancelar
                     </button>

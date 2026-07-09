@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import "../../../Global/Global_css/Global_Modals.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
-import "../../modalcss/globalmodalsmov.css";
+import "../RecibosModals.css";
 import "../../../Global/Global_css/roots.css";
-import "../../modalcss/AltasMovimientos.css";
 import BASE_URL from "../../../../config/config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -610,27 +608,27 @@ export default function ModalEditarRecibo({
 
   return createPortal(
     <>
-      <div className={`mi-modal__overlay ${darkOn ? "mi-modal__overlay--dark" : ""}`}>
+      <div className={`gm-modal-overlay ${darkOn ? "gm-modal-overlay--dark" : ""}`}>
         <div
-          className="mi-modal__container gm-modal-v2"
+          className={`gm-modal-container gm-modal-v2 rec-edit-modal ${darkOn ? "gm-modal-container--dark" : ""}`}
           id="mov--modaleditarrecibo"
           role="dialog"
           aria-modal="true"
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div className="mi-modal__header">
-            <div className="mi-modal__head-icon"><FontAwesomeIcon icon={faReceipt} /></div>
+          <div className="gm-modal-header">
+            <div className="gm-modal-head-icon"><FontAwesomeIcon icon={faReceipt} /></div>
 
-            <div className="mi-modal__head-left">
-              <h2 className="mi-modal__title">Editar recibo</h2>
-              <p className="mi-modal__subtitle">
+            <div className="gm-modal-head-left">
+              <h2 className="gm-modal-title">Editar recibo</h2>
+              <p className="gm-modal-subtitle">
                 Modificá la venta de cuenta corriente: fecha, cliente, producto, cantidad y precio.
               </p>
             </div>
 
             <button
               ref={closeBtnRef}
-              className="mi-modal__close"
+              className="gm-modal-close"
               onClick={() => !saving && onClose?.()}
               disabled={saving}
               type="button"
@@ -639,14 +637,14 @@ export default function ModalEditarRecibo({
             </button>
           </div>
 
-          <div className="mi-modal__content">
-            <div className="mi-er-layout">
-              <section className="mi-er-main">
-                <form onSubmit={submit} className="mi-er-form">
+          <div className="gm-modal-content">
+            <div className="gm-movement-layout rec-edit-layout">
+              <section className="gm-movement-main rec-edit-main">
+                <form onSubmit={submit} className="rec-edit-form">
                   <div className="gm-section">
                     <div className="gm-section-head"><div className="gm-section-dot" /><span>Producto</span></div>
                     <div className="gm-section-body">
-                      <div className="mi-er-rel">
+                      <div className="rec-edit-rel">
                         <div className="gm-field">
                           <input
                             className="gm-input"
@@ -662,7 +660,7 @@ export default function ModalEditarRecibo({
                         </div>
 
                         {!!filteredProductos.length && (
-                          <div className="mi-er-autocomplete">
+                          <div className="rec-edit-autocomplete">
                             {filteredProductos.map((prod) => {
                               const id = getProductoId(prod);
                               const nombre = getProductoNombre(prod);
@@ -670,7 +668,7 @@ export default function ModalEditarRecibo({
                                 <button
                                   key={`prod-${id}-${nombre}`}
                                   type="button"
-                                  className="mi-er-autocomplete__item"
+                                  className="rec-edit-autocomplete__item"
                                   onMouseDown={(e) => e.preventDefault()}
                                   onClick={() => handleSelectProducto(prod)}
                                 >
@@ -687,7 +685,7 @@ export default function ModalEditarRecibo({
                   <div className="gm-section">
                     <div className="gm-section-head"><div className="gm-section-dot" /><span>Cantidad y precio</span></div>
                     <div className="gm-section-body">
-                      <div className="mi-er-grid-3">
+                      <div className="rec-edit-grid-3">
                         <div className="gm-field">
                           <input
                             className="gm-input"
@@ -742,7 +740,7 @@ export default function ModalEditarRecibo({
                   <div className="gm-section">
                     <div className="gm-section-head"><div className="gm-section-dot" /><span>Cliente</span></div>
                     <div className="gm-section-body">
-                      <div className="mi-er-rel">
+                      <div className="rec-edit-rel">
                         <div className="gm-field">
                           <input
                             className="gm-input"
@@ -758,7 +756,7 @@ export default function ModalEditarRecibo({
                         </div>
 
                         {!!filteredClientes.length && (
-                          <div className="mi-er-autocomplete">
+                          <div className="rec-edit-autocomplete">
                             {filteredClientes.map((cli) => {
                               const id = getClienteId(cli);
                               const nombre = getClienteNombre(cli);
@@ -766,7 +764,7 @@ export default function ModalEditarRecibo({
                                 <button
                                   key={`cli-${id}-${nombre}`}
                                   type="button"
-                                  className="mi-er-autocomplete__item"
+                                  className="rec-edit-autocomplete__item"
                                   onMouseDown={(e) => e.preventDefault()}
                                   onClick={() => handleSelectCliente(cli)}
                                 >
@@ -782,7 +780,7 @@ export default function ModalEditarRecibo({
                 </form>
               </section>
 
-              <aside className="gm-aside">
+              <aside className="gm-movement-side gm-aside">
                 <div className="gm-section">
                   <div className="gm-section-head"><div className="gm-section-dot" /><span>Fecha</span></div>
                   <div className="gm-section-body">
@@ -812,11 +810,11 @@ export default function ModalEditarRecibo({
                   <div className="gm-section-head"><div className="gm-section-dot" /><span>Resumen del recibo</span></div>
                   <div className="gm-section-body">
                     <div className="gm-info-box">
-                      <div className="mi-er-summary-row"><FontAwesomeIcon icon={faCalendarDays} /><span><b>Fecha:</b> {form.fecha || "--"}</span></div>
-                      <div className="mi-er-summary-row"><FontAwesomeIcon icon={faUser} /><span><b>Cliente:</b> {resumen.cliente}</span></div>
-                      <div className="mi-er-summary-row"><FontAwesomeIcon icon={faBoxOpen} /><span><b>Producto:</b> {resumen.producto}</span></div>
-                      <div className="mi-er-summary-row"><FontAwesomeIcon icon={faReceipt} /><span><b>Cantidad:</b> {resumen.cantidad || "--"}</span></div>
-                      <div className="mi-er-summary-row"><FontAwesomeIcon icon={faDollarSign} /><span><b>Total:</b> {moneyARS(resumen.total)}</span></div>
+                      <div className="rec-edit-summary-row"><FontAwesomeIcon icon={faCalendarDays} /><span><b>Fecha:</b> {form.fecha || "--"}</span></div>
+                      <div className="rec-edit-summary-row"><FontAwesomeIcon icon={faUser} /><span><b>Cliente:</b> {resumen.cliente}</span></div>
+                      <div className="rec-edit-summary-row"><FontAwesomeIcon icon={faBoxOpen} /><span><b>Producto:</b> {resumen.producto}</span></div>
+                      <div className="rec-edit-summary-row"><FontAwesomeIcon icon={faReceipt} /><span><b>Cantidad:</b> {resumen.cantidad || "--"}</span></div>
+                      <div className="rec-edit-summary-row"><FontAwesomeIcon icon={faDollarSign} /><span><b>Total:</b> {moneyARS(resumen.total)}</span></div>
                     </div>
                   </div>
                 </div>
@@ -824,7 +822,7 @@ export default function ModalEditarRecibo({
                 <div className="gm-actions">
                   <button
                     type="button"
-                    className="mit-btn mit-btn--solid mi-er-action"
+                    className="gm-action-btn gm-action-btn--save rec-edit-action"
                     onClick={submit}
                     disabled={saving}
                   >
@@ -833,7 +831,7 @@ export default function ModalEditarRecibo({
 
                   <button
                     type="button"
-                    className="mit-btn mit-btn--ghost mi-er-action"
+                    className="gm-action-btn gm-action-btn--cancel rec-edit-action"
                     onClick={() => !saving && onClose?.()}
                     disabled={saving}
                   >
@@ -845,100 +843,6 @@ export default function ModalEditarRecibo({
           </div>
         </div>
       </div>
-
-      <style>{`
-        #mov--modaleditarrecibo .mi-er-layout{
-          flex:1;
-          min-height:0;
-          display:grid;
-          grid-template-columns:minmax(0,1fr) 430px;
-          gap:18px;
-          overflow:hidden;
-        }
-
-        #mov--modaleditarrecibo .mi-er-main{
-          min-width:0;
-          min-height:0;
-          border:1px solid var(--nv-border-md);
-          border-radius:14px;
-          background:var(--nv-bg);
-          box-shadow:var(--nv-shadow-sm);
-          overflow:auto;
-          padding:16px;
-        }
-
-        #mov--modaleditarrecibo .mi-er-form{
-          display:flex;
-          flex-direction:column;
-          gap:14px;
-        }
-
-        #mov--modaleditarrecibo .mi-er-rel{
-          position:relative;
-        }
-
-        #mov--modaleditarrecibo .mi-er-autocomplete{
-          position:absolute;
-          top:calc(100% + 6px);
-          left:0;
-          right:0;
-          z-index:50;
-          background:var(--nv-bg);
-          border:1px solid var(--nv-border-md);
-          border-radius:12px;
-          box-shadow:var(--nv-shadow-md);
-          overflow:hidden;
-          max-height:240px;
-          overflow-y:auto;
-        }
-
-        #mov--modaleditarrecibo .mi-er-autocomplete__item{
-          width:100%;
-          border:none;
-          background:transparent;
-          text-align:left;
-          padding:10px 12px;
-          font-size:13px;
-          color:var(--nv-text);
-          cursor:pointer;
-          transition:background .12s ease;
-          font-family:inherit;
-        }
-
-        #mov--modaleditarrecibo .mi-er-autocomplete__item:hover{
-          background:var(--nv-row-hover);
-        }
-
-        #mov--modaleditarrecibo .mi-er-grid-3{
-          display:grid;
-          grid-template-columns:1fr 1fr 1fr;
-          gap:12px;
-        }
-
-        #mov--modaleditarrecibo .mi-er-summary-row{
-          display:flex;
-          align-items:center;
-          gap:10px;
-          margin-bottom:12px;
-        }
-
-        #mov--modaleditarrecibo .mi-er-summary-row:last-child{
-          margin-bottom:0;
-        }
-
-        #mov--modaleditarrecibo .mi-er-action{
-          flex:1;
-        }
-
-        @media (max-width: 1100px){
-          #mov--modaleditarrecibo .mi-er-layout{
-            grid-template-columns:1fr;
-          }
-          #mov--modaleditarrecibo .mi-er-grid-3{
-            grid-template-columns:1fr;
-          }
-        }
-      `}</style>
     </>,
     document.body
   );

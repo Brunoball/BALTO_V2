@@ -1,13 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
-import "../../../Global/Global_css/Global_Modals.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
-import "../../modalcss/globalmodalsmov.css";
-import "../../../Global/Global_css/Global_responsive.css";
+import "../RecibosModals.css";
 import "../../../Global/Global_css/roots.css";
-import "../../modalcss/AltasMovimientos.css";
-import "./ModalPagarRecibos.css";
 import BASE_URL from "../../../../config/config";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -304,7 +300,7 @@ function buildEmptyMedioPago() {
 function EstadoChip({ row, pagado }) {
   const parcial = !pagado && getCobradoTotalRow(row) > 0.009;
   return (
-    <span className={`mpr-chip ${pagado ? "mpr-chip--ok" : "mpr-chip--warn"}`}>
+    <span className={`gm-status-chip ${pagado ? "gm-status-chip--ok" : "gm-status-chip--warn"}`}>
       {pagado ? "PAGADO" : parcial ? "PENDIENTE PARCIAL" : "PENDIENTE"}
     </span>
   );
@@ -1551,19 +1547,19 @@ export default function ModalPagarRecibos({
     mediosFilas.every((mp) => mp.id_medio_pago);
 
   const modalClass = [
-    "mi-modal__container",
-    "mi-modal__container--mov",
+    "gm-modal-container",
+    "gm-modal-container--movement",
     "gm-modal-v2",
-    "mpr-modal",
-    dark ? "mi-modal--dark" : "",
+    "gm-receipt-pay-modal",
+    dark ? "gm-modal-container--dark" : "",
   ]
     .join(" ")
     .trim();
 
   const overlayClass = [
-    "mi-modal__overlay",
-    "mi-modal__overlay--mov",
-    dark ? "mi-modal__overlay--dark" : "",
+    "gm-modal-overlay",
+    "gm-modal-overlay--movement",
+    dark ? "gm-modal-overlay--dark" : "",
   ]
     .join(" ")
     .trim();
@@ -1577,13 +1573,13 @@ export default function ModalPagarRecibos({
             ref={dialogRef}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div className="mi-modal__header">
-              <div className="mi-modal__head-icon" aria-hidden="true">
+            <div className="gm-modal-header">
+              <div className="gm-modal-head-icon" aria-hidden="true">
                 <FontAwesomeIcon icon={faMoneyBill1Wave} />
               </div>
-              <div className="mi-modal__head-left">
-                <h2 className="mi-modal__title">Pagar recibo</h2>
-                <p className="mi-modal__subtitle">
+              <div className="gm-modal-head-left">
+                <h2 className="gm-modal-title">Pagar recibo</h2>
+                <p className="gm-modal-subtitle">
                   {safeText(cliente?.cliente)}
                   {cliente?.id_cliente
                     ? ` · ID ${String(cliente.id_cliente)}`
@@ -1593,7 +1589,7 @@ export default function ModalPagarRecibos({
               <button
                 ref={firstFocusRef}
                 type="button"
-                className="mi-modal__close"
+                className="gm-modal-close"
                 onClick={onClose}
                 title="Cerrar"
                 disabled={isProcessing}
@@ -1602,26 +1598,26 @@ export default function ModalPagarRecibos({
               </button>
             </div>
 
-            <div className="mi-modal__content">
-              <div className="mi-cr-grid">
-                <section className="mi-cr-table gm-table mpr-table">
-                  <div className="mpr-thead gm-table-head">
-                    <div className="mpr-th gm-table-th mpr-th--sel gm-table-cell--center">Sel</div>
-                    <div className="mpr-th gm-table-th">Fecha</div>
-                    <div className="mpr-th gm-table-th mpr-th--desc">Descripción</div>
-                    <div className="mpr-th gm-table-th mpr-th--center gm-table-cell--center">Estado</div>
-                    <div className="mpr-th gm-table-th mpr-th--right gm-table-cell--right">Monto</div>
-                    <div className="mpr-th gm-table-th mpr-th--info gm-table-cell--center">Info</div>
+            <div className="gm-modal-content">
+              <div className="gm-movement-layout gm-receipt-pay-layout">
+                <section className="gm-movement-main gm-table gm-receipt-table">
+                  <div className={`gm-table-head gm-receipt-table-head ${tbodyHasScroll ? "gm-table-head--body-scroll" : ""}`}>
+                    <div className="gm-table-th gm-receipt-th gm-receipt-th--sel gm-table-cell--center">Sel</div>
+                    <div className="gm-table-th gm-receipt-th">Fecha</div>
+                    <div className="gm-table-th gm-receipt-th gm-receipt-th--desc">Descripción</div>
+                    <div className="gm-table-th gm-receipt-th gm-receipt-th--center gm-table-cell--center">Estado</div>
+                    <div className="gm-table-th gm-receipt-th gm-receipt-th--right gm-table-cell--right">Monto</div>
+                    <div className="gm-table-th gm-receipt-th gm-receipt-th--info gm-table-cell--center">Info</div>
                   </div>
 
                   <div
                     ref={tbodyRef}
-                    className={`mpr-tbody gm-table-body ${
-                      tbodyHasScroll ? "mpr-tbody--scroll" : ""
+                    className={`gm-receipt-table-body gm-table-body ${
+                      tbodyHasScroll ? "gm-table-body--scroll" : ""
                     }`}
                   >
                     {!deudasOrdenadas.length && (
-                      <div className="mpr-empty">
+                      <div className="gm-table-empty">
                         No hay registros para este cliente.
                       </div>
                     )}
@@ -1636,7 +1632,7 @@ export default function ModalPagarRecibos({
                       return (
                         <div
                           key={id || `${r?.fecha}-${idx}`}
-                          className={`mpr-row gm-table-row ${
+                          className={`gm-table-row gm-receipt-row ${
                             checked ? "is-checked" : ""
                           } ${pagado ? "is-paid" : ""}`}
                           role="row"
@@ -1648,11 +1644,11 @@ export default function ModalPagarRecibos({
                           }
                         >
                           <div
-                            className="mpr-td gm-table-cell mpr-td--sel gm-table-cell--center"
+                            className="gm-table-cell gm-receipt-td gm-receipt-td--sel gm-table-cell--center"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <label
-                              className={`mpr-check ${
+                              className={`gm-inline-check ${
                                 !id || isProcessing || pagado
                                   ? "is-disabled"
                                   : ""
@@ -1665,30 +1661,30 @@ export default function ModalPagarRecibos({
                                 disabled={!id || isProcessing || pagado}
                               />
                               <span
-                                className="mpr-check__box"
+                                className="gm-inline-check__box"
                                 aria-hidden="true"
                               />
                             </label>
                           </div>
-                          <div className="mpr-td gm-table-cell">
+                          <div className="gm-table-cell gm-receipt-td">
                             {safeText(formatFechaDMY(r?.fecha))}
                           </div>
                           <div
-                            className="mpr-td gm-table-cell mpr-td--desc"
+                            className="gm-table-cell gm-receipt-td gm-receipt-td--desc"
                             title={safeText(r?.detalle ?? r?.descripcion ?? r?.concepto)}
                           >
                             {productosLabel(r)}
                           </div>
-                          <div className="mpr-td gm-table-cell mpr-td--center gm-table-cell--center">
+                          <div className="gm-table-cell gm-receipt-td gm-receipt-td--center gm-table-cell--center">
                             <EstadoChip row={r} pagado={pagado} />
                           </div>
-                          <div className="mpr-td gm-table-cell mpr-td--right gm-table-cell--right mpr-td--mono gm-table-cell--mono">
+                          <div className="gm-table-cell gm-receipt-td gm-receipt-td--right gm-table-cell--right gm-table-cell--mono">
                             {moneyARS(saldoPendiente)}
                           </div>
-                          <div className="mpr-td gm-table-cell mpr-td--info gm-table-cell--center" onClick={(e) => e.stopPropagation()}>
+                          <div className="gm-table-cell gm-receipt-td gm-receipt-td--info gm-table-cell--center" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
-                              className="mpr-info-btn"
+                              className="gm-info-btn gm-receipt-info-btn"
                               onClick={() => abrirDetalleDeuda(r)}
                               title="Ver detalle de la deuda"
                               aria-label="Ver detalle de la deuda"
@@ -1701,18 +1697,18 @@ export default function ModalPagarRecibos({
                     })}
                   </div>
 
-                  <div className="mpr-tfoot gm-table-foot">
-                    <div className="mpr-tfoot-stats">
-                      <span className="mpr-stat">
+                  <div className="gm-table-foot gm-receipt-table-foot">
+                    <div className="gm-receipt-table-foot-stats">
+                      <span className="gm-table-stat gm-receipt-stat">
                         Total <b>{deudasOrdenadas.length}</b>
                       </span>
-                      <span className="mpr-stat-sep" />
-                      <span className="mpr-stat">
+                      <span className="gm-table-stat-sep" />
+                      <span className="gm-table-stat gm-receipt-stat">
                         Seleccionadas <b>{cantSeleccionadas}</b>
                       </span>
                     </div>
-                    <div className="mpr-tfoot-totals">
-                      <div className="mpr-total-pill">
+                    <div className="gm-receipt-table-foot-totals">
+                      <div className="gm-summary-chip gm-summary-chip--total gm-receipt-total-pill">
                         <span>Saldo seleccionado</span>
                         <b>{moneyARS(totalSeleccionado)}</b>
                       </div>
@@ -1720,7 +1716,7 @@ export default function ModalPagarRecibos({
                   </div>
                 </section>
 
-                <div className="mi-cr-filters">
+                <div className="gm-movement-side">
                   <aside className="gm-aside">
                     <div className="gm-section">
                       <div className="gm-section-head">
@@ -1731,17 +1727,13 @@ export default function ModalPagarRecibos({
                       <div className="gm-section-body">
                         <button
                           type="button"
-                          className="nv-foot-btn mpr-btn-selall"
-                          style={{
-                            width: "100%",
-                            justifyContent: "center",
-                          }}
+                          className="gm-action-btn gm-action-btn--secondary gm-action-btn--block gm-action-btn--soft gm-receipt-select-all-btn"
                           onClick={toggleAll}
                           disabled={
                             !deudasOrdenadas.length || isProcessing
                           }
                         >
-                          <span className="nv-foot-btn__icon">
+                          <span className="gm-action-btn__icon">
                             <FontAwesomeIcon
                               icon={faListCheck}
                               style={{ fontSize: 10 }}
@@ -1771,10 +1763,10 @@ export default function ModalPagarRecibos({
                     </div>
                   </aside>
 
-                  <div className="gm-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+                  <div className="gm-actions gm-receipt-actions">
                     <button
                       type="button"
-                      className="mit-btn mit-btn--solid mit-btn--block"
+                      className="gm-action-btn gm-action-btn--charge"
                       onClick={handleConfirm}
                       disabled={!canConfirm}
                     >
@@ -1794,7 +1786,7 @@ export default function ModalPagarRecibos({
 
                     <button
                       type="button"
-                      className="mit-btn mit-btn--ghost mit-btn--block"
+                      className="gm-action-btn gm-action-btn--cancel"
                       onClick={onClose}
                       disabled={isProcessing}
                     >

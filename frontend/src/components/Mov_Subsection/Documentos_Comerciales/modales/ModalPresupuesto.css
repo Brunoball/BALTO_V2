@@ -1,6 +1,6 @@
 /* =========================================================
    MODALES DE PRESUPUESTO — estilos propios
-   Usan base compartida: Global_Modals.css + modalcss/globalmodalsmov.css
+   Usan base compartida: GlobalsModalsV2.css + estilos locales propios
    Maneja: ModalNuevoPresupuesto y ModalAsignarPresupuestoVenta
    ========================================================= */
 
@@ -22,268 +22,82 @@
 }
 
 /* Tabla de productos del presupuesto */
-.presupuesto-modal__content .mi-cr-table,
-.dc-asignar-content .mi-cr-table {
+.presupuesto-modal__content .gm-table,
+.dc-asignar-content .gm-table {
   min-width: 0;
 }
 
-.presupuesto-modal__content .mi-cr-table__head > div,
-.presupuesto-modal__content .mi-cr-cell,
-.dc-asignar-content .mi-cr-table__head > div,
-.dc-asignar-content .mi-cr-cell {
+.presupuesto-modal__content .gm-table-head > div,
+.presupuesto-modal__content .gm-table-cell,
+.dc-asignar-content .gm-table-head > div,
+.dc-asignar-content .gm-table-cell {
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
 }
 
-.presupuesto-modal__content .mi-cr-table__head > div,
-.dc-asignar-content .mi-cr-table__head > div {
-  display: block;
-  min-width: 0;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.presupuesto-modal__content .mi-cr-cell:has(button),
-.dc-asignar-content .mi-cr-cell:has(button) {
+.presupuesto-modal__content .gm-table-cell:has(button),
+.dc-asignar-content .gm-table-cell:has(button) {
   overflow: visible;
 }
 
-.mi-cr-cell--detalle .mp-cell-input {
+/* Ajustes locales sobre piezas globales V2 */
+.presupuesto-modal .gm-cell-input,
+.dc-asignar-modal .gm-cell-input {
   width: 100%;
 }
 
-.mp-cell-input {
+.presupuesto-modal .gm-table-cell--detail .gm-cell-input,
+.dc-asignar-modal .gm-table-cell--detail .gm-cell-input {
   width: 100%;
-  height: 30px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  padding: 0 8px;
-  font-size: .875rem;
-  font-weight: 400;
-  color: var(--mp-text);
-  background: transparent;
-  outline: none;
-  transition: border-color .14s, background .14s, box-shadow .14s;
-  font-family: inherit;
-  text-align: left;
-  box-sizing: border-box;
 }
 
-.mp-cell-input:hover {
-  border-color: var(--mp-border);
-  background: var(--mp-bg);
-}
-
-.mp-cell-input:focus {
-  border-color: var(--mp-action);
-  background: var(--mp-bg);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mp-action) 10%, transparent);
-}
-
-.mp-cell-input--center { text-align: center; }
-.mp-cell-input--right { text-align: right; }
-.mp-cell-input--select { cursor: pointer; padding-right: 0; }
-
-.mp-foot-btn {
-  appearance: none;
-  height: 32px;
-  padding: 0 14px 0 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(0, 85, 187, .45);
-  background: rgba(0, 85, 187, .08);
-  color: var(--mp-action);
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  transition: background .14s, border-color .14s, color .14s, transform .14s;
-  font-family: inherit;
-  white-space: nowrap;
-}
-
-.mp-foot-btn svg { color: #fff; }
-
-.mp-foot-btn:hover {
-  background: rgba(0, 85, 187, .15);
-  border-color: rgba(0, 85, 187, .70);
-  color: #003f99;
-  transform: translateY(-1px);
-}
-
-.mp-foot-btn:disabled {
-  opacity: .38;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.mp-foot-btn__icon {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  background: var(--mp-action);
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  transition: background .14s;
-}
-
-.mp-foot-btn:hover .mp-foot-btn__icon { background: #003f99; }
-.mp-foot-sep { display: none; width: 1px; height: 16px; background: var(--mp-border); }
-
-html[data-theme="oscuro"] .mp-foot-btn,
-body.dark .mp-foot-btn {
-  background: rgba(0, 85, 187, .14);
-  border-color: rgba(0, 85, 187, .40);
-  color: #85B7EB;
-}
-
-html[data-theme="oscuro"] .mp-foot-btn:hover,
-body.dark .mp-foot-btn:hover {
-  background: rgba(0, 85, 187, .25);
-  border-color: rgba(0, 85, 187, .65);
-  color: #B5D4F4;
-}
-
-html[data-theme="oscuro"] .mp-foot-btn__icon,
-body.dark .mp-foot-btn__icon {
-  background: rgba(0, 85, 187, .70);
-}
-
-/* Aside / formularios propios de Presupuesto */
-.mp-aside {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
+.presupuesto-modal .gm-aside,
+.dc-asignar-modal .gm-aside {
   overflow-y: auto;
   overflow-x: visible;
 }
 
-.mp-section {
-  border: 1px solid var(--mp-border);
-  border-radius: 14px;
-  background: var(--mp-bg);
-  box-shadow: var(--mp-shadow-sm);
-  overflow: visible;
-}
-
-.mp-section-head {
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--mp-border);
-  color: var(--mp-muted);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-
-
-
-.mp-section-body {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  overflow: visible;
-}
-
-.mp-field {
-  position: relative;
-  margin: 0;
-  min-width: 0;
-}
-
-.mp-input {
-  width: 100%;
-  height: 42px;
-  border-radius: 12px;
-  border: 1px solid var(--mp-border-md);
-  background: var(--mp-bg);
-  color: var(--mp-text);
-  padding: 10px;
-  font-size: .92rem;
-  outline: none;
-  box-sizing: border-box;
-  transition: border-color .14s ease, box-shadow .14s ease, background .14s ease;
-}
-
-.mp-input:hover { border-color: var(--mp-border); }
-.mp-input:focus { border-color: var(--mp-action); box-shadow: 0 0 0 3px rgba(0, 85, 187, .10); }
-.mp-input:disabled { background: var(--mp-surface-2); opacity: .85; cursor: not-allowed; }
-.mp-select { cursor: pointer; appearance: none; }
-
-.mp-label {
-  position: absolute;
-  left: 12px;
-  top: 14px;
-  z-index: 1;
-  color: var(--mp-muted);
-  font-size: 13px;
-  line-height: 1;
-  pointer-events: none;
-  transform-origin: left top;
-  transition: top .14s ease, transform .14s ease, color .14s ease, background .14s ease;
-  padding: 0 4px;
-}
-
-.mp-input:focus + .mp-label,
-.mp-input:not(:placeholder-shown) + .mp-label,
-.mp-label--up {
-  top: -5px;
-  transform: translateY(0) scale(.82);
-  color: var(--mp-action);
-  background: var(--mp-bg);
-}
-
-.mp-prov-wrap {
+.dc-prov-wrap {
   position: relative;
   z-index: 300;
   overflow: visible !important;
 }
 
-.mp-prov-wrap:focus-within { z-index: 400; }
+.dc-prov-wrap:focus-within { z-index: 400; }
 
 /* Autocomplete cliente — centra el label cuando está vacío y lo flota al escribir/seleccionar */
-.mp-prov-wrap--cliente {
+.dc-prov-wrap--cliente {
   position: relative;
 }
 
-.mp-prov-wrap--cliente .mp-input--autocomplete {
+.dc-prov-wrap--cliente .dc-autocomplete-input {
   padding: 10px 12px;
 }
 
-.mp-prov-wrap--cliente .mp-label--autocomplete {
+.dc-prov-wrap--cliente .dc-label--autocomplete {
   top: 50%;
   transform: translateY(-50%);
   z-index: 5;
 }
 
-.mp-prov-wrap--cliente:focus-within .mp-label--autocomplete,
-.mp-prov-wrap--cliente.mp-prov-wrap--filled .mp-label--autocomplete {
+.dc-prov-wrap--cliente:focus-within .dc-label--autocomplete,
+.dc-prov-wrap--cliente.dc-prov-wrap--filled .dc-label--autocomplete {
   top: -5px;
   transform: translateY(0) scale(.82);
   color: var(--mp-action);
   background: var(--mp-bg);
 }
 
-html[data-theme="oscuro"] .mp-prov-wrap--cliente:focus-within .mp-label--autocomplete,
-html[data-theme="oscuro"] .mp-prov-wrap--cliente.mp-prov-wrap--filled .mp-label--autocomplete,
-body.dark .mp-prov-wrap--cliente:focus-within .mp-label--autocomplete,
-body.dark .mp-prov-wrap--cliente.mp-prov-wrap--filled .mp-label--autocomplete {
+html[data-theme="oscuro"] .dc-prov-wrap--cliente:focus-within .dc-label--autocomplete,
+html[data-theme="oscuro"] .dc-prov-wrap--cliente.dc-prov-wrap--filled .dc-label--autocomplete,
+body.dark .dc-prov-wrap--cliente:focus-within .dc-label--autocomplete,
+body.dark .dc-prov-wrap--cliente.dc-prov-wrap--filled .dc-label--autocomplete {
   color: rgba(140, 190, 255, .92);
   background: var(--mp-bg);
 }
 
-.mp-cc-info,
+.dc-info,
 .presupuesto-info {
   border: 1px solid var(--mp-border);
   border-radius: 12px;
@@ -295,44 +109,66 @@ body.dark .mp-prov-wrap--cliente.mp-prov-wrap--filled .mp-label--autocomplete {
   line-height: 1.35;
 }
 
-.mp-section-divider {
-  height: 1px;
-  background: var(--mp-border);
-  margin: 2px 0;
-}
-
-.mp-actions {
+.presupuesto-modal .gm-actions,
+.dc-asignar-modal .gm-actions {
   gap: 8px;
 }
 
-.mp-actions .mit-btn {
+.presupuesto-modal .gm-actions .mit-btn,
+.dc-asignar-modal .gm-actions .mit-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
 }
 
-html[data-theme="oscuro"] .mp-input,
-body.dark .mp-input {
-  background: rgba(255, 255, 255, .06);
-  border-color: rgba(255, 255, 255, .14);
-  color: rgba(255, 255, 255, .92);
+.dc-totals {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-html[data-theme="oscuro"] .mp-input:focus,
-body.dark .mp-input:focus {
-  border-color: rgba(0, 85, 187, .65);
-  box-shadow: 0 0 0 3px rgba(0, 85, 187, .18);
-}
-
-html[data-theme="oscuro"] .mp-input:focus + .mp-label,
-html[data-theme="oscuro"] .mp-input:not(:placeholder-shown) + .mp-label,
-html[data-theme="oscuro"] .mp-label--up,
-body.dark .mp-input:focus + .mp-label,
-body.dark .mp-input:not(:placeholder-shown) + .mp-label,
-body.dark .mp-label--up {
-  color: rgba(140, 190, 255, .92);
+.dc-total-line {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--mp-border);
+  border-radius: 999px;
   background: var(--mp-bg);
+  color: var(--mp-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dc-total-line b {
+  color: var(--mp-text);
+  font-family: 'DM Mono', 'Fira Mono', monospace;
+  font-size: 12px;
+}
+
+.dc-total-line--total {
+  border-color: rgba(0, 85, 187, .28);
+  background: rgba(0, 85, 187, .08);
+  color: var(--mp-action);
+}
+
+.dc-total-line--total b {
+  color: var(--mp-action);
+  font-weight: 800;
+}
+
+html[data-theme="oscuro"] .dc-total-line {
+  background: rgba(255, 255, 255, .06);
+  border-color: rgba(255, 255, 255, .10);
+}
+
+html[data-theme="oscuro"] .dc-total-line--total {
+  background: rgba(0, 85, 187, .18);
+  border-color: rgba(0, 85, 187, .38);
 }
 
 /* Nuevo Presupuesto — condiciones comerciales */
@@ -407,18 +243,18 @@ body.dark .mp-label--up {
 
 .presupuesto-terms__row--split .presupuesto-terms__block { min-width: 0; }
 
-.presupuesto-modal__content .mi-cr-table {
+.presupuesto-modal__content .gm-table {
   min-height: 0;
 }
 
-.presupuesto-modal__content .mi-cr-table__rows {
+.presupuesto-modal__content .gm-table-body {
   flex: 1 1 260px;
   min-height: 180px;
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms {
+.presupuesto-modal__content .gm-table > .presupuesto-terms {
   flex: 0 1 auto;
   width: 100%;
   max-width: 100%;
@@ -437,23 +273,23 @@ body.dark .mp-label--up {
   background: var(--mp-bg);
 }
 
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms *,
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms *::before,
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms *::after {
+.presupuesto-modal__content .gm-table > .presupuesto-terms *,
+.presupuesto-modal__content .gm-table > .presupuesto-terms *::before,
+.presupuesto-modal__content .gm-table > .presupuesto-terms *::after {
   box-sizing: border-box;
 }
 
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms .presupuesto-terms__row,
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms .presupuesto-terms__row--split {
+.presupuesto-modal__content .gm-table > .presupuesto-terms .presupuesto-terms__row,
+.presupuesto-modal__content .gm-table > .presupuesto-terms .presupuesto-terms__row--split {
   min-width: 0;
 }
 
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms .presupuesto-terms__textarea,
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms .mp-input {
+.presupuesto-modal__content .gm-table > .presupuesto-terms .presupuesto-terms__textarea,
+.presupuesto-modal__content .gm-table > .presupuesto-terms .gm-input {
   max-width: 100%;
 }
 
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms .presupuesto-terms__title {
+.presupuesto-modal__content .gm-table > .presupuesto-terms .presupuesto-terms__title {
   padding: 0 2px;
   color: var(--mp-text);
   font-size: 11px;
@@ -462,12 +298,12 @@ body.dark .mp-label--up {
   letter-spacing: .07em;
 }
 
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms .presupuesto-terms__field {
+.presupuesto-modal__content .gm-table > .presupuesto-terms .presupuesto-terms__field {
   position: relative;
   min-width: 0;
 }
 
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms .presupuesto-terms__textarea {
+.presupuesto-modal__content .gm-table > .presupuesto-terms .presupuesto-terms__textarea {
   width: 100%;
   min-height: 62px;
   height: auto;
@@ -476,24 +312,24 @@ body.dark .mp-label--up {
   line-height: 1.35;
 }
 
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms .presupuesto-terms__field--small .mp-input {
+.presupuesto-modal__content .gm-table > .presupuesto-terms .presupuesto-terms__field--small .gm-input {
   height: 42px;
   padding-top: 10px;
 }
 
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms textarea.mp-input + .mp-label {
+.presupuesto-modal__content .gm-table > .presupuesto-terms textarea.gm-input + .gm-label {
   top: 21px;
 }
 
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms textarea.mp-input:focus + .mp-label,
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms textarea.mp-input:not(:placeholder-shown) + .mp-label {
+.presupuesto-modal__content .gm-table > .presupuesto-terms textarea.gm-input:focus + .gm-label,
+.presupuesto-modal__content .gm-table > .presupuesto-terms textarea.gm-input:not(:placeholder-shown) + .gm-label {
   top: -5px;
   transform: translateY(0) scale(.82);
   color: var(--mp-action);
   background: var(--mp-bg);
 }
 
-.presupuesto-modal__content .mi-cr-table > .presupuesto-terms .presupuesto-terms__hint {
+.presupuesto-modal__content .gm-table > .presupuesto-terms .presupuesto-terms__hint {
   min-height: 42px;
   border-radius: 12px;
   border: 1px solid var(--mp-border-md);
@@ -513,16 +349,16 @@ body.dark .presupuesto-terms__hint {
   color: rgba(255, 255, 255, .92);
 }
 
-html[data-theme="oscuro"] .presupuesto-modal__content .mi-cr-table > .presupuesto-terms,
-body.dark .presupuesto-modal__content .mi-cr-table > .presupuesto-terms {
+html[data-theme="oscuro"] .presupuesto-modal__content .gm-table > .presupuesto-terms,
+body.dark .presupuesto-modal__content .gm-table > .presupuesto-terms {
   background: var(--mp-bg);
   border-top-color: rgba(255, 255, 255, .10);
 }
 
-html[data-theme="oscuro"] .presupuesto-modal__content .mi-cr-table > .presupuesto-terms textarea.mp-input:focus + .mp-label,
-html[data-theme="oscuro"] .presupuesto-modal__content .mi-cr-table > .presupuesto-terms textarea.mp-input:not(:placeholder-shown) + .mp-label,
-body.dark .presupuesto-modal__content .mi-cr-table > .presupuesto-terms textarea.mp-input:focus + .mp-label,
-body.dark .presupuesto-modal__content .mi-cr-table > .presupuesto-terms textarea.mp-input:not(:placeholder-shown) + .mp-label {
+html[data-theme="oscuro"] .presupuesto-modal__content .gm-table > .presupuesto-terms textarea.gm-input:focus + .gm-label,
+html[data-theme="oscuro"] .presupuesto-modal__content .gm-table > .presupuesto-terms textarea.gm-input:not(:placeholder-shown) + .gm-label,
+body.dark .presupuesto-modal__content .gm-table > .presupuesto-terms textarea.gm-input:focus + .gm-label,
+body.dark .presupuesto-modal__content .gm-table > .presupuesto-terms textarea.gm-input:not(:placeholder-shown) + .gm-label {
   color: rgba(140, 190, 255, .92);
   background: var(--mp-bg);
 }
@@ -550,17 +386,6 @@ body.dark .presupuesto-modal__content .mi-cr-table > .presupuesto-terms textarea
   min-height: 0;
   height: 100%;
   overflow: hidden;
-}
-
-.dc-asignar-products__head,
-.dc-asignar-product-row {
-  grid-template-columns: minmax(230px, 1fr) 72px 116px 76px 124px !important;
-}
-
-@media (min-width: 921px) {
-  .dc-asignar-modal .dc-asignar-product-row {
-    grid-template-columns: 2.4fr 72px 1fr 80px 1fr 1fr 36px !important;
-  }
 }
 
 .dc-asignar-products__rows {
@@ -600,7 +425,7 @@ body.dark .presupuesto-modal__content .mi-cr-table > .presupuesto-terms textarea
   background: var(--mp-surface-2);
 }
 
-.dc-asignar-side .mp-aside {
+.dc-asignar-side .gm-aside {
   display: grid;
   gap: 12px;
 }
@@ -707,7 +532,7 @@ body.dark .presupuesto-modal__content .mi-cr-table > .presupuesto-terms textarea
   display: block;
 }
 
-.dc-asignar-modal .mp-section-divider { margin-top: 2px; }
+.dc-asignar-modal .gm-section-divider { margin-top: 2px; }
 
 .dc-asignar-modal .dc-asignar-readonly-input,
 .dc-asignar-modal .dc-asignar-readonly-input span,
@@ -720,12 +545,12 @@ body.dark .presupuesto-modal__content .mi-cr-table > .presupuesto-terms textarea
   text-overflow: ellipsis;
 }
 
-.mp-mp-readonly-panel {
+.dc-payment-readonly-panel {
   display: grid;
   gap: 10px;
 }
 
-.mp-mp-cheques-loading {
+.dc-cheques-loading {
   color: var(--mp-muted);
   font-size: 12px;
   font-weight: 700;
@@ -736,35 +561,73 @@ body.dark .dc-asignar-head-subtitle {
   color: rgba(210, 220, 235, .68);
 }
 
-@media (max-width: 920px) {
-  .dc-asignar-products__head { display: none !important; }
 
-  .dc-asignar-product-row {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 8px;
-    padding: 12px;
-  }
-
-  .dc-asignar-product-row .mi-cr-cell:first-child { grid-column: 1 / -1; }
-
-  .dc-asignar-products__foot {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .dc-asignar-products__foot .mi-cr-totals {
-    justify-content: stretch;
-    flex-wrap: wrap;
-  }
+/* =========================================================
+   Corrección tabla Documentos Comerciales sobre Global V2
+   ---------------------------------------------------------
+   Usa la misma estructura real que Ventas/Compras:
+   gm-table--movement + gm-table-th + gm-row-delete + gm-summary-chip.
+   Acá quedan solo columnas y detalles propios del presupuesto.
+========================================================= */
+.dc-presupuesto-table .gm-table-head,
+.dc-presupuesto-table .gm-table-row,
+.dc-asignar-products .gm-table-head,
+.dc-asignar-products .gm-table-row {
+  grid-template-columns: minmax(210px, 2.4fr) 72px minmax(108px, 1fr) 80px minmax(92px, 1fr) minmax(96px, 1fr) 36px !important;
 }
 
-@media (max-width: 720px) {
-  .presupuesto-terms__row,
-  .presupuesto-terms__row--split {
-    grid-template-columns: 1fr;
+.dc-presupuesto-table .gm-table-th.right,
+.dc-asignar-products .gm-table-th.right {
+  text-align: right;
+}
+
+.dc-presupuesto-table .gm-table-head,
+.dc-asignar-products .gm-table-head {
+  border-bottom: 1px solid var(--gm-border);
+}
+
+.dc-presupuesto-table .gm-table-row,
+.dc-asignar-products .gm-table-row {
+  min-height: 54px;
+}
+
+.dc-presupuesto-table #delete_cell,
+.dc-asignar-products #delete_cell {
+  padding: 0 !important;
+}
+
+.dc-presupuesto-table .stock_cant,
+.dc-asignar-products .stock_cant {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dc-presupuesto-table .gm-cell-input--select,
+.dc-asignar-products .gm-cell-input--select {
+  min-width: 0;
+}
+
+.dc-presupuesto-table .gm-row-delete.dc-row-delete {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+}
+
+.dc-presupuesto-table .gm-summary-chips,
+.dc-asignar-products .gm-summary-chips {
+  margin-left: auto;
+}
+
+@media (max-width: 980px) {
+  .dc-presupuesto-table .gm-table-head,
+  .dc-presupuesto-table .gm-table-row,
+  .dc-asignar-products .gm-table-head,
+  .dc-asignar-products .gm-table-row {
+    grid-template-columns: minmax(190px, 2.2fr) 66px minmax(96px, .9fr) 72px minmax(84px, .85fr) minmax(92px, .95fr) 34px !important;
   }
-
-  .presupuesto-modal__content .mi-cr-table__rows { min-height: 220px; }
-
-  .presupuesto-modal__content .mi-cr-table > .presupuesto-terms { max-height: 42vh; }
 }

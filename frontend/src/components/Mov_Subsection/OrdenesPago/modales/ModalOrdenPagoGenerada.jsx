@@ -1,10 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import "../../../Global/Global_css/Global_Modals.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
-import "../../modalcss/globalmodalsmov.css";
+import "../OrdenesPagoModals.css";
 import "../../../Global/Global_css/roots.css";
-import "../../Recibos/modales/ModalPagarRecibos.css";
 import BASE_URL from "../../../../config/config";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -652,8 +650,8 @@ export default function ModalOrdenPagoGenerada({
 
   if (!open) return null;
 
-  const overlayClass = "mi-modal__overlay mi-modal__overlay--mov";
-  const modalClass = "mi-modal__container mi-modal__container--mov gm-modal-v2 mpr-modal";
+  const overlayClass = "gm-modal-overlay";
+  const modalClass = "gm-modal-container gm-modal-container--movement gm-modal-v2";
 
   return createPortal(
     <div
@@ -667,21 +665,19 @@ export default function ModalOrdenPagoGenerada({
         style={{ width: "min(980px, 96vw)", maxWidth: "980px" }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="mi-modal__header mpr-header">
-          <div className="mpr-headLeft">
-            <div className="mi-modal__title mpr-title">
-              <span>{title}</span>
-            </div>
-            <div className="mi-modal__subtitle mpr-subtitle">
+        <div className="gm-modal-header gm-view-header">
+          <div className="gm-view-head-left">
+            <h2 className="gm-modal-title gm-view-title">{title}</h2>
+            <p className="gm-modal-subtitle gm-view-subtitle">
               Vista previa · X / ESC / Finalizar guardan y cierran todo igual
               {autoSaving ? " · guardando en segundo plano…" : ""}
-            </div>
+            </p>
           </div>
 
           <button
             ref={firstFocusRef}
             type="button"
-            className="mi-modal__close"
+            className="gm-modal-close"
             onClick={handleCloseOnly}
             title="Guardar y cerrar"
             disabled={busy}
@@ -690,8 +686,8 @@ export default function ModalOrdenPagoGenerada({
           </button>
         </div>
 
-        <div className="mi-modal__body mpr-body">
-          <div className="mpr-content">
+        <div className="gm-modal-content gm-view-body">
+          <div className="gm-view-content">
             {saveError ? (
               <div
                 style={{
@@ -716,8 +712,8 @@ export default function ModalOrdenPagoGenerada({
               </div>
             ) : null}
 
-            <div className="mpr-card mpr-viewCard">
-              <div className="mpr-previewScroll">
+            <div className="gm-view-card">
+              <div className="gm-view-preview gm-view-preview--html">
                 <div
                   ref={previewRef}
                   style={{ background: "#fff", padding: 12, borderRadius: 10 }}
@@ -732,10 +728,11 @@ export default function ModalOrdenPagoGenerada({
           </div>
         </div>
 
-        <div className="mi-modal__footer mpr-footer mpr-footer--OP">
+        <div className="gm-view-footer">
+          <div className="gm-view-footer-actions">
           <button
             type="button"
-            className="mit-btn mit-btn--solid mit-btn--block"
+            className="gm-action-btn gm-action-btn--secondary"
             id="maxBTN"
             onClick={handlePrint}
             disabled={busy}
@@ -746,7 +743,7 @@ export default function ModalOrdenPagoGenerada({
 
           <button
             type="button"
-            className="mit-btn mit-btn--ghost mit-btn--block"
+            className="gm-action-btn gm-action-btn--secondary"
             id="maxBTN"
             onClick={handleExportPdf}
             disabled={busy}
@@ -757,7 +754,7 @@ export default function ModalOrdenPagoGenerada({
 
           <button
             type="button"
-            className="mit-btn mit-btn--solid mit-btn--block"
+            className="gm-action-btn gm-action-btn--save"
             id="maxBTN"
             onClick={handleFinalizar}
             disabled={busy}
@@ -765,6 +762,7 @@ export default function ModalOrdenPagoGenerada({
             <FontAwesomeIcon icon={busy ? faCircleNotch : faCheck} spin={busy} />{" "}
             {busy ? "Guardando…" : "Finalizar"}
           </button>
+          </div>
         </div>
 
         <div

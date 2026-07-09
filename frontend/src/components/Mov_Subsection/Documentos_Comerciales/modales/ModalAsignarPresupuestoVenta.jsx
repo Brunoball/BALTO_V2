@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import "../../../Global/Global_css/Global_Modals.css";
-import "../../modalcss/globalmodalsmov.css";
+import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalPresupuesto.css";
-import "../../modalcss/AltasMovimientos.css";
 import BASE_URL from "../../../../config/config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -665,14 +663,14 @@ function ReadOnlyMediosPagoVenta({ mediosFilas, mediosPagoList, totalCompra }) {
 
   if (!rows.length) {
     return (
-      <div className="mp-cc-info">
+      <div className="dc-info">
         No se encontraron medios de pago vinculados a la venta generada.
       </div>
     );
   }
 
   return (
-    <div className="mp-mp-readonly-panel" style={{ display: "grid", gap: 10 }}>
+    <div className="dc-payment-readonly-panel" style={{ display: "grid", gap: 10 }}>
       <div style={{ fontSize: 12, fontWeight: 800, color: "#34495e", textTransform: "uppercase", letterSpacing: ".04em" }}>
         Medio de pago asignado
       </div>
@@ -1466,24 +1464,24 @@ export default function ModalAsignarPresupuestoVenta({
 
   const modal = (
     <>
-      <div className="mi-modal__overlay dc-asignar-overlay" onMouseDown={handleBackdrop}>
+      <div className="gm-modal-overlay dc-asignar-overlay" onMouseDown={handleBackdrop}>
         <div
-          className="mi-modal__container mi-modal__container--mov dc-asignar-modal"
+          className="gm-modal-container gm-modal-container--movement gm-modal-v2 dc-asignar-modal"
           role="dialog"
           aria-modal="true"
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div className="mi-modal__header">
-            <div className="mi-modal__head-icon" aria-hidden="true">
+          <div className="gm-modal-header">
+            <div className="gm-modal-head-icon" aria-hidden="true">
               <FontAwesomeIcon icon={faFileInvoiceDollar} />
             </div>
-            <div className="mi-modal__head-left">
-              <h2 className="mi-modal__title">Asignar como venta</h2>
+            <div className="gm-modal-head-left">
+              <h2 className="gm-modal-title">Asignar como venta</h2>
               <p className="dc-asignar-head-subtitle">
                 Convertí el presupuesto en una venta respetando cliente, detalle y productos.
               </p>
             </div>
-            <button type="button" className="mi-modal__close" onClick={onClose} disabled={saving} aria-label="Cerrar">
+            <button type="button" className="gm-modal-close" onClick={onClose} disabled={saving} aria-label="Cerrar">
               ✕
             </button>
           </div>
@@ -1498,25 +1496,25 @@ export default function ModalAsignarPresupuestoVenta({
             </div>
           ) : null}
 
-          <div className="mi-modal__content dc-asignar-content">
+          <div className="gm-modal-content dc-asignar-content">
             {loading ? (
               <div className="dc-asignar-loading">
                 <FontAwesomeIcon icon={faSpinner} spin /> Cargando datos del presupuesto…
               </div>
             ) : (
-              <div className="mi-cr-grid dc-asignar-grid">
-                <section className="mi-cr-table dc-asignar-products">
-                  <div className="mi-cr-table__head">
-                    <div style={{ paddingLeft: 10 }}>Detalle</div>
-                    <div>Cant.</div>
-                    <div className="right">Precio</div>
-                    <div>IVA %</div>
-                    <div className="right">IVA $</div>
-                    <div className="right">Total</div>
-                    <div />
+              <div className="gm-movement-layout dc-asignar-grid">
+                <section className="gm-table gm-table--movement gm-movement-main dc-asignar-products">
+                  <div className="gm-table-head">
+                    <div className="gm-table-th" style={{ paddingLeft: 10 }}>Detalle</div>
+                    <div className="gm-table-th">Cant.</div>
+                    <div className="gm-table-th right">Precio</div>
+                    <div className="gm-table-th">IVA %</div>
+                    <div className="gm-table-th right">IVA $</div>
+                    <div className="gm-table-th right">Total</div>
+                    <div className="gm-table-th" />
                   </div>
 
-                  <div className="mi-cr-table__rows dc-asignar-products__rows">
+                  <div className="gm-table-body dc-asignar-products__rows">
                     {items.map((it) => {
                       const itemCantidad = safeNumber(it.cantidad);
                       const itemPrecio = safeNumber(it.precio);
@@ -1526,17 +1524,17 @@ export default function ModalAsignarPresupuestoVenta({
                       const itemTotal = safeNumber(it.total) || itemSubtotal + itemIvaMonto;
 
                       return (
-                        <div key={it.id} className="mi-cr-row dc-asignar-product-row">
-                          <div className="mi-cr-cell mi-cr-cell--detalle">
-                            <div className="mp-cell-input dc-asignar-readonly-input dc-asignar-readonly-input--detalle">
+                        <div key={it.id} className="gm-table-row dc-asignar-product-row">
+                          <div className="gm-table-cell gm-table-cell--detail">
+                            <div className="gm-cell-input dc-asignar-readonly-input dc-asignar-readonly-input--detalle">
                               <span>{safeText(it.descripcion)}</span>
                               {it.codigo ? <small>Código: {it.codigo}</small> : null}
                             </div>
                           </div>
 
-                          <div className="mi-cr-cell mi-cr-cell--center stock_cant">
+                          <div className="gm-table-cell gm-table-cell--center stock_cant">
                             <input
-                              className="mp-cell-input mp-cell-input--center dc-asignar-readonly-field-input"
+                              className="gm-cell-input gm-cell-input--center dc-asignar-readonly-field-input"
                               type="text"
                               value={itemCantidad.toLocaleString("es-AR")}
                               readOnly
@@ -1544,9 +1542,9 @@ export default function ModalAsignarPresupuestoVenta({
                             />
                           </div>
 
-                          <div className="mi-cr-cell mi-cr-cell--center">
+                          <div className="gm-table-cell gm-table-cell--center">
                             <input
-                              className="mp-cell-input mp-cell-input--right dc-asignar-readonly-field-input"
+                              className="gm-cell-input gm-cell-input--right dc-asignar-readonly-field-input"
                               type="text"
                               value={moneyARS(itemPrecio)}
                               readOnly
@@ -1554,9 +1552,9 @@ export default function ModalAsignarPresupuestoVenta({
                             />
                           </div>
 
-                          <div className="mi-cr-cell mi-cr-cell--center">
+                          <div className="gm-table-cell gm-table-cell--center">
                             <input
-                              className="mp-cell-input mp-cell-input--center dc-asignar-readonly-field-input"
+                              className="gm-cell-input gm-cell-input--center dc-asignar-readonly-field-input"
                               type="text"
                               value={`${itemIvaPct.toLocaleString("es-AR")}%`}
                               readOnly
@@ -1564,13 +1562,13 @@ export default function ModalAsignarPresupuestoVenta({
                             />
                           </div>
 
-                          <div className="mi-cr-cell mi-cr-cell--right mi-cr-cell--mono mi-cr-cell--soft">
+                          <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--soft">
                             {moneyARS(itemIvaMonto)}
                           </div>
-                          <div className="mi-cr-cell mi-cr-cell--right mi-cr-cell--mono mi-cr-cell--total-val">
+                          <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--total">
                             {moneyARS(itemTotal)}
                           </div>
-                          <div className="mi-cr-cell mi-cr-cell--center" id="delete_cell">
+                          <div className="gm-table-cell gm-table-cell--center" id="delete_cell">
                             <span className="dc-asignar-row-lock" aria-hidden="true" />
                           </div>
                         </div>
@@ -1581,24 +1579,24 @@ export default function ModalAsignarPresupuestoVenta({
                     ) : null}
                   </div>
 
-                  <div className="mi-cr-table__foot dc-asignar-products__foot">
-                    <div className="mi-cr-foot-actions">
+                  <div className="gm-table-foot dc-asignar-products__foot">
+                    <div className="gm-foot-actions">
                       <div className="dc-asignar-doc-chip">
                         <span>Documento</span>
                         <b>N° {idPresupuesto || "—"}</b>
                       </div>
-                      <div className="mp-foot-sep" />
+                      <div className="gm-foot-sep" />
                     </div>
-                    <div className="mi-cr-totals">
-                      <div className="mi-cr-totalLine mi-cr-totalLine--sub">
+                    <div className="gm-summary-chips">
+                      <div className="gm-summary-chip gm-summary-chip--sub">
                         <span>Subtotal</span>
                         <b>{moneyARS(subtotal)}</b>
                       </div>
-                      <div className="mi-cr-totalLine mi-cr-totalLine--iva">
+                      <div className="gm-summary-chip gm-summary-chip--iva">
                         <span>IVA</span>
                         <b>{moneyARS(ivaTotal)}</b>
                       </div>
-                      <div className="mi-cr-totalLine mi-cr-totalLine--total">
+                      <div className="gm-summary-chip gm-summary-chip--total">
                         <span>Total</span>
                         <b>{moneyARS(total)}</b>
                       </div>
@@ -1606,24 +1604,24 @@ export default function ModalAsignarPresupuestoVenta({
                   </div>
                 </section>
 
-                <div className="mi-cr-filters dc-asignar-side">
-                  <aside className="mp-aside">
-                    <div className="mp-section">
-                      <div className="mp-section-head">
-                        <div className="mp-section-dot" />
+                <div className="gm-movement-side dc-asignar-side">
+                  <aside className="gm-aside">
+                    <div className="gm-section">
+                      <div className="gm-section-head">
+                        <div className="gm-section-dot" />
                         <span>Datos de venta</span>
                       </div>
 
-                      <div className="mp-section-body">
+                      <div className="gm-section-body">
                         <div
-                          className="mp-field dc-asignar-date-field"
+                          className="gm-field dc-asignar-date-field"
                           onClick={() => {
                             if (!saving) document.getElementById("dc-asignar-fecha")?.showPicker?.();
                           }}
                         >
                           <input
                             id="dc-asignar-fecha"
-                            className="mp-input"
+                            className="gm-input"
                             type="date"
                             placeholder=" "
                             value={fecha}
@@ -1631,12 +1629,12 @@ export default function ModalAsignarPresupuestoVenta({
                             onChange={(e) => setFecha(clampFechaHastaHoy(e.target.value))}
                             disabled={saving || convertido}
                           />
-                          <label className="mp-label">Fecha</label>
+                          <label className="gm-label">Fecha</label>
                         </div>
 
-                        <div className="mp-field dc-asignar-readonly-field">
+                        <div className="gm-field dc-asignar-readonly-field">
                           <select
-                            className="mp-input mp-select"
+                            className="gm-input gm-select"
                             value="cliente-presupuesto"
                             disabled
                             title="El cliente viene del presupuesto seleccionado y no se puede cambiar."
@@ -1645,13 +1643,13 @@ export default function ModalAsignarPresupuestoVenta({
                               {safeText(clienteBase.nombre || clienteBase.razon_social)}
                             </option>
                           </select>
-                          <label className="mp-label mp-label--up">Cliente *</label>
+                          <label className="gm-label gm-label--up">Cliente *</label>
                         </div>
 
                         {convertido ? (
-                          <div className="mp-field dc-asignar-readonly-field">
+                          <div className="gm-field dc-asignar-readonly-field">
                             <input
-                              className="mp-input"
+                              className="gm-input"
                               type="text"
                               value={safeText(
                                 tipoVentaSelected?.nombre ||
@@ -1663,12 +1661,12 @@ export default function ModalAsignarPresupuestoVenta({
                               readOnly
                               disabled
                             />
-                            <label className="mp-label mp-label--up">Tipo de pago *</label>
+                            <label className="gm-label gm-label--up">Tipo de pago *</label>
                           </div>
                         ) : (
-                          <div className="mp-field">
+                          <div className="gm-field">
                             <select
-                              className="mp-input mp-select"
+                              className="gm-input gm-select"
                               value={idTipoVenta}
                               onChange={(e) => setIdTipoVenta(e.target.value)}
                               disabled={saving}
@@ -1679,14 +1677,14 @@ export default function ModalAsignarPresupuestoVenta({
                                 return <option key={id || safeStr(t.nombre)} value={id || ""}>{safeText(t.nombre || t.descripcion || t.detalle)}</option>;
                               })}
                             </select>
-                            <label className={`mp-label${idTipoVenta ? " mp-label--up" : ""}`}>Tipo de pago *</label>
+                            <label className={`gm-label${idTipoVenta ? " gm-label--up" : ""}`}>Tipo de pago *</label>
                           </div>
                         )}
 
 
 
                         {isCuentaCorriente && !convertido ? (
-                          <div className="mp-cc-info">
+                          <div className="dc-info">
                             Quedará registrada como <b>pendiente de cobro</b> en la cuenta corriente del cliente.
                           </div>
                         ) : null}
@@ -1712,14 +1710,14 @@ export default function ModalAsignarPresupuestoVenta({
 
                         {shouldNeedFiscalPanel ? (
                           <>
-                            <div className="mp-section-divider" />
+                            <div className="gm-section-divider" />
 
                             {fiscalLoading ? (
-                              <div className="mp-mp-cheques-loading">Consultando datos fiscales…</div>
+                              <div className="dc-cheques-loading">Consultando datos fiscales…</div>
                             ) : (
-                              <div className="mp-field">
+                              <div className="gm-field">
                                 <input
-                                  className="mp-input"
+                                  className="gm-input"
                                   value={fiscalCuitInput}
                                   maxLength={11}
                                   onChange={(e) => {
@@ -1730,7 +1728,7 @@ export default function ModalAsignarPresupuestoVenta({
                                   disabled={saving}
                                   inputMode="numeric"
                                 />
-                                <label className={`mp-label${fiscalCuitInput ? " mp-label--up" : ""}`}>CUIT *</label>
+                                <label className={`gm-label${fiscalCuitInput ? " gm-label--up" : ""}`}>CUIT *</label>
                               </div>
                             )}
                           </>
@@ -1739,7 +1737,7 @@ export default function ModalAsignarPresupuestoVenta({
                     </div>
                   </aside>
 
-                  <div className="mp-actions mi-cr-filters__actions mi-cr-filters__actions--sticky dc-asignar-actions">
+                  <div className="gm-actions gm-actions--sticky dc-asignar-actions">
                     <button type="button" className="mit-btn mit-btn--solid mit-btn--block" onClick={guardarComoVenta} disabled={saving || loading || convertido}>
                       {saving ? <FontAwesomeIcon icon={faSpinner} spin /> : <FontAwesomeIcon icon={faFloppyDisk} />}
                       Guardar

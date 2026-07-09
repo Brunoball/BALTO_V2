@@ -1,13 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
-import "../../../Global/Global_css/Global_Modals.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "./ModalCompra.css";
-import "../../modalcss/globalmodalsmov.css";
-import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
-import "../../modalcss/AltasMovimientos.css";
 import BASE_URL from "../../../../config/config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
@@ -476,7 +472,7 @@ function MedioPagoInlineCompraRow({
               esEcheq={esEcheq}
             />
           )}
-          {chequesSeleccionados.length > 0 && <div className="mi-uploadCard__sub">✓ {chequesSeleccionados.length} cheque(s) — {moneyARS(importeCheques)}</div>}
+          {chequesSeleccionados.length > 0 && <div className="gm-upload-card__sub">✓ {chequesSeleccionados.length} cheque(s) — {moneyARS(importeCheques)}</div>}
         </div>
       )}
     </div>
@@ -873,34 +869,34 @@ function AddCatalogMiniModal({ open, title, value, saving, onChange, onCancel, o
   if (!open) return null;
 
   return createPortal(
-    <div className="mi-mini__overlay">
-      <div className="mi-mini__modal" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="mi-mini__head">
-          <h4 className="mi-mini__title">{title}</h4>
-          <button type="button" className="mi-mini__close" onClick={onCancel} disabled={saving} aria-label="Cerrar">
+    <div className="gm-mini-overlay">
+      <div className="gm-mini-modal" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="gm-mini-head">
+          <h4 className="gm-mini-title">{title}</h4>
+          <button type="button" className="gm-mini-close" onClick={onCancel} disabled={saving} aria-label="Cerrar">
             ✕
           </button>
         </div>
 
-        <div className="mi-mini__body">
-          <div className="fl-field">
+        <div className="gm-mini-body">
+          <div className="gm-field">
             <input
               ref={inputRef}
-              className="fl-input"
+              className="gm-input"
               placeholder=" "
               value={value}
               onChange={(e) => onChange?.(e.target.value)}
               disabled={saving}
               autoComplete="off"
             />
-            <label className="fl-label">Nombre</label>
+            <label className={`gm-label${value ? " gm-label--up" : ""}`}>Nombre</label>
           </div>
 
-          <div className="mi-mini__actions">
-            <button type="button" className="mit-btn mit-btn--ghost" onClick={onCancel} disabled={saving}>
+          <div className="gm-mini-actions">
+            <button type="button" className="gm-action-btn gm-action-btn--cancel" onClick={onCancel} disabled={saving}>
               Cancelar
             </button>
-            <button type="button" className="mit-btn mit-btn--solid" onClick={onSave} disabled={saving}>
+            <button type="button" className="gm-action-btn gm-action-btn--save" onClick={onSave} disabled={saving}>
               {saving ? "Guardando..." : "Guardar"}
             </button>
           </div>
@@ -1762,23 +1758,23 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
 
   return createPortal(
     <>
-      <div className="mi-modal__overlay">
+      <div className="gm-modal-overlay">
         <div
-          className="mi-modal__container mi-modal__container--mov gm-modal-v2 nc-modal"
+          className="gm-modal-container gm-modal-container--movement gm-modal-v2 nc-modal"
           role="dialog"
           aria-modal="true"
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div className="mi-modal__header">
-            <div className="mi-modal__head-icon" aria-hidden="true">
+          <div className="gm-modal-header">
+            <div className="gm-modal-head-icon" aria-hidden="true">
               <FontAwesomeIcon icon={faBasketShopping} />
             </div>
-            <div className="mi-modal__head-left">
-              <h2 className="mi-modal__title">Nueva Compra</h2>
+            <div className="gm-modal-head-left">
+              <h2 className="gm-modal-title">Nueva Compra</h2>
             </div>
             <button
               ref={closeBtnRef}
-              className="mi-modal__close"
+              className="gm-modal-close"
               onClick={() => !saving && onClose?.()}
               aria-label="Cerrar"
               disabled={saving}
@@ -1788,10 +1784,10 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
             </button>
           </div>
 
-          <div className="mi-modal__content">
-            <div className="mi-cr-grid">
-              <section className="mi-cr-table gm-table gm-table--movement cmp-table">
-                <div className="mi-cr-table__head gm-table-head">
+          <div className="gm-modal-content">
+            <div className="gm-movement-layout">
+              <section className="gm-movement-main gm-table gm-table--movement cmp-table">
+                <div className={`gm-table-head ${hasScroll ? "gm-table-head--body-scroll" : ""}`}>
                   <div className="gm-table-th" style={{ paddingLeft: 10 }}>Detalle</div>
                   <div className="gm-table-th">Cant.</div>
                   <div className="gm-table-th right">Precio</div>
@@ -1801,11 +1797,11 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                   <div className="gm-table-th" />
                 </div>
 
-                <div ref={rowsContainerRef} className={`mi-cr-table__rows gm-table-body ${hasScroll ? "has-scroll" : ""}`}>
+                <div ref={rowsContainerRef} className={`gm-table-body ${hasScroll ? "has-scroll" : ""}`}>
                   {rowsCalc.map((r) => {
                     return (
-                      <div key={r.id} className="mi-cr-row gm-table-row">
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--detalle gm-table-cell--detail">
+                      <div key={r.id} className="gm-table-row">
+                        <div className="gm-table-cell gm-table-cell--detail">
                           <ProductStockAutocomplete
                             value={r.detalleText}
                             onChange={(val) =>
@@ -1830,7 +1826,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                           />
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center stock_cant">
+                        <div className="gm-table-cell gm-table-cell--center stock_cant">
                           <input
                             className="gm-cell-input gm-cell-input--center"
                             type="number"
@@ -1858,7 +1854,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                           )}
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
+                        <div className="gm-table-cell gm-table-cell--center">
                           <input
                             className="gm-cell-input gm-cell-input--right"
                             type="text"
@@ -1899,7 +1895,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                           />
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
+                        <div className="gm-table-cell gm-table-cell--center">
                           <select
                             className="gm-cell-input gm-cell-input--center gm-cell-input--select"
                             value={String(r.ivaPct)}
@@ -1920,16 +1916,16 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                           </select>
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--soft gm-table-cell--soft">
+                        <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--soft">
                           {moneyARS(r.ivaMonto)}
                         </div>
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--total-val gm-table-cell--total">
+                        <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--total">
                           {moneyARS(r.total)}
                         </div>
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center" id="delete_cell">
+                        <div className="gm-table-cell gm-table-cell--center" id="delete_cell">
                           <button
                             type="button"
-                            className="mi-cr-del"
+                            className="gm-row-delete"
                             onClick={() => removeRow(r.id)}
                             disabled={saving}
                             title="Eliminar fila"
@@ -1942,8 +1938,8 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                   })}
                 </div>
 
-                <div className="mi-cr-table__foot gm-table-foot">
-                  <div className="mi-cr-foot-actions">
+                <div className="gm-table-foot">
+                  <div className="gm-foot-actions">
                     <button type="button" className="gm-foot-btn" onClick={addRow} disabled={saving}>
                       <span className="gm-foot-btn__icon">
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1955,16 +1951,16 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                     <div className="gm-foot-sep" />
                   </div>
 
-                  <div className="mi-cr-totals">
-                    <div className="mi-cr-totalLine mi-cr-totalLine--sub">
+                  <div className="gm-summary-chips">
+                    <div className="gm-summary-chip gm-summary-chip--sub">
                       <span>Subtotal</span>
                       <b>{moneyARS(resumen.subtotal)}</b>
                     </div>
-                    <div className="mi-cr-totalLine mi-cr-totalLine--iva">
+                    <div className="gm-summary-chip gm-summary-chip--iva">
                       <span>IVA</span>
                       <b>{moneyARS(resumen.iva)}</b>
                     </div>
-                    <div className="mi-cr-totalLine mi-cr-totalLine--total">
+                    <div className="gm-summary-chip gm-summary-chip--total">
                       <span>Total</span>
                       <b>{moneyARS(resumen.total)}</b>
                     </div>
@@ -1972,7 +1968,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                 </div>
               </section>
 
-              <div className="mi-cr-filters">
+              <div className="gm-movement-side">
                 <aside className="gm-aside">
                   <div className="gm-section">
                     <div className="gm-section-head">
@@ -2061,24 +2057,24 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                           Quedará registrada como <b>pendiente de pago</b>.
                         </div>
                       )}
-                      <div className="mi-uploadCard">
-                        <div className="mi-uploadCard__head">
-                          <div className="mi-uploadCard__title">Comprobante adjunto</div>
-                          <div className="mi-uploadCard__sub">
+                      <div className="gm-upload-card">
+                        <div className="gm-upload-card__head">
+                          <div className="gm-upload-card__title">Comprobante adjunto</div>
+                          <div className="gm-upload-card__sub">
                             Seleccioná, visualizá o quitá el archivo antes de guardar
                           </div>
                         </div>
 
-                        <div className="mi-uploadCard__body">
-                          <div className={`mi-uploadFile${archivoAdjunto ? " is-filled" : " is-empty"}`}>
+                        <div className="gm-upload-card__body">
+                          <div className={`gm-upload-file${archivoAdjunto ? " is-filled" : " is-empty"}`}>
                             {archivoAdjunto ? (
                               <>
-                                <div className="mi-uploadFile__icon">
+                                <div className="gm-upload-file__icon">
                                   <FontAwesomeIcon icon={faFileInvoiceDollar} />
                                 </div>
 
-                                <div className="mi-uploadFile__meta">
-                                  <div className="mi-uploadFile__name" title={NOMBRE_COMPROBANTE_GENERICO}>
+                                <div className="gm-upload-file__meta">
+                                  <div className="gm-upload-file__name" title={NOMBRE_COMPROBANTE_GENERICO}>
                                     {NOMBRE_COMPROBANTE_GENERICO}
                                   </div>
 
@@ -2087,7 +2083,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                                 <div style={{ display: "flex", gap: 8, marginLeft: "auto"}}>
                                   <button
                                     type="button"
-                                    className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                    className="gm-upload-btn gm-upload-btn--ghost"
                                     onClick={handleOpenVerComprobante}
                                     disabled={saving}
                                     title="Ver comprobante"
@@ -2097,7 +2093,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
 
                                   <button
                                     type="button"
-                                    className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                    className="gm-upload-btn gm-upload-btn--ghost"
                                     onClick={() => {
                                       setArchivoAdjunto(null);
                                       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -2113,16 +2109,16 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
                                 </div>
                               </>
                             ) : (
-                              <div className="mi-uploadFile__empty">No hay comprobante seleccionado</div>
+                              <div className="gm-upload-file__empty">No hay comprobante seleccionado</div>
                             )}
                           </div>
 
-                          <div className="mi-uploadBar" style={{ marginTop: 10 }}>
+                          <div className="gm-upload-bar" style={{ marginTop: 10 }}>
                             <input
                               ref={fileInputRef}
                               type="file"
                               accept="image/*,application/pdf,.pdf"
-                              className="mi-uploadBar__input"
+                              className="gm-upload-bar__input"
                               onChange={handleFileSelected}
                               disabled={saving}
                               style={{ display: "none" }}
@@ -2130,7 +2126,7 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
 
                             <button
                               type="button"
-                              className="mi-uploadBar__btn mi-uploadBar__btn--primary"
+                              className="gm-upload-btn gm-upload-btn--primary"
                               onClick={handleOpenFilePicker}
                               disabled={saving}
                             >
@@ -2149,14 +2145,14 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
 
 
                 </aside>
-                <div className="gm-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
-                  <button type="button" className="mit-btn mit-btn--solid mit-btn--block" onClick={submit} disabled={saving}>
+                <div className="gm-actions gm-actions--sticky">
+                  <button type="button" className="gm-action-btn gm-action-btn--save" onClick={submit} disabled={saving}>
                     {saving ? "Guardando..." : "Guardar compra"}
                   </button>
 
                   <button
                     type="button"
-                    className="mit-btn mit-btn--ghost mit-btn--block"
+                    className="gm-action-btn gm-action-btn--cancel"
                     onClick={() => !saving && onClose?.()}
                     disabled={saving}
                   >

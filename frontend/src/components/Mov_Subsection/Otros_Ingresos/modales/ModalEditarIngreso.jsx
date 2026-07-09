@@ -11,13 +11,10 @@ import {
   faMoneyCheckDollar,
 } from "@fortawesome/free-solid-svg-icons";
 import BASE_URL from "../../../../config/config.jsx";
-import "../../../Global/Global_css/Global_Modals.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
-import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalIngreso.css";
-import "../../modalcss/AltasMovimientos.css";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
 import ModalNuevaDescripcion from "./ModalNuevaDescripcion.jsx";
@@ -546,7 +543,7 @@ function MedioPagoRow({
           {row.cheque ? (
             <>
               <ChequeResumen cheque={row.cheque} tipoCheque={tipoCheque} />
-              <div className="mi-uploadCard__sub">
+              <div className="gm-upload-card__sub">
                 ✓ 1 cheque(s) — {moneyARS(row.cheque?.importe || row.monto || 0)}
               </div>
             </>
@@ -1265,30 +1262,30 @@ export default function ModalEditarIngreso({
   if (!open) return null;
   return createPortal(
     <>
-      <div className="mi-modal__overlay mi-modal__overlay--mov">
+      <div className="gm-modal-overlay gm-modal-overlay--movement">
         <div
-          className={`mi-modal__container mi-modal__container--mov gm-modal-v2 oi-modal${dark ? " mi-modal--dark" : ""}`}
+          className={`gm-modal-container gm-modal-container--movement gm-modal-v2 oi-modal${dark ? " gm-modal-container--dark" : ""}`}
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-editar-ingreso-title"
           onMouseDown={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="mi-modal__header">
-            <div className="mi-modal__head-icon" aria-hidden="true">
+          <div className="gm-modal-header">
+            <div className="gm-modal-head-icon" aria-hidden="true">
               <FontAwesomeIcon icon={faPenToSquare} />
             </div>
-            <div className="mi-modal__head-left">
-              <h2 id="modal-editar-ingreso-title" className="mi-modal__title">
+            <div className="gm-modal-head-left">
+              <h2 id="modal-editar-ingreso-title" className="gm-modal-title">
                 Editar ingreso
               </h2>
-              <p className="mi-modal__subtitle">
+              <p className="gm-modal-subtitle">
                 Modificá fecha, medios de pago, ítems y comprobante
               </p>
             </div>
             <button
               ref={closeBtnRef}
-              className="mi-modal__close"
+              className="gm-modal-close"
               onClick={cerrar}
               aria-label="Cerrar"
               disabled={saving}
@@ -1299,13 +1296,13 @@ export default function ModalEditarIngreso({
           </div>
 
           {/* Content */}
-          <div className="mi-modal__content">
+          <div className="gm-modal-content">
             <form onSubmit={submit} style={{ display: "contents" }}>
-              <div className="mi-cr-grid">
+              <div className="gm-movement-layout">
                 {/* Tabla de ítems */}
-                <section className="mi-cr-table gm-table gm-table--movement oi-table">
+                <section className="gm-movement-main gm-table gm-table--movement oi-table">
                   <div
-                    className="mi-cr-table__head gm-table-head"
+                    className="gm-table-head"
                     style={{
                       gridTemplateColumns: "2.4fr 0.8fr 1.1fr 0.9fr 1fr 1.1fr 0.45fr",
                     }}
@@ -1319,19 +1316,19 @@ export default function ModalEditarIngreso({
                     <div className="gm-table-th" />
                   </div>
 
-                  <div className="mi-cr-table__rows gm-table-body">
+                  <div className="gm-table-body">
                     {(form.items || []).map((it) => {
                       return (
                         <div
                           key={it.uid}
-                          className="mi-cr-row gm-table-row"
+                          className="gm-table-row"
                           style={{
                             gridTemplateColumns:
                               "2.4fr 0.8fr 1.1fr 0.9fr 1fr 1.1fr 0.45fr",
                           }}
                         >
                           {/* Descripción */}
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--detalle gm-table-cell--detail">
+                          <div className="gm-table-cell gm-table-cell--detail">
                             <GlobalAutocomplete
                               value={it.detalle}
                               onChange={(val) =>
@@ -1357,7 +1354,7 @@ export default function ModalEditarIngreso({
                           </div>
 
                           {/* Cantidad */}
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
+                          <div className="gm-table-cell gm-table-cell--center">
                             <input
                               className="gm-cell-input gm-cell-input--center"
                               type="number"
@@ -1378,7 +1375,7 @@ export default function ModalEditarIngreso({
                           </div>
 
                           {/* Precio */}
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
+                          <div className="gm-table-cell gm-table-cell--center">
                             <input
                               className="gm-cell-input gm-cell-input--right"
                               type="text"
@@ -1423,7 +1420,7 @@ export default function ModalEditarIngreso({
                           </div>
 
                           {/* IVA % */}
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
+                          <div className="gm-table-cell gm-table-cell--center">
                             <select
                               className="gm-cell-input gm-cell-input--center gm-cell-input--select"
                               style={{ width: "100%" }}
@@ -1442,20 +1439,20 @@ export default function ModalEditarIngreso({
                           </div>
 
                           {/* IVA $ */}
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--soft gm-table-cell--soft">
+                          <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--soft">
                             {moneyARS(it.iva_monto)}
                           </div>
 
                           {/* Total */}
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--total-val gm-table-cell--total">
+                          <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--total">
                             {moneyARS(it.total)}
                           </div>
 
                           {/* Eliminar */}
-                          <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center" id="delete_cell">
+                          <div className="gm-table-cell gm-table-cell--center" id="delete_cell">
                             <button
                               type="button"
-                              className="mi-cr-del"
+                              className="gm-row-delete"
                               onClick={() => removeItem(it.uid)}
                               disabled={saving}
                               title="Eliminar ítem"
@@ -1469,8 +1466,8 @@ export default function ModalEditarIngreso({
                   </div>
 
                   {/* Footer de tabla */}
-                  <div className="mi-cr-table__foot gm-table-foot">
-                    <div className="mi-cr-foot-actions">
+                  <div className="gm-table-foot">
+                    <div className="gm-foot-actions">
                       <button
                         type="button"
                         className="gm-foot-btn"
@@ -1484,16 +1481,16 @@ export default function ModalEditarIngreso({
                       </button>
                       <div className="gm-foot-sep" />
                     </div>
-                    <div className="mi-cr-totals">
-                      <div className="mi-cr-totalLine mi-cr-totalLine--sub">
+                    <div className="gm-summary-chips">
+                      <div className="gm-summary-chip gm-summary-chip--sub">
                         <span>Subtotal</span>
                         <b>{moneyARS(resumen.subtotal)}</b>
                       </div>
-                      <div className="mi-cr-totalLine mi-cr-totalLine--iva">
+                      <div className="gm-summary-chip gm-summary-chip--iva">
                         <span>IVA</span>
                         <b>{moneyARS(resumen.iva)}</b>
                       </div>
-                      <div className="mi-cr-totalLine mi-cr-totalLine--total">
+                      <div className="gm-summary-chip gm-summary-chip--total">
                         <span>Total</span>
                         <b>{moneyARS(resumen.total)}</b>
                       </div>
@@ -1502,7 +1499,7 @@ export default function ModalEditarIngreso({
                 </section>
 
                 {/* Sidebar */}
-                <div className="mi-cr-filters">
+                <div className="gm-movement-side">
                   <aside className="gm-aside">
                     <div className="gm-section">
                       <div className="gm-section-head">
@@ -1538,15 +1535,15 @@ export default function ModalEditarIngreso({
                         />
 
                         {/* Comprobante */}
-                        <div className="mi-uploadCard" style={{ marginTop: 14 }}>
-                          <div className="mi-uploadCard__head">
-                            <div className="mi-uploadCard__title">Comprobante</div>
-                            <div className="mi-uploadCard__sub">
+                        <div className="gm-upload-card" style={{ marginTop: 14 }}>
+                          <div className="gm-upload-card__head">
+                            <div className="gm-upload-card__title">Comprobante</div>
+                            <div className="gm-upload-card__sub">
                               Seleccioná, visualizá o quitá el archivo antes de guardar
                             </div>
                           </div>
 
-                          <div className="mi-uploadCard__body">
+                          <div className="gm-upload-card__body">
                             {loadingComprobante ? (
                               <div style={{ fontSize: 13, opacity: 0.75, padding: "8px 0" }}>
                                 Cargando comprobante…
@@ -1555,13 +1552,13 @@ export default function ModalEditarIngreso({
                               <>
                                 {/* Archivo ya vinculado */}
                                 {mostrarArchivoActual && (
-                                  <div className="mi-uploadFile is-filled">
-                                    <div className="mi-uploadFile__icon">
+                                  <div className="gm-upload-file is-filled">
+                                    <div className="gm-upload-file__icon">
                                       <FontAwesomeIcon icon={faFileLines} />
                                     </div>
-                                    <div className="mi-uploadFile__meta">
+                                    <div className="gm-upload-file__meta">
                                       <div
-                                        className="mi-uploadFile__name"
+                                        className="gm-upload-file__name"
                                         title={nombreComprobanteVisible}
                                       >
                                         {nombreComprobanteVisible}
@@ -1578,7 +1575,7 @@ export default function ModalEditarIngreso({
                                     >
                                       <button
                                         type="button"
-                                        className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                        className="gm-upload-btn gm-upload-btn--ghost"
                                         onClick={abrirViewer}
                                         disabled={saving}
                                       >
@@ -1586,7 +1583,7 @@ export default function ModalEditarIngreso({
                                       </button>
                                       <button
                                         type="button"
-                                        className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                        className="gm-upload-btn gm-upload-btn--ghost"
                                         onClick={marcarEliminar}
                                         disabled={saving}
                                       >
@@ -1599,15 +1596,15 @@ export default function ModalEditarIngreso({
                                 {/* Archivo nuevo seleccionado */}
                                 {archivoNuevo && (
                                   <div
-                                    className="mi-uploadFile is-filled"
+                                    className="gm-upload-file is-filled"
                                     style={{ marginTop: mostrarArchivoActual ? 10 : 0 }}
                                   >
-                                    <div className="mi-uploadFile__icon">
+                                    <div className="gm-upload-file__icon">
                                       <FontAwesomeIcon icon={faFileLines} />
                                     </div>
-                                    <div className="mi-uploadFile__meta">
+                                    <div className="gm-upload-file__meta">
                                       <div
-                                        className="mi-uploadFile__name"
+                                        className="gm-upload-file__name"
                                         title="Comprobante adjunto"
                                       >
                                         Comprobante adjunto
@@ -1624,7 +1621,7 @@ export default function ModalEditarIngreso({
                                     >
                                       <button
                                         type="button"
-                                        className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                        className="gm-upload-btn gm-upload-btn--ghost"
                                         onClick={abrirViewer}
                                         disabled={saving}
                                       >
@@ -1632,7 +1629,7 @@ export default function ModalEditarIngreso({
                                       </button>
                                       <button
                                         type="button"
-                                        className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                        className="gm-upload-btn gm-upload-btn--ghost"
                                         onClick={quitarArchivoNuevo}
                                         disabled={saving}
                                       >
@@ -1644,9 +1641,9 @@ export default function ModalEditarIngreso({
 
                                 {/* Sin comprobante */}
                                 {!mostrarArchivoActual && !archivoNuevo && (
-                                  <div className="mi-uploadFile is-empty">
-                                    <div className="mi-uploadFile__meta">
-                                      <div className="mi-uploadFile__size">
+                                  <div className="gm-upload-file is-empty">
+                                    <div className="gm-upload-file__meta">
+                                      <div className="gm-upload-file__size">
                                         No hay comprobante seleccionado
                                       </div>
                                     </div>
@@ -1665,7 +1662,7 @@ export default function ModalEditarIngreso({
                                   >
                                     <button
                                       type="button"
-                                      className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                      className="gm-upload-btn gm-upload-btn--ghost"
                                       onClick={restaurarComprobanteActual}
                                       disabled={saving}
                                     >
@@ -1675,19 +1672,19 @@ export default function ModalEditarIngreso({
                                 )}
 
                                 {/* Seleccionar / reemplazar */}
-                                <div className="mi-uploadBar" style={{ marginTop: 12 }}>
+                                <div className="gm-upload-bar" style={{ marginTop: 12 }}>
                                   <input
                                     ref={inputFileRef}
                                     type="file"
                                     accept="image/*,application/pdf,.pdf"
-                                    className="mi-uploadBar__input"
+                                    className="gm-upload-bar__input"
                                     onChange={seleccionarArchivo}
                                     disabled={saving}
                                     style={{ display: "none" }}
                                   />
                                   <button
                                     type="button"
-                                    className="mi-uploadBar__btn mi-uploadBar__btn--primary"
+                                    className="gm-upload-btn gm-upload-btn--primary"
                                     onClick={() => inputFileRef.current?.click()}
                                     disabled={saving}
                                   >
@@ -1705,11 +1702,11 @@ export default function ModalEditarIngreso({
                   </aside>
 
                   {/* Acciones */}
-                  <div className="gm-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+                  <div className="gm-actions gm-actions--sticky">
                     <button
                       type="submit"
                       disabled={saving}
-                      className="mit-btn mit-btn--solid mit-btn--block"
+                      className="gm-action-btn gm-action-btn--save"
                     >
                       {saving ? "Guardando..." : "Guardar cambios"}
                     </button>
@@ -1717,7 +1714,7 @@ export default function ModalEditarIngreso({
                       type="button"
                       onClick={cerrar}
                       disabled={saving}
-                      className="mit-btn mit-btn--ghost mit-btn--block"
+                      className="gm-action-btn gm-action-btn--cancel"
                     >
                       Cancelar
                     </button>

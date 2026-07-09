@@ -8,13 +8,10 @@ import BASE_URL from "../../../../config/config";
 import ModalNuevoCheque from "../../../Global/Modales/ModalNuevoCheque.jsx";
 import ModalNuevaDescripcion from "./ModalNuevaDescripcion.jsx";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
-import "../../../Global/Global_css/Global_Modals.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
-import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalIngreso.css";
-import "../../modalcss/AltasMovimientos.css";
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const NULL_OPTION = "";
@@ -1249,26 +1246,26 @@ export default function ModalNuevoIngreso({
 
   return createPortal(
     <>
-      <div className="mi-modal__overlay">
+      <div className={`gm-modal-overlay${dark ? " gm-modal-overlay--dark" : ""}`}>
         <div
-          className="mi-modal__container mi-modal__container--mov gm-modal-v2 oi-modal"
+          className={`gm-modal-container gm-modal-container--movement gm-modal-v2 oi-modal${dark ? " gm-modal-container--dark" : ""}`}
           role="dialog"
           aria-modal="true"
           onMouseDown={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="mi-modal__header">
-            <div className="mi-modal__head-icon" aria-hidden="true">
+          <div className="gm-modal-header">
+            <div className="gm-modal-head-icon" aria-hidden="true">
               <FontAwesomeIcon icon={faPlus} />
             </div>
-            <div className="mi-modal__head-left">
-              <h2 className="mi-modal__title">
+            <div className="gm-modal-head-left">
+              <h2 className="gm-modal-title">
                 {mode === "edit" ? "Editar Ingreso" : "Nuevo Ingreso"}
               </h2>
             </div>
             <button
               ref={closeBtnRef}
-              className="mi-modal__close"
+              className="gm-modal-close"
               onClick={() => !saving && onClose?.()}
               aria-label="Cerrar"
               disabled={saving}
@@ -1279,11 +1276,11 @@ export default function ModalNuevoIngreso({
           </div>
 
           {/* Content */}
-          <div className="mi-modal__content">
-            <div className="mi-cr-grid">
+          <div className="gm-modal-content">
+            <div className="gm-movement-layout">
               {/* Tabla de ítems */}
-              <section className="mi-cr-table gm-table gm-table--movement oi-table">
-                <div className="mi-cr-table__head gm-table-head">
+              <section className="gm-movement-main gm-table gm-table--movement oi-table">
+                <div className={`gm-table-head${hasScroll ? " gm-table-head--body-scroll" : ""}`}>
                   <div className="gm-table-th" style={{ paddingLeft: 10 }}>Descripción</div>
                   <div className="gm-table-th">Cant.</div>
                   <div className="gm-table-th right">Importe</div>
@@ -1295,15 +1292,15 @@ export default function ModalNuevoIngreso({
 
                 <div
                   ref={rowsContainerRef}
-                  className={`mi-cr-table__rows gm-table-body${hasScroll ? " has-scroll" : ""}`}
+                  className={`gm-table-body${hasScroll ? " has-scroll" : ""}`}
                 >
                   {rowsCalc.map((r) => {
                     return (
                       <div
                         key={r.id}
-                        className="mi-cr-row gm-table-row"
+                        className="gm-table-row"
                       >
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--detalle gm-table-cell--detail">
+                        <div className="gm-table-cell gm-table-cell--detail">
                           <GlobalAutocomplete
                             value={r.detalle}
                             onChange={(val) =>
@@ -1326,7 +1323,7 @@ export default function ModalNuevoIngreso({
                           />
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
+                        <div className="gm-table-cell gm-table-cell--center">
                           <input
                             className="gm-cell-input gm-cell-input--center"
                             type="number"
@@ -1346,7 +1343,7 @@ export default function ModalNuevoIngreso({
                           />
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right">
+                        <div className="gm-table-cell gm-table-cell--right">
                           <input
                             className="gm-cell-input gm-cell-input--right"
                             type="text"
@@ -1390,7 +1387,7 @@ export default function ModalNuevoIngreso({
                           />
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center">
+                        <div className="gm-table-cell gm-table-cell--center">
                           <select
                             className="gm-cell-input gm-cell-input--center gm-cell-input--select"
                             value={String(r.ivaPct)}
@@ -1406,18 +1403,18 @@ export default function ModalNuevoIngreso({
                           </select>
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--soft gm-table-cell--soft">
+                        <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--soft">
                           {moneyARS(r.ivaMonto)}
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--right gm-table-cell--right mi-cr-cell--mono gm-table-cell--mono mi-cr-cell--total-val gm-table-cell--total">
+                        <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--total">
                           {moneyARS(r.total)}
                         </div>
 
-                        <div className="mi-cr-cell gm-table-cell mi-cr-cell--center gm-table-cell--center" id="delete_cell">
+                        <div className="gm-table-cell gm-table-cell--center" id="delete_cell">
                           <button
                             type="button"
-                            className="mi-cr-del"
+                            className="gm-row-delete"
                             onClick={() => removeRow(r.id)}
                             disabled={saving}
                             title="Eliminar fila"
@@ -1430,8 +1427,8 @@ export default function ModalNuevoIngreso({
                   })}
                 </div>
 
-                <div className="mi-cr-table__foot gm-table-foot">
-                  <div className="mi-cr-foot-actions">
+                <div className="gm-table-foot">
+                  <div className="gm-foot-actions">
                     <button type="button" className="gm-foot-btn" onClick={addRow} disabled={saving}>
                       <span className="gm-foot-btn__icon">
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1441,16 +1438,16 @@ export default function ModalNuevoIngreso({
                       Agregar fila
                     </button>
                   </div>
-                  <div className="mi-cr-totals">
-                    <div className="mi-cr-totalLine mi-cr-totalLine--sub">
+                  <div className="gm-summary-chips">
+                    <div className="gm-summary-chip gm-summary-chip--sub">
                       <span>Subtotal</span>
                       <b>{moneyARS(resumen.subtotal)}</b>
                     </div>
-                    <div className="mi-cr-totalLine mi-cr-totalLine--iva">
+                    <div className="gm-summary-chip gm-summary-chip--iva">
                       <span>IVA</span>
                       <b>{moneyARS(resumen.iva)}</b>
                     </div>
-                    <div className="mi-cr-totalLine mi-cr-totalLine--total">
+                    <div className="gm-summary-chip gm-summary-chip--total">
                       <span>Total</span>
                       <b>{moneyARS(resumen.total)}</b>
                     </div>
@@ -1459,7 +1456,7 @@ export default function ModalNuevoIngreso({
               </section>
 
               {/* Sidebar */}
-              <div className="mi-cr-filters">
+              <div className="gm-movement-side">
                 <aside className="gm-aside">
                   <div className="gm-section">
                     <div className="gm-section-head">
@@ -1497,23 +1494,23 @@ export default function ModalNuevoIngreso({
                       />
 
                       {/* Comprobante */}
-                      <div className="mi-uploadCard" style={{ marginTop: 14 }}>
-                        <div className="mi-uploadCard__head">
-                          <div className="mi-uploadCard__title">Comprobante</div>
-                          <div className="mi-uploadCard__sub">
+                      <div className="gm-upload-card" style={{ marginTop: 14 }}>
+                        <div className="gm-upload-card__head">
+                          <div className="gm-upload-card__title">Comprobante</div>
+                          <div className="gm-upload-card__sub">
                             Seleccioná, visualizá o quitá el archivo antes de guardar
                           </div>
                         </div>
 
-                        <div className="mi-uploadCard__body">
-                          <div className={`mi-uploadFile${archivoAdjunto ? " is-filled" : " is-empty"}`}>
+                        <div className="gm-upload-card__body">
+                          <div className={`gm-upload-file${archivoAdjunto ? " is-filled" : " is-empty"}`}>
                             {archivoAdjunto ? (
                               <>
-                                <div className="mi-uploadFile__icon">
+                                <div className="gm-upload-file__icon">
                                   <FontAwesomeIcon icon={faFileInvoiceDollar} />
                                 </div>
-                                <div className="mi-uploadFile__meta">
-                                  <div className="mi-uploadFile__name" title={NOMBRE_COMPROBANTE_GENERICO}>
+                                <div className="gm-upload-file__meta">
+                                  <div className="gm-upload-file__name" title={NOMBRE_COMPROBANTE_GENERICO}>
                                     {NOMBRE_COMPROBANTE_GENERICO}
                                   </div>
 
@@ -1521,7 +1518,7 @@ export default function ModalNuevoIngreso({
                                 <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
                                   <button
                                     type="button"
-                                    className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                    className="gm-upload-btn gm-upload-btn--ghost"
                                     onClick={abrirViewer}
                                     disabled={saving}
                                   >
@@ -1529,7 +1526,7 @@ export default function ModalNuevoIngreso({
                                   </button>
                                   <button
                                     type="button"
-                                    className="mi-uploadBar__btn mi-uploadBar__btn--ghost"
+                                    className="gm-upload-btn gm-upload-btn--ghost"
                                     onClick={() => {
                                       setArchivoAdjunto(null);
                                       if (inputFileRef.current) inputFileRef.current.value = "";
@@ -1541,25 +1538,25 @@ export default function ModalNuevoIngreso({
                                 </div>
                               </>
                             ) : (
-                              <div className="mi-uploadFile__meta">
-                                <div className="mi-uploadFile__size">No hay comprobante seleccionado</div>
+                              <div className="gm-upload-file__meta">
+                                <div className="gm-upload-file__size">No hay comprobante seleccionado</div>
                               </div>
                             )}
                           </div>
 
-                          <div className="mi-uploadBar" style={{ marginTop: 12 }}>
+                          <div className="gm-upload-bar" style={{ marginTop: 12 }}>
                             <input
                               ref={inputFileRef}
                               type="file"
                               accept="image/*,application/pdf,.pdf"
-                              className="mi-uploadBar__input"
+                              className="gm-upload-bar__input"
                               onChange={handleArchivoAdjuntoSeleccionado}
                               disabled={saving}
                               style={{ display: "none" }}
                             />
                             <button
                               type="button"
-                              className="mi-uploadBar__btn mi-uploadBar__btn--primary"
+                              className="gm-upload-btn gm-upload-btn--primary"
                               onClick={() => inputFileRef.current?.click()}
                               disabled={saving}
                             >
@@ -1572,10 +1569,10 @@ export default function ModalNuevoIngreso({
                   </div>
                 </aside>
 
-                <div className="gm-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+                <div className="gm-actions gm-actions--sticky">
                   <button
                     type="button"
-                    className="mit-btn mit-btn--solid mit-btn--block"
+                    className="gm-action-btn gm-action-btn--save"
                     onClick={submit}
                     disabled={saving}
                   >
@@ -1583,7 +1580,7 @@ export default function ModalNuevoIngreso({
                   </button>
                   <button
                     type="button"
-                    className="mit-btn mit-btn--ghost mit-btn--block"
+                    className="gm-action-btn gm-action-btn--cancel"
                     onClick={() => !saving && onClose?.()}
                     disabled={saving}
                   >

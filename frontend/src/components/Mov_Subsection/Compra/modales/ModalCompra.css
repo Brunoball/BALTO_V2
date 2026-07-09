@@ -24,8 +24,8 @@
    MODAL COMPRA — estilos compartidos
    ---------------------------------------------------------
    Usado por ModalNuevaCompra y ModalEditarCompra.
-   Sale de Global_Modals.css para que el global conserve solo
-   la base común de modales.
+   Este archivo conserva ajustes propios de Compra;
+   la base común vive en GlobalsModalsV2.css.
 ========================================================= */
 
 /* =========================================================
@@ -88,8 +88,6 @@ html[data-theme="oscuro"] .nc-section-head span { color: rgba(210, 220, 235, .70
   gap: 8px;
   overflow: visible;
 }
-
-/* Campo nc / fecha: base global en Global_Modals.css */
 
 /* ── Pills tipo compra ── */
 .nc-pill-label {
@@ -270,3 +268,87 @@ html[data-theme="oscuro"] .nc-pago-resumen__total-label { color: rgba(210, 220, 
 .nc-pago-resumen__ok-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; color: #0f766e; background: rgba(15, 118, 110, .08); border: 1px solid rgba(15, 118, 110, .18); border-radius: 999px; padding: 2px 7px; }
 
 .nc-pago-resumen__warn-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; color: #dc2626; background: rgba(220, 38, 38, .07); border: 1px solid rgba(220, 38, 38, .18); border-radius: 999px; padding: 2px 7px; }
+
+
+/* =========================================================
+   Autocomplete / mini ajustes propios de Compra
+   ---------------------------------------------------------
+   Reemplaza dependencias viejas sin llevar medidas propias al global.
+========================================================= */
+
+.cmp-autocomplete {
+  position: relative;
+  min-width: 0;
+}
+
+.cmp-suggest {
+  position: absolute;
+  z-index: 999999;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  max-height: 230px;
+  overflow-y: auto;
+  border-radius: 10px;
+  border: 1px solid var(--mi-border);
+  background: var(--mi-bg);
+  box-shadow: 0 18px 38px rgba(15, 23, 42, .16);
+}
+
+.cmp-suggest__item {
+  padding: 7px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: .85rem;
+  color: var(--mi-text);
+  transition: background .10s;
+  user-select: none;
+}
+
+.cmp-suggest__item:hover {
+  background: rgba(0, 85, 187, .08);
+}
+
+.cmp-suggest__item--add {
+  color: var(--blue-action);
+  font-weight: 700;
+}
+
+.cmp-suggest-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-theme="oscuro"] .cmp-suggest {
+  background: rgba(6, 18, 28, .98);
+  border-color: rgba(255, 255, 255, .14);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, .35);
+}
+
+html[data-theme="oscuro"] .cmp-suggest__item {
+  color: rgba(255, 255, 255, .88);
+}
+
+html[data-theme="oscuro"] .cmp-suggest__item:hover {
+  background: rgba(255, 255, 255, .08);
+}
+
+@media (max-width: 900px) {
+  .cmp-table .gm-table-head,
+  .cmp-table .gm-table-row {
+    grid-template-columns: minmax(180px, 1.7fr) 64px minmax(88px, .9fr) 70px minmax(88px, .9fr) minmax(96px, .9fr) 34px;
+  }
+}
+
+@media (max-width: 720px) {
+  .cmp-table .gm-table-head,
+  .cmp-table .gm-table-row {
+    grid-template-columns: minmax(170px, 1.5fr) 60px minmax(86px, .9fr) 64px minmax(86px, .9fr) minmax(92px, .9fr) 34px;
+  }
+}

@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import "../../../Global/Global_css/Global_Modals.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
-import "../../modalcss/globalmodalsmov.css";
+import "../OrdenesPagoModals.css";
 import "../../../Global/Global_css/roots.css";
-import "../../modalcss/AltasMovimientos.css";
 import BASE_URL from "../../../../config/config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -105,13 +103,6 @@ function normalizeSearchText(v) {
     .trim();
 }
 
-function isDarkEnabled(darkProp) {
-  if (darkProp === true) return true;
-  if (typeof document === "undefined") return false;
-  const byAttr = document.documentElement.getAttribute("data-theme") === "oscuro";
-  const byBody = document.body?.classList?.contains("dark");
-  return Boolean(byAttr || byBody);
-}
 
 function getAuthInfo() {
   const token = localStorage.getItem("token") || "";
@@ -282,11 +273,8 @@ export default function ModalEditarOrdenPago({
   onClose,
   onSave,
   onToast,
-  dark,
 }) {
   const API_LISTS = `${BASE_URL}/api.php?action=global_obtener_listas`;
-  const darkOn = isDarkEnabled(dark);
-
   const showToast = useCallback((tipo, mensaje) => onToast?.(tipo, mensaje), [onToast]);
 
   const [saving, setSaving] = useState(false);
@@ -610,27 +598,27 @@ export default function ModalEditarOrdenPago({
 
   return createPortal(
     <>
-      <div className={`mi-modal__overlay ${darkOn ? "mi-modal__overlay--dark" : ""}`}>
+      <div className="gm-modal-overlay">
         <div
-          className="mi-modal__container gm-modal-v2"
+          className="gm-modal-container gm-modal-container--movement gm-modal-v2 gm-order-edit-modal"
           id="mov--modaleditarordenpago"
           role="dialog"
           aria-modal="true"
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div className="mi-modal__header">
-            <div className="mi-modal__head-icon"><FontAwesomeIcon icon={faFileInvoiceDollar} /></div>
+          <div className="gm-modal-header">
+            <div className="gm-modal-head-icon"><FontAwesomeIcon icon={faFileInvoiceDollar} /></div>
 
-            <div className="mi-modal__head-left">
-              <h2 className="mi-modal__title">Editar orden de pago</h2>
-              <p className="mi-modal__subtitle">
+            <div className="gm-modal-head-left">
+              <h2 className="gm-modal-title">Editar orden de pago</h2>
+              <p className="gm-modal-subtitle">
                 Modificá la compra de cuenta corriente: fecha, proveedor, producto, cantidad y precio.
               </p>
             </div>
 
             <button
               ref={closeBtnRef}
-              className="mi-modal__close"
+              className="gm-modal-close"
               onClick={() => !saving && onClose?.()}
               disabled={saving}
               type="button"
@@ -639,9 +627,9 @@ export default function ModalEditarOrdenPago({
             </button>
           </div>
 
-          <div className="mi-modal__content">
-            <div className="mi-er-layout">
-              <section className="mi-er-main">
+          <div className="gm-modal-content">
+            <div className="gm-movement-layout mi-er-layout">
+              <section className="gm-movement-main mi-er-main">
                 <form onSubmit={submit} className="mi-er-form">
                   <div className="gm-section">
                     <div className="gm-section-head"><div className="gm-section-dot" /><span>Producto</span></div>
@@ -824,7 +812,7 @@ export default function ModalEditarOrdenPago({
                 <div className="gm-actions">
                   <button
                     type="button"
-                    className="mit-btn mit-btn--solid mi-er-action"
+                    className="gm-action-btn gm-action-btn--save mi-er-action"
                     onClick={submit}
                     disabled={saving}
                   >
@@ -833,7 +821,7 @@ export default function ModalEditarOrdenPago({
 
                   <button
                     type="button"
-                    className="mit-btn mit-btn--ghost mi-er-action"
+                    className="gm-action-btn gm-action-btn--cancel mi-er-action"
                     onClick={() => !saving && onClose?.()}
                     disabled={saving}
                   >
@@ -845,100 +833,6 @@ export default function ModalEditarOrdenPago({
           </div>
         </div>
       </div>
-
-      <style>{`
-        #mov--modaleditarordenpago .mi-er-layout{
-          flex:1;
-          min-height:0;
-          display:grid;
-          grid-template-columns:minmax(0,1fr) 430px;
-          gap:18px;
-          overflow:hidden;
-        }
-
-        #mov--modaleditarordenpago .mi-er-main{
-          min-width:0;
-          min-height:0;
-          border:1px solid var(--nv-border-md);
-          border-radius:14px;
-          background:var(--nv-bg);
-          box-shadow:var(--nv-shadow-sm);
-          overflow:auto;
-          padding:16px;
-        }
-
-        #mov--modaleditarordenpago .mi-er-form{
-          display:flex;
-          flex-direction:column;
-          gap:14px;
-        }
-
-        #mov--modaleditarordenpago .mi-er-rel{
-          position:relative;
-        }
-
-        #mov--modaleditarordenpago .mi-er-autocomplete{
-          position:absolute;
-          top:calc(100% + 6px);
-          left:0;
-          right:0;
-          z-index:50;
-          background:var(--nv-bg);
-          border:1px solid var(--nv-border-md);
-          border-radius:12px;
-          box-shadow:var(--nv-shadow-md);
-          overflow:hidden;
-          max-height:240px;
-          overflow-y:auto;
-        }
-
-        #mov--modaleditarordenpago .mi-er-autocomplete__item{
-          width:100%;
-          border:none;
-          background:transparent;
-          text-align:left;
-          padding:10px 12px;
-          font-size:13px;
-          color:var(--nv-text);
-          cursor:pointer;
-          transition:background .12s ease;
-          font-family:inherit;
-        }
-
-        #mov--modaleditarordenpago .mi-er-autocomplete__item:hover{
-          background:var(--nv-row-hover);
-        }
-
-        #mov--modaleditarordenpago .mi-er-grid-3{
-          display:grid;
-          grid-template-columns:1fr 1fr 1fr;
-          gap:12px;
-        }
-
-        #mov--modaleditarordenpago .mi-er-summary-row{
-          display:flex;
-          align-items:center;
-          gap:10px;
-          margin-bottom:12px;
-        }
-
-        #mov--modaleditarordenpago .mi-er-summary-row:last-child{
-          margin-bottom:0;
-        }
-
-        #mov--modaleditarordenpago .mi-er-action{
-          flex:1;
-        }
-
-        @media (max-width: 1100px){
-          #mov--modaleditarordenpago .mi-er-layout{
-            grid-template-columns:1fr;
-          }
-          #mov--modaleditarordenpago .mi-er-grid-3{
-            grid-template-columns:1fr;
-          }
-        }
-      `}</style>
     </>,
     document.body
   );

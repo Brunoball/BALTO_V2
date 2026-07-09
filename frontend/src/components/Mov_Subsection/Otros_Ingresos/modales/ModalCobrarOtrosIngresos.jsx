@@ -12,12 +12,9 @@ import {
 import BASE_URL from "../../../../config/config";
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { getDetalleMovimiento } from "../../_shared/detalleMovimiento.js";
-import "../../../Global/Global_css/Global_Modals.css";
-import "../../modalcss/globalmodalsmov.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
-import "../../Recibos/modales/ModalPagarRecibos.css";
-import "./ModalCobrarOtrosIngresos.css";
+import "../../../Global/Global_css/GlobalsModalsV2.css";
 
 function moneyARS(v) {
   const n = Number(v || 0);
@@ -200,7 +197,7 @@ function EstadoChipIngreso({ row }) {
   const parcial = !pagado && cobrado > 0.009;
 
   return (
-    <span className={`mpr-chip ${pagado ? "mpr-chip--ok" : "mpr-chip--warn"}`}>
+    <span className={`gm-status-chip ${pagado ? "gm-status-chip--ok" : "gm-status-chip--warn"}`}>
       {pagado ? "PAGADO" : parcial ? "PENDIENTE PARCIAL" : "PENDIENTE"}
     </span>
   );
@@ -227,7 +224,7 @@ function MedioPagoRowIngreso({ row, mediosPagoList, onUpdate, onRemove, onComple
               </option>
             ))}
           </select>
-          <label className={`nc-label${row.id_medio_pago ? " nc-label--up" : ""}`}>Medio de pago</label>
+          <label className={`gm-label${row.id_medio_pago ? " gm-label--up" : ""}`}>Medio de pago</label>
         </div>
       </div>
 
@@ -274,7 +271,7 @@ function MedioPagoRowIngreso({ row, mediosPagoList, onUpdate, onRemove, onComple
             disabled={saving}
             style={{ height: 32, padding: "0 10px", fontSize: 13, textAlign: "right" }}
           />
-          <label className="nc-label nc-label--up">Monto</label>
+          <label className="gm-label gm-label--up">Monto</label>
         </div>
 
         <div className="gm-payment-actions-col">
@@ -527,11 +524,11 @@ export default function ModalCobrarOtrosIngresos({
 
   if (!open) return null;
 
-  const modalClass = ["mi-modal__container", "mi-modal__container--mov", "mpr-modal", dark ? "mi-modal--dark" : ""]
+  const modalClass = ["gm-modal-container", "gm-modal-container--movement", "gm-modal-v2", "gm-income-collect-modal", dark ? "gm-modal-container--dark" : ""]
     .join(" ")
     .trim();
 
-  const overlayClass = ["mi-modal__overlay", "mi-modal__overlay--mov", dark ? "mi-modal__overlay--dark" : ""]
+  const overlayClass = ["gm-modal-overlay", "gm-modal-overlay--movement", dark ? "gm-modal-overlay--dark" : ""]
     .join(" ")
     .trim();
 
@@ -546,20 +543,20 @@ export default function ModalCobrarOtrosIngresos({
   return createPortal(
     <div className={overlayClass} role="dialog" aria-modal="true">
       <div className={modalClass} ref={dialogRef} onMouseDown={(e) => e.stopPropagation()}>
-        <div className="mi-modal__header">
-          <div className="mi-modal__head-icon" aria-hidden="true">
+        <div className="gm-modal-header">
+          <div className="gm-modal-head-icon" aria-hidden="true">
             <FontAwesomeIcon icon={faMoneyBill1Wave} />
           </div>
-          <div className="mi-modal__head-left">
-            <h2 className="mi-modal__title">Pagar otro ingreso</h2>
-            <p className="mi-modal__subtitle">
+          <div className="gm-modal-head-left">
+            <h2 className="gm-modal-title">Pagar otro ingreso</h2>
+            <p className="gm-modal-subtitle">
               {safeText(concepto)}{idMovimiento ? ` · ID ${idMovimiento}` : ""}
             </p>
           </div>
           <button
             ref={firstFocusRef}
             type="button"
-            className="mi-modal__close"
+            className="gm-modal-close"
             onClick={onClose}
             title="Cerrar"
             disabled={saving}
@@ -568,45 +565,45 @@ export default function ModalCobrarOtrosIngresos({
           </button>
         </div>
 
-        <div className="mi-modal__content">
-          <div className="mi-cr-grid">
-            <section className="mi-cr-table">
-              <div className="mpr-thead">
-                <div className="mpr-th mpr-th--sel">Sel</div>
-                <div className="mpr-th">Fecha</div>
-                <div className="mpr-th mpr-th--desc">Descripción</div>
-                <div className="mpr-th mpr-th--center">Estado</div>
-                <div className="mpr-th mpr-th--right">Monto</div>
-                <div className="mpr-th mpr-th--info">Info</div>
+        <div className="gm-modal-content">
+          <div className="gm-movement-layout">
+            <section className="gm-movement-main gm-table gm-table--movement">
+              <div className="gm-income-table-head gm-table-head">
+                <div className="gm-income-th gm-income-th--sel gm-table-th">Sel</div>
+                <div className="gm-income-th gm-table-th">Fecha</div>
+                <div className="gm-income-th gm-income-th--desc gm-table-th">Descripción</div>
+                <div className="gm-income-th gm-income-th--center gm-table-th">Estado</div>
+                <div className="gm-income-th gm-income-th--right gm-table-th">Monto</div>
+                <div className="gm-income-th gm-income-th--info gm-table-th">Info</div>
               </div>
 
-              <div className="mpr-tbody">
+              <div className="gm-income-table-body gm-table-body">
                 <div
-                  className={`mpr-row ${selected ? "is-checked" : ""}`}
+                  className={`gm-income-row gm-table-row ${selected ? "is-checked" : ""}`}
                   role="row"
                   onClick={() => !saving && setSelected((v) => !v)}
                 >
-                  <div className="mpr-td mpr-td--sel" onClick={(e) => e.stopPropagation()}>
-                    <label className={`mpr-check ${saving ? "is-disabled" : ""}`}>
+                  <div className="gm-income-td gm-income-td--sel gm-table-cell" onClick={(e) => e.stopPropagation()}>
+                    <label className={`gm-inline-check ${saving ? "is-disabled" : ""}`}>
                       <input
                         type="checkbox"
                         checked={selected}
                         onChange={() => setSelected((v) => !v)}
                         disabled={saving}
                       />
-                      <span className="mpr-check__box" aria-hidden="true" />
+                      <span className="gm-inline-check__box" aria-hidden="true" />
                     </label>
                   </div>
-                  <div className="mpr-td">{safeText(formatFechaDMY(row?.fecha))}</div>
-                  <div className="mpr-td mpr-td--desc" title={safeText(concepto)}>{concepto}</div>
-                  <div className="mpr-td mpr-td--center">
+                  <div className="gm-income-td gm-table-cell">{safeText(formatFechaDMY(row?.fecha))}</div>
+                  <div className="gm-table-cell gm-income-td gm-income-td--desc gm-table-cell--detail" title={safeText(concepto)}>{concepto}</div>
+                  <div className="gm-table-cell gm-income-td gm-income-td--center gm-table-cell--center">
                     <EstadoChipIngreso row={row} />
                   </div>
-                  <div className="mpr-td mpr-td--right mpr-td--mono">{moneyARS(saldo)}</div>
-                  <div className="mpr-td mpr-td--info" onClick={(e) => e.stopPropagation()}>
+                  <div className="gm-table-cell gm-income-td gm-income-td--right gm-income-td--mono gm-table-cell--right gm-table-cell--mono">{moneyARS(saldo)}</div>
+                  <div className="gm-income-td gm-income-td--info gm-table-cell" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
-                      className="mpr-info-btn"
+                      className="gm-info-btn"
                       title="Ver detalle de ingreso"
                       onClick={() => onOpenDetalle?.(row)}
                       disabled={!row}
@@ -617,14 +614,14 @@ export default function ModalCobrarOtrosIngresos({
                 </div>
               </div>
 
-              <div className="mpr-tfoot">
-                <div className="mpr-tfoot-stats">
-                  <span className="mpr-stat">Total <b>1</b></span>
-                  <span className="mpr-stat-sep" />
-                  <span className="mpr-stat">Seleccionadas <b>{selected ? 1 : 0}</b></span>
+              <div className="gm-income-table-foot gm-table-foot">
+                <div className="gm-income-table-foot-stats">
+                  <span className="gm-table-stat">Total <b>1</b></span>
+                  <span className="gm-table-stat-sep" />
+                  <span className="gm-table-stat">Seleccionadas <b>{selected ? 1 : 0}</b></span>
                 </div>
-                <div className="mpr-tfoot-totals">
-                  <div className="mpr-total-pill">
+                <div className="gm-summary-chips gm-income-table-foot-totals">
+                  <div className="gm-summary-chip gm-summary-chip--total gm-income-total-pill">
                     <span>Saldo seleccionado</span>
                     <b>{moneyARS(totalSeleccionado)}</b>
                   </div>
@@ -632,29 +629,28 @@ export default function ModalCobrarOtrosIngresos({
               </div>
             </section>
 
-            <div className="mi-cr-filters">
-              <aside className="nc-aside">
-                <div className="nc-section">
-                  <div className="nc-section-head">
-                    <div className="nc-section-dot" />
+            <div className="gm-movement-side">
+              <aside className="gm-aside">
+                <div className="gm-section">
+                  <div className="gm-section-head">
+                    <div className="gm-section-dot" />
                     <span>Datos del cobro</span>
                   </div>
 
-                  <div className="nc-section-body">
+                  <div className="gm-section-body">
                     <button
                       type="button"
-                      className="nv-foot-btn"
-                      style={{ width: "100%", justifyContent: "center" }}
+                      className="gm-action-btn gm-action-btn--soft gm-action-btn--block gm-income-select-all-btn"
                       onClick={() => !saving && setSelected((v) => !v)}
                       disabled={saving}
                     >
-                      <span className="nv-foot-btn__icon">
+                      <span className="gm-action-btn__icon">
                         <FontAwesomeIcon icon={faListCheck} style={{ fontSize: 10 }} />
                       </span>
                       {selected ? "Deseleccionar" : "Seleccionar"}
                     </button>
 
-                    <div className="nc-section-divider" />
+                    <div className="gm-section-divider" />
 
                     <PanelMediosPagoIngreso
                       medios={medios}
@@ -673,8 +669,8 @@ export default function ModalCobrarOtrosIngresos({
                 </div>
               </aside>
 
-              <div className="nc-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
-                <button type="button" className="mit-btn mit-btn--solid mit-btn--block" onClick={submit} disabled={!canConfirm}>
+              <div className="gm-actions gm-actions--sticky">
+                <button type="button" className="gm-action-btn gm-action-btn--save" onClick={submit} disabled={!canConfirm}>
                   {saving ? (
                     <>
                       <FontAwesomeIcon icon={faCircleNotch} spin style={{ marginRight: 6 }} />
@@ -685,7 +681,7 @@ export default function ModalCobrarOtrosIngresos({
                   )}
                 </button>
 
-                <button type="button" className="mit-btn mit-btn--ghost mit-btn--block" onClick={onClose} disabled={saving}>
+                <button type="button" className="gm-action-btn gm-action-btn--cancel" onClick={onClose} disabled={saving}>
                   Cancelar
                 </button>
               </div>

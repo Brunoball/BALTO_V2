@@ -29,3 +29,9 @@
 .oe-table #delete_cell {
   padding-right: 8px;
 }
+
+
+.oe-table .stock_cant {
+  display: flex;
+  flex-direction: column;
+}

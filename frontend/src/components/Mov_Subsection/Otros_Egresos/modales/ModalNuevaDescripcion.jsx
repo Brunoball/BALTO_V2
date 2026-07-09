@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/roots.css";
+import "../../../Global/Global_css/GlobalsModalsV2.css";
 
 export default function ModalNuevaDescripcion({ open, onClose, onSave, dark }) {
   const [nombre, setNombre] = useState("");
@@ -73,31 +74,32 @@ export default function ModalNuevaDescripcion({ open, onClose, onSave, dark }) {
 
   return createPortal(
     <div
-      className={["mi-modal__overlay", dark ? "mi-modal__overlay--dark" : ""].join(" ").trim()}
+      className={["gm-modal-overlay", dark ? "gm-modal-overlay--dark" : ""].join(" ").trim()}
       onMouseDown={handleCancel}
     >
       <div
         className={[
-          "mi-modal__container",
-          "mi-modal__container--small",
-          dark ? "mi-modal--dark" : "",
+          "gm-modal-container",
+          "gm-modal-container--small",
+          "gm-modal-v2",
+          dark ? "gm-modal-container--dark mi-modal--dark" : "",
         ].join(" ").trim()}
         role="dialog"
         aria-modal="true"
         onMouseDown={(e) => e.stopPropagation()}
         style={{ maxWidth: "450px" }}
       >
-        <div className="mi-modal__header">
-          <div className="mi-modal__head-icon" aria-hidden="true">
+        <div className="gm-modal-header">
+          <div className="gm-modal-head-icon" aria-hidden="true">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 5v14M5 12h14" />
             </svg>
           </div>
-          <div className="mi-modal__head-left">
-            <h2 className="mi-modal__title">Nueva descripción</h2>
+          <div className="gm-modal-head-left">
+            <h2 className="gm-modal-title">Nueva descripción</h2>
           </div>
           <button
-            className="mi-modal__close"
+            className="gm-modal-close"
             onClick={handleCancel}
             aria-label="Cerrar"
             disabled={saving}
@@ -108,12 +110,12 @@ export default function ModalNuevaDescripcion({ open, onClose, onSave, dark }) {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="mi-modal__content" style={{ padding: "20px" }}>
-            <div className="fl-field" style={{ marginBottom: 0 }}>
+          <div className="gm-modal-content" style={{ padding: "20px" }}>
+            <div className="gm-field" style={{ marginBottom: 0 }}>
               <input
                 ref={inputRef}
                 id="nueva-descripcion-input"
-                className="fl-input"
+                className="gm-input"
                 type="text"
                 placeholder=" "
                 value={nombre}
@@ -122,25 +124,25 @@ export default function ModalNuevaDescripcion({ open, onClose, onSave, dark }) {
                 autoComplete="off"
                 style={{ textTransform: "uppercase" }}
               />
-              <label className="fl-label" htmlFor="nueva-descripcion-input">
+              <label className="gm-label" htmlFor="nueva-descripcion-input">
                 Nombre de la descripción
               </label>
             </div>
           </div>
 
-          <div className="mi-modal__footer" style={{ padding: "16px 20px", display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+          <div className="gm-modal-footer" style={{ padding: "16px 20px", display: "flex", gap: "12px", justifyContent: "flex-end" }}>
             <button
               type="button"
               onClick={handleCancel}
               disabled={saving}
-              className="mit-btn mit-btn--ghost"
+              className="gm-action-btn gm-action-btn--cancel"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving || !nombre.trim()}
-              className="mit-btn mit-btn--solid"
+              className="gm-action-btn gm-action-btn--save"
             >
               {saving ? "Guardando..." : "Guardar"}
             </button>

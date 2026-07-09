@@ -1,13 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
-import "../../../Global/Global_css/Global_Modals.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
-import "../../modalcss/globalmodalsmov.css";
+import "../OrdenesPagoModals.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
-import "../../modalcss/AltasMovimientos.css";
-import "../../Recibos/modales/ModalPagarRecibos.css";
 import BASE_URL from "../../../../config/config";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -68,9 +65,6 @@ function todayISO() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function isTemaOscuro() {
-  return document.documentElement.getAttribute("data-theme") === "oscuro";
-}
 
 function getAuthInfo() {
   const sessionKey = (
@@ -270,7 +264,7 @@ function getChequeIdsArray(value) {
 function EstadoChip({ row, pagado }) {
   const parcial = !pagado && isParcialRow(row);
   return (
-    <span className={`mpr-chip ${pagado ? "mpr-chip--ok" : "mpr-chip--warn"}`}>
+    <span className={`gm-status-chip ${pagado ? "gm-status-chip--ok" : "gm-status-chip--warn"}`}>
       {pagado ? "PAGADO" : parcial ? "PENDIENTE PARCIAL" : "PENDIENTE"}
     </span>
   );
@@ -684,16 +678,6 @@ export default function ModalPagarOrdenesPago({
   const firstFocusRef = useRef(null);
   const tbodyRef = useRef(null);
   const [tbodyHasScroll, setTbodyHasScroll] = useState(false);
-
-  const [dark, setDark] = useState(isTemaOscuro());
-  useEffect(() => {
-    const obs = new MutationObserver(() => setDark(isTemaOscuro()));
-    obs.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => obs.disconnect();
-  }, []);
 
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [pagaTodo, setPagaTodo] = useState(false);
@@ -1172,23 +1156,8 @@ export default function ModalPagarOrdenesPago({
   const canConfirm =
     !loading && selectedIds.size > 0 && !loadingMedios && mediosFilas.every((mp) => mp.id_medio_pago);
 
-  const modalClass = [
-    "mi-modal__container",
-    "mi-modal__container--mov",
-    "gm-modal-v2",
-    "mpr-modal",
-    dark ? "mi-modal--dark" : "",
-  ]
-    .join(" ")
-    .trim();
-
-  const overlayClass = [
-    "mi-modal__overlay",
-    "mi-modal__overlay--mov",
-    dark ? "mi-modal__overlay--dark" : "",
-  ]
-    .join(" ")
-    .trim();
+  const modalClass = "gm-modal-container gm-modal-container--movement gm-modal-v2 gm-order-pay-modal";
+  const overlayClass = "gm-modal-overlay";
 
   return createPortal(
     <>
@@ -1200,13 +1169,13 @@ export default function ModalPagarOrdenesPago({
             onMouseDown={(e) => e.stopPropagation()}
           >
             {/* ── Header ── */}
-            <div className="mi-modal__header">
-              <div className="mi-modal__head-icon" aria-hidden="true">
+            <div className="gm-modal-header">
+              <div className="gm-modal-head-icon" aria-hidden="true">
                 <FontAwesomeIcon icon={faMoneyBill1Wave} />
               </div>
-              <div className="mi-modal__head-left">
-                <h2 className="mi-modal__title">Pagar orden</h2>
-                <p className="mi-modal__subtitle">
+              <div className="gm-modal-head-left">
+                <h2 className="gm-modal-title">Pagar orden</h2>
+                <p className="gm-modal-subtitle">
                   {safeText(proveedor?.proveedor)}
                   {proveedor?.id_proveedor ? ` · ID ${String(proveedor.id_proveedor)}` : ""}
                 </p>
@@ -1214,7 +1183,7 @@ export default function ModalPagarOrdenesPago({
               <button
                 ref={firstFocusRef}
                 type="button"
-                className="mi-modal__close"
+                className="gm-modal-close"
                 onClick={onClose}
                 title="Cerrar"
                 disabled={loading}
@@ -1224,26 +1193,26 @@ export default function ModalPagarOrdenesPago({
             </div>
 
             {/* ── Contenido ── */}
-            <div className="mi-modal__content">
-              <div className="mi-cr-grid">
+            <div className="gm-modal-content">
+              <div className="gm-movement-layout">
 
                 {/* Tabla de deudas */}
-                <section className="mi-cr-table gm-table mpr-table">
-                  <div className="mpr-thead gm-table-head">
-                    <div className="mpr-th gm-table-th mpr-th--sel gm-table-cell--center">Sel</div>
-                    <div className="mpr-th gm-table-th">Fecha</div>
-                    <div className="mpr-th gm-table-th mpr-th--desc">Descripción</div>
-                    <div className="mpr-th gm-table-th mpr-th--center gm-table-cell--center">Estado</div>
-                    <div className="mpr-th gm-table-th mpr-th--right gm-table-cell--right">Monto</div>
-                    <div className="mpr-th gm-table-th mpr-th--info gm-table-cell--center">Info</div>
+                <section className="gm-movement-main gm-table gm-order-table">
+                  <div className={`gm-order-table-head gm-table-head ${tbodyHasScroll ? "gm-table-head--body-scroll" : ""}`}>
+                    <div className="gm-order-th gm-table-th gm-order-th--sel gm-table-cell--center">Sel</div>
+                    <div className="gm-order-th gm-table-th">Fecha</div>
+                    <div className="gm-order-th gm-table-th gm-order-th--desc">Descripción</div>
+                    <div className="gm-order-th gm-table-th gm-order-th--center gm-table-cell--center">Estado</div>
+                    <div className="gm-order-th gm-table-th gm-order-th--right gm-table-cell--right">Monto</div>
+                    <div className="gm-order-th gm-table-th gm-order-th--info gm-table-cell--center">Info</div>
                   </div>
 
                   <div
                     ref={tbodyRef}
-                    className={`mpr-tbody gm-table-body ${tbodyHasScroll ? "mpr-tbody--scroll" : ""}`}
+                    className={`gm-order-table-body gm-table-body ${tbodyHasScroll ? "gm-order-table-body--scroll gm-table-body--scroll" : ""}`}
                   >
                     {!deudasOrdenadas.length && (
-                      <div className="mpr-empty">
+                      <div className="gm-table-empty">
                         No hay deudas para este proveedor.
                       </div>
                     )}
@@ -1257,17 +1226,17 @@ export default function ModalPagarOrdenesPago({
                       return (
                         <div
                           key={id || `${r?.fecha}-${idx}`}
-                          className={`mpr-row gm-table-row ${checked ? "is-checked" : ""} ${pagado ? "is-paid" : ""}`}
+                          className={`gm-order-row gm-table-row ${checked ? "is-checked" : ""} ${pagado ? "is-paid" : ""}`}
                           role="row"
                           onClick={() => id && toggleOne(id, r)}
                           title={pagado ? "Este registro ya está PAGADO" : undefined}
                         >
                           <div
-                            className="mpr-td gm-table-cell mpr-td--sel gm-table-cell--center"
+                            className="gm-order-td gm-table-cell gm-order-td--sel gm-table-cell--center"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <label
-                              className={`mpr-check ${!id || loading || pagado ? "is-disabled" : ""}`}
+                              className={`gm-inline-check ${!id || loading || pagado ? "is-disabled" : ""}`}
                             >
                               <input
                                 type="checkbox"
@@ -1275,33 +1244,33 @@ export default function ModalPagarOrdenesPago({
                                 onChange={() => toggleOne(id, r)}
                                 disabled={!id || loading || pagado}
                               />
-                              <span className="mpr-check__box" aria-hidden="true" />
+                              <span className="gm-inline-check__box" aria-hidden="true" />
                             </label>
                           </div>
 
-                          <div className="mpr-td gm-table-cell">
+                          <div className="gm-order-td gm-table-cell">
                             {safeText(formatFechaDMY(r?.fecha))}
                           </div>
 
                           <div
-                            className="mpr-td gm-table-cell mpr-td--desc"
+                            className="gm-order-td gm-table-cell gm-order-td--desc"
                             title={safeText(r?.detalle ?? r?.descripcion ?? r?.concepto)}
                           >
                             {productosLabel(r)}
                           </div>
 
-                          <div className="mpr-td gm-table-cell mpr-td--center gm-table-cell--center">
+                          <div className="gm-order-td gm-table-cell gm-order-td--center gm-table-cell--center">
                             <EstadoChip row={r} pagado={pagado} />
                           </div>
 
-                          <div className="mpr-td gm-table-cell mpr-td--right gm-table-cell--right mpr-td--mono gm-table-cell--mono">
+                          <div className="gm-order-td gm-table-cell gm-order-td--right gm-table-cell--right gm-order-td--mono gm-table-cell--mono">
                             {moneyARS(saldoPendiente)}
                           </div>
 
-                          <div className="mpr-td gm-table-cell mpr-td--info gm-table-cell--center" onClick={(e) => e.stopPropagation()}>
+                          <div className="gm-order-td gm-table-cell gm-order-td--info gm-table-cell--center" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
-                              className="mpr-info-btn"
+                              className="gm-info-btn"
                               onClick={() => abrirDetalleDeuda(r)}
                               title="Ver detalle de la deuda"
                               aria-label="Ver detalle de la deuda"
@@ -1314,18 +1283,18 @@ export default function ModalPagarOrdenesPago({
                     })}
                   </div>
 
-                  <div className="mpr-tfoot gm-table-foot">
-                    <div className="mpr-tfoot-stats">
-                      <span className="mpr-stat">
+                  <div className="gm-order-table-foot gm-table-foot">
+                    <div className="gm-order-table-foot-stats">
+                      <span className="gm-table-stat">
                         Total <b>{deudasOrdenadas.length}</b>
                       </span>
-                      <span className="mpr-stat-sep" />
-                      <span className="mpr-stat">
+                      <span className="gm-table-stat-sep" />
+                      <span className="gm-table-stat">
                         Seleccionadas <b>{cantSeleccionadas}</b>
                       </span>
                     </div>
-                    <div className="mpr-tfoot-totals">
-                      <div className="mpr-total-pill">
+                    <div className="gm-order-table-foot-totals">
+                      <div className="gm-summary-chip gm-summary-chip--total gm-order-total-pill">
                         <span>Saldo seleccionado</span>
                         <b>{moneyARS(totalSeleccionado)}</b>
                       </div>
@@ -1334,7 +1303,7 @@ export default function ModalPagarOrdenesPago({
                 </section>
 
                 {/* Aside de pago */}
-                <div className="mi-cr-filters">
+                <div className="gm-movement-side">
                   <aside className="gm-aside">
                     <div className="gm-section">
                       <div className="gm-section-head">
@@ -1345,12 +1314,11 @@ export default function ModalPagarOrdenesPago({
                       <div className="gm-section-body">
                         <button
                           type="button"
-                          className="nv-foot-btn mpr-btn-selall"
-                          style={{ width: "100%", justifyContent: "center" }}
+                          className="gm-action-btn gm-action-btn--soft gm-action-btn--block gm-order-select-all-btn"
                           onClick={toggleAll}
                           disabled={!deudasOrdenadas.length || loading}
                         >
-                          <span className="nv-foot-btn__icon">
+                          <span className="gm-action-btn__icon">
                             <FontAwesomeIcon icon={faListCheck} style={{ fontSize: 10 }} />
                           </span>
                           {pagaTodo ? "Deseleccionar todas" : "Seleccionar todas"}
@@ -1375,10 +1343,10 @@ export default function ModalPagarOrdenesPago({
                     </div>
                   </aside>
 
-                  <div className="gm-actions mi-cr-filters__actions mi-cr-filters__actions--sticky">
+                  <div className="gm-actions">
                     <button
                       type="button"
-                      className="mit-btn mit-btn--solid mit-btn--block"
+                      className="gm-action-btn gm-action-btn--pay"
                       onClick={handleConfirm}
                       disabled={!canConfirm}
                     >
@@ -1393,7 +1361,7 @@ export default function ModalPagarOrdenesPago({
                     </button>
                     <button
                       type="button"
-                      className="mit-btn mit-btn--ghost mit-btn--block"
+                      className="gm-action-btn gm-action-btn--cancel"
                       onClick={onClose}
                       disabled={loading}
                     >

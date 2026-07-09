@@ -7,7 +7,6 @@ import "../../Global/Global_css/Global_oscuro.css";
 import Toast from "../../Global/Toast.jsx";
 import Calendario from "../../Global/Calendario/Calendario.jsx";
 import "../../Global/Calendario/calendario.css";
-import "../modalcss/globalmodalsmov.css";
 
 import ModalNuevaVenta from "./modales/ModalNuevaVenta.jsx";
 import ModalEmitirNotaCreditoVenta from "./modales/ModalEmitirNotaCreditoVenta.jsx";
