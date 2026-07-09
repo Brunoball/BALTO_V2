@@ -45,12 +45,15 @@ const SKELETON_ROWS = 10;
 const LIVE_POLL_MS = 5000;
 const PREWARM_BATCH_SIZE = 8;
 const PREWARM_DELAY_MS = 60;
-const VENTAS_LIST_CACHE_KEY = "ventas:listar:cc-medios-r2-v7";
+const VENTAS_LIST_CACHE_KEY = "ventas:listar:cc-medios-r2-v11-tn-label-clean";
 
 function moneyARS(v) { const n = Number(v || 0); try { return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" }); } catch { return `$${n.toFixed(2)}`; } }
 function safeText(v) { const s = String(v ?? "").trim(); return s ? s : "—"; }
 function productosLabel(row) {
-  return getResumenProductosMovimiento(row);
+  const base = getResumenProductosMovimiento(row);
+  const esTN = Number(row?.origen_tienda_nube ?? 0) === 1 || String(row?.origen ?? "").toUpperCase() === "TIENDA_NUBE";
+  if (!esTN) return base;
+  return `${base} - TIENDA NUBE`;
 }
 function normalizeSearchText(v) { return String(v ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim(); }
 function formatFechaDMY(v) {
@@ -258,6 +261,10 @@ function normalizeVentaRow(r) {
     cantidad_items: Number(r?.cantidad_items || 0),
     items_detalle: Array.isArray(r?.items_detalle) ? r.items_detalle : [],
     comprobantes_detalle: docsDetalle,
+    origen: String(r?.origen ?? "").trim(),
+    origen_tienda_nube: Number(r?.origen_tienda_nube || 0),
+    origen_label: String(r?.origen_label ?? "").trim(),
+    tn_order_id: r?.tn_order_id ?? null,
   };
 }
 function rowMatchesQuery(row, query) {
@@ -267,6 +274,13 @@ function rowMatchesQuery(row, query) {
   if (row && typeof row === "object") for (const k of Object.keys(row)) { const val = row[k]; if (val && typeof val === "object") continue; parts.push(String(val ?? "")); }
   if (Array.isArray(row?.items_detalle)) row.items_detalle.forEach((it) => parts.push(it?.producto_nombre, it?.stock_producto_nombre, it?.variante_nombre, it?.stock_variante_nombre, it?.nombre_variante, it?.producto_variante_nombre, it?.detalle_nombre, it?.nombre, it?.descripcion));
   if (Array.isArray(row?.medios_pago_detalle)) row.medios_pago_detalle.forEach((mp) => parts.push(mp?.medio_pago_nombre, mp?.cheque_tipo, mp?.numero_cheque, mp?.emisor));
+  {
+    const orderIdRaw = row?.tn_order_id ?? row?.tn_order_number ?? null;
+    const orderId = Number(orderIdRaw ?? 0);
+    const tieneOrdenTN = (Number.isFinite(orderId) && orderId > 0) || String(orderIdRaw ?? "").trim() !== "";
+    const esTN = tieneOrdenTN && (Number(row?.origen_tienda_nube ?? 0) === 1 || String(row?.origen ?? "").toUpperCase() === "TIENDA_NUBE");
+    if (esTN) parts.push("TIENDA NUBE", "tienda nube", "tiendanube", row?.origen_label, row?.tn_order_id);
+  }
   parts.push(formatFechaDMY(row?.fecha), String(montoNum), String(Math.trunc(montoNum)), moneyARS(montoNum));
   const hay = normalizeSearchText(parts.join(" | "));
   return hay.includes(qq);
@@ -326,7 +340,7 @@ export default function Ventas() {
   const liveToastCooldownRef = useRef(0);
   useEffect(() => () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); if (liveTimerRef.current) clearTimeout(liveTimerRef.current); prewarmCancelRef.current = true; }, []);
   useEffect(() => {
-    ["ventas:listar:cc-medios-v2", "ventas:listar:cc-medios-v3", "ventas:listar:cc-medios-r2-v4", "ventas:listar:cc-medios-r2-v5", "ventas:listar:cc-medios-r2-v6"].forEach((key) => clearMovPerfCache(key));
+    ["ventas:listar:cc-medios-v2", "ventas:listar:cc-medios-v3", "ventas:listar:cc-medios-r2-v4", "ventas:listar:cc-medios-r2-v5", "ventas:listar:cc-medios-r2-v6", "ventas:listar:cc-medios-r2-v7", "ventas:listar:cc-medios-r2-v8-tn"].forEach((key) => clearMovPerfCache(key));
   }, []);
   const buildHeadersGET = useCallback(() => { const { token, sessionKey } = getAuthInfo(); const h = {}; if (sessionKey) h["X-Session"] = sessionKey; if (token) h.Authorization = `Bearer ${token}`; return h; }, []);
   const buildHeadersPOST = useCallback(() => { const { token, sessionKey } = getAuthInfo(); const h = { "Content-Type": "application/json" }; if (sessionKey) h["X-Session"] = sessionKey; if (token) h.Authorization = `Bearer ${token}`; return h; }, []);

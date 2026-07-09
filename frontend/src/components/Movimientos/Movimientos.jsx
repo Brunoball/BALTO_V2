@@ -336,6 +336,16 @@ function detallesLabel(row) {
   const depositoLabel = getDepositoChequeLabel(row);
   if (depositoLabel) return depositoLabel;
 
+  const origen = String(row?.origen || "").toUpperCase();
+  const esTiendaNube = Number(row?.origen_tienda_nube || 0) === 1 || origen === "TIENDA_NUBE" || origen === "TIENDA NUBE";
+  if (esTiendaNube) {
+    const cantidadDesdeCampoTN = Number(row?.cantidad_items || 0);
+    const cantidadDesdeItemsTN = Array.isArray(row?.items_detalle) ? row.items_detalle.length : 0;
+    const cantidadTN = cantidadDesdeCampoTN > 0 ? cantidadDesdeCampoTN : cantidadDesdeItemsTN;
+    const productosTN = cantidadTN === 1 ? "1 PRODUCTO" : `${cantidadTN || 1} PRODUCTOS`;
+    return `${productosTN} - TIENDA NUBE`;
+  }
+
   const cantidadDesdeCampo = Number(row?.cantidad_items || 0);
   const cantidadDesdeItems = Array.isArray(row?.items_detalle) ? row.items_detalle.length : 0;
   const cantidad = cantidadDesdeCampo > 0 ? cantidadDesdeCampo : cantidadDesdeItems;
