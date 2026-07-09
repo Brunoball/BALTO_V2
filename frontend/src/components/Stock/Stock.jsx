@@ -1148,6 +1148,7 @@ const Stock = () => {
         action: "stock_variantes_listar",
         id_stock_producto: String(id),
         activo: "todos",
+        _r: String(Date.now()),
       });
       if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
 
@@ -1759,6 +1760,24 @@ const Stock = () => {
       if (data?.exito === false) {
         throw new Error(data?.mensaje || "No se pudo reactivar la variante.");
       }
+
+      const varianteRespuesta = data?.variante || data?.data?.variante || null;
+      setVariantesPorProducto((prev) => {
+        const actuales = Array.isArray(prev[productoId]) ? prev[productoId] : [];
+        if (!actuales.length && !varianteRespuesta) return prev;
+        return {
+          ...prev,
+          [productoId]: actuales.map((item) => {
+            const idItem = getVarianteId(item);
+            if (idItem !== varianteId) return item;
+            return {
+              ...item,
+              ...(varianteRespuesta && typeof varianteRespuesta === "object" ? varianteRespuesta : {}),
+              activo: 1,
+            };
+          }),
+        };
+      });
 
       await cargarVariantesProducto(productoId);
       await refrescarDespuesDeGuardar();

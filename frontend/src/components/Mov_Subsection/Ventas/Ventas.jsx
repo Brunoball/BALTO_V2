@@ -526,7 +526,54 @@ export default function Ventas() {
     { key: "txt", label: "Exportar TXT (.txt)", onClick: () => handleExport("txt") },
   ], [handleExport]);
   const reloadVista = useCallback(async () => { cacheRef.current.clear(); clearMovPerfCache(VENTAS_LIST_CACHE_KEY); signedUrlCacheRef.current.clear(); signedUrlInFlightRef.current.clear(); await loadRows({ from: dateRange.from, to: dateRange.to, q, offset: 0, append: false, bypassCache: true }); try { const token = await fetchLiveToken(dateRange.from, dateRange.to, q); liveTokenRef.current = token; } catch {} }, [dateRange.from, dateRange.to, loadRows, q, fetchLiveToken]);
-  const confirmDelete = async () => { if (!selectedRow?.id_movimiento) return; const id = selectedRow.id_movimiento; setDeletingId(id); setError(""); try { const { idUsuario } = getAuthInfo(); const sp = new URLSearchParams(); sp.set("action", "ventas_eliminar"); sp.set("id_movimiento", String(id)); const data = await apiPostJson(`${API}?${sp.toString()}`, { idUsuario }); if (!data?.exito) throw new Error(data?.mensaje || "No se pudo eliminar."); ["presupuestos:listar:v2", "presupuestos:listar:v3", "presupuestos:listar:v4"].forEach((scope) => clearMovPerfCache(scope)); setOpenDel(false); setSelectedRow(null); await reloadVista(); await refreshPeriodos(); } catch (e) { setError(e.message || "Error eliminando venta."); throw e; } finally { setDeletingId(null); } };
+  const confirmDelete = async () => {
+    if (!selectedRow?.id_movimiento) return;
+    const id = selectedRow.id_movimiento;
+    setDeletingId(id);
+    setError("");
+
+    try {
+      const { idUsuario } = getAuthInfo();
+      const sp = new URLSearchParams();
+      sp.set("action", "ventas_eliminar");
+      sp.set("id_movimiento", String(id));
+
+      const data = await apiPostJson(`${API}?${sp.toString()}`, { idUsuario });
+      if (!data?.exito) throw new Error(data?.mensaje || "No se pudo eliminar.");
+
+      ["presupuestos:listar:v2", "presupuestos:listar:v3", "presupuestos:listar:v4"].forEach((scope) => clearMovPerfCache(scope));
+      clearMovPerfCache(VENTAS_LIST_CACHE_KEY);
+      cacheRef.current.clear();
+      signedUrlCacheRef.current.clear();
+      signedUrlInFlightRef.current.clear();
+
+      // La venta ya fue eliminada en backend. La sacamos de la tabla al instante
+      // para no depender de un refetch que puede demorarse si Tienda Nube está lento.
+      setRows((prev) => {
+        const next = (Array.isArray(prev) ? prev : []).filter((r) => getMovimientoId(r) !== id);
+        rowsRef.current = next;
+        return next;
+      });
+      setOpenDel(false);
+      setSelectedRow(null);
+
+      try {
+        await reloadVista();
+      } catch (refreshErr) {
+        console.warn("Venta eliminada, pero no se pudo refrescar la lista automáticamente:", refreshErr);
+      }
+      try {
+        await refreshPeriodos();
+      } catch (periodosErr) {
+        console.warn("Venta eliminada, pero no se pudieron refrescar los períodos:", periodosErr);
+      }
+    } catch (e) {
+      setError(e.message || "Error eliminando venta.");
+      throw e;
+    } finally {
+      setDeletingId(null);
+    }
+  };
   const handleLoadMore = useCallback(async () => { if (!hasMore || loadingMore || loadingRows || loadingListsCtx || nextOffset === null) return; try { await loadRows({ from: dateRange.from, to: dateRange.to, q: (q || "").trim(), offset: nextOffset, append: true }); try { const token = await fetchLiveToken(dateRange.from, dateRange.to, q); liveTokenRef.current = token; } catch {} } catch (e) { showToast("error", e?.message || "Error cargando más ventas.", 4200); } }, [hasMore, loadingMore, loadingRows, loadingListsCtx, nextOffset, dateRange, q, loadRows, showToast, fetchLiveToken]);
   const handleVerComprobante = useCallback(async (r) => {
     const candidates = buildComprobanteCandidatesFromRow(r);

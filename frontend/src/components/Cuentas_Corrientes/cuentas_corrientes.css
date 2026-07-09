@@ -1256,3 +1256,101 @@ body.dark .contenedor-cards.mov-page .cc-cliente-table .mov-gridCell.cc-money--n
 body.dark .cc-cliente-table__footWrap .mov-gridCell.cc-money--neutral{
   color: rgba(226, 232, 240, 0.78) !important;
 }
+
+/* =========================
+   Tabs detalle CC / Historial
+========================= */
+.cc-detailTabs{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 12px;
+  padding: 4px;
+  width: fit-content;
+  border: 1px solid rgba(10, 37, 64, 0.12);
+  border-radius: 999px;
+  background: rgba(10, 37, 64, 0.035);
+}
+
+.cc-detailTab{
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(66, 84, 102, 0.88);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--cc-transition), color var(--cc-transition), box-shadow var(--cc-transition);
+}
+
+.cc-detailTab:hover:not(:disabled){
+  background: rgba(0, 85, 187, 0.08);
+  color: var(--b-midnight);
+}
+
+.cc-detailTab.is-active{
+  background: #fff;
+  color: var(--cc-primary);
+  box-shadow: 0 5px 14px rgba(10, 37, 64, 0.10);
+}
+
+.cc-detailTab:disabled{
+  cursor: not-allowed;
+  opacity: .72;
+}
+
+.cc-rowMeta{
+  display: block;
+  margin-top: 3px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(66, 84, 102, 0.72);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+html[data-theme="oscuro"] .cc-detailTabs,
+body.dark .cc-detailTabs{
+  border-color: rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+}
+
+html[data-theme="oscuro"] .cc-detailTab,
+body.dark .cc-detailTab{
+  color: rgba(255,255,255,.72);
+}
+
+html[data-theme="oscuro"] .cc-detailTab:hover:not(:disabled),
+body.dark .cc-detailTab:hover:not(:disabled){
+  background: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.94);
+}
+
+html[data-theme="oscuro"] .cc-detailTab.is-active,
+body.dark .cc-detailTab.is-active{
+  background: rgba(255,255,255,.12);
+  color: #fff;
+  box-shadow: 0 5px 14px rgba(0,0,0,.22);
+}
+
+html[data-theme="oscuro"] .cc-rowMeta,
+body.dark .cc-rowMeta{
+  color: rgba(255,255,255,.62);
+}
+
+@media (max-width: 768px){
+  .cc-detailTabs{
+    width: 100%;
+  }
+
+  .cc-detailTab{
+    flex: 1;
+    text-align: center;
+  }
+}

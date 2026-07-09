@@ -10,6 +10,7 @@ import {
   faFileExcel,
   faTimes,
   faEye,
+  faInfoCircle,
   faBoxOpen,
   faChevronDown,
   faArrowRightLong,
@@ -23,6 +24,7 @@ import Toast from "../../Global/Toast.jsx";
 import Calendario from "../../Global/Calendario/Calendario.jsx";
 import ModalVerComprobante from "../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import ModalEliminarMovimientos from "../../Global/Modales/ModalEliminar.jsx";
+import ModalDetalleMovimiento from "../../Global/Modales/ModalDetalleMovimiento.jsx";
 import { useDateRange } from "../../../context/DateRangeContext.jsx";
 import BotonExportar from "../../Global/Boton_Exportar/BotonExportar.jsx";
 import ModalClientes from "./modales/ModalClientes.jsx";
@@ -258,7 +260,42 @@ function comprobanteRank(doc) {
 }
 
 function normalizeCCComprobanteDocs(row) {
-  const rawDocs = Array.isArray(row?.comprobantes_detalle) ? row.comprobantes_detalle : [];
+  const rawDocsBase = Array.isArray(row?.comprobantes_detalle) ? row.comprobantes_detalle : [];
+  const pagosDocs = Array.isArray(row?.medios_pago_detalle)
+    ? row.medios_pago_detalle
+        .map((medio) => {
+          const id = Number(medio?.id_comprobante ?? medio?.id_archivo ?? 0);
+          const rawUrl = safeText(medio?.url || medio?.archivo_url || medio?.comprobante_url || "");
+          if (!id && !rawUrl) return null;
+
+          const tipo = safeText(
+            medio?.tipo ||
+              medio?.tipo_archivo ||
+              medio?.archivo_tipo ||
+              (row?.id_proveedor ? "ORDEN_PAGO" : "RECIBO")
+          ).toUpperCase();
+          const label = safeText(medio?.label || medio?.title || comprobanteLabelFromTipo(tipo, "Comprobante de pago"));
+
+          return {
+            ...medio,
+            id_comprobante: Number.isFinite(id) && id > 0 ? id : null,
+            id_archivo: Number.isFinite(id) && id > 0 ? id : null,
+            tipo,
+            tipo_relacion: safeText(medio?.tipo_relacion || tipo).toUpperCase(),
+            key: safeText(medio?.key || `${tipo || "comprobante_pago"}_${id || rawUrl}`).toLowerCase(),
+            label,
+            title: label,
+            mime: safeText(medio?.mime || medio?.archivo_mime || "application/pdf") || "application/pdf",
+            fileName: safeText(medio?.fileName || medio?.filename || `${label.toLowerCase().replace(/\s+/g, "_")}.pdf`),
+            rawUrl,
+            cacheSalt: safeText(medio?.archivo_path || medio?.archivo_created_at || medio?.created_at || tipo || id || rawUrl),
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  const rawDocs = [...rawDocsBase, ...pagosDocs];
+  const seenDocs = new Set();
   const docs = rawDocs
     .map((doc, index) => {
       const id = Number(doc?.id_comprobante ?? doc?.id_archivo ?? doc?.id ?? 0);
@@ -282,7 +319,13 @@ function normalizeCCComprobanteDocs(row) {
         cacheSalt: safeText(doc?.archivo_path || doc?.created_at || tipo || id || rawUrl),
       };
     })
-    .filter(Boolean);
+    .filter((doc) => {
+      if (!doc) return false;
+      const key = doc.id_comprobante ? `id:${doc.id_comprobante}` : `url:${safeText(doc.rawUrl)}`;
+      if (seenDocs.has(key)) return false;
+      seenDocs.add(key);
+      return true;
+    });
 
   if (!docs.length) {
     const id = Number(row?.id_comprobante || 0);
@@ -349,6 +392,20 @@ function buildExportRows(rows) {
     "DÉBITO (DEBE)": Number(r.debito || 0),
     "CRÉDITO (HABER)": Number(r.credito || 0),
     SALDO: Number(r.saldo || 0),
+  }));
+}
+
+
+function buildHistorialExportRows(rows) {
+  return (Array.isArray(rows) ? rows : []).map((r) => ({
+    FECHA: formatDisplayDate(r.fecha || r.fecha_raw || ""),
+    MOVIMIENTO: safeText(r.comprobante || ""),
+    DETALLE: safeText(r.detalle || ""),
+    TIPO: safeText(r.tipo_venta_nombre || r.tipo_venta || ""),
+    ESTADO: safeText(r.estado_pago || ""),
+    TOTAL: Number(r.monto_total ?? r.debito ?? 0),
+    PAGADO: Number(r.total_pagado ?? r.credito ?? 0),
+    SALDO: Number(r.saldo_movimiento ?? r.saldo ?? 0),
   }));
 }
 
@@ -428,6 +485,9 @@ export default function ClientesCC() {
 
   const [rows, setRows] = useState([]);
   const [totales, setTotales] = useState({ debito: 0, credito: 0, saldo: 0 });
+  const [historialRows, setHistorialRows] = useState([]);
+  const [historialTotales, setHistorialTotales] = useState({ debito: 0, credito: 0, saldo: 0 });
+  const [activeDetailTab, setActiveDetailTab] = useState("cuenta");
 
   const [hasSearched, setHasSearched] = useState(false);
   const [queryUsed, setQueryUsed] = useState("");
@@ -443,6 +503,11 @@ export default function ClientesCC() {
   const [deleteState, setDeleteState] = useState({
     open: false,
     loading: false,
+    row: null,
+  });
+
+  const [detalleMovimientoState, setDetalleMovimientoState] = useState({
+    open: false,
     row: null,
   });
 
@@ -485,8 +550,9 @@ export default function ClientesCC() {
     const safeName = String(queryUsed || selectedCliente?.nombre || "cliente").replace(/[^\w.-]+/g, "_");
     const from = formatDateISO(dateRange?.from);
     const to = formatDateISO(dateRange?.to || dateRange?.from);
-    return `cc_cliente_${safeName}_${from}_${to}`;
-  }, [selectedCliente, q, queryUsed, dateRange]);
+    const detailSuffix = activeDetailTab === "historial" ? "historial" : "cuenta_corriente";
+    return `cc_cliente_${safeName}_${detailSuffix}_${from}_${to}`;
+  }, [selectedCliente, q, queryUsed, dateRange, activeDetailTab]);
 
   const filteredSummaryRows = useMemo(() => {
     const needle = normLower(q);
@@ -536,6 +602,9 @@ export default function ClientesCC() {
       if (!keepSelection) {
         setSelectedCliente(cliente);
         setQueryUsed(cliente.nombre || "");
+        setActiveDetailTab("cuenta");
+        setHistorialRows([]);
+        setHistorialTotales({ debito: 0, credito: 0, saldo: 0 });
       }
 
       try {
@@ -567,10 +636,49 @@ export default function ClientesCC() {
     [API, dateRange, showToast]
   );
 
+  const loadMovimientosHistorial = useCallback(
+    async (cliente) => {
+      if (!cliente?.id_cliente) return;
+
+      setLoading(true);
+      setHasSearched(true);
+
+      try {
+        const sp = new URLSearchParams();
+        sp.set("action", "cc_movimientos_historial_cliente");
+        sp.set("id_cliente", String(cliente.id_cliente));
+
+        if (dateRange?.from) {
+          sp.set("fecha_desde", formatDateISO(dateRange.from));
+          sp.set("fecha_hasta", formatDateISO(dateRange.to || dateRange.from));
+        }
+
+        const data = await apiGet(`${API}?${sp.toString()}`);
+
+        if (!data || data.exito !== true) {
+          throw new Error(data?.mensaje || "Error al cargar historial completo del cliente.");
+        }
+
+        setHistorialRows(Array.isArray(data.rows) ? data.rows : []);
+        setHistorialTotales(data.totales || { debito: 0, credito: 0, saldo: 0 });
+      } catch (e) {
+        setHistorialRows([]);
+        setHistorialTotales({ debito: 0, credito: 0, saldo: 0 });
+        showToast("error", e?.message || "Error inesperado", 4200);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [API, dateRange, showToast]
+  );
+
   const volverAlListado = useCallback(() => {
     setSelectedCliente(null);
     setRows([]);
     setTotales({ debito: 0, credito: 0, saldo: 0 });
+    setHistorialRows([]);
+    setHistorialTotales({ debito: 0, credito: 0, saldo: 0 });
+    setActiveDetailTab("cuenta");
     setHasSearched(false);
     setQueryUsed("");
 
@@ -580,16 +688,27 @@ export default function ClientesCC() {
   }, [loadSummary]);
 
   useEffect(() => {
-    if (selectedCliente?.id_cliente) {
-      loadHistorial(selectedCliente, { keepSelection: true });
+    if (!selectedCliente?.id_cliente) return;
+
+    loadHistorial(selectedCliente, { keepSelection: true });
+    if (activeDetailTab === "historial") {
+      loadMovimientosHistorial(selectedCliente);
     }
-  }, [dateRange?.from, dateRange?.to, selectedCliente, loadHistorial]);
+  }, [dateRange?.from, dateRange?.to, selectedCliente?.id_cliente, activeDetailTab, loadHistorial, loadMovimientosHistorial]);
+
+  const handleDetailTabChange = useCallback((tab) => {
+    setActiveDetailTab(tab === "historial" ? "historial" : "cuenta");
+  }, []);
 
   const getExportData = useCallback(() => {
-    const data = selectedCliente ? buildExportRows(rows) : buildClientesExportRows(filteredSummaryRows);
+    const data = selectedCliente
+      ? activeDetailTab === "historial"
+        ? buildHistorialExportRows(historialRows)
+        : buildExportRows(rows)
+      : buildClientesExportRows(filteredSummaryRows);
     if (!data.length) throw new Error("No hay datos para exportar.");
     return data;
-  }, [selectedCliente, rows, filteredSummaryRows]);
+  }, [selectedCliente, activeDetailTab, rows, historialRows, filteredSummaryRows]);
 
   const exportToExcel = useCallback(() => {
     const dataToExport = getExportData();
@@ -610,9 +729,13 @@ export default function ClientesCC() {
         ];
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, selectedCliente ? "Cuenta Corriente Cliente" : "Clientes");
+    XLSX.utils.book_append_sheet(
+      wb,
+      ws,
+      selectedCliente ? (activeDetailTab === "historial" ? "Historial Cliente" : "Cuenta Corriente Cliente") : "Clientes"
+    );
     XLSX.writeFile(wb, `${exportBaseName}.xlsx`);
-  }, [getExportData, exportBaseName, selectedCliente]);
+  }, [getExportData, exportBaseName, selectedCliente, activeDetailTab]);
 
   const exportToCSV = useCallback(() => {
     const dataToExport = getExportData();
@@ -771,8 +894,9 @@ export default function ClientesCC() {
 
         docs.forEach((doc) => prewarmComprobanteUrl(doc.url, safeText(doc?.mime || doc?.archivo_mime)));
 
-        const isCobro = Number(row?.credito || 0) > 0;
-        const isMovimiento = Number(row?.debito || 0) > 0;
+        const isHistorialMovimiento = row?.tipo_registro === "historial_movimiento";
+        const isCobro = !isHistorialMovimiento && Number(row?.credito || 0) > 0;
+        const isMovimiento = isHistorialMovimiento || Number(row?.debito || 0) > 0;
 
         setPreviewComprobante({
           open: true,
@@ -783,7 +907,9 @@ export default function ClientesCC() {
             ? `Recibo · ${row.comprobante}`
             : "Recibo"
           : isMovimiento
-          ? "Comprobantes de Venta"
+          ? row?.tipo_registro === "historial_movimiento"
+            ? "Comprobantes del movimiento"
+            : "Comprobantes de Venta"
           : "Comprobante",
           documents: docs,
         });
@@ -822,6 +948,37 @@ export default function ClientesCC() {
     });
   }, []);
 
+  const openDetalleMovimiento = useCallback((row) => {
+    if (!row) return;
+
+    const clienteNombre = safeText(
+      row?.cliente ||
+        row?.nombre_cliente ||
+        row?.razon_social_cliente ||
+        row?.cliente_nombre ||
+        selectedCliente?.nombre
+    );
+
+    setDetalleMovimientoState({
+      open: true,
+      row: {
+        ...row,
+        id_cliente: row?.id_cliente ?? selectedCliente?.id_cliente ?? null,
+        cliente: row?.cliente || clienteNombre,
+        nombre_cliente: row?.nombre_cliente || clienteNombre,
+        razon_social_cliente: row?.razon_social_cliente || clienteNombre,
+        cliente_nombre: row?.cliente_nombre || clienteNombre,
+      },
+    });
+  }, [selectedCliente]);
+
+  const closeDetalleMovimiento = useCallback(() => {
+    setDetalleMovimientoState({
+      open: false,
+      row: null,
+    });
+  }, []);
+
   useEffect(() => {
     const h = (e) => {
       if (e.key !== "Escape") return;
@@ -843,6 +1000,12 @@ export default function ClientesCC() {
       if (previewComprobante.open) {
         stopEscape();
         closePreviewComprobante();
+        return;
+      }
+
+      if (detalleMovimientoState.open) {
+        stopEscape();
+        closeDetalleMovimiento();
       }
     };
 
@@ -853,19 +1016,24 @@ export default function ClientesCC() {
     deleteState.open,
     deleteState.loading,
     previewComprobante.open,
+    detalleMovimientoState.open,
     closeDeleteModal,
     closePreviewComprobante,
+    closeDetalleMovimiento,
   ]);
 
   const refreshCurrent = useCallback(async () => {
     if (selectedCliente?.id_cliente) {
       await loadHistorial(selectedCliente, { keepSelection: true });
+      if (activeDetailTab === "historial") {
+        await loadMovimientosHistorial(selectedCliente);
+      }
       await loadSummary();
       return;
     }
 
     await loadSummary();
-  }, [selectedCliente, loadHistorial, loadSummary]);
+  }, [selectedCliente, activeDetailTab, loadHistorial, loadMovimientosHistorial, loadSummary]);
 
   const refreshAfterClientesUpdate = useCallback(async () => {
     await loadSummary();
@@ -873,11 +1041,14 @@ export default function ClientesCC() {
     if (selectedCliente?.id_cliente) {
       try {
         await loadHistorial(selectedCliente, { keepSelection: true });
+        if (activeDetailTab === "historial") {
+          await loadMovimientosHistorial(selectedCliente);
+        }
       } catch {
         volverAlListado();
       }
     }
-  }, [loadSummary, selectedCliente, loadHistorial, volverAlListado]);
+  }, [loadSummary, selectedCliente, activeDetailTab, loadHistorial, loadMovimientosHistorial, volverAlListado]);
 
   const confirmDeleteCobro = useCallback(async () => {
     const row = deleteState.row;
@@ -910,6 +1081,10 @@ export default function ClientesCC() {
   }, [deleteState.row, API, closeDeleteModal, refreshCurrent]);
 
   const isDetailMode = !!selectedCliente;
+  const isHistorialTab = activeDetailTab === "historial";
+  const detailRows = isHistorialTab ? historialRows : rows;
+  const detailTotales = isHistorialTab ? historialTotales : totales;
+  const detailCount = detailRows.length;
 
   return (
     <div className="contenedor-cards mov-page">
@@ -936,6 +1111,13 @@ export default function ClientesCC() {
         documents={previewComprobante.documents}
         title={previewComprobante.title}
         onClose={closePreviewComprobante}
+      />
+
+      <ModalDetalleMovimiento
+        open={detalleMovimientoState.open}
+        row={detalleMovimientoState.row}
+        onClose={closeDetalleMovimiento}
+        title="Detalle del movimiento"
       />
 
       <ModalEliminarMovimientos
@@ -975,7 +1157,7 @@ export default function ClientesCC() {
             <div className="mov-card__hint">
               {isDetailMode ? (
                 <>
-                  Mostrando <b>{rows.length}</b> registro{rows.length === 1 ? "" : "s"}
+                  Mostrando <b>{detailCount}</b> registro{detailCount === 1 ? "" : "s"}
                 </>
               ) : (
                 <>
@@ -1070,7 +1252,7 @@ export default function ClientesCC() {
 
               <div className="cc-row-actions__export">
                 <BotonExportar
-                  disabled={loading || (isDetailMode ? rows.length === 0 : filteredSummaryRows.length === 0)}
+                  disabled={loading || (isDetailMode ? detailRows.length === 0 : filteredSummaryRows.length === 0)}
                   loading={false}
                   label="Exportar"
                   opciones={exportOptions}
@@ -1092,6 +1274,31 @@ export default function ClientesCC() {
           </div>
         </div>
       </div>
+
+      {isDetailMode && (
+        <div className="cc-detailTabs" role="tablist" aria-label="Detalle de cuenta corriente">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeDetailTab === "cuenta"}
+            className={`cc-detailTab ${activeDetailTab === "cuenta" ? "is-active" : ""}`}
+            onClick={() => handleDetailTabChange("cuenta")}
+            disabled={loading}
+          >
+            Cuenta corriente
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeDetailTab === "historial"}
+            className={`cc-detailTab ${activeDetailTab === "historial" ? "is-active" : ""}`}
+            onClick={() => handleDetailTabChange("historial")}
+            disabled={loading}
+          >
+            Historial
+          </button>
+        </div>
+      )}
 
       {!isDetailMode ? (
         <div className="cc-cliente-table cc-cliente-table--summary">
@@ -1139,21 +1346,21 @@ export default function ClientesCC() {
             style={{ gridTemplateColumns: ".8fr 2.2fr 1fr 1fr 1fr .9fr" }}
           >
             <div className="mov-gridCell mov-gridCell--head">Fecha</div>
-            <div className="mov-gridCell mov-gridCell--head">Comprobante</div>
-            <div className="mov-gridCell mov-gridCell--head is-right">Débito</div>
-            <div className="mov-gridCell mov-gridCell--head is-right">Crédito</div>
+            <div className="mov-gridCell mov-gridCell--head">{isHistorialTab ? "Movimiento" : "Comprobante"}</div>
+            <div className="mov-gridCell mov-gridCell--head is-right">{isHistorialTab ? "Total" : "Débito"}</div>
+            <div className="mov-gridCell mov-gridCell--head is-right">{isHistorialTab ? "Pagado" : "Crédito"}</div>
             <div className="mov-gridCell mov-gridCell--head is-right">Saldo</div>
             <div className="mov-gridCell mov-gridCell--head is-center">Acciones</div>
           </div>
 
           <div className="cc-cliente-table__body cc-cliente-table__body--detail">
             {loading ? (
-              <div className="mov-emptyRow">Cargando cuenta corriente del cliente…</div>
-            ) : rows.length > 0 ? (
-              rows.map((r, i) => {
+              <div className="mov-emptyRow">{isHistorialTab ? "Cargando historial completo…" : "Cargando cuenta corriente del cliente…"}</div>
+            ) : detailRows.length > 0 ? (
+              detailRows.map((r, i) => {
                 const verHabilitado = canPreviewComprobante(r);
-                const puedeEliminar = canDeleteCobro(r);
-                const isCobro = Number(r.credito || 0) > 0;
+                const puedeEliminar = !isHistorialTab && canDeleteCobro(r);
+                const isCobro = !isHistorialTab && Number(r.credito || 0) > 0;
 
                 return (
                   <div
@@ -1208,6 +1415,17 @@ export default function ClientesCC() {
                           <FontAwesomeIcon icon={faEye} />
                         </button>
 
+                        {isHistorialTab ? (
+                          <button
+                            type="button"
+                            onClick={() => openDetalleMovimiento(r)}
+                            title="Ver detalle completo del movimiento"
+                            className="mov-iconBtn"
+                          >
+                            <FontAwesomeIcon icon={faInfoCircle} />
+                          </button>
+                        ) : null}
+
                         {puedeEliminar ? (
                           <button
                             type="button"
@@ -1228,7 +1446,9 @@ export default function ClientesCC() {
                 <FontAwesomeIcon icon={faBoxOpen} className="cc-emptyIcon" />
                 <div className="cc-emptyText">
                   {hasSearched
-                    ? `No se encontraron movimientos para "${queryUsed}".`
+                    ? isHistorialTab
+                      ? `No se encontraron movimientos en el historial de "${queryUsed}".`
+                      : `No se encontraron registros de cuenta corriente para "${queryUsed}".`
                     : "Sin movimientos para mostrar."}
                 </div>
               </div>
@@ -1243,13 +1463,13 @@ export default function ClientesCC() {
               <div className="mov-gridCell mov-gridCellf is-strong">Totales</div>
               <div className="mov-gridCell mov-gridCellf vacio"></div>
               <div className="mov-gridCell mov-gridCellf is-right is-strong cc-money cc-money--negative">
-                {moneyARS(totales?.debito || 0)}
+                {moneyARS(detailTotales?.debito || 0)}
               </div>
               <div className="mov-gridCell mov-gridCellf is-right is-strong cc-money cc-money--positive">
-                {moneyARS(totales?.credito || 0)}
+                {moneyARS(detailTotales?.credito || 0)}
               </div>
-              <div className={`mov-gridCell mov-gridCellf is-right is-strong ${saldoTotalClienteToneClass(totales)}`}>
-                {moneyARS(totales?.saldo || 0)}
+              <div className={`mov-gridCell mov-gridCellf is-right is-strong ${saldoTotalClienteToneClass(detailTotales)}`}>
+                {moneyARS(detailTotales?.saldo || 0)}
               </div>
               <div className="mov-gridCell mov-gridCellf vacio"></div>
             </div>
