@@ -2324,7 +2324,14 @@ const Stock = () => {
             ))}
           </div>
 
-          <div className="mov-tableWrap stock-tableWrap" role="rowgroup">
+          <div
+            className={[
+              "mov-tableWrap",
+              "stock-tableWrap",
+              !loading && productos.length === 0 ? "stock-tableWrap--empty" : "",
+            ].filter(Boolean).join(" ")}
+            role="rowgroup"
+          >
             <div
               className={[
                 "mov-gridBody",

@@ -87,6 +87,7 @@ export default function ModalAccionEntidadStock({
 
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation?.();
       if (!loading) onClose?.();
     };
 

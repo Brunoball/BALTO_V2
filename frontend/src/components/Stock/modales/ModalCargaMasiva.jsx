@@ -539,6 +539,7 @@ function ModalConfirmarProductosIA({
 
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation?.();
       if (!confirmando && !miniCategoriaOpen && !miniTipoOpen) onClose?.();
     };
 
@@ -1138,6 +1139,7 @@ export default function ModalCargaMasiva({
       if (!isLoading && !previewOpen && !modalConfirmOpen) {
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation?.();
         onClose?.();
       }
     };

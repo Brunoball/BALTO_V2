@@ -1386,6 +1386,13 @@ html[data-theme="oscuro"] .prod-variantExtraPrices small {
   max-height: calc(100vh - 330px) !important;
 }
 
+/* Sin registros no hay contenido que desplazar: evita mostrar una barra
+   de scroll vacia y deja de reservar su espacio. */
+.stock-tableWrap--empty {
+  overflow-y: hidden !important;
+  scrollbar-gutter: auto !important;
+}
+
 /* Stock: acciones principales debajo de la tabla desde 1300px */
 .stock-tableActions {
   display: flex;
@@ -1413,8 +1420,8 @@ html[data-theme="oscuro"] .prod-variantExtraPrices small {
   font-size: 12px;
 }
   .stock-tableWrap {
-    min-height: calc(100vh - 290px) !important;
-    max-height: calc(100vh - 290px) !important;
+    min-height: calc(100vh - 240px) !important;
+    max-height: calc(100vh - 240px) !important;
   }
 
 @media (min-width: 1501px) {

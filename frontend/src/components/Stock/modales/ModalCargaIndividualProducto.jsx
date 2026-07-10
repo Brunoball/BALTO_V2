@@ -499,6 +499,7 @@ function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSa
 
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation?.();
 
       if (!loading) onCancel?.();
     };

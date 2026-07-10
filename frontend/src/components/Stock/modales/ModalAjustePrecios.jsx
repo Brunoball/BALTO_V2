@@ -355,6 +355,7 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado, onProcesoMasiv
 
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation?.();
       if (!guardando) onClose?.();
     };
 

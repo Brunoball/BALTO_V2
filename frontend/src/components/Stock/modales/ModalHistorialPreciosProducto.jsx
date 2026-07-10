@@ -96,6 +96,7 @@ const ModalHistorialPreciosProducto = ({ open, producto, onClose, onToast }) => 
 
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation?.();
       if (typeof onClose === "function") onClose();
     };
 

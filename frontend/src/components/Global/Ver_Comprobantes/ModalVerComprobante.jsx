@@ -401,6 +401,7 @@ export default function ModalVerComprobante({
   title = "Comprobante",
 }) {
   const closeBtnRef = useRef(null);
+  const overlayRef = useRef(null);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -461,6 +462,12 @@ export default function ModalVerComprobante({
 
     const onKeyDown = (e) => {
       if (e.key !== "Escape") return;
+
+      const overlays = Array.from(
+        document.querySelectorAll('[data-stock-modal-overlay="true"], [data-modal-overlay="true"]')
+      ).filter((element) => element?.isConnected);
+
+      if (overlays.length && overlays[overlays.length - 1] !== overlayRef.current) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -662,6 +669,8 @@ export default function ModalVerComprobante({
 
   return createPortal(
     <div
+      ref={overlayRef}
+      data-modal-overlay="true"
       className={overlayClass}
       role="dialog"
       aria-modal="true"

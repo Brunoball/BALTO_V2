@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback, useMemo } from "react";
-import { FaTrashAlt, FaTimes } from "react-icons/fa";
+import { FaArchive, FaTrashAlt, FaTimes } from "react-icons/fa";
 import { createPortal } from "react-dom";
 import "./ModalEliminar.css";
 
@@ -68,6 +68,8 @@ export default function ModalEliminar({
   secondaryActionDisabled = false,
   confirmDisabled = false,
   confirmVariant = "danger", // "danger" | "primary"
+  visualVariant = "danger", // "danger" | "deactivate"
+  loadingLabel = "",
   details = null,
   extraContent = null,
   hideDefaultCard = false,
@@ -209,16 +211,31 @@ export default function ModalEliminar({
     ];
   }, [details, view]);
 
+  const isDeactivate = visualVariant === "deactivate";
+
   const confirmClass =
     confirmVariant === "primary"
       ? "mvdel-btn mvdel-btn--solid-primary"
       : "mvdel-btn mvdel-btn--solid-danger";
+
+  const modalClass = isDeactivate
+    ? "mvdel-modal mvdel-modal--deactivate"
+    : "mvdel-modal mvdel-modal--danger";
+
+  const iconClass = isDeactivate
+    ? "mvdel-icon mvdel-icon--deactivate"
+    : "mvdel-icon mvdel-icon--danger";
+
+  const titleClass = isDeactivate
+    ? "mvdel-title mvdel-title--deactivate"
+    : "mvdel-title mvdel-title--danger";
 
   if (!open) return null;
 
   return createPortal(
     <div
       className="mvdel-overlay"
+      data-modal-overlay="true"
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-eliminar-mov-title"
@@ -230,7 +247,7 @@ export default function ModalEliminar({
       }}
     >
       <div
-        className="mvdel-modal mvdel-modal--danger"
+        className={modalClass}
         onMouseDown={(e) => {
           e.stopPropagation();
         }}
@@ -248,13 +265,13 @@ export default function ModalEliminar({
           <FaTimes />
         </button>
 
-        <div className="mvdel-icon mvdel-icon--danger" aria-hidden="true">
-          <FaTrashAlt />
+        <div className={iconClass} aria-hidden="true">
+          {isDeactivate ? <FaArchive /> : <FaTrashAlt />}
         </div>
 
         <h3
           id="modal-eliminar-mov-title"
-          className="mvdel-title mvdel-title--danger"
+          className={titleClass}
         >
           {title}
         </h3>
@@ -313,7 +330,7 @@ export default function ModalEliminar({
               onClick={handleConfirm}
               disabled={loading || confirmDisabled}
             >
-              {loading ? "Eliminando..." : confirmLabel}
+              {loading ? loadingLabel || (isDeactivate ? "Dando de baja..." : "Eliminando...") : confirmLabel}
             </button>
           ) : null}
         </div>

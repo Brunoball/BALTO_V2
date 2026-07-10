@@ -237,3 +237,48 @@ html[data-theme="oscuro"] .mvdel-btn--ghost:hover{
 html[data-theme="oscuro"] .mvdel-btn--solid-danger:hover{
   filter: brightness(.95);
 }
+
+
+/* Variante global: dar de baja / desactivar */
+.mvdel-modal--deactivate{
+  border-top-color: #f59e0b;
+}
+
+.mvdel-icon--deactivate{
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.mvdel-title--deactivate{
+  color: #b45309;
+}
+
+.mvdel-btn--solid-primary{
+  background: #d97706;
+  color: #ffffff;
+}
+
+.mvdel-btn--solid-primary:hover{
+  background: #b45309;
+}
+
+.mvdel-extraContent{
+  margin-top: 12px;
+}
+
+html[data-theme="oscuro"] .mvdel-icon--deactivate{
+  background: rgba(245, 158, 11, .16);
+  color: #fbbf24;
+}
+
+html[data-theme="oscuro"] .mvdel-title--deactivate{
+  color: #fbbf24;
+}
+
+html[data-theme="oscuro"] .mvdel-btn--solid-primary{
+  background: #d97706;
+}
+
+html[data-theme="oscuro"] .mvdel-btn--solid-primary:hover{
+  background: #b45309;
+}
