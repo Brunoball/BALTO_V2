@@ -598,6 +598,7 @@ function normalizarProducto(data) {
           const preciosVariante = mapPreciosByTipo(variant.precios || []);
           return {
             id_stock_variante: Number(variant.id_stock_variante || 0),
+            activo: Number(variant.activo ?? 1) === 1,
             nombre_variante: toUpperCaseValue(variant.nombre_variante || variant.nombre || ""),
             sku: toUpperCaseValue(variant.sku || ""),
             stock: variant.stock !== null && variant.stock !== undefined ? String(variant.stock) : "0",
@@ -723,7 +724,6 @@ function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSa
 
       e.preventDefault();
       e.stopPropagation();
-      e.stopImmediatePropagation?.();
 
       if (!loading) onCancel?.();
     };
@@ -850,6 +850,7 @@ function syncVariantsExtraPrices(variantes = [], tiposProducto = []) {
 function emptyVariantRow(tiposProducto = []) {
   const variant = {
     id_stock_variante: 0,
+    activo: true,
     nombre_variante: "",
     sku: "",
     stock: "0",
@@ -925,6 +926,29 @@ function variantHasContent(variant = {}) {
       String(attr.atributo || attr.valor || "").trim()
     )
   );
+}
+
+function syncGenericVariantAttributeWithName(variant = {}, rawName = "") {
+  const nombre = toUpperCaseValue(String(rawName || "").trim());
+  const atributos = Array.isArray(variant.atributos) ? variant.atributos : [];
+
+  // En Tienda Nube el "nombre" visible de una variante es en realidad el valor
+  // de su combinación (por ejemplo VARIANTE = DDDD). Si Balto cambia solo el
+  // nombre y deja ese valor viejo, TN conserva el nombre anterior y el webhook
+  // puede interpretar la respuesta como otra variante. Para la variante genérica
+  // mantenemos ambos campos siempre alineados.
+  if (atributos.length === 0) {
+    return nombre ? [{ atributo: "VARIANTE", valor: nombre }] : atributos;
+  }
+
+  if (atributos.length === 1) {
+    const atributo = toUpperCaseValue(String(atributos[0]?.atributo || "").trim());
+    if (atributo === "VARIANTE") {
+      return [{ ...atributos[0], atributo: "VARIANTE", valor: nombre }];
+    }
+  }
+
+  return atributos;
 }
 
 function buildVariantPricePayload(variant) {
@@ -1289,7 +1313,6 @@ export default function ModalEditarProducto({
       ) {
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation?.();
         onClose?.();
       }
     };
@@ -1787,7 +1810,14 @@ export default function ModalEditarProducto({
 
     setForm((prev) => ({
       ...prev,
-      variantes: (prev.variantes || []).map((variant, i) => i === idx ? { ...variant, ...patchFinal } : variant),
+      variantes: (prev.variantes || []).map((variant, i) => {
+        if (i !== idx) return variant;
+        const next = { ...variant, ...patchFinal };
+        if (Object.prototype.hasOwnProperty.call(patchFinal, "nombre_variante")) {
+          next.atributos = syncGenericVariantAttributeWithName(variant, patchFinal.nombre_variante);
+        }
+        return next;
+      }),
     }));
   };
 
@@ -2261,6 +2291,7 @@ export default function ModalEditarProducto({
             )
             .map((variant) => ({
               id_stock_variante: Number(variant.id_stock_variante || 0),
+              activo: variant.activo === false ? 0 : 1,
               nombre_variante: toUpperCaseValue(String(variant.nombre_variante || "").trim()),
               sku: toUpperCaseValue(String(variant.sku || "").trim()),
               stock: Number(variant.stock || 0),
@@ -2318,9 +2349,13 @@ export default function ModalEditarProducto({
         imagen_eliminada: eliminarImagenActual && !nuevaImagenFile,
         imagen_file: nuevaImagenFile || null,
         variantes_desactivadas: !formNormalizado.tiene_variantes,
+        response: data,
+        tiendanube_sync: data?.tiendanube_sync ?? data?.data?.tiendanube_sync ?? null,
       });
-      mostrarToast("Producto actualizado correctamente", "exito");
-      if (typeof onGuardado !== "function") onClose?.();
+      if (typeof onGuardado !== "function") {
+        mostrarToast("Producto actualizado correctamente", "exito");
+        onClose?.();
+      }
     } catch (err) {
       mostrarToast(err.message || "Error al actualizar el producto", "error");
     } finally {

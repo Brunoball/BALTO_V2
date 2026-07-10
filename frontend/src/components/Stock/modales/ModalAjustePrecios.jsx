@@ -29,6 +29,8 @@ import { isTopStockModal } from "./modalStackUtils";
 
 const TOAST_LOADING_DURATION = 90000;
 const DEFAULT_BULK_LOADING_THRESHOLD = 10;
+const TIENDANUBE_JOB_BATCH_SIZE = 1;
+const TIENDANUBE_JOB_GROUP_SIZE = 25;
 
 function formatMoney(value) {
   if (value === null || value === undefined || value === "") return "—";
@@ -106,6 +108,116 @@ async function apiPost(action, body) {
     body: JSON.stringify(body || {}),
   });
   return await parseJsonOrThrow(res);
+}
+
+function delay(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function getTiendaNubeSyncPayload(response) {
+  if (!response || typeof response !== "object") return null;
+  return response?.tiendanube_sync ?? response?.data?.tiendanube_sync ?? null;
+}
+
+function extractTiendaNubeJobIds(response) {
+  const sync = getTiendaNubeSyncPayload(response);
+  if (!sync || typeof sync !== "object") return [];
+
+  const ids = new Set();
+  const collect = (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach(collect);
+      return;
+    }
+    if (typeof value !== "object") return;
+
+    const id = Number(value.id_job ?? value.job_id ?? value.idJob ?? 0);
+    if (id > 0) ids.add(id);
+    if (Array.isArray(value.resultados)) collect(value.resultados);
+    if (value.job_reintento) collect(value.job_reintento);
+  };
+
+  collect(sync);
+  return Array.from(ids);
+}
+
+function chunkArray(values, size) {
+  const out = [];
+  for (let index = 0; index < values.length; index += size) {
+    out.push(values.slice(index, index + size));
+  }
+  return out;
+}
+
+async function sincronizarPreciosTiendaNube(response) {
+  const idsJobs = extractTiendaNubeJobIds(response);
+  if (idsJobs.length === 0) {
+    return { esperado: false, exitoso: true, estado: null, error: "" };
+  }
+
+  const { idTenant } = getUsuarioAuditData();
+  const maxWaitMs = Math.min(600000, Math.max(180000, idsJobs.length * 6000));
+  const startedAt = Date.now();
+  let ultimoEstado = null;
+  let ultimoError = "";
+
+  for (const grupo of chunkArray(idsJobs, TIENDANUBE_JOB_GROUP_SIZE)) {
+    while (Date.now() - startedAt < maxWaitMs) {
+      try {
+        const pendientes = Array.isArray(ultimoEstado?.jobs)
+          ? ultimoEstado.jobs.filter((job) => !job?.terminal).map((job) => Number(job?.id_job || 0)).filter(Boolean)
+          : grupo;
+
+        if (pendientes.length > 0) {
+          await apiPost("stock_tiendanube_jobs_procesar", {
+            ids_jobs: pendientes,
+            limit: TIENDANUBE_JOB_BATCH_SIZE,
+            ...(idTenant ? { tenant_id: idTenant } : {}),
+          });
+        }
+
+        const estadoRes = await apiPost("stock_tiendanube_jobs_estado", {
+          ids_jobs: grupo,
+          procesar_pendientes: false,
+          ...(idTenant ? { tenant_id: idTenant } : {}),
+        });
+        ultimoEstado = estadoRes?.data && typeof estadoRes.data === "object" ? estadoRes.data : estadoRes;
+
+        if (ultimoEstado?.finalizado === true) {
+          if (ultimoEstado?.exitoso === true) break;
+
+          const detalle = (ultimoEstado?.jobs || [])
+            .map((job) => String(job?.error || "").trim())
+            .filter(Boolean)
+            .join(" · ");
+          return {
+            esperado: true,
+            exitoso: false,
+            estado: ultimoEstado,
+            error: detalle || "La sincronización de precios con Tienda Nube no pudo completarse.",
+          };
+        }
+      } catch (err) {
+        ultimoError = String(err?.message || err || "").trim();
+      }
+
+      await delay(500);
+    }
+
+    if (ultimoEstado?.finalizado !== true || ultimoEstado?.exitoso !== true) {
+      return {
+        esperado: true,
+        exitoso: false,
+        estado: ultimoEstado,
+        error: ultimoError || "La sincronización de precios con Tienda Nube siguió pendiente durante demasiado tiempo.",
+      };
+    }
+
+    ultimoEstado = null;
+  }
+
+  return { esperado: true, exitoso: true, estado: ultimoEstado, error: "" };
 }
 
 const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado, onProcesoMasivo, umbralProcesoMasivo = DEFAULT_BULK_LOADING_THRESHOLD }) => {
@@ -307,6 +419,7 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado, onProcesoMasiv
     const totalSeleccionados = seleccionadosArray.length;
     const mostrarCargaMasiva = totalSeleccionados >= Number(umbralProcesoMasivo || DEFAULT_BULK_LOADING_THRESHOLD);
     const mensajeCarga = "Actualizando precios en Balto y Tienda Nube...";
+    let guardadoEnBalto = false;
 
     setGuardando(true);
 
@@ -316,25 +429,57 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado, onProcesoMasiv
       avisar("loading", mensajeCarga, TOAST_LOADING_DURATION);
     }
 
+    // Este ajuste usa su propia pantalla de carga global. Cerramos el modal
+    // apenas comienza el guardado y dejamos que la actualización continúe.
     onClose?.();
 
     try {
       const data = await apiPost("stock_precios_ajuste_crear", payload);
+      guardadoEnBalto = true;
       if (typeof onGuardado === "function") await onGuardado(data);
 
-      const sync = data?.tiendanube_sync;
-      const sincronizados = Number(sync?.sincronizados || 0);
-      const encolados = Number(sync?.encolados || sync?.pendientes || 0);
+      const confirmacionTiendaNube = await sincronizarPreciosTiendaNube(data);
+      const sync = getTiendaNubeSyncPayload(data);
       const totalSync = Number(sync?.total_productos || 0);
-      const mensajeExito = sincronizados > 0
-        ? `Precios actualizados correctamente en Balto y Tienda Nube (${sincronizados}/${totalSync || sincronizados} productos sincronizados).`
-        : encolados > 0
-          ? `Precios actualizados correctamente en Balto. La sincronización con Tienda Nube quedó iniciada para ${encolados}/${totalSync || encolados} productos.`
-          : data?.mensaje || "Precios actualizados correctamente.";
+      const encolados = Number(sync?.encolados || sync?.pendientes || 0);
 
-      avisar("exito", mensajeExito);
+
+      if (confirmacionTiendaNube.esperado) {
+        if (confirmacionTiendaNube.exitoso) {
+          avisar(
+            "exito",
+            `Precios actualizados correctamente en Balto y Tienda Nube${totalSync > 0 ? ` (${totalSync} productos)` : ""}.`
+          );
+        } else {
+          avisar(
+            "advertencia",
+            `Los precios quedaron actualizados en Balto, pero Tienda Nube no pudo completar la sincronización. ${confirmacionTiendaNube.error}`,
+            8000
+          );
+        }
+        return;
+      }
+
+      if (totalSync > 0 && encolados === 0 && Number(sync?.saltados || 0) > 0) {
+        avisar(
+          "advertencia",
+          `Los precios quedaron actualizados en Balto, pero no se enviaron a Tienda Nube (${sync?.motivo || "sin conexión activa"}).`,
+          7000
+        );
+        return;
+      }
+
+      avisar("exito", data?.mensaje || "Precios actualizados correctamente.");
     } catch (err) {
-      avisar("error", err?.message || "No se pudo actualizar los precios.");
+      if (guardadoEnBalto) {
+        avisar(
+          "advertencia",
+          `Los precios quedaron actualizados en Balto, pero no se pudo confirmar Tienda Nube. ${err?.message || "Error de sincronización."}`,
+          8000
+        );
+      } else {
+        avisar("error", err?.message || "No se pudo actualizar los precios.");
+      }
     } finally {
       if (mostrarCargaMasiva && typeof onProcesoMasivo === "function") {
         onProcesoMasivo({ open: false });
@@ -380,7 +525,7 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado, onProcesoMasiv
             <h2>Ajuste de precios</h2>
             <p>Seleccioná productos o variantes, aplicá un porcentaje o importe y guardá el historial.</p>
           </div>
-          <button type="button" className="mi-modal__close ap-modal__close" onClick={onClose} title="Cerrar" aria-label="Cerrar">
+          <button type="button" className="mi-modal__close ap-modal__close" onClick={onClose} disabled={guardando} title="Cerrar" aria-label="Cerrar">
             <FontAwesomeIcon icon={faTimes} />
           </button>
         </div>

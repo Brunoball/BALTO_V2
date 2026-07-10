@@ -499,7 +499,6 @@ function MiniCreateModal({ open, title, value, loading, onChange, onCancel, onSa
 
       e.preventDefault();
       e.stopPropagation();
-      e.stopImmediatePropagation?.();
 
       if (!loading) onCancel?.();
     };
@@ -1545,6 +1544,12 @@ export default function ModalCargaIndividualProducto({
       fd.append("descripcion", toCapitalizedText(formNormalizado.descripcion));
       fd.append("tiene_variantes", formNormalizado.tiene_variantes ? "1" : "0");
 
+      // El producto se confirma primero en Balto y la sincronización con Tienda Nube
+      // se procesa después de cerrar la respuesta HTTP. Así una API externa lenta no
+      // hace que el navegador informe timeout aunque el alta local haya salido bien.
+      fd.append("diferir_sync", "1");
+      fd.append("origen_sync", "carga_individual");
+
       if (formNormalizado.id_categoria_stock) {
         fd.append("id_categoria_stock", normalizeIdValue(formNormalizado.id_categoria_stock));
       }
@@ -1608,9 +1613,12 @@ export default function ModalCargaIndividualProducto({
         body: fd,
       });
 
-      await parseJsonOrThrow(res);
-
-      onGuardado?.();
+      const data = await parseJsonOrThrow(res);
+      const productoGuardado = data?.producto ?? data?.data?.producto ?? data?.data ?? null;
+      await onGuardado?.(productoGuardado, {
+        response: data,
+        tiendanube_sync: data?.tiendanube_sync ?? data?.data?.tiendanube_sync ?? null,
+      });
     } catch (err) {
       mostrarToast(errorToText(err, "Error al guardar el producto"), "error");
     } finally {

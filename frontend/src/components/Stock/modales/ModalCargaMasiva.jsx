@@ -539,7 +539,6 @@ function ModalConfirmarProductosIA({
 
       e.preventDefault();
       e.stopPropagation();
-      e.stopImmediatePropagation?.();
       if (!confirmando && !miniCategoriaOpen && !miniTipoOpen) onClose?.();
     };
 
@@ -1139,7 +1138,6 @@ export default function ModalCargaMasiva({
       if (!isLoading && !previewOpen && !modalConfirmOpen) {
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation?.();
         onClose?.();
       }
     };
@@ -1544,6 +1542,7 @@ export default function ModalCargaMasiva({
     setErroresDetectados({});
     let creados = 0;
     const erroresCarga = [];
+    let sincronizacionesEncoladas = 0;
 
     try {
       const { productos: productosPreparados, cantidadNuevosTipos } = await resolverTiposPrecioExtrasPendientes(productosDetectados);
@@ -1577,6 +1576,7 @@ export default function ModalCargaMasiva({
             if (item.id_categoria_stock !== "") fd.append("id_categoria_stock", String(item.id_categoria_stock));
             if (idUsuarioMaster > 0) fd.append("idUsuarioMaster", String(idUsuarioMaster));
             if (idTenant) fd.append("tenant_id", String(idTenant));
+            fd.append("diferir_sync", "1");
             const tiposPrecioPayload = (item.tipos_precio_extra || []).map((row) => ({
               id_tipo_precio_stock: Number(row.id_tipo_precio_stock) || 0,
               tipo_nombre: String(row.tipo_nombre || "").trim(),
@@ -1588,14 +1588,19 @@ export default function ModalCargaMasiva({
             fd.append("tipos_precio", JSON.stringify(tiposPrecioPayload));
             if (item.imagen) fd.append("imagen", item.imagen);
             const res = await fetch(`${API_URL}?action=stock_productos_crear`, { method: "POST", headers: buildHeadersMultipart(), body: fd });
-            await parseJsonOrThrow(res);
-            return { success: true, idx: globalIdx };
+            const data = await parseJsonOrThrow(res);
+            return { success: true, idx: globalIdx, sync: data?.tiendanube_sync ?? data?.data?.tiendanube_sync ?? null };
           } catch (err) {
             return { success: false, idx: globalIdx, error: `Producto ${globalIdx + 1} (${item.nombre || "sin nombre"}): ${err.message || "Error al guardar"}` };
           }
         });
         const results = await Promise.all(batchPromises);
-        for (const result of results) { if (result.success) creados++; else erroresCarga.push(result.error); }
+        for (const result of results) {
+          if (result.success) {
+            creados++;
+            sincronizacionesEncoladas += Number(result?.sync?.encolados || result?.sync?.pendientes || (result?.sync?.job_reintento?.encolado ? 1 : 0) || 0);
+          } else erroresCarga.push(result.error);
+        }
       }
 
       setResultado((prev) => ({
@@ -1610,8 +1615,9 @@ export default function ModalCargaMasiva({
         mostrarToast(`Se cargaron ${creados} producto(s), pero hubo ${erroresCarga.length} error(es).`, "error");
       } else {
         const msgTipos = cantidadNuevosTipos > 0 ? ` y se crearon ${cantidadNuevosTipos} tipo(s) de precio nuevo(s)` : "";
-        onImportado?.(`Se cargaron correctamente ${creados} producto(s)${msgTipos}.`);
-        mostrarToast(`Se cargaron correctamente ${creados} producto(s)${msgTipos}.`, "success");
+        const msgSync = sincronizacionesEncoladas > 0 ? ` La sincronización con Tienda Nube quedó encolada para ${sincronizacionesEncoladas} producto(s).` : "";
+        onImportado?.(`Se cargaron correctamente ${creados} producto(s)${msgTipos}.${msgSync}`);
+        mostrarToast(`Se cargaron correctamente ${creados} producto(s)${msgTipos}.${msgSync}`, sincronizacionesEncoladas > 0 ? "advertencia" : "success");
       }
     } catch (err) {
       mostrarToast(errorToText(err, "Error inesperado al confirmar los productos"), "error");

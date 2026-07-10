@@ -6,6 +6,7 @@ import ModalHistorialPreciosProducto from "./modales/ModalHistorialPreciosProduc
 import ModalDarBajaStock from "./modales/ModalDarBajaStock";
 import ModalEliminarStock from "./modales/ModalEliminarStock";
 import Toast from "../Global/Toast";
+import { tiendaNubeFeedback } from "../../utils/tiendaNubeSync";
 import BASE_URL from "../../config/config";
 import BaltoCargaGif from "../../imagenes/Balto_Carga.gif";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -30,6 +31,7 @@ import "../Global/Global_css/Global_Section.css";
 const API_URL = `${String(BASE_URL || "").replace(/\/+$/, "")}/api.php`;
 const TOAST_LOADING_DURATION = 90000;
 const PRECIOS_MASIVOS_LOADING_THRESHOLD = 10;
+const STOCK_CHANGE_CHECK_MS = 2500;
 
 
 function buildHeadersGET() {
@@ -77,6 +79,77 @@ function notifyListsUpdated() {
   try {
     window.dispatchEvent(new CustomEvent("balto:listas-updated"));
   } catch {}
+}
+
+function getTiendaNubeSyncPayload(response) {
+  if (!response || typeof response !== "object") return null;
+  return (
+    response?.tiendanube_sync ??
+    response?.data?.tiendanube_sync ??
+    response?.resultado?.tiendanube_sync ??
+    null
+  );
+}
+
+function extractTiendaNubeJobIds(response) {
+  const sync = getTiendaNubeSyncPayload(response);
+  if (!sync || typeof sync !== "object") return [];
+
+  const ids = new Set();
+  const collect = (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach(collect);
+      return;
+    }
+    if (typeof value !== "object") return;
+
+    const id = Number(value.id_job ?? value.job_id ?? value.idJob ?? 0);
+    if (id > 0) ids.add(id);
+
+    if (Array.isArray(value.resultados)) collect(value.resultados);
+    if (value.job_reintento) collect(value.job_reintento);
+  };
+
+  collect(sync);
+  return Array.from(ids);
+}
+
+function procesarAltaTiendaNubeSinBloquear(response) {
+  const idsJobs = extractTiendaNubeJobIds(response);
+  if (idsJobs.length === 0) return false;
+
+  const sessionKey = (localStorage.getItem("session_key") || "").trim();
+  const token = (localStorage.getItem("token") || "").trim();
+  const url = new URL(`${API_URL}?action=stock_tiendanube_jobs_procesar`, window.location.origin);
+  if (sessionKey) url.searchParams.set("session_key", sessionKey);
+  if (token) url.searchParams.set("token", token);
+
+  const payload = JSON.stringify({
+    ids_jobs: idsJobs,
+    limit: 1,
+  });
+
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      const blob = new Blob([payload], { type: "text/plain;charset=UTF-8" });
+      if (navigator.sendBeacon(url.toString(), blob)) return true;
+    }
+  } catch {}
+
+  // Fallback sin await: aunque Tienda Nube tarde, esta llamada nunca vuelve a bloquear
+  // el alta ni puede reemplazar el mensaje de éxito por un falso error de conexión.
+  try {
+    fetch(url.toString(), {
+      method: "POST",
+      headers: buildHeadersJSON(),
+      body: payload,
+      keepalive: true,
+    }).catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function parseJsonOrThrow(res) {
@@ -391,19 +464,12 @@ function normalizeProductosCollection(items = []) {
 
 function getProductoImageRefreshToken(prod, refreshKey = 0, intento = 0) {
   const archivoId = Number(prod?.imagen_archivo_id || 0);
-  const updateToken =
-    prod?.updated_at ??
-    prod?.updatedAt ??
-    prod?.fecha_actualizacion ??
-    prod?.fecha_modificacion ??
-    prod?.modificado_en ??
-    prod?.imagen_actualizada_en ??
-    prod?.ultima_actualizacion ??
-    "";
   const estadoToken = Number(prod?.activo ?? 1) === 0 ? "baja" : "activo";
   const pathToken = String(prod?.imagen_path ?? prod?.archivo_path ?? "");
 
-  return `${archivoId}-${estadoToken}-${String(updateToken || "")}-${pathToken}-${String(refreshKey)}-${String(intento)}`;
+  // No usar updated_at del producto: cambiar nombre, precio o stock no debe
+  // cambiar la URL de la imagen ni forzar que el navegador la descargue otra vez.
+  return `${archivoId}-${estadoToken}-${pathToken}-${String(refreshKey)}-${String(intento)}`;
 }
 
 function getProductoImageUrl(prod, apiUrl, refreshKey = 0, intento = 0) {
@@ -551,6 +617,8 @@ const Stock = () => {
   const impactoEliminarRequestRef = useRef(0);
   const productosRequestRef = useRef(0);
   const categoriaFiltroDropdownRef = useRef(null);
+  const stockVersionRef = useRef({ catalogo: "", imagenes: "", categorias: "" });
+  const stockChangeCheckRunningRef = useRef(false);
   const productosPorPagina = 20;
 
   const mostrarToast = useCallback((tipo, mensaje, duracion = 2500) => {
@@ -559,6 +627,38 @@ const Stock = () => {
 
   const mostrarToastCarga = useCallback((mensaje) => {
     mostrarToast("loading", mensaje, TOAST_LOADING_DURATION);
+  }, [mostrarToast]);
+
+  const mostrarResultadoTiendaNube = useCallback((response, mensajeLocal) => {
+    const sync =
+      response?.tiendanube_sync ??
+      response?.tiendanube_delete ??
+      response?.tiendanube_sync_producto ??
+      response?.data?.tiendanube_sync ??
+      response?.data?.tiendanube_delete ??
+      response?.data?.tiendanube_sync_producto ??
+      response?.data ??
+      response ??
+      null;
+
+    const encolados = Number(sync?.encolados ?? sync?.pendientes ?? 0);
+    const erroresCola = Number(sync?.errores ?? 0);
+    const colaAceptada =
+      encolados > 0 &&
+      erroresCola === 0 &&
+      (sync?.procesamiento_segundo_plano === true ||
+        sync?.requiere_procesamiento_cliente === true ||
+        Array.isArray(sync?.resultados));
+
+    // Una cola aceptada no es un error ni un reintento por falla: el producto ya quedó
+    // guardado y la llamada a Tienda Nube se ejecuta después de responder al navegador.
+    if (colaAceptada) {
+      mostrarToast("exito", mensajeLocal, 2500);
+      return;
+    }
+
+    const feedback = tiendaNubeFeedback(response, mensajeLocal);
+    mostrarToast(feedback.tipo, feedback.mensaje, feedback.tipo === "advertencia" ? 5000 : 2500);
   }, [mostrarToast]);
 
   const cerrarToast = useCallback(() => setToast(null), []);
@@ -1082,12 +1182,17 @@ const Stock = () => {
     }
   }, [mostrarToast]);
 
-  const fetchProductos = useCallback(async () => {
+  const fetchProductos = useCallback(async (opciones = {}) => {
     const requestId = productosRequestRef.current + 1;
     productosRequestRef.current = requestId;
 
-    setLoading(true);
-    setError(null);
+    const silencioso = opciones?.silencioso === true;
+    const preservarImagenes = opciones?.preservarImagenes === true;
+
+    if (!silencioso) {
+      setLoading(true);
+      setError(null);
+    }
 
     try {
       const params = new URLSearchParams({
@@ -1113,7 +1218,9 @@ const Stock = () => {
       if (productosRequestRef.current !== requestId) return;
 
       setProductosRaw(productosNormalizados);
-      rearmarMiniaturasProductos(productosNormalizados, Date.now());
+      if (!preservarImagenes) {
+        rearmarMiniaturasProductos(productosNormalizados, Date.now());
+      }
       setTotalProductosServidor(Number(data?.total ?? 0));
       setTotalPaginasServidor(Math.max(1, Number(data?.total_paginas ?? 1)));
       const paginaServidor = Number(data?.pagina ?? paginaActual);
@@ -1122,27 +1229,35 @@ const Stock = () => {
       }
     } catch (err) {
       if (productosRequestRef.current !== requestId) return;
-      setProductosRaw([]);
-      setTotalProductosServidor(0);
-      setTotalPaginasServidor(1);
-      setError(err.message || "Error inesperado");
+
+      // Una comprobación automática nunca borra la grilla ni muestra loaders.
+      if (!silencioso) {
+        setProductosRaw([]);
+        setTotalProductosServidor(0);
+        setTotalPaginasServidor(1);
+        setError(err.message || "Error inesperado");
+      }
     } finally {
-      if (productosRequestRef.current === requestId) {
+      if (!silencioso && productosRequestRef.current === requestId) {
         setLoading(false);
       }
     }
   }, [busquedaConsulta, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina, prepararProductosParaMostrar, rearmarMiniaturasProductos]);
 
-  const cargarVariantesProducto = useCallback(async (productoId) => {
+
+  const cargarVariantesProducto = useCallback(async (productoId, opciones = {}) => {
     const id = Number(productoId || 0);
     if (!id) return;
 
-    setLoadingVariantesPorProducto((prev) => ({ ...prev, [id]: true }));
-    setErrorVariantesPorProducto((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
+    const silencioso = opciones?.silencioso === true;
+    if (!silencioso) {
+      setLoadingVariantesPorProducto((prev) => ({ ...prev, [id]: true }));
+      setErrorVariantesPorProducto((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
 
     try {
       const params = new URLSearchParams({
@@ -1161,13 +1276,17 @@ const Stock = () => {
       const variantes = normalizeVariantesCollection(data?.variantes || data?.data?.variantes || []);
       setVariantesPorProducto((prev) => ({ ...prev, [id]: variantes }));
     } catch (err) {
-      setVariantesPorProducto((prev) => ({ ...prev, [id]: [] }));
-      setErrorVariantesPorProducto((prev) => ({
-        ...prev,
-        [id]: err?.message || "No se pudieron cargar las variantes.",
-      }));
+      if (!silencioso) {
+        setVariantesPorProducto((prev) => ({ ...prev, [id]: [] }));
+        setErrorVariantesPorProducto((prev) => ({
+          ...prev,
+          [id]: err?.message || "No se pudieron cargar las variantes.",
+        }));
+      }
     } finally {
-      setLoadingVariantesPorProducto((prev) => ({ ...prev, [id]: false }));
+      if (!silencioso) {
+        setLoadingVariantesPorProducto((prev) => ({ ...prev, [id]: false }));
+      }
     }
   }, [categoriaFiltro]);
 
@@ -1197,6 +1316,92 @@ const Stock = () => {
   useEffect(() => {
     fetchCategorias();
   }, [fetchCategorias]);
+
+  // Consulta únicamente una versión liviana del estado de Stock. Mientras la
+  // base no cambie, no vuelve a pedir productos, variantes ni imágenes.
+  useEffect(() => {
+    let desmontado = false;
+
+    const consultarCambios = async () => {
+      if (desmontado || document.hidden || stockChangeCheckRunningRef.current) return;
+      stockChangeCheckRunningRef.current = true;
+
+      try {
+        const anterior = stockVersionRef.current || {};
+        const params = new URLSearchParams({
+          action: "stock_cambios_consultar",
+          _r: String(Date.now()),
+        });
+
+        if (anterior.catalogo) params.set("catalogo_version", anterior.catalogo);
+        if (anterior.imagenes) params.set("imagenes_version", anterior.imagenes);
+        if (anterior.categorias) params.set("categorias_version", anterior.categorias);
+
+        const data = await apiGet(`${API_URL}?${params.toString()}`);
+        if (desmontado || data?.exito === false) return;
+
+        const primeraConsulta = !anterior.catalogo && !anterior.imagenes && !anterior.categorias;
+        stockVersionRef.current = {
+          catalogo: String(data?.catalogo_version || ""),
+          imagenes: String(data?.imagenes_version || ""),
+          categorias: String(data?.categorias_version || ""),
+        };
+
+        if (primeraConsulta) return;
+
+        const cambioCatalogo = data?.catalogo_cambio === true;
+        const cambioImagenes = data?.imagenes_cambio === true;
+        const cambioCategorias = data?.categorias_cambio === true;
+
+        if (cambioCatalogo || cambioImagenes || cambioCategorias) {
+          // La lista se actualiza una sola vez cuando la DB cambió. Se preservan
+          // las URLs de las imágenes que siguen apuntando al mismo archivo.
+          await fetchProductos({ silencioso: true, preservarImagenes: true });
+        }
+
+        if (cambioCatalogo) {
+          const productosExpandidos = Object.keys(variantesAbiertas || {})
+            .filter((id) => variantesAbiertas[id])
+            .map((id) => Number(id))
+            .filter((id) => id > 0);
+
+          if (productosExpandidos.length > 0) {
+            await Promise.all(
+              productosExpandidos.map((id) =>
+                cargarVariantesProducto(id, { silencioso: true })
+              )
+            );
+          }
+        }
+
+        if (cambioCategorias) {
+          await fetchCategorias();
+        }
+      } catch {
+        // Si falla la consulta liviana, se conserva exactamente lo visible.
+      } finally {
+        stockChangeCheckRunningRef.current = false;
+      }
+    };
+
+    consultarCambios();
+    const intervalId = window.setInterval(consultarCambios, STOCK_CHANGE_CHECK_MS);
+    const handleFocus = () => consultarCambios();
+    const handleVisibility = () => {
+      if (!document.hidden) consultarCambios();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      desmontado = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [cargarVariantesProducto, fetchCategorias, fetchProductos, variantesAbiertas]);
+
 
   // Escucha actualizaciones de productos (stock-updated)
   useEffect(() => {
@@ -1614,7 +1819,7 @@ const Stock = () => {
       limpiarEstadoVisualProducto(productoId);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
-      mostrarToast("exito", permanente ? "Producto eliminado permanentemente." : "Producto dado de baja correctamente.");
+      mostrarResultadoTiendaNube(data, permanente ? "Producto eliminado permanentemente." : "Producto dado de baja correctamente.");
     } catch (error) {
       mostrarToast("error", error.message || (permanente ? "No se pudo eliminar el producto." : "No se pudo dar de baja el producto."));
     } finally {
@@ -1659,7 +1864,7 @@ const Stock = () => {
       limpiarEstadoVisualProducto(productoId);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
-      mostrarToast("exito", "Producto dado de alta correctamente.");
+      mostrarResultadoTiendaNube(data, "Producto dado de alta correctamente.");
     } catch (error) {
       mostrarToast("error", error?.message || "No se pudo dar de alta el producto.");
     } finally {
@@ -1745,7 +1950,7 @@ const Stock = () => {
       await cargarVariantesProducto(productoId);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
-      mostrarToast("exito", permanente ? "Variante eliminada permanentemente." : "Variante dada de baja correctamente.");
+      mostrarResultadoTiendaNube(data, permanente ? "Variante eliminada permanentemente." : "Variante dada de baja correctamente.");
     } catch (error) {
       mostrarToast("error", error?.message || (permanente ? "No se pudo eliminar la variante." : "No se pudo dar de baja la variante."));
     } finally {
@@ -1801,7 +2006,7 @@ const Stock = () => {
       await cargarVariantesProducto(productoId);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
-      mostrarToast("exito", "Variante dada de alta correctamente.");
+      mostrarResultadoTiendaNube(data, "Variante dada de alta correctamente.");
     } catch (error) {
       mostrarToast("error", error?.message || "No se pudo dar de alta la variante.");
     } finally {
@@ -2324,14 +2529,7 @@ const Stock = () => {
             ))}
           </div>
 
-          <div
-            className={[
-              "mov-tableWrap",
-              "stock-tableWrap",
-              !loading && productos.length === 0 ? "stock-tableWrap--empty" : "",
-            ].filter(Boolean).join(" ")}
-            role="rowgroup"
-          >
+          <div className="mov-tableWrap stock-tableWrap" role="rowgroup">
             <div
               className={[
                 "mov-gridBody",
@@ -2611,11 +2809,37 @@ const Stock = () => {
           open={modalAbierto}
           onClose={() => setModalAbierto(false)}
           onToast={mostrarToast}
-          onGuardado={async (productoGuardado) => {
-            setModalAbierto(false);
-            await refrescarDespuesDeGuardar(productoGuardado);
-            notifyListsUpdated();
-            mostrarToast("exito", "Producto agregado correctamente.");
+          onGuardado={async (productoGuardado, opciones = {}) => {
+            const response = opciones?.response || opciones || productoGuardado;
+            const esAltaIndividual = Boolean(
+              productoGuardado ||
+              opciones?.response ||
+              opciones?.tiendanube_sync ||
+              opciones?.data
+            );
+
+            // La respuesta del alta ya confirma que el producto quedó guardado en Balto
+            // y que la sincronización con Tienda Nube fue aceptada por la cola. No volvemos
+            // a bloquear el modal esperando el job externo: esa espera era la que generaba
+            // el falso "la conexión tardó demasiado" aunque el producto terminara creado.
+            if (esAltaIndividual) {
+              setModalAbierto(false);
+              notifyListsUpdated();
+              mostrarResultadoTiendaNube(response, "Producto cargado correctamente.");
+
+              // El backend sólo encola el alta y devuelve el JSON inmediatamente.
+              // El job real de Tienda Nube se dispara aparte con sendBeacon, por lo que
+              // el navegador no queda esperando ni muestra el aviso global de timeout.
+              procesarAltaTiendaNubeSinBloquear(response);
+            }
+
+            // Refrescar la grilla es una tarea posterior al guardado. Si esa consulta
+            // puntual falla, no debe convertir un alta exitosa en un mensaje de error.
+            try {
+              await refrescarDespuesDeGuardar(productoGuardado);
+            } catch (refreshError) {
+              console.warn("[Stock] El producto se guardó, pero la grilla no pudo refrescarse en ese instante.", refreshError);
+            }
           }}
           onImportado={async (mensaje) => {
             setModalAbierto(false);
@@ -2641,7 +2865,7 @@ const Stock = () => {
               productoId: productoIdEditado,
             });
             notifyListsUpdated();
-            mostrarToast("exito", "Producto editado correctamente.");
+            mostrarResultadoTiendaNube(opciones?.response || opciones, "Producto editado correctamente.");
           }}
         />
       )}
