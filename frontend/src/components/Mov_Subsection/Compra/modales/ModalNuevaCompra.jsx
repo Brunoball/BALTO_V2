@@ -315,39 +315,107 @@ function MedioPagoInlineCompraRow({
   }, [sumaMediosPago, totalSeleccionado, row.monto]);
 
   const puedeCompletarRestante = !saving && !esCheque && totalSeleccionado > 0 && restanteParaEstaFila > 0.009;
+  const chequesFetchSeqRef = useRef(0);
 
   const handleChangeMedio = useCallback(
-    async (val) => {
+    (val) => {
       const mp = mediosPagoList.find((x) => String(getMedioPagoId(x)) === String(val));
       const tipo = normalizeChequeTipoFromMedio(mp?.nombre || "");
       onUpdate(row.id, {
         id_medio_pago: val,
         id_cheque: [],
         chequesDisponibles: [],
-        loadingCheques: tipo !== null,
+        loadingCheques: false,
+        chequesMaxKey: null,
+        chequesTipoCargado: tipo || null,
         monto: tipo !== null ? 0 : row.monto,
         montoDraft: "",
         montoFocused: false,
       });
-
-      if (tipo !== null) {
-        try {
-          const sp = new URLSearchParams();
-          sp.set("action", "mov_global_cheques_cartera_listar");
-          sp.set("tipo", tipo);
-          const data = await apiGet(`${BASE_URL}/api.php?${sp.toString()}`);
-          onUpdate(row.id, {
-            chequesDisponibles: Array.isArray(data?.cheques) ? data.cheques : [],
-            loadingCheques: false,
-          });
-        } catch (e) {
-          onUpdate(row.id, { chequesDisponibles: [], loadingCheques: false });
-          showToast("error", e?.message || "No se pudieron cargar los cheques.", 4000);
-        }
-      }
     },
-    [row.id, row.monto, mediosPagoList, onUpdate, showToast, apiGet, BASE_URL]
+    [row.id, row.monto, mediosPagoList, onUpdate]
   );
+
+  useEffect(() => {
+    if (!esCheque || !tipoCheque) return;
+
+    const maxImporte = Math.max(0, safeNumber(restanteParaEstaFila));
+    const maxKey = `${tipoCheque}:${Math.round(maxImporte * 100) / 100}`;
+
+    if (maxImporte <= 0.009) {
+      if (row.chequesMaxKey !== maxKey || row.loadingCheques || chequesSeleccionados.length > 0 || (Array.isArray(row.chequesDisponibles) && row.chequesDisponibles.length > 0)) {
+        chequesFetchSeqRef.current += 1;
+        onUpdate(row.id, {
+          id_cheque: [],
+          chequesDisponibles: [],
+          loadingCheques: false,
+          chequesMaxKey: maxKey,
+          chequesTipoCargado: tipoCheque,
+          monto: 0,
+          montoDraft: "",
+          montoFocused: false,
+        });
+      }
+      return;
+    }
+
+    if (row.loadingCheques || row.chequesMaxKey === maxKey) return;
+
+    const seq = ++chequesFetchSeqRef.current;
+    onUpdate(row.id, { loadingCheques: true, chequesTipoCargado: tipoCheque });
+
+    (async () => {
+      try {
+        const sp = new URLSearchParams();
+        sp.set("action", "mov_global_cheques_cartera_listar");
+        sp.set("tipo", tipoCheque);
+        sp.set("max_importe", String(maxImporte));
+        const data = await apiGet(`${BASE_URL}/api.php?${sp.toString()}`);
+        if (chequesFetchSeqRef.current !== seq) return;
+
+        const cheques = Array.isArray(data?.cheques) ? data.cheques : [];
+        const idsDisponibles = new Set(cheques.map((ch) => String(ch?.id_cheque || "")).filter(Boolean));
+        const idsActuales = getChequeIdsArray(row.id_cheque);
+        const idsValidos = idsActuales.filter((id) => idsDisponibles.has(String(id)));
+
+        onUpdate(row.id, {
+          id_cheque: idsValidos,
+          chequesDisponibles: cheques,
+          loadingCheques: false,
+          chequesMaxKey: maxKey,
+          chequesTipoCargado: tipoCheque,
+          ...(idsValidos.length === 0 ? { monto: 0, montoDraft: "", montoFocused: false } : {}),
+        });
+      } catch (e) {
+        if (chequesFetchSeqRef.current !== seq) return;
+        onUpdate(row.id, {
+          id_cheque: [],
+          chequesDisponibles: [],
+          loadingCheques: false,
+          chequesMaxKey: maxKey,
+          chequesTipoCargado: tipoCheque,
+          monto: 0,
+          montoDraft: "",
+          montoFocused: false,
+        });
+        showToast("error", e?.message || "No se pudieron cargar los cheques.", 4000);
+      }
+    })();
+  }, [
+    esCheque,
+    tipoCheque,
+    restanteParaEstaFila,
+    row.id,
+    row.id_cheque,
+    row.loadingCheques,
+    row.chequesMaxKey,
+    row.chequesDisponibles,
+    apiGet,
+    BASE_URL,
+    onUpdate,
+    showToast,
+    chequesSeleccionados.length,
+  ]);
 
   const handleToggleCheque = useCallback(
     (idChequeStr) => {

@@ -267,6 +267,8 @@ function buildEmptyMedioPago() {
     chequesDisponibles: [],
     loadingCheques: false,
     chequesCarteraCargados: false,
+    chequesMaxKey: null,
+    chequesTipoCargado: null,
     // En edición, cuando el movimiento ya tiene cheque/eCheq vinculado,
     // se muestra solamente ese cheque y NO se vuelve a listar toda la cartera.
     soloChequeVinculado: false,
@@ -764,7 +766,7 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
   const puedeCompletarRestante = !esCheque && totalEgreso > 0 && restanteParaEstaFila > 0.009;
 
   const handleChangeMedio = useCallback(
-    async (val) => {
+    (val) => {
       const mp = mediosPagoList.find((x) => String(getMedioPagoId(x) ?? "") === String(val));
       const tipo = normalizeChequeTipoFromMedio(mp?.nombre || "");
 
@@ -772,19 +774,17 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
         id_medio_pago: val,
         id_cheque: [],
         chequesDisponibles: [],
-        loadingCheques: tipo !== null,
+        loadingCheques: false,
         chequesCarteraCargados: false,
         soloChequeVinculado: false,
+        chequesMaxKey: null,
+        chequesTipoCargado: tipo || null,
         monto: tipo !== null ? 0 : safeNumber(row.monto),
         montoDraft: "",
         montoFocused: false,
       });
-
-      if (tipo !== null) {
-        await onLoadCheques?.(row.id, tipo, { includeIds: [], onlySelected: false });
-      }
     },
-    [mediosPagoList, onUpdate, onLoadCheques, row.id, row.monto]
+    [mediosPagoList, onUpdate, row.id, row.monto]
   );
 
   const handleToggleCheque = useCallback(
@@ -808,7 +808,7 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
   }, [esCheque, chequesSeleccionados.length, importeCheques, onUpdate, row.id]);
 
   useEffect(() => {
-    if (!esCheque || row.loadingCheques || row.chequesCarteraCargados) return;
+    if (!esCheque || !tipoCheque) return;
 
     const disponibles = Array.isArray(row.chequesDisponibles) ? row.chequesDisponibles : [];
     const idsSeleccionados = getChequeIdsArray(row.id_cheque);
@@ -817,8 +817,8 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
       idsSeleccionados.every((id) => disponibles.some((ch) => String(ch?.id_cheque) === String(id)));
 
     // Si el egreso viene de edición y ya trae el cheque vinculado dentro de medios_pago_detalle,
-    // no se consulta toda la cartera. Se bloquea la carga y queda visible solo ese cheque.
-    if (tieneChequePrecargado) {
+    // se muestra solo ese cheque. Si el usuario cambia el medio de pago, soloChequeVinculado vuelve a false.
+    if (tieneChequePrecargado && !row.chequesMaxKey && !row.chequesCarteraCargados) {
       onUpdate(row.id, {
         loadingCheques: false,
         chequesCarteraCargados: true,
@@ -827,19 +827,49 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
       return;
     }
 
-    onUpdate(row.id, { loadingCheques: true });
+    if (soloChequeVinculado) return;
+
+    const maxImporte = Math.max(0, safeNumber(restanteParaEstaFila));
+    const maxKey = `${tipoCheque}:${Math.round(maxImporte * 100) / 100}`;
+
+    if (maxImporte <= 0.009) {
+      if (row.chequesMaxKey !== maxKey || row.loadingCheques || idsSeleccionados.length > 0 || disponibles.length > 0) {
+        onUpdate(row.id, {
+          id_cheque: [],
+          chequesDisponibles: [],
+          loadingCheques: false,
+          chequesCarteraCargados: true,
+          soloChequeVinculado: false,
+          chequesMaxKey: maxKey,
+          chequesTipoCargado: tipoCheque,
+          monto: 0,
+          montoDraft: "",
+          montoFocused: false,
+        });
+      }
+      return;
+    }
+
+    if (row.loadingCheques || row.chequesMaxKey === maxKey) return;
+
+    onUpdate(row.id, { loadingCheques: true, chequesCarteraCargados: false, chequesTipoCargado: tipoCheque });
     onLoadCheques?.(row.id, tipoCheque, {
       includeIds: idsSeleccionados,
-      onlySelected: idsSeleccionados.length > 0,
+      onlySelected: false,
+      maxImporte,
+      maxKey,
     });
   }, [
     esCheque,
+    tipoCheque,
+    soloChequeVinculado,
     row.loadingCheques,
     row.chequesCarteraCargados,
+    row.chequesMaxKey,
     row.chequesDisponibles,
     row.id,
     row.id_cheque,
-    tipoCheque,
+    restanteParaEstaFila,
     onLoadCheques,
     onUpdate,
   ]);
@@ -987,6 +1017,8 @@ function PanelMediosPagoInlineEgreso({
         const sp = new URLSearchParams();
         sp.set("action", chequesAction);
         sp.set("tipo", tipo);
+        const maxImporte = safeNumber(options?.maxImporte ?? totalEgreso);
+        if (maxImporte > 0) sp.set("max_importe", String(maxImporte));
 
         // Cuando el movimiento ya viene con cheque elegido en edición,
         // pedimos solo ese/estos IDs. Si el backend ignora include_ids, igual filtramos abajo.
@@ -1012,24 +1044,43 @@ function PanelMediosPagoInlineEgreso({
           if (id > 0) byId.set(id, ch);
         });
 
+        const cheques = Array.from(byId.values());
+        const idsDisponibles = new Set(cheques.map((ch) => String(ch?.id_cheque || "")).filter(Boolean));
+        const idsActuales = getChequeIdsArray(rowActual?.id_cheque);
+        const idsValidos = idsActuales.filter((id) => idsDisponibles.has(String(id)));
+
         onUpdate(rowId, {
-          chequesDisponibles: Array.from(byId.values()),
+          id_cheque: idsValidos,
+          chequesDisponibles: cheques,
           loadingCheques: false,
           chequesCarteraCargados: true,
           soloChequeVinculado: onlySelected,
+          chequesMaxKey: options?.maxKey || `${tipo}:${Math.round(maxImporte * 100) / 100}`,
+          chequesTipoCargado: tipo,
+          ...(idsValidos.length === 0 && !onlySelected ? { monto: 0, montoDraft: "", montoFocused: false } : {}),
         });
       } catch (e) {
         const rowActual = filas.find((x) => x.id === rowId) || null;
         const actuales = Array.isArray(rowActual?.chequesDisponibles) ? rowActual.chequesDisponibles : [];
         const idsPermitidos = new Set(includeIds.map(String));
 
+        const maxImporte = safeNumber(options?.maxImporte ?? totalEgreso);
+        const cheques = onlySelected
+          ? actuales.filter((ch) => idsPermitidos.has(String(ch?.id_cheque)))
+          : actuales;
+        const idsDisponibles = new Set(cheques.map((ch) => String(ch?.id_cheque || "")).filter(Boolean));
+        const idsActuales = getChequeIdsArray(rowActual?.id_cheque);
+        const idsValidos = idsActuales.filter((id) => idsDisponibles.has(String(id)));
+
         onUpdate(rowId, {
-          chequesDisponibles: onlySelected
-            ? actuales.filter((ch) => idsPermitidos.has(String(ch?.id_cheque)))
-            : actuales,
+          id_cheque: idsValidos,
+          chequesDisponibles: cheques,
           loadingCheques: false,
           chequesCarteraCargados: true,
           soloChequeVinculado: onlySelected || !!rowActual?.soloChequeVinculado,
+          chequesMaxKey: options?.maxKey || `${tipo}:${Math.round(maxImporte * 100) / 100}`,
+          chequesTipoCargado: tipo,
+          ...(idsValidos.length === 0 && !onlySelected ? { monto: 0, montoDraft: "", montoFocused: false } : {}),
         });
 
         if (!onlySelected) {
@@ -1037,7 +1088,7 @@ function PanelMediosPagoInlineEgreso({
         }
       }
     },
-    [apiGet, baseUrl, chequesAction, filas, onUpdate, showToast]
+    [apiGet, baseUrl, chequesAction, filas, onUpdate, showToast, totalEgreso]
   );
 
   const sumaMediosPago = useMemo(

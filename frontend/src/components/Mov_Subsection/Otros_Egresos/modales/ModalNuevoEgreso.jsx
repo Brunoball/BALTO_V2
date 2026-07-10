@@ -383,6 +383,8 @@ function buildEmptyMedioPago() {
     id_cheque: [],
     chequesDisponibles: [],
     loadingCheques: false,
+    chequesMaxKey: null,
+    chequesTipoCargado: null,
   };
 }
 
@@ -525,7 +527,7 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
   const puedeCompletarRestante = !esCheque && totalEgreso > 0 && restanteParaEstaFila > 0.009;
 
   const handleChangeMedio = useCallback(
-    async (val) => {
+    (val) => {
       const mp = mediosPagoList.find((x) => String(getMedioPagoId(x) ?? "") === String(val));
       const tipo = normalizeChequeTipoFromMedio(mp?.nombre || "");
 
@@ -533,18 +535,56 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
         id_medio_pago: val,
         id_cheque: [],
         chequesDisponibles: [],
-        loadingCheques: tipo !== null,
+        loadingCheques: false,
+        chequesMaxKey: null,
+        chequesTipoCargado: tipo || null,
         monto: tipo !== null ? 0 : safeNumber(row.monto),
         montoDraft: "",
         montoFocused: false,
       });
-
-      if (tipo !== null) {
-        await onLoadCheques?.(row.id, tipo);
-      }
     },
-    [mediosPagoList, onUpdate, onLoadCheques, row.id, row.monto]
+    [mediosPagoList, onUpdate, row.id, row.monto]
   );
+
+  useEffect(() => {
+    if (!esCheque || !tipoCheque) return;
+
+    const maxImporte = Math.max(0, safeNumber(restanteParaEstaFila));
+    const maxKey = `${tipoCheque}:${Math.round(maxImporte * 100) / 100}`;
+
+    if (maxImporte <= 0.009) {
+      if (row.chequesMaxKey !== maxKey || row.loadingCheques || chequesSeleccionados.length > 0 || (Array.isArray(row.chequesDisponibles) && row.chequesDisponibles.length > 0)) {
+        onUpdate(row.id, {
+          id_cheque: [],
+          chequesDisponibles: [],
+          loadingCheques: false,
+          chequesMaxKey: maxKey,
+          chequesTipoCargado: tipoCheque,
+          monto: 0,
+          montoDraft: "",
+          montoFocused: false,
+        });
+      }
+      return;
+    }
+
+    if (row.loadingCheques || row.chequesMaxKey === maxKey) return;
+
+    onUpdate(row.id, { loadingCheques: true, chequesTipoCargado: tipoCheque });
+    onLoadCheques?.(row.id, tipoCheque, { maxImporte, maxKey });
+  }, [
+    esCheque,
+    tipoCheque,
+    restanteParaEstaFila,
+    row.id,
+    row.loadingCheques,
+    row.chequesMaxKey,
+    row.chequesDisponibles,
+    row.id_cheque,
+    onLoadCheques,
+    onUpdate,
+    chequesSeleccionados.length,
+  ]);
 
   const handleToggleCheque = useCallback(
     (idChequeStr) => {
@@ -691,22 +731,44 @@ function PanelMediosPagoInlineCompraGlobal({
   const filas = Array.isArray(mediosFilas) && mediosFilas.length ? mediosFilas : [buildEmptyMedioPago()];
 
   const handleLoadCheques = useCallback(
-    async (rowId, tipo) => {
+    async (rowId, tipo, options = {}) => {
       try {
         const sp = new URLSearchParams();
         sp.set("action", chequesAction);
         sp.set("tipo", tipo);
+        const maxImporte = safeNumber(options?.maxImporte ?? totalCompra);
+        if (maxImporte > 0) sp.set("max_importe", String(maxImporte));
         const data = await apiGet(`${baseUrlCompra}/api.php?${sp.toString()}`);
+        const rowActual = filas.find((x) => x.id === rowId) || null;
+        const cheques = Array.isArray(data?.cheques) ? data.cheques : [];
+        const idsDisponibles = new Set(cheques.map((ch) => String(ch?.id_cheque || "")).filter(Boolean));
+        const idsActuales = getChequeIdsArray(rowActual?.id_cheque);
+        const idsValidos = idsActuales.filter((id) => idsDisponibles.has(String(id)));
+
         onUpdate(rowId, {
-          chequesDisponibles: Array.isArray(data?.cheques) ? data.cheques : [],
+          id_cheque: idsValidos,
+          chequesDisponibles: cheques,
           loadingCheques: false,
+          chequesMaxKey: options?.maxKey || `${tipo}:${Math.round(maxImporte * 100) / 100}`,
+          chequesTipoCargado: tipo,
+          ...(idsValidos.length === 0 ? { monto: 0, montoDraft: "", montoFocused: false } : {}),
         });
       } catch (e) {
-        onUpdate(rowId, { chequesDisponibles: [], loadingCheques: false });
+        const maxImporte = safeNumber(options?.maxImporte ?? totalCompra);
+        onUpdate(rowId, {
+          id_cheque: [],
+          chequesDisponibles: [],
+          loadingCheques: false,
+          chequesMaxKey: options?.maxKey || `${tipo}:${Math.round(maxImporte * 100) / 100}`,
+          chequesTipoCargado: tipo,
+          monto: 0,
+          montoDraft: "",
+          montoFocused: false,
+        });
         showToast?.("error", e?.message || "No se pudieron cargar los cheques.", 4000);
       }
     },
-    [apiGet, baseUrlCompra, chequesAction, onUpdate, showToast]
+    [apiGet, baseUrlCompra, chequesAction, filas, onUpdate, showToast, totalCompra]
   );
 
   const sumaMediosPago = useMemo(
