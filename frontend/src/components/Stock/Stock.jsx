@@ -520,6 +520,7 @@ const Stock = () => {
 
   const [modalDarBajaProductoAbierto, setModalDarBajaProductoAbierto] = useState(false);
   const [modalEliminarAbierto, setModalEliminarAbierto] = useState(false);
+  const [modalConfirmacionFinalEliminarAbierto, setModalConfirmacionFinalEliminarAbierto] = useState(false);
   const [productoEliminar, setProductoEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
   const [accionEliminacionProducto, setAccionEliminacionProducto] = useState("");
@@ -1538,15 +1539,31 @@ const Stock = () => {
     setAccionEliminacionProducto("");
   };
 
-  const handleCerrarEliminar = () => {
-    if (eliminando) return;
+  const limpiarEstadoModalEliminarProducto = () => {
     impactoEliminarRequestRef.current += 1;
     setModalEliminarAbierto(false);
+    setModalConfirmacionFinalEliminarAbierto(false);
     setProductoEliminar(null);
     setImpactoEliminar(null);
     setErrorImpactoEliminar("");
     setCargandoImpactoEliminar(false);
     setAccionEliminacionProducto("");
+  };
+
+  const handleCerrarEliminar = () => {
+    if (eliminando) return;
+    limpiarEstadoModalEliminarProducto();
+  };
+
+  const handleSolicitarConfirmacionFinalEliminar = () => {
+    if (eliminando || cargandoImpactoEliminar) return;
+    setModalEliminarAbierto(false);
+    setModalConfirmacionFinalEliminarAbierto(true);
+  };
+
+  const handleCerrarConfirmacionFinalEliminar = () => {
+    if (eliminando) return;
+    limpiarEstadoModalEliminarProducto();
   };
 
   const ejecutarAccionProducto = async ({ permanente = false } = {}) => {
@@ -1564,6 +1581,7 @@ const Stock = () => {
     setAccionEliminacionProducto(permanente ? "eliminar" : "baja");
     setModalDarBajaProductoAbierto(false);
     setModalEliminarAbierto(false);
+    setModalConfirmacionFinalEliminarAbierto(false);
     setProductoEliminar(null);
     mostrarToastCarga(permanente ? "Eliminando producto..." : "Dando de baja producto...");
 
@@ -1571,9 +1589,10 @@ const Stock = () => {
       const { idUsuarioMaster, idTenant } = getUsuarioAuditData();
 
       const payload = {
-        action: permanente ? "stock_producto_eliminar_permanente" : "stock_productos_eliminar",
+        action: permanente ? "stock_producto_eliminar_permanente" : "stock_producto_dar_baja",
         id: productoId,
         idUsuarioMaster,
+        ...(permanente ? { confirmar_desvinculacion: 1 } : {}),
       };
 
       if (idTenant) {
@@ -2655,8 +2674,8 @@ const Stock = () => {
         open={modalEliminarAbierto}
         loading={eliminando && accionEliminacionProducto === "eliminar"}
         onClose={handleCerrarEliminar}
-        onConfirm={handleConfirmarEliminarPermanenteProducto}
-        confirmDisabled={cargandoImpactoEliminar}
+        onConfirm={handleSolicitarConfirmacionFinalEliminar}
+        confirmDisabled={cargandoImpactoEliminar || !!errorImpactoEliminar}
         entidadLabel="producto"
         title="Eliminar producto definitivamente"
         message="Esta acción borra el producto para siempre junto con sus variantes, precios, categorías e imágenes."
@@ -2679,6 +2698,42 @@ const Stock = () => {
                 },
                 { label: "Precio costo", value: formatMoney(productoEliminar.precio_costo) },
                 { label: "Precio venta", value: formatMoney(productoEliminar.precio) },
+              ]
+            : []
+        }
+      />
+
+      <ModalEliminarStock
+        open={modalConfirmacionFinalEliminarAbierto}
+        loading={eliminando && accionEliminacionProducto === "eliminar"}
+        onClose={handleCerrarConfirmacionFinalEliminar}
+        onConfirm={handleConfirmarEliminarPermanenteProducto}
+        entidadLabel="producto"
+        title="Confirmación final"
+        message="Esta es la segunda y última confirmación. La eliminación no se puede deshacer."
+        warning={
+          toNonNegativeInt(impactoEliminar?.total_movimientos_afectados) > 0
+            ? `Al confirmar, el producto se eliminará definitivamente y se desvinculará de ${pluralize(
+                toNonNegativeInt(impactoEliminar?.total_movimientos_afectados),
+                "registro histórico",
+                "registros históricos"
+              )}. Es recomendable darlo de baja en lugar de eliminarlo.`
+            : "El producto se eliminará definitivamente de Balto y, si está sincronizado, también de Tienda Nube."
+        }
+        confirmLabel="Sí, eliminar para siempre"
+        details={
+          productoEliminar
+            ? [
+                { label: "Producto", value: productoEliminar.nombre || "—" },
+                { label: "SKU", value: productoEliminar.sku || "—" },
+                {
+                  label: "Registros afectados",
+                  value: String(toNonNegativeInt(impactoEliminar?.total_movimientos_afectados)),
+                },
+                {
+                  label: "Registros que quedarían sin productos",
+                  value: String(toNonNegativeInt(impactoEliminar?.movimientos_quedarian_sin_productos)),
+                },
               ]
             : []
         }
