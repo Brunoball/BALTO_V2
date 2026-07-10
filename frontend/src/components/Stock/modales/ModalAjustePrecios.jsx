@@ -324,10 +324,13 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado, onProcesoMasiv
 
       const sync = data?.tiendanube_sync;
       const sincronizados = Number(sync?.sincronizados || 0);
+      const encolados = Number(sync?.encolados || sync?.pendientes || 0);
       const totalSync = Number(sync?.total_productos || 0);
       const mensajeExito = sincronizados > 0
         ? `Precios actualizados correctamente en Balto y Tienda Nube (${sincronizados}/${totalSync || sincronizados} productos sincronizados).`
-        : data?.mensaje || "Precios actualizados correctamente.";
+        : encolados > 0
+          ? `Precios actualizados correctamente en Balto. La sincronización con Tienda Nube quedó iniciada para ${encolados}/${totalSync || encolados} productos.`
+          : data?.mensaje || "Precios actualizados correctamente.";
 
       avisar("exito", mensajeExito);
     } catch (err) {
