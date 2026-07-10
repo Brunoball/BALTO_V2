@@ -1,0 +1,273 @@
+/* =========================================================
+   GLOBAL RESPONSIVE V2
+   Responsive compartido para secciones y modales globalizados.
+   No define componentes nuevos: adapta clases existentes.
+========================================================= */
+
+@media (max-width: 1500px) {
+  .mov-card__head {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .mov-card__headLeft {
+    flex: 1 1 100%;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .title-mov {
+    flex: 1 1 220px;
+    min-width: 0;
+  }
+
+  .mov-headFilters {
+    flex: 1 1 520px;
+    justify-content: flex-end;
+  }
+
+  .mov-card__actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 1100px) {
+  .mov-page {
+    padding-inline: 14px;
+  }
+
+  .mov-card__head,
+  .cc-card__head {
+    padding: 14px 16px;
+  }
+
+  .mov-card__headLeft,
+  .cc-card__headLeft {
+    align-items: stretch;
+  }
+
+  .mov-headFilters,
+  .cc-headFilters {
+    width: 100%;
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+
+  .mov-headFilters .cc-filter,
+  .cc-headFilters .cc-filter {
+    flex: 1 1 240px;
+    min-width: 0;
+  }
+
+  .mov-headFilters .cc-filter--cal,
+  .cc-headFilters .cc-filter--cal {
+    flex: 0 1 280px;
+  }
+
+  .mov-headFilters .cc-floatingField,
+  .mov-headFilters .cc-calTrigger,
+  .mov-headFilters .cc-input,
+  .cc-headFilters .cc-floatingField,
+  .cc-headFilters .cc-calTrigger,
+  .cc-headFilters .cc-input,
+  #vents-comppr-wit {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .mov-gridTable--head,
+  .mov-gridTable--row {
+    min-width: 930px;
+  }
+
+  .mov-tableWrap {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  .gm-modal-overlay {
+    padding: 12px;
+  }
+
+  .gm-modal-container,
+  .gm-modal-container--movement {
+    width: min(1180px, 98vw);
+    max-height: 96vh;
+  }
+
+  .gm-movement-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gm-movement-main,
+  .gm-movement-side {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 780px) {
+  .mov-page {
+    padding-inline: 10px;
+  }
+
+  .mov-card {
+    border-radius: 14px;
+  }
+
+  .mov-card__head,
+  .cc-card__head {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .mov-card__headLeft,
+  .cc-card__headLeft,
+  .mov-headFilters,
+  .cc-headFilters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .title-mov,
+  .mov-headFilters,
+  .cc-headFilters,
+  .mov-headFilters .cc-filter,
+  .cc-headFilters .cc-filter,
+  .mov-headFilters .cc-filter--cal,
+  .cc-headFilters .cc-filter--cal {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .mov-card__actions,
+  .cc-card__actions {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px !important;
+  }
+
+  .mov-card__actions .mov-btn,
+  .cc-card__actions .mov-btn,
+  .mov-card__actions .export-btn,
+  .cc-card__actions .export-btn {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .cc-calDropdown {
+    left: 0;
+    right: auto;
+    max-width: calc(100vw - 40px);
+  }
+
+  .mov-gridTable--head,
+  .mov-gridTable--row {
+    min-width: 840px;
+  }
+
+  .gm-modal-overlay {
+    padding: 8px;
+    align-items: flex-start;
+  }
+
+  .gm-modal-container,
+  .gm-modal-container--movement,
+  .gm-modal-container--small {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100vh - 16px);
+    border-radius: 14px;
+  }
+
+  .gm-modal-header {
+    padding: 12px 14px;
+  }
+
+  .gm-modal-content {
+    padding: 12px;
+  }
+
+  .gm-modal-footer {
+    padding: 10px 12px;
+    flex-wrap: wrap;
+  }
+
+  .gm-actions,
+  .gm-modal-footer {
+    gap: 8px;
+  }
+
+  .gm-actions > button,
+  .gm-modal-footer > button {
+    flex: 1 1 180px;
+  }
+
+  .gm-table {
+    overflow-x: auto;
+  }
+
+  .gm-table-head,
+  .gm-table-row {
+    min-width: 760px;
+  }
+}
+
+@media (max-width: 520px) {
+  .mov-card__title {
+    font-size: 1rem;
+  }
+
+  .mov-card__hint {
+    font-size: 11px;
+  }
+
+  .mov-card__actions,
+  .cc-card__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .mov-btn {
+    min-height: 40px;
+  }
+
+  .cc-calTrigger {
+    white-space: normal;
+    text-align: left;
+  }
+
+  .cc-calDropdown {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
+    width: min(94vw, 390px);
+    max-width: 94vw;
+    z-index: 1200;
+  }
+
+  .gm-modal-title {
+    font-size: 1rem;
+  }
+
+  .gm-modal-subtitle {
+    font-size: .78rem;
+  }
+
+  .gm-modal-footer,
+  .gm-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gm-actions > button,
+  .gm-modal-footer > button {
+    width: 100%;
+    flex-basis: auto;
+  }
+}

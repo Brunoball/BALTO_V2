@@ -1375,7 +1375,7 @@ body.dark .cc-rowMeta{
     display: flex;
     justify-content: flex-end;
     width: fit-content;
-    margin: 8px 0 0 auto;
+    margin:  5px 0 0 auto;
     padding: 3px;
     gap: 4px;
     border-radius: 999px;
@@ -1403,7 +1403,7 @@ body.dark .cc-rowMeta{
   }
 
   .cc-cliente-table--detail{
-    height: calc(100vh - 248px);
+    height: calc(100vh - 230px);
   }
 }
 
@@ -1451,7 +1451,7 @@ body.dark .cc-detailTabs--bottom .cc-detailTab.is-active{
 
 /* Tabs superiores ubicadas entre el título y el período */
 .cc-detailTabs--between-title-period{
-  margin: 6px 0 8px auto;
+  margin: auto 0 auto auto;
   align-self: flex-start;
 }
 
