@@ -1514,3 +1514,28 @@ body.dark .mi-modal__header.cc-legal-modal__head {
 .cc-entity-form-modal__content {
   background: var(--mi-bg-soft);
 }
+
+/* Mejor contraste de rótulos en modo claro */
+html:not([data-theme="oscuro"]) .cc-entity-form-card .cc-legal-client-card__eyebrow,
+body:not(.dark) .cc-entity-form-card .cc-legal-client-card__eyebrow{
+  color: rgba(255, 255, 255, .92);
+  background: var(--nv-midnight, var(--b-midnight, #0a2540));
+  border-color: rgba(10, 37, 64, .16);
+}
+
+html:not([data-theme="oscuro"]) .cc-entity-form-side-panel .cc-legal-panel-section__head,
+body:not(.dark) .cc-entity-form-side-panel .cc-legal-panel-section__head{
+  background: var(--nv-midnight, var(--b-midnight, #0a2540));
+  border-bottom-color: rgba(10, 37, 64, .20);
+}
+
+html:not([data-theme="oscuro"]) .cc-entity-form-side-panel .cc-legal-panel-section__head span:last-child,
+body:not(.dark) .cc-entity-form-side-panel .cc-legal-panel-section__head span:last-child{
+  color: rgba(255, 255, 255, .92);
+}
+
+html:not([data-theme="oscuro"]) .cc-entity-form-side-panel .cc-legal-panel-section__dot,
+body:not(.dark) .cc-entity-form-side-panel .cc-legal-panel-section__dot{
+  background: #1683ff;
+  box-shadow: 0 0 0 4px rgba(22, 131, 255, .16);
+}
