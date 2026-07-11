@@ -1419,12 +1419,18 @@ html[data-theme="oscuro"] .prod-variantExtraPrices small {
 .stock-tableActions .mov-btn svg {
   font-size: 12px;
 }
-  .stock-tableWrap {
+
+@media (min-width: 1501px) {
+  .stock-tableWrap--with-pagination {
+    min-height: calc(100vh - 300px) !important;
+    max-height: calc(100vh - 300px) !important;
+  }
+
+  .stock-tableWrap--without-pagination {
     min-height: calc(100vh - 240px) !important;
     max-height: calc(100vh - 240px) !important;
   }
 
-@media (min-width: 1501px) {
   .stock-tableFooter--onlyActions {
     display: none;
   }

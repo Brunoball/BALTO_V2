@@ -2458,7 +2458,16 @@ const Stock = () => {
             ))}
           </div>
 
-          <div className="mov-tableWrap stock-tableWrap" role="rowgroup">
+          <div
+            className={[
+              "mov-tableWrap",
+              "stock-tableWrap",
+              totalPaginas > 1
+                ? "stock-tableWrap--with-pagination"
+                : "stock-tableWrap--without-pagination",
+            ].join(" ")}
+            role="rowgroup"
+          >
             <div
               className={[
                 "mov-gridBody",
