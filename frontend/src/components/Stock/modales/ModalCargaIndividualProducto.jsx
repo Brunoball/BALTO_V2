@@ -696,6 +696,68 @@ function buildVariantPricePayload(variant) {
   return precios.filter((p) => p.precio !== "");
 }
 
+function getPayloadPrice(precios = [], idTipo) {
+  const item = (Array.isArray(precios) ? precios : []).find(
+    (precio) => Number(precio?.id_tipo_precio_stock || 0) === Number(idTipo)
+  );
+
+  return item?.precio ?? item?.monto ?? null;
+}
+
+function buildOptimisticVariant(savedVariant = {}, variantPayload = {}) {
+  return {
+    ...savedVariant,
+    ...variantPayload,
+    id:
+      Number(savedVariant?.id ?? savedVariant?.id_stock_variante ?? variantPayload?.id_stock_variante ?? 0) ||
+      undefined,
+    id_stock_variante:
+      Number(savedVariant?.id_stock_variante ?? savedVariant?.id ?? variantPayload?.id_stock_variante ?? 0) ||
+      undefined,
+    precio_costo: getPayloadPrice(variantPayload?.precios, 1),
+    precio: getPayloadPrice(variantPayload?.precios, 2),
+    precio_promo: getPayloadPrice(variantPayload?.precios, 3),
+  };
+}
+
+function buildOptimisticProduct(savedProduct, sourceForm, variantesPayload = []) {
+  if (!savedProduct || typeof savedProduct !== "object") return savedProduct;
+
+  const id = Number(savedProduct?.id ?? savedProduct?.id_stock_producto ?? 0);
+  if (!id) return savedProduct;
+
+  const usaVariantes = !!sourceForm?.tiene_variantes;
+  const variantesGuardadas = Array.isArray(savedProduct?.variantes) ? savedProduct.variantes : [];
+  const variantes = usaVariantes
+    ? variantesPayload.map((variant, index) =>
+        buildOptimisticVariant(variantesGuardadas[index] || {}, variant)
+      )
+    : [];
+
+  return {
+    ...savedProduct,
+    id,
+    id_stock_producto: id,
+    nombre: toCapitalizedText(sourceForm?.nombre),
+    sku: toUpperCaseValue(String(sourceForm?.sku || "").trim()),
+    descripcion: toCapitalizedText(sourceForm?.descripcion),
+    stock: usaVariantes
+      ? variantes.reduce((total, variant) => total + Number(variant?.stock || 0), 0)
+      : Number(sourceForm?.stock || 0),
+    precio_costo: usaVariantes ? null : moneyToApi(sourceForm?.precio_costo) || null,
+    precio: usaVariantes ? null : moneyToApi(sourceForm?.precio) || null,
+    precio_promo: usaVariantes ? null : moneyToApi(sourceForm?.precio_promo) || null,
+    id_stock_categoria: Number(normalizeIdValue(sourceForm?.id_categoria_stock)) || null,
+    id_categoria_stock: Number(normalizeIdValue(sourceForm?.id_categoria_stock)) || null,
+    tiene_variantes: usaVariantes,
+    cantidad_variantes: variantes.length,
+    cantidad_variantes_total: variantes.length,
+    cantidad_variantes_activas: variantes.length,
+    cantidad_variantes_inactivas: 0,
+    variantes: usaVariantes ? variantes : savedProduct?.variantes,
+  };
+}
+
 function buildEmptyForm() {
   return {
     nombre: "",
@@ -1617,10 +1679,19 @@ export default function ModalCargaIndividualProducto({
       });
 
       const data = await parseJsonOrThrow(res);
-      const productoGuardado = data?.producto ?? data?.data?.producto ?? data?.data ?? null;
+      const productoGuardadoBase = data?.producto ?? data?.data?.producto ?? data?.data ?? null;
+      const productoGuardado = buildOptimisticProduct(
+        productoGuardadoBase,
+        formNormalizado,
+        variantesPayload
+      );
+
       await onGuardado?.(productoGuardado, {
         response: data,
         tiendanube_sync: data?.tiendanube_sync ?? data?.data?.tiendanube_sync ?? null,
+        imagen_actualizada: !!imagenFile,
+        imagen_file: imagenFile || null,
+        producto_optimista: productoGuardado,
       });
     } catch (err) {
       mostrarToast(errorToText(err, "Error al guardar el producto"), "error");

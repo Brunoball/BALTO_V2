@@ -32,6 +32,7 @@ const API_URL = `${String(BASE_URL || "").replace(/\/+$/, "")}/api.php`;
 const TOAST_LOADING_DURATION = 90000;
 const PRECIOS_MASIVOS_LOADING_THRESHOLD = 10;
 const STOCK_CHANGE_CHECK_MS = 2500;
+const OPTIMISTIC_PRODUCT_GRACE_MS = 20000;
 
 
 function buildHeadersGET() {
@@ -391,6 +392,31 @@ function normalizeProductosCollection(items = []) {
     .filter(Boolean);
 }
 
+function mergeProductoPreferenciaLocal(productoServidor = null, productoLocal = null) {
+  const servidor = normalizeProductoListItem(productoServidor);
+  const local = normalizeProductoListItem(productoLocal);
+
+  if (!servidor) return local;
+  if (!local) return servidor;
+
+  const categoriasLocal = Array.isArray(local?.categorias) ? local.categorias : [];
+  const categoriasServidor = Array.isArray(servidor?.categorias) ? servidor.categorias : [];
+
+  return normalizeProductoListItem({
+    ...servidor,
+    ...local,
+    categorias: categoriasLocal.length > 0 ? categoriasLocal : categoriasServidor,
+    precios:
+      Array.isArray(local?.precios) && local.precios.length > 0
+        ? local.precios
+        : servidor?.precios,
+    variantes:
+      Array.isArray(local?.variantes) && local.variantes.length > 0
+        ? local.variantes
+        : servidor?.variantes,
+  });
+}
+
 function getProductoImageRefreshToken(prod, refreshKey = 0, intento = 0) {
   const archivoId = Number(prod?.imagen_archivo_id || 0);
   const estadoToken = Number(prod?.activo ?? 1) === 0 ? "baja" : "activo";
@@ -543,6 +569,7 @@ const Stock = () => {
   const refreshTimersRef = useRef([]);
   const imagenesTemporalesRef = useRef({});
   const imagenesConocidasPorProductoRef = useRef({});
+  const productosOptimistasRef = useRef({});
   const impactoEliminarRequestRef = useRef(0);
   const productosRequestRef = useRef(0);
   const categoriaFiltroDropdownRef = useRef(null);
@@ -758,13 +785,109 @@ const Stock = () => {
     };
   }, []);
 
+  const obtenerProductoOptimistaActivo = useCallback((productoId) => {
+    const id = Number(productoId || 0);
+    if (!id) return null;
+
+    const registro = productosOptimistasRef.current?.[id];
+    if (!registro) return null;
+
+    if (Number(registro?.expiresAt || 0) <= Date.now()) {
+      const next = { ...(productosOptimistasRef.current || {}) };
+      delete next[id];
+      productosOptimistasRef.current = next;
+      return null;
+    }
+
+    return registro?.producto || null;
+  }, []);
+
+  const listarProductosOptimistasActivos = useCallback(() => {
+    const ahora = Date.now();
+    const vigentes = [];
+    const next = {};
+
+    Object.entries(productosOptimistasRef.current || {}).forEach(([id, registro]) => {
+      if (Number(registro?.expiresAt || 0) <= ahora || !registro?.producto) return;
+      next[id] = registro;
+      vigentes.push(registro.producto);
+    });
+
+    productosOptimistasRef.current = next;
+    return vigentes;
+  }, []);
+
+  const registrarProductoOptimista = useCallback((producto = null, duracionMs = OPTIMISTIC_PRODUCT_GRACE_MS) => {
+    const normalizado = normalizeProductoListItem(producto);
+    const id = getProductoId(normalizado);
+    if (!id) return normalizado;
+
+    productosOptimistasRef.current = {
+      ...(productosOptimistasRef.current || {}),
+      [id]: {
+        producto: normalizado,
+        expiresAt: Date.now() + Math.max(2500, Number(duracionMs || OPTIMISTIC_PRODUCT_GRACE_MS)),
+      },
+    };
+
+    return normalizado;
+  }, []);
+
+  const aplicarProductoOptimista = useCallback((producto = null) => {
+    const id = getProductoId(producto);
+    if (!id) return normalizeProductoListItem(producto);
+
+    const optimista = obtenerProductoOptimistaActivo(id);
+    return optimista
+      ? mergeProductoPreferenciaLocal(producto, optimista)
+      : normalizeProductoListItem(producto);
+  }, [obtenerProductoOptimistaActivo]);
+
   const prepararProductosParaMostrar = useCallback(
     (items = []) => {
-      const normalizados = normalizeProductosCollection(items);
+      const normalizados = normalizeProductosCollection(items)
+        .map((item) => aplicarProductoOptimista(item))
+        .filter(Boolean);
+
+      // En la primera página se conserva también un alta local que todavía no
+      // apareció en una lectura intermedia. Respeta los filtros visibles para
+      // no insertar productos ajenos a la búsqueda actual.
+      if (paginaActual === 1) {
+        const idsPresentes = new Set(normalizados.map((item) => getProductoId(item)));
+        const busquedaNormalizada = normalizeText(busquedaConsulta);
+
+        listarProductosOptimistasActivos().forEach((producto) => {
+          const id = getProductoId(producto);
+          if (!id || idsPresentes.has(id)) return;
+
+          const activoEsperado = mostrarDadosDeBaja ? 0 : 1;
+          if (Number(producto?.activo ?? 1) !== activoEsperado) return;
+          if (categoriaFiltro && !productoTieneCategoria(producto, categoriaFiltro)) return;
+
+          if (busquedaNormalizada) {
+            const coincide = [producto?.nombre, producto?.sku, producto?.descripcion]
+              .some((valor) => normalizeText(valor).includes(busquedaNormalizada));
+            if (!coincide) return;
+          }
+
+          normalizados.unshift(producto);
+          idsPresentes.add(id);
+        });
+      }
+
       normalizados.forEach((item) => registrarImagenConocidaProducto(item));
       return normalizados.map((item) => completarProductoConImagenConocida(item));
     },
-    [completarProductoConImagenConocida, registrarImagenConocidaProducto]
+    [
+      aplicarProductoOptimista,
+      busquedaConsulta,
+      categoriaFiltro,
+      completarProductoConImagenConocida,
+      listarProductosOptimistasActivos,
+      mostrarDadosDeBaja,
+      paginaActual,
+      registrarImagenConocidaProducto,
+    ]
   );
 
   const invalidarMiniaturaProducto = useCallback((productoId, seed = Date.now()) => {
@@ -961,8 +1084,9 @@ const Stock = () => {
     const productoActualizado = extractProductoFromApiResponse(data);
     if (!productoActualizado) return null;
 
-    registrarImagenConocidaProducto(productoActualizado);
-    const productoConImagen = completarProductoConImagenConocida(productoActualizado);
+    const productoPreferido = aplicarProductoOptimista(productoActualizado);
+    registrarImagenConocidaProducto(productoPreferido);
+    const productoConImagen = completarProductoConImagenConocida(productoPreferido);
 
     setProductosRaw((prev) => mergeProductoEnLista(prev, productoConImagen));
     rearmarMiniaturasProductos([productoConImagen], opciones?.seed || Date.now());
@@ -970,10 +1094,10 @@ const Stock = () => {
     const productoNormalizado = normalizeProductoListItem(productoConImagen);
     const idNormalizado = getProductoId(productoNormalizado) || id;
 
-    if (Array.isArray(productoActualizado?.variantes)) {
+    if (Array.isArray(productoPreferido?.variantes)) {
       setVariantesPorProducto((prev) => ({
         ...prev,
-        [idNormalizado]: normalizeVariantesCollection(productoActualizado.variantes),
+        [idNormalizado]: normalizeVariantesCollection(productoPreferido.variantes),
       }));
       setErrorVariantesPorProducto((prev) => {
         const next = { ...prev };
@@ -983,7 +1107,7 @@ const Stock = () => {
     }
 
     return productoNormalizado || productoActualizado;
-  }, [completarProductoConImagenConocida, rearmarMiniaturasProductos, registrarImagenConocidaProducto]);
+  }, [aplicarProductoOptimista, completarProductoConImagenConocida, rearmarMiniaturasProductos, registrarImagenConocidaProducto]);
 
   const refrescarListaYProducto = useCallback(async (productoId = 0, opciones = {}) => {
     const id = Number(productoId || 0);
@@ -1012,27 +1136,31 @@ const Stock = () => {
 
     limpiarRefreshTimers();
 
-    const timerId = window.setTimeout(() => {
-      refrescarListaYProducto(id, {
-        seed: Date.now(),
-        mostrarLoader: false,
-        invalidarImagen: true,
-        recargarProducto: true,
-      });
-    }, 1600);
+    const timerId = window.setTimeout(async () => {
+      try {
+        await refrescarProductoPorId(id, { seed: Date.now() });
+        limpiarImagenTemporalProducto(id);
+        invalidarMiniaturaProducto(id, Date.now());
+      } catch {
+        // Si la lectura puntual falla, se conserva la vista previa local.
+      }
+    }, 1400);
 
     refreshTimersRef.current.push(timerId);
-  }, [limpiarRefreshTimers, refrescarListaYProducto]);
+  }, [invalidarMiniaturaProducto, limpiarImagenTemporalProducto, limpiarRefreshTimers, refrescarProductoPorId]);
 
   const refrescarDespuesDeGuardar = useCallback(
     async (productoGuardado = null, opciones = {}) => {
-      const productoId = getProductoId(productoGuardado) || Number(opciones?.productoId || 0);
+      const productoFuente = opciones?.producto_optimista || productoGuardado;
+      const productoOptimista = productoFuente
+        ? registrarProductoOptimista(productoFuente, opciones?.optimistic_ttl_ms)
+        : null;
+      const productoId =
+        getProductoId(productoOptimista) ||
+        getProductoId(productoGuardado) ||
+        Number(opciones?.productoId || 0);
       const imagenActualizada = !!opciones?.imagen_actualizada;
       const imagenEliminada = !!opciones?.imagen_eliminada;
-      const refrescarImagen =
-        imagenActualizada ||
-        imagenEliminada ||
-        !!productoGuardado?.imagen_actualizada_en;
 
       if (productoId > 0 && imagenActualizada && opciones?.imagen_file) {
         aplicarImagenTemporalProducto(productoId, opciones.imagen_file);
@@ -1042,10 +1170,13 @@ const Stock = () => {
         limpiarImagenTemporalProducto(productoId);
       }
 
-      if (productoGuardado) {
-        registrarImagenConocidaProducto(productoGuardado);
-        const productoConImagen = completarProductoConImagenConocida(productoGuardado);
+      if (productoOptimista) {
+        registrarImagenConocidaProducto(productoOptimista);
+        const productoConImagen = completarProductoConImagenConocida(productoOptimista);
 
+        // La respuesta del guardado local es la fuente inmediata de la grilla.
+        // No se vuelve a consultar toda la lista acá porque ese request podía
+        // cruzarse con el job/webhook de Tienda Nube y mostrar datos parciales.
         setProductosRaw((prev) => mergeProductoEnLista(prev, productoConImagen));
         rearmarMiniaturasProductos([productoConImagen], Date.now());
 
@@ -1060,19 +1191,24 @@ const Stock = () => {
             return next;
           });
         }
+
+        if (productoId > 0 && (imagenActualizada || imagenEliminada)) {
+          invalidarMiniaturaProducto(productoId, Date.now());
+          programarRefrescoPostImagen(productoId);
+        }
+
+        return productoConImagen;
       }
 
-      if (productoId > 0 && refrescarImagen) {
-        invalidarMiniaturaProducto(productoId, Date.now());
-        programarRefrescoPostImagen(productoId);
-        return;
-      }
-
+      // Procesos sin producto puntual (por ejemplo ajustes masivos) mantienen
+      // la recarga completa tradicional.
       await refrescarListaYProducto(productoId, {
         seed: Date.now(),
         mostrarLoader: opciones?.mostrarLoader === true,
         invalidarImagen: false,
       });
+
+      return null;
     },
     [
       aplicarImagenTemporalProducto,
@@ -1082,6 +1218,7 @@ const Stock = () => {
       programarRefrescoPostImagen,
       rearmarMiniaturasProductos,
       registrarImagenConocidaProducto,
+      registrarProductoOptimista,
       refrescarListaYProducto,
     ]
   );
@@ -1202,7 +1339,11 @@ const Stock = () => {
         throw new Error(data?.mensaje || "No se pudieron cargar las variantes.");
       }
 
-      const variantes = normalizeVariantesCollection(data?.variantes || data?.data?.variantes || []);
+      const productoOptimista = obtenerProductoOptimistaActivo(id);
+      const variantesFuente = Array.isArray(productoOptimista?.variantes)
+        ? productoOptimista.variantes
+        : data?.variantes || data?.data?.variantes || [];
+      const variantes = normalizeVariantesCollection(variantesFuente);
       setVariantesPorProducto((prev) => ({ ...prev, [id]: variantes }));
     } catch (err) {
       if (!silencioso) {
@@ -1217,7 +1358,7 @@ const Stock = () => {
         setLoadingVariantesPorProducto((prev) => ({ ...prev, [id]: false }));
       }
     }
-  }, [categoriaFiltro]);
+  }, [categoriaFiltro, obtenerProductoOptimistaActivo]);
 
   const toggleVariantesProducto = useCallback((producto) => {
     const id = getProductoId(producto);

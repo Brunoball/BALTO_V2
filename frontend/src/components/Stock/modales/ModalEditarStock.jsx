@@ -989,6 +989,91 @@ function buildVariantPricePayload(variant) {
   return precios.filter((precio) => precio.precio !== null && precio.precio !== undefined && precio.precio !== "");
 }
 
+function getPayloadPrice(precios = [], idTipo) {
+  const item = (Array.isArray(precios) ? precios : []).find(
+    (precio) => Number(precio?.id_tipo_precio_stock || 0) === Number(idTipo)
+  );
+
+  return item?.precio ?? item?.monto ?? null;
+}
+
+function buildOptimisticVariant(savedVariant = {}, variantPayload = {}) {
+  const id = Number(
+    savedVariant?.id ??
+      savedVariant?.id_stock_variante ??
+      variantPayload?.id_stock_variante ??
+      0
+  );
+
+  return {
+    ...savedVariant,
+    ...variantPayload,
+    ...(id > 0 ? { id, id_stock_variante: id } : {}),
+    activo: Number(variantPayload?.activo ?? savedVariant?.activo ?? 1),
+    precio_costo: getPayloadPrice(variantPayload?.precios, 1),
+    precio: getPayloadPrice(variantPayload?.precios, 2),
+    precio_promo: getPayloadPrice(variantPayload?.precios, 3),
+  };
+}
+
+function buildOptimisticProduct(savedProduct, sourceForm, variantesPayload = []) {
+  if (!savedProduct || typeof savedProduct !== "object") return savedProduct;
+
+  const id = Number(
+    savedProduct?.id ?? savedProduct?.id_stock_producto ?? sourceForm?.id ?? 0
+  );
+  if (!id) return savedProduct;
+
+  const usaVariantes = !!sourceForm?.tiene_variantes;
+  const variantesGuardadas = Array.isArray(savedProduct?.variantes) ? savedProduct.variantes : [];
+  const variantesPorId = new Map(
+    variantesGuardadas.map((variant) => [
+      Number(variant?.id ?? variant?.id_stock_variante ?? 0),
+      variant,
+    ])
+  );
+
+  const variantes = usaVariantes
+    ? variantesPayload.map((variant, index) => {
+        const idVariante = Number(variant?.id_stock_variante || 0);
+        const guardada =
+          (idVariante > 0 ? variantesPorId.get(idVariante) : null) ||
+          variantesGuardadas[index] ||
+          {};
+        return buildOptimisticVariant(guardada, variant);
+      })
+    : [];
+
+  return {
+    ...savedProduct,
+    id,
+    id_stock_producto: id,
+    nombre: toUpperCaseValue(String(sourceForm?.nombre || "").trim()),
+    sku: toUpperCaseValue(String(sourceForm?.sku || "").trim()),
+    descripcion: toUpperCaseValue(String(sourceForm?.descripcion || "").trim()),
+    stock: usaVariantes
+      ? variantes.reduce((total, variant) => total + Number(variant?.stock || 0), 0)
+      : Number(sourceForm?.stock || 0),
+    precio_costo: usaVariantes
+      ? null
+      : formatNumberForApi(sourceForm?.precio_costo),
+    precio: usaVariantes ? null : formatNumberForApi(sourceForm?.precio),
+    precio_promo: usaVariantes
+      ? null
+      : formatNumberForApi(sourceForm?.precio_promo),
+    id_stock_categoria:
+      Number(normalizeIdValue(sourceForm?.id_categoria_stock)) || null,
+    id_categoria_stock:
+      Number(normalizeIdValue(sourceForm?.id_categoria_stock)) || null,
+    tiene_variantes: usaVariantes,
+    cantidad_variantes: variantes.filter((variant) => Number(variant?.activo ?? 1) === 1).length,
+    cantidad_variantes_total: variantes.length,
+    cantidad_variantes_activas: variantes.filter((variant) => Number(variant?.activo ?? 1) === 1).length,
+    cantidad_variantes_inactivas: variantes.filter((variant) => Number(variant?.activo ?? 1) !== 1).length,
+    variantes: usaVariantes ? variantes : [],
+  };
+}
+
 function buildEmptyForm() {
   return {
     id: "",
@@ -2343,8 +2428,13 @@ export default function ModalEditarProducto({
 
       const data = await parseJsonOrThrow(res);
 
-      const productoGuardado =
+      const productoGuardadoBase =
         data?.producto ?? data?.data?.producto ?? data?.data ?? null;
+      const productoGuardado = buildOptimisticProduct(
+        productoGuardadoBase,
+        formNormalizado,
+        variantesPayload
+      );
 
       await onGuardado?.(productoGuardado, {
         productoId: Number(formNormalizado.id || productoId || 0),
@@ -2352,6 +2442,7 @@ export default function ModalEditarProducto({
         imagen_eliminada: eliminarImagenActual && !nuevaImagenFile,
         imagen_file: nuevaImagenFile || null,
         variantes_desactivadas: !formNormalizado.tiene_variantes,
+        producto_optimista: productoGuardado,
         response: data,
         tiendanube_sync: data?.tiendanube_sync ?? data?.data?.tiendanube_sync ?? null,
       });
