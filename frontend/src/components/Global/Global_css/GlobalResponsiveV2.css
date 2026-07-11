@@ -1,164 +1,92 @@
+/* =========================================================
+   GLOBAL RESPONSIVE V2 · VENTAS
+   Solo complementa la cabecera en celulares.
+   La tabla y los modales conservan su responsive existente.
+========================================================= */
 
-@media (max-width: 780px) {
+@media (max-width: 720px) {
   .mov-page {
     padding-inline: 10px;
   }
 
-  .mov-card {
-    border-radius: 14px;
-  }
-
-  .mov-card__head,
-  .cc-card__head {
+  .mov-card__head {
+    display: block;
     padding: 12px;
-    gap: 12px;
   }
 
-  .mov-card__headLeft,
-  .cc-card__headLeft,
-  .mov-headFilters,
-  .cc-headFilters {
-    flex-direction: column;
-    align-items: stretch;
+  .mov-card__headLeft {
+    display: block;
+    width: 100%;
+    min-width: 0;
   }
 
-  .title-mov,
-  .mov-headFilters,
-  .cc-headFilters,
+  .mov-headFilters {
+    width: 100%;
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
   .mov-headFilters .cc-filter,
-  .cc-headFilters .cc-filter,
   .mov-headFilters .cc-filter--cal,
-  .cc-headFilters .cc-filter--cal {
+  .mov-headFilters .cc-floatingField,
+  .mov-headFilters .cc-searchInput,
+  .mov-headFilters .cc-searchInput__fieldWrap {
     width: 100%;
-    flex: 1 1 auto;
+    min-width: 0;
   }
 
-  .mov-card__actions,
-  .cc-card__actions {
+  #vents-comppr-wit,
+  .mov-headFilters .cc-calTrigger {
     width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .mov-card__actions {
+    width: 100%;
+    margin-top: 10px;
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px !important;
+    align-items: stretch !important;
+    flex-wrap: nowrap;
   }
 
-  .mov-card__actions .mov-btn,
-  .cc-card__actions .mov-btn,
-  .mov-card__actions .export-btn,
-  .cc-card__actions .export-btn {
+  .mov-card__actions .boton-exportar-wrap,
+  .mov-card__actions .mov-btn {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .mov-card__actions .boton-exportar-trigger,
+  .mov-card__actions .mov-btn {
     width: 100%;
     min-width: 0;
     justify-content: center;
   }
 
+  .mov-card__actions .boton-exportar-menu {
+    width: min(280px, calc(100vw - 32px));
+    min-width: 0;
+    max-width: calc(100vw - 32px);
+  }
+
   .cc-calDropdown {
-    left: 0;
-    right: auto;
-    max-width: calc(100vw - 40px);
-  }
-
-  .mov-gridTable--head,
-  .mov-gridTable--row {
-    min-width: 840px;
-  }
-
-  .gm-modal-overlay {
-    padding: 8px;
-    align-items: flex-start;
-  }
-
-  .gm-modal-container,
-  .gm-modal-container--movement,
-  .gm-modal-container--small {
-    width: 100%;
-    max-width: none;
-    max-height: calc(100vh - 16px);
-    border-radius: 14px;
-  }
-
-  .gm-modal-header {
-    padding: 12px 14px;
-  }
-
-  .gm-modal-content {
-    padding: 12px;
-  }
-
-  .gm-modal-footer {
-    padding: 10px 12px;
-    flex-wrap: wrap;
-  }
-
-  .gm-actions,
-  .gm-modal-footer {
-    gap: 8px;
-  }
-
-  .gm-actions > button,
-  .gm-modal-footer > button {
-    flex: 1 1 180px;
-  }
-
-  .gm-table {
-    overflow-x: auto;
-  }
-
-  .gm-table-head,
-  .gm-table-row {
-    min-width: 760px;
+    max-width: calc(100vw - 32px);
   }
 }
 
-@media (max-width: 520px) {
-  .mov-card__title {
-    font-size: 1rem;
+@media (max-width: 420px) {
+  .mov-card__actions .boton-exportar-trigger,
+  .mov-card__actions .mov-btn {
+    padding-inline: 8px;
+    font-size: 12px;
   }
 
-  .mov-card__hint {
-    font-size: 11px;
-  }
-
-  .mov-card__actions,
-  .cc-card__actions {
-    grid-template-columns: 1fr;
-  }
-
-  .mov-btn {
-    min-height: 40px;
-  }
-
-  .cc-calTrigger {
-    white-space: normal;
-    text-align: left;
-  }
-
-  .cc-calDropdown {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    right: auto;
-    transform: translate(-50%, -50%);
-    width: min(94vw, 390px);
-    max-width: 94vw;
-    z-index: 1200;
-  }
-
-  .gm-modal-title {
-    font-size: 1rem;
-  }
-
-  .gm-modal-subtitle {
-    font-size: .78rem;
-  }
-
-  .gm-modal-footer,
-  .gm-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .gm-actions > button,
-  .gm-modal-footer > button {
-    width: 100%;
-    flex-basis: auto;
+  .mov-card__actions .boton-exportar-trigger__left {
+    gap: 4px;
   }
 }

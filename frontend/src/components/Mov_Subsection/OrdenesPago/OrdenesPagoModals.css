@@ -309,3 +309,82 @@ html[data-theme="oscuro"] .gm-order-row.is-checked { background: rgba(0, 85, 187
   .gm-order-edit-modal .mi-er-layout{ grid-template-columns:1fr; }
   .gm-order-edit-modal .mi-er-grid-3{ grid-template-columns:1fr; }
 }
+
+/* =========================================================
+   ÓRDENES DE PAGO · CABECERA RESPONSIVE
+   Solo celulares. Reutiliza la estructura existente.
+========================================================= */
+@media (max-width: 720px) {
+  .mov-page--ordenesPago .mov-card__head {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 8px;
+    align-items: stretch;
+  }
+
+  .mov-page--ordenesPago .mov-card__headLeft,
+  .mov-page--ordenesPago .mov-headFilters {
+    display: contents;
+  }
+
+  .mov-page--ordenesPago .title-mov {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .mov-page--ordenesPago .mov-headFilters .mov-filter--cal {
+    grid-column: 1 / -1;
+    width: min(100%, 340px);
+    min-width: 0;
+    margin-inline: auto;
+    justify-self: center;
+  }
+
+  .mov-page--ordenesPago .mov-headFilters .mov-calTrigger {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .mov-page--ordenesPago .mov-headFilters .mov-search {
+    grid-column: 1;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    align-self: stretch;
+  }
+
+  .mov-page--ordenesPago .mov-headFilters .mov-searchInput,
+  .mov-page--ordenesPago .mov-headFilters .mov-input--floating {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .mov-page--ordenesPago .mov-card__actions {
+    grid-column: 2;
+    width: auto !important;
+    min-width: 0;
+    margin: 0 !important;
+    align-self: stretch;
+  }
+
+  .mov-page--ordenesPago .mov-card__actions .boton-exportar-wrap,
+  .mov-page--ordenesPago .mov-card__actions .boton-exportar-trigger {
+    width: auto;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .mov-page--ordenesPago .mov-card__head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 6px;
+  }
+
+  .mov-page--ordenesPago .mov-card__actions .boton-exportar-trigger {
+    padding-inline: 9px;
+    font-size: 12px;
+  }
+}
