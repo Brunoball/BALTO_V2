@@ -29,7 +29,6 @@ import { isTopStockModal } from "./modalStackUtils";
 
 const TOAST_LOADING_DURATION = 90000;
 const DEFAULT_BULK_LOADING_THRESHOLD = 10;
-const TIENDANUBE_JOB_BATCH_SIZE = 1;
 const TIENDANUBE_JOB_GROUP_SIZE = 25;
 
 function formatMoney(value) {
@@ -165,18 +164,8 @@ async function sincronizarPreciosTiendaNube(response) {
   for (const grupo of chunkArray(idsJobs, TIENDANUBE_JOB_GROUP_SIZE)) {
     while (Date.now() - startedAt < maxWaitMs) {
       try {
-        const pendientes = Array.isArray(ultimoEstado?.jobs)
-          ? ultimoEstado.jobs.filter((job) => !job?.terminal).map((job) => Number(job?.id_job || 0)).filter(Boolean)
-          : grupo;
-
-        if (pendientes.length > 0) {
-          await apiPost("stock_tiendanube_jobs_procesar", {
-            ids_jobs: pendientes,
-            limit: TIENDANUBE_JOB_BATCH_SIZE,
-            ...(idTenant ? { tenant_id: idTenant } : {}),
-          });
-        }
-
+        // El navegador solo observa. El worker/cron procesa la cola aunque el usuario
+        // cierre el modal o la pestaña, evitando concurrencia y falsos timeouts.
         const estadoRes = await apiPost("stock_tiendanube_jobs_estado", {
           ids_jobs: grupo,
           procesar_pendientes: false,
@@ -202,7 +191,7 @@ async function sincronizarPreciosTiendaNube(response) {
         ultimoError = String(err?.message || err || "").trim();
       }
 
-      await delay(500);
+      await delay(1500);
     }
 
     if (ultimoEstado?.finalizado !== true || ultimoEstado?.exitoso !== true) {

@@ -2188,6 +2188,9 @@ export default function ModalEditarProducto({
 
     setGuardando(true);
     setErrores({});
+    // Mantiene informado al usuario durante toda la edición, incluida la espera
+    // de imagen/variantes y el refresco final de la grilla.
+    mostrarToast("Editando producto...", "cargando", 90000);
 
     setForm((prev) => ({
       ...prev,

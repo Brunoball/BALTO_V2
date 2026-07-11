@@ -1521,6 +1521,9 @@ export default function ModalCargaIndividualProducto({
     setGuardando(true);
     setErrores({});
     setForm((p) => ({ ...p, ...formNormalizado }));
+    // Feedback inmediato mientras el alta espera la respuesta del backend.
+    // El toast se reemplaza por éxito o error cuando termina la operación.
+    mostrarToast("Agregando producto...", "cargando");
 
     try {
       const { idUsuarioMaster, idTenant } = getUsuarioAuditData();

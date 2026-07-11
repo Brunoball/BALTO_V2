@@ -81,77 +81,6 @@ function notifyListsUpdated() {
   } catch {}
 }
 
-function getTiendaNubeSyncPayload(response) {
-  if (!response || typeof response !== "object") return null;
-  return (
-    response?.tiendanube_sync ??
-    response?.data?.tiendanube_sync ??
-    response?.resultado?.tiendanube_sync ??
-    null
-  );
-}
-
-function extractTiendaNubeJobIds(response) {
-  const sync = getTiendaNubeSyncPayload(response);
-  if (!sync || typeof sync !== "object") return [];
-
-  const ids = new Set();
-  const collect = (value) => {
-    if (!value) return;
-    if (Array.isArray(value)) {
-      value.forEach(collect);
-      return;
-    }
-    if (typeof value !== "object") return;
-
-    const id = Number(value.id_job ?? value.job_id ?? value.idJob ?? 0);
-    if (id > 0) ids.add(id);
-
-    if (Array.isArray(value.resultados)) collect(value.resultados);
-    if (value.job_reintento) collect(value.job_reintento);
-  };
-
-  collect(sync);
-  return Array.from(ids);
-}
-
-function procesarAltaTiendaNubeSinBloquear(response) {
-  const idsJobs = extractTiendaNubeJobIds(response);
-  if (idsJobs.length === 0) return false;
-
-  const sessionKey = (localStorage.getItem("session_key") || "").trim();
-  const token = (localStorage.getItem("token") || "").trim();
-  const url = new URL(`${API_URL}?action=stock_tiendanube_jobs_procesar`, window.location.origin);
-  if (sessionKey) url.searchParams.set("session_key", sessionKey);
-  if (token) url.searchParams.set("token", token);
-
-  const payload = JSON.stringify({
-    ids_jobs: idsJobs,
-    limit: 1,
-  });
-
-  try {
-    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-      const blob = new Blob([payload], { type: "text/plain;charset=UTF-8" });
-      if (navigator.sendBeacon(url.toString(), blob)) return true;
-    }
-  } catch {}
-
-  // Fallback sin await: aunque Tienda Nube tarde, esta llamada nunca vuelve a bloquear
-  // el alta ni puede reemplazar el mensaje de éxito por un falso error de conexión.
-  try {
-    fetch(url.toString(), {
-      method: "POST",
-      headers: buildHeadersJSON(),
-      body: payload,
-      keepalive: true,
-    }).catch(() => {});
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function parseJsonOrThrow(res) {
   if (res.status === 401 || res.status === 403) {
     throw new Error(`${res.status}: Sesión vencida o no autorizada. Volvé a iniciar sesión.`);
@@ -2825,12 +2754,10 @@ const Stock = () => {
             if (esAltaIndividual) {
               setModalAbierto(false);
               notifyListsUpdated();
-              mostrarResultadoTiendaNube(response, "Producto cargado correctamente.");
+              mostrarResultadoTiendaNube(response, "Producto agregado correctamente.");
 
-              // El backend sólo encola el alta y devuelve el JSON inmediatamente.
-              // El job real de Tienda Nube se dispara aparte con sendBeacon, por lo que
-              // el navegador no queda esperando ni muestra el aviso global de timeout.
-              procesarAltaTiendaNubeSinBloquear(response);
+              // La cola y el worker del servidor son responsables de Tienda Nube. Cerrar
+              // la pestaña no cancela ni condiciona la sincronización.
             }
 
             // Refrescar la grilla es una tarea posterior al guardado. Si esa consulta
