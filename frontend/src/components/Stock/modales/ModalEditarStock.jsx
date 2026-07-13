@@ -525,18 +525,31 @@ function findTipoPrecioByName(preciosPorTipo, names = []) {
 }
 
 function normalizarProducto(data) {
-  const p = data?.producto || data?.data || data || {};
+  const p = data?.producto || data?.data?.producto || data?.data || data || {};
+  const variantesProducto = Array.isArray(p.variantes) ? p.variantes : [];
+  const cantidadVariantesInformada = Number(
+    p.cantidad_variantes_total ?? p.cantidad_variantes ?? 0
+  );
+  // El registro real de variantes manda sobre el flag legacy. Un webhook podía dejar
+  // `tiene_variantes=0` aunque las filas siguieran existiendo; el editor entonces las
+  // recibía pero las ocultaba y ofrecía guardar el producto como simple.
+  const tieneVariantesReales =
+    Number(p.tiene_variantes || 0) === 1 ||
+    cantidadVariantesInformada > 0 ||
+    variantesProducto.length > 0;
   const preciosPorTipo = Array.isArray(p.precios_por_tipo) && p.precios_por_tipo.length > 0
     ? p.precios_por_tipo
     : Array.isArray(p.precios)
       ? p.precios
       : [];
 
-  const costoItem = findTipoPrecioByName(preciosPorTipo, ["PRECIO DE COSTO"]);
-  const ventaItem = findTipoPrecioByName(preciosPorTipo, ["PRECIO DE VENTA"]);
+  const costoItem = findTipoPrecioByName(preciosPorTipo, ["PRECIO DE COSTO", "COSTO"]);
+  const ventaItem = findTipoPrecioByName(preciosPorTipo, ["PRECIO DE VENTA", "VENTA"]);
   const promoItem = findTipoPrecioByName(preciosPorTipo, [
     "PRECIO PROMOCIONAL",
     "PRECIO PROMO",
+    "PROMOCIONAL",
+    "PROMO",
   ]);
 
   const tiposExtra = preciosPorTipo
@@ -545,9 +558,13 @@ function normalizarProducto(data) {
 
       return ![
         "PRECIO DE COSTO",
+        "COSTO",
         "PRECIO DE VENTA",
+        "VENTA",
         "PRECIO PROMOCIONAL",
         "PRECIO PROMO",
+        "PROMOCIONAL",
+        "PROMO",
       ].includes(nombre);
     })
     .map((item) => ({
@@ -592,9 +609,9 @@ function normalizarProducto(data) {
           .map((cat) => normalizeCategoriaId(cat.id_stock_categoria ?? cat.id ?? cat.id_categoria))
           .filter(Boolean)
       : [],
-    tiene_variantes: Number(p.tiene_variantes || 0) === 1,
-    variantes: Array.isArray(p.variantes) && p.variantes.length > 0
-      ? p.variantes.map((variant) => {
+    tiene_variantes: tieneVariantesReales,
+    variantes: variantesProducto.length > 0
+      ? variantesProducto.map((variant) => {
           const preciosVariante = mapPreciosByTipo(variant.precios || []);
           return {
             id_stock_variante: Number(variant.id_stock_variante || 0),
@@ -1010,9 +1027,13 @@ function buildOptimisticVariant(savedVariant = {}, variantPayload = {}) {
     ...variantPayload,
     ...(id > 0 ? { id, id_stock_variante: id } : {}),
     activo: Number(variantPayload?.activo ?? savedVariant?.activo ?? 1),
-    precio_costo: getPayloadPrice(variantPayload?.precios, 1),
-    precio: getPayloadPrice(variantPayload?.precios, 2),
-    precio_promo: getPayloadPrice(variantPayload?.precios, 3),
+    // La respuesta local ya incluye el precio final (propio o heredado). Usarla
+    // primero evita que una variante heredada quede en null hasta recargar la página.
+    precio_costo:
+      savedVariant?.precio_costo ?? getPayloadPrice(variantPayload?.precios, 1),
+    precio: savedVariant?.precio ?? getPayloadPrice(variantPayload?.precios, 2),
+    precio_promo:
+      savedVariant?.precio_promo ?? getPayloadPrice(variantPayload?.precios, 3),
   };
 }
 
@@ -1043,6 +1064,9 @@ function buildOptimisticProduct(savedProduct, sourceForm, variantesPayload = [])
         return buildOptimisticVariant(guardada, variant);
       })
     : [];
+  const primeraVarianteActiva = variantes.find(
+    (variant) => Number(variant?.activo ?? 1) === 1
+  );
 
   return {
     ...savedProduct,
@@ -1054,12 +1078,16 @@ function buildOptimisticProduct(savedProduct, sourceForm, variantesPayload = [])
     stock: usaVariantes
       ? variantes.reduce((total, variant) => total + Number(variant?.stock || 0), 0)
       : Number(sourceForm?.stock || 0),
+    // La fila general usa el precio resumen de la primera variante activa. Antes se
+    // forzaba a null y sólo reaparecía cuando una recarga/webhook reconstruía la fila.
     precio_costo: usaVariantes
-      ? null
+      ? primeraVarianteActiva?.precio_costo ?? savedProduct?.precio_costo ?? null
       : formatNumberForApi(sourceForm?.precio_costo),
-    precio: usaVariantes ? null : formatNumberForApi(sourceForm?.precio),
+    precio: usaVariantes
+      ? primeraVarianteActiva?.precio ?? savedProduct?.precio ?? null
+      : formatNumberForApi(sourceForm?.precio),
     precio_promo: usaVariantes
-      ? null
+      ? primeraVarianteActiva?.precio_promo ?? savedProduct?.precio_promo ?? null
       : formatNumberForApi(sourceForm?.precio_promo),
     id_stock_categoria:
       Number(normalizeIdValue(sourceForm?.id_categoria_stock)) || null,
@@ -2987,9 +3015,8 @@ export default function ModalEditarProducto({
                               return {
                                 ...prev,
                                 tiene_variantes: false,
-                                // Al apagar variantes, se limpia el formulario para que al guardar
-                                // el backend dé de baja todas las variantes viejas y Tienda Nube no
-                                // las vuelva a reconstruir.
+                                // Al apagar variantes, el editor informa todos los IDs para que al
+                                // guardar se eliminen definitivamente tanto en Balto como en Tienda Nube.
                                 variantes: [emptyVariantRow(prev.tipos_precio_extra)],
                               };
                             }

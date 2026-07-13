@@ -733,6 +733,7 @@ function buildOptimisticProduct(savedProduct, sourceForm, variantesPayload = [])
         buildOptimisticVariant(variantesGuardadas[index] || {}, variant)
       )
     : [];
+  const varianteResumen = usaVariantes ? variantes[0] || null : null;
 
   return {
     ...savedProduct,
@@ -744,9 +745,11 @@ function buildOptimisticProduct(savedProduct, sourceForm, variantesPayload = [])
     stock: usaVariantes
       ? variantes.reduce((total, variant) => total + Number(variant?.stock || 0), 0)
       : Number(sourceForm?.stock || 0),
-    precio_costo: usaVariantes ? null : moneyToApi(sourceForm?.precio_costo) || null,
-    precio: usaVariantes ? null : moneyToApi(sourceForm?.precio) || null,
-    precio_promo: usaVariantes ? null : moneyToApi(sourceForm?.precio_promo) || null,
+    // Para productos con variantes, la fila padre muestra como resumen los precios
+    // de la primera variante, igual que la respuesta consolidada del backend/TN.
+    precio_costo: usaVariantes ? varianteResumen?.precio_costo ?? null : moneyToApi(sourceForm?.precio_costo) || null,
+    precio: usaVariantes ? varianteResumen?.precio ?? null : moneyToApi(sourceForm?.precio) || null,
+    precio_promo: usaVariantes ? varianteResumen?.precio_promo ?? null : moneyToApi(sourceForm?.precio_promo) || null,
     id_stock_categoria: Number(normalizeIdValue(sourceForm?.id_categoria_stock)) || null,
     id_categoria_stock: Number(normalizeIdValue(sourceForm?.id_categoria_stock)) || null,
     tiene_variantes: usaVariantes,

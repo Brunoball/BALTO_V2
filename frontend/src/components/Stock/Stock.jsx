@@ -235,6 +235,11 @@ function normalizeProductoListItem(prod = {}) {
       prod?.id_categoria ??
       0
   );
+  const totalVariantes = Number(prod?.cantidad_variantes_total ?? prod?.cantidad_variantes ?? 0);
+  const tieneVariantes = Number(prod?.tiene_variantes || 0) === 1 || totalVariantes > 0;
+  const stockResumen = tieneVariantes
+    ? (prod?.stock_variantes ?? prod?.stock ?? 0)
+    : (prod?.stock ?? 0);
 
   return {
     ...prod,
@@ -242,7 +247,10 @@ function normalizeProductoListItem(prod = {}) {
     id_stock_producto: Number(prod?.id_stock_producto ?? id),
     nombre: String(prod?.nombre ?? ""),
     sku: String(prod?.sku ?? ""),
-    stock: prod?.stock ?? 0,
+    // En productos con variantes `stock_productos.stock` es deliberadamente 0.
+    // La fila padre debe mostrar la suma calculada de variantes activas, también
+    // después de una recarga cuando todavía no se abrió el detalle.
+    stock: stockResumen,
     precio_costo: prod?.precio_costo ?? null,
     precio: prod?.precio ?? null,
     precio_promo: prod?.precio_promo ?? null,
@@ -259,9 +267,9 @@ function normalizeProductoListItem(prod = {}) {
     id_stock_categoria: categoriaId || null,
     id_categoria_stock: categoriaId || null,
     activo: Number(prod?.activo ?? 1),
-    tiene_variantes: Number(prod?.tiene_variantes || 0) === 1,
+    tiene_variantes: tieneVariantes,
     cantidad_variantes: Number(prod?.cantidad_variantes || 0),
-    cantidad_variantes_total: Number(prod?.cantidad_variantes_total ?? prod?.cantidad_variantes ?? 0),
+    cantidad_variantes_total: totalVariantes,
     cantidad_variantes_activas: Number(prod?.cantidad_variantes_activas ?? prod?.cantidad_variantes ?? 0),
     cantidad_variantes_inactivas: Number(prod?.cantidad_variantes_inactivas ?? 0),
     categorias: Array.isArray(prod?.categorias) ? prod.categorias : [],
@@ -547,6 +555,7 @@ const Stock = () => {
   const [accionEliminacionProducto, setAccionEliminacionProducto] = useState("");
   const [modalBajaVarianteAbierto, setModalBajaVarianteAbierto] = useState(false);
   const [modalEliminarVarianteAbierto, setModalEliminarVarianteAbierto] = useState(false);
+  const [modalConfirmacionFinalVarianteAbierto, setModalConfirmacionFinalVarianteAbierto] = useState(false);
   const [varianteBaja, setVarianteBaja] = useState(null);
   const [procesandoVarianteId, setProcesandoVarianteId] = useState(null);
   const [accionEliminacionVariante, setAccionEliminacionVariante] = useState("");
@@ -554,6 +563,9 @@ const Stock = () => {
   const [impactoEliminar, setImpactoEliminar] = useState(null);
   const [cargandoImpactoEliminar, setCargandoImpactoEliminar] = useState(false);
   const [errorImpactoEliminar, setErrorImpactoEliminar] = useState("");
+  const [impactoEliminarVariante, setImpactoEliminarVariante] = useState(null);
+  const [cargandoImpactoEliminarVariante, setCargandoImpactoEliminarVariante] = useState(false);
+  const [errorImpactoEliminarVariante, setErrorImpactoEliminarVariante] = useState("");
 
   const [toast, setToast] = useState(null);
   const [cargaPreciosMasivos, setCargaPreciosMasivos] = useState(null);
@@ -571,6 +583,7 @@ const Stock = () => {
   const imagenesConocidasPorProductoRef = useRef({});
   const productosOptimistasRef = useRef({});
   const impactoEliminarRequestRef = useRef(0);
+  const impactoEliminarVarianteRequestRef = useRef(0);
   const productosRequestRef = useRef(0);
   const categoriaFiltroDropdownRef = useRef(null);
   const stockVersionRef = useRef({ catalogo: "", imagenes: "", categorias: "" });
@@ -831,6 +844,14 @@ const Stock = () => {
     };
 
     return normalizado;
+  }, []);
+
+  const limpiarProductoOptimista = useCallback((productoId) => {
+    const id = Number(productoId || 0);
+    if (!id || !productosOptimistasRef.current?.[id]) return;
+    const next = { ...(productosOptimistasRef.current || {}) };
+    delete next[id];
+    productosOptimistasRef.current = next;
   }, []);
 
   const aplicarProductoOptimista = useCallback((producto = null) => {
@@ -1136,17 +1157,55 @@ const Stock = () => {
 
     limpiarRefreshTimers();
 
-    const timerId = window.setTimeout(async () => {
-      try {
-        await refrescarProductoPorId(id, { seed: Date.now() });
-        limpiarImagenTemporalProducto(id);
-        invalidarMiniaturaProducto(id, Date.now());
-      } catch {
-        // Si la lectura puntual falla, se conserva la vista previa local.
-      }
-    }, 1400);
+    // La vista previa local se mantiene hasta comprobar que la imagen recién
+    // guardada realmente carga desde Balto. Antes se quitaba a los 1,4 segundos:
+    // si R2 todavía no respondía, reaparecía la imagen vieja y parecía que la
+    // edición sólo se aplicaba cuando terminaba Tienda Nube.
+    const demoras = [400, 900, 1800, 3500, 6500, 10000];
 
-    refreshTimersRef.current.push(timerId);
+    const programarIntento = (indice) => {
+      if (indice >= demoras.length) return;
+
+      const timerId = window.setTimeout(async () => {
+        const temporalEsperada = imagenesTemporalesRef.current?.[id];
+        if (!temporalEsperada?.url) return;
+
+        try {
+          const productoActualizado = await refrescarProductoPorId(id, { seed: Date.now() });
+          const archivoId = Number(productoActualizado?.imagen_archivo_id || 0);
+          const imageUrl = archivoId > 0
+            ? getProductoImageUrl(productoActualizado, API_URL, Date.now(), indice)
+            : "";
+
+          if (!imageUrl) {
+            programarIntento(indice + 1);
+            return;
+          }
+
+          const precarga = new window.Image();
+          precarga.onload = () => {
+            const temporalActual = imagenesTemporalesRef.current?.[id];
+            if (temporalActual?.url !== temporalEsperada.url) return;
+            limpiarImagenTemporalProducto(id);
+            invalidarMiniaturaProducto(id, Date.now());
+          };
+          precarga.onerror = () => {
+            const temporalActual = imagenesTemporalesRef.current?.[id];
+            if (temporalActual?.url !== temporalEsperada.url) return;
+            programarIntento(indice + 1);
+          };
+          precarga.src = imageUrl;
+        } catch {
+          // La edición ya está guardada. Se conserva la vista previa y se vuelve a
+          // comprobar el archivo local sin esperar el webhook de Tienda Nube.
+          programarIntento(indice + 1);
+        }
+      }, demoras[indice]);
+
+      refreshTimersRef.current.push(timerId);
+    };
+
+    programarIntento(0);
   }, [invalidarMiniaturaProducto, limpiarImagenTemporalProducto, limpiarRefreshTimers, refrescarProductoPorId]);
 
   const refrescarDespuesDeGuardar = useCallback(
@@ -1339,12 +1398,53 @@ const Stock = () => {
         throw new Error(data?.mensaje || "No se pudieron cargar las variantes.");
       }
 
-      const productoOptimista = obtenerProductoOptimistaActivo(id);
+      // Una acción directa de alta/baja debe leer la DB real. El snapshot optimista
+      // de una edición anterior puede seguir vigente 20 segundos y mostrar el estado
+      // contrario aunque el backend ya haya confirmado el cambio.
+      const productoOptimista = opciones?.ignorarOptimista === true
+        ? null
+        : obtenerProductoOptimistaActivo(id);
       const variantesFuente = Array.isArray(productoOptimista?.variantes)
         ? productoOptimista.variantes
         : data?.variantes || data?.data?.variantes || [];
       const variantes = normalizeVariantesCollection(variantesFuente);
+      const variantesActivas = variantes.filter((variante) => Number(variante?.activo ?? 1) === 1);
+      const stockVariantesActivas = variantesActivas.reduce((total, variante) => {
+        const stock = Number(variante?.stock ?? 0);
+        return total + (Number.isFinite(stock) ? stock : 0);
+      }, 0);
+      const varianteResumen = variantesActivas[0] || variantes[0] || null;
       setVariantesPorProducto((prev) => ({ ...prev, [id]: variantes }));
+      // La fila padre resume las variantes: suma stock activo y toma los precios
+      // de la primera variante activa (o la primera registrada si todas están de
+      // baja). Así abrir/cerrar el detalle nunca cambia lo que muestra la tabla.
+      setProductosRaw((prev) =>
+        (Array.isArray(prev) ? prev : []).map((producto) =>
+          getProductoId(producto) === id
+            ? {
+                ...producto,
+                tiene_variantes: variantes.length > 0 || !!producto?.tiene_variantes,
+                stock: stockVariantesActivas,
+                stock_variantes: stockVariantesActivas,
+                ...(categoriaFiltro
+                  ? {}
+                  : {
+                      cantidad_variantes: variantesActivas.length,
+                      cantidad_variantes_total: variantes.length,
+                      cantidad_variantes_activas: variantesActivas.length,
+                      cantidad_variantes_inactivas: Math.max(0, variantes.length - variantesActivas.length),
+                    }),
+                ...(varianteResumen
+                  ? {
+                      precio_costo: varianteResumen.precio_costo ?? producto?.precio_costo ?? null,
+                      precio: varianteResumen.precio ?? producto?.precio ?? null,
+                      precio_promo: varianteResumen.precio_promo ?? producto?.precio_promo ?? null,
+                    }
+                  : {}),
+              }
+            : producto
+        )
+      );
     } catch (err) {
       if (!silencioso) {
         setVariantesPorProducto((prev) => ({ ...prev, [id]: [] }));
@@ -1967,8 +2067,13 @@ const Stock = () => {
   };
 
   const handleAbrirEliminarVariante = (producto, variante) => {
-    if (!prepararVarianteAccion(producto, variante)) return;
+    const ids = prepararVarianteAccion(producto, variante);
+    if (!ids) return;
+    setImpactoEliminarVariante(null);
+    setErrorImpactoEliminarVariante("");
+    setCargandoImpactoEliminarVariante(true);
     setModalEliminarVarianteAbierto(true);
+    consultarImpactoEliminacionVariante(ids.varianteId);
   };
 
   const handleCerrarBajaVariante = () => {
@@ -1980,9 +2085,48 @@ const Stock = () => {
 
   const handleCerrarEliminarVariante = () => {
     if (procesandoVarianteId) return;
+    impactoEliminarVarianteRequestRef.current += 1;
     setModalEliminarVarianteAbierto(false);
+    setModalConfirmacionFinalVarianteAbierto(false);
     setVarianteBaja(null);
+    setImpactoEliminarVariante(null);
+    setErrorImpactoEliminarVariante("");
+    setCargandoImpactoEliminarVariante(false);
     setAccionEliminacionVariante("");
+  };
+
+  const consultarImpactoEliminacionVariante = async (varianteId) => {
+    const id = Number(varianteId || 0);
+    if (!id) return;
+
+    const requestId = impactoEliminarVarianteRequestRef.current + 1;
+    impactoEliminarVarianteRequestRef.current = requestId;
+
+    try {
+      const params = new URLSearchParams({
+        action: "stock_variante_impacto_eliminacion",
+        id: String(id),
+      });
+      const data = await apiGet(`${API_URL}?${params.toString()}`);
+      if (data?.exito === false) {
+        throw new Error(data?.mensaje || "No se pudo revisar si esta variante está usada en movimientos.");
+      }
+      if (impactoEliminarVarianteRequestRef.current !== requestId) return;
+      setImpactoEliminarVariante(data?.impacto || null);
+    } catch (error) {
+      if (impactoEliminarVarianteRequestRef.current !== requestId) return;
+      setErrorImpactoEliminarVariante(error?.message || "No se pudo revisar si esta variante está usada en movimientos.");
+    } finally {
+      if (impactoEliminarVarianteRequestRef.current === requestId) {
+        setCargandoImpactoEliminarVariante(false);
+      }
+    }
+  };
+
+  const handleSolicitarConfirmacionFinalVariante = () => {
+    if (procesandoVarianteId || cargandoImpactoEliminarVariante) return;
+    setModalEliminarVarianteAbierto(false);
+    setModalConfirmacionFinalVarianteAbierto(true);
   };
 
   const ejecutarAccionVariante = async ({ permanente = false } = {}) => {
@@ -1999,6 +2143,7 @@ const Stock = () => {
     setAccionEliminacionVariante(permanente ? "eliminar" : "baja");
     setModalBajaVarianteAbierto(false);
     setModalEliminarVarianteAbierto(false);
+    setModalConfirmacionFinalVarianteAbierto(false);
     setVarianteBaja(null);
     mostrarToastCarga(permanente ? "Eliminando variante..." : "Dando de baja variante...");
 
@@ -2009,6 +2154,7 @@ const Stock = () => {
         id: varianteId,
         id_stock_variante: varianteId,
         idUsuarioMaster,
+        ...(permanente ? { confirmar_desvinculacion: 1 } : {}),
       };
       if (idTenant) payload.tenant_id = idTenant;
 
@@ -2017,8 +2163,23 @@ const Stock = () => {
         throw new Error(data?.mensaje || (permanente ? "No se pudo eliminar la variante." : "No se pudo dar de baja la variante."));
       }
 
-      await cargarVariantesProducto(productoId);
+      const varianteRespuesta = data?.variante || data?.data?.variante || null;
+      limpiarProductoOptimista(productoId);
+      if (varianteRespuesta) {
+        setVariantesPorProducto((prev) => ({
+          ...prev,
+          [productoId]: (Array.isArray(prev[productoId]) ? prev[productoId] : []).map((item) =>
+            getVarianteId(item) === varianteId
+              ? (normalizeVarianteListItem({ ...item, ...varianteRespuesta, activo: 0 }) || item)
+              : item
+          ),
+        }));
+      }
+
       await refrescarDespuesDeGuardar();
+      // La recarga general puede completar con un snapshot anterior. La lectura
+      // puntual de variantes queda ultima y recalcula el total visible de la fila.
+      await cargarVariantesProducto(productoId, { ignorarOptimista: true });
       notifyListsUpdated();
       mostrarResultadoTiendaNube(data, permanente ? "Variante eliminada permanentemente." : "Variante dada de baja correctamente.");
     } catch (error) {
@@ -2056,6 +2217,7 @@ const Stock = () => {
       }
 
       const varianteRespuesta = data?.variante || data?.data?.variante || null;
+      limpiarProductoOptimista(productoId);
       setVariantesPorProducto((prev) => {
         const actuales = Array.isArray(prev[productoId]) ? prev[productoId] : [];
         if (!actuales.length && !varianteRespuesta) return prev;
@@ -2073,8 +2235,8 @@ const Stock = () => {
         };
       });
 
-      await cargarVariantesProducto(productoId);
       await refrescarDespuesDeGuardar();
+      await cargarVariantesProducto(productoId, { ignorarOptimista: true });
       notifyListsUpdated();
       mostrarResultadoTiendaNube(data, "Variante dada de alta correctamente.");
     } catch (error) {
@@ -2182,6 +2344,75 @@ const Stock = () => {
     cargandoImpactoEliminar,
     errorImpactoEliminar,
     impactoEliminar,
+  ]);
+
+  const impactoEliminacionVarianteContenido = useMemo(() => {
+    if (!varianteBaja) return null;
+
+    const baseStyle = {
+      marginTop: "12px",
+      padding: "12px 14px",
+      borderRadius: "14px",
+      border: "1px solid #fde68a",
+      background: "#fffbeb",
+      color: "#92400e",
+      fontSize: "13px",
+      lineHeight: 1.45,
+      textAlign: "left",
+    };
+
+    if (cargandoImpactoEliminarVariante) {
+      return (
+        <div style={baseStyle}>
+          <strong>Revisando uso de la variante...</strong>
+          <div>Estamos verificando si aparece en ventas, compras o presupuestos ya cargados.</div>
+        </div>
+      );
+    }
+
+    if (errorImpactoEliminarVariante) {
+      return (
+        <div style={{ ...baseStyle, borderColor: "#fecaca", background: "#fef2f2", color: "#991b1b" }}>
+          <strong>No se pudo revisar el uso de la variante.</strong>
+          <div>{errorImpactoEliminarVariante}</div>
+        </div>
+      );
+    }
+
+    if (!impactoEliminarVariante) return null;
+
+    const itemsAfectados = toNonNegativeInt(impactoEliminarVariante.total_items_afectados);
+    const movimientosAfectados = toNonNegativeInt(impactoEliminarVariante.total_movimientos_afectados);
+    const movimientosSinProductos = toNonNegativeInt(impactoEliminarVariante.movimientos_quedarian_sin_productos);
+
+    if (movimientosAfectados <= 0) {
+      return (
+        <div style={{ ...baseStyle, borderColor: "#bbf7d0", background: "#f0fdf4", color: "#166534" }}>
+          <strong>Uso de la variante</strong>
+          <div>Esta variante no aparece en movimientos cargados. Podés eliminarla sin afectar registros anteriores.</div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={baseStyle}>
+        <strong>Variante relacionada con movimientos</strong>
+        <div>
+          Esta variante aparece en {pluralize(itemsAfectados, "renglón", "renglones")} de {" "}
+          {pluralize(movimientosAfectados, "registro cargado", "registros cargados")}. Si la eliminás, los movimientos seguirán existiendo con sus datos e importes, pero esos renglones quedarán sin producto ni variante asociados.
+        </div>
+        {movimientosSinProductos > 0 && (
+          <div style={{ marginTop: "6px", fontWeight: 700 }}>
+            Atención: {pluralize(movimientosSinProductos, "registro quedará", "registros quedarán")} sin ningún producto asociado.
+          </div>
+        )}
+      </div>
+    );
+  }, [
+    varianteBaja,
+    cargandoImpactoEliminarVariante,
+    errorImpactoEliminarVariante,
+    impactoEliminarVariante,
   ]);
 
   const OrdenIcon = ({ campo }) => {
@@ -2654,7 +2885,14 @@ const Stock = () => {
                       const totalVariantesProducto = Number(prodConImagen?.cantidad_variantes_total ?? prodConImagen?.cantidad_variantes ?? 0);
                       const variantesActivasProducto = Number(prodConImagen?.cantidad_variantes_activas ?? prodConImagen?.cantidad_variantes ?? 0);
                       const variantesInactivasProducto = Number(prodConImagen?.cantidad_variantes_inactivas ?? 0);
-                      const tieneVariantesParaMostrar = !!prodConImagen.tiene_variantes || variantesActivasProducto > 0;
+                      // Aunque Tienda Nube represente temporalmente la última variante
+                      // como variante virtual/simple, Balto debe seguir mostrando las
+                      // variantes inactivas para poder darlas de alta nuevamente.
+                      const tieneVariantesParaMostrar =
+                        !!prodConImagen.tiene_variantes ||
+                        totalVariantesProducto > 0 ||
+                        variantesActivasProducto > 0 ||
+                        variantesInactivasProducto > 0;
                       const imageUrl =
                         imagenTemporal ||
                         (archivoId > 0
@@ -2949,13 +3187,20 @@ const Stock = () => {
           onToast={mostrarToast}
           onGuardado={async (productoGuardado, opciones = {}) => {
             const productoIdEditado = getProductoId(productoGuardado) || Number(opciones?.productoId || productoEditarId || 0);
+
+            // La respuesta de actualizar ya confirma el COMMIT local y trae el producto
+            // completo con variantes, precios e imagen. Cerramos el modal y reemplazamos
+            // inmediatamente el toast de carga por el éxito; no esperamos una segunda
+            // consulta que podía cruzarse con el job de Tienda Nube y disparar el falso
+            // aviso global de conexión aunque la edición ya estuviera guardada.
             handleCerrarEditar();
+            mostrarResultadoTiendaNube(opciones?.response || opciones, "Producto editado correctamente.");
+
             await refrescarDespuesDeGuardar(productoGuardado, {
               ...opciones,
               productoId: productoIdEditado,
             });
             notifyListsUpdated();
-            mostrarResultadoTiendaNube(opciones?.response || opciones, "Producto editado correctamente.");
           }}
         />
       )}
@@ -3096,11 +3341,13 @@ const Stock = () => {
         open={modalEliminarVarianteAbierto}
         loading={!!procesandoVarianteId && accionEliminacionVariante === "eliminar"}
         onClose={handleCerrarEliminarVariante}
-        onConfirm={handleConfirmarEliminarPermanenteVariante}
+        onConfirm={handleSolicitarConfirmacionFinalVariante}
+        confirmDisabled={cargandoImpactoEliminarVariante || !!errorImpactoEliminarVariante}
         entidadLabel="variante"
         title="Eliminar variante definitivamente"
         message="Esta acción borra la variante para siempre junto con sus precios, categorías e información asociada."
         warning="Usalo solo si fue cargada por error o ya no debe existir en el sistema. Si querés conservarla para poder recuperarla, usá Dar de baja."
+        extraContent={impactoEliminacionVarianteContenido}
         details={
           varianteBaja
             ? [
@@ -3119,6 +3366,39 @@ const Stock = () => {
                 },
                 { label: "Precio costo", value: formatMoney(varianteBaja.precio_costo) },
                 { label: "Precio venta", value: formatMoney(varianteBaja.precio) },
+              ]
+            : []
+        }
+      />
+
+      <ModalEliminarStock
+        open={modalConfirmacionFinalVarianteAbierto}
+        loading={!!procesandoVarianteId && accionEliminacionVariante === "eliminar"}
+        onClose={handleCerrarEliminarVariante}
+        onConfirm={handleConfirmarEliminarPermanenteVariante}
+        entidadLabel="variante"
+        title="Confirmación final"
+        message="Esta es la segunda y última confirmación. La eliminación no se puede deshacer."
+        warning={
+          toNonNegativeInt(impactoEliminarVariante?.total_movimientos_afectados) > 0
+            ? `Al confirmar, la variante se eliminará y ${pluralize(
+                toNonNegativeInt(impactoEliminarVariante?.total_movimientos_afectados),
+                "registro histórico quedará",
+                "registros históricos quedarán"
+              )} sin este producto asociado.`
+            : "La variante se eliminará definitivamente de Balto y, si está sincronizada, también de Tienda Nube."
+        }
+        confirmLabel="Sí, eliminar para siempre"
+        details={
+          varianteBaja
+            ? [
+                { label: "Producto", value: varianteBaja.productoNombre || "—" },
+                { label: "Variante", value: varianteBaja.nombre_variante || "—" },
+                { label: "SKU", value: varianteBaja.sku || "—" },
+                {
+                  label: "Registros afectados",
+                  value: String(toNonNegativeInt(impactoEliminarVariante?.total_movimientos_afectados)),
+                },
               ]
             : []
         }

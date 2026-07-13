@@ -256,6 +256,65 @@ function normalizarFilaTipoPrecioExtra(row = {}, tiposPrecio = []) {
   };
 }
 
+function precioPrincipalVariante(variante = {}, idTipo, camposDirectos = []) {
+  for (const campo of camposDirectos) {
+    const valor = variante?.[campo];
+    if (valor !== null && valor !== undefined && String(valor).trim() !== "") return moneyToInput(valor);
+  }
+  const fila = (Array.isArray(variante?.precios) ? variante.precios : []).find(
+    (precio) => Number(precio?.id_tipo_precio_stock ?? precio?.id ?? 0) === Number(idTipo)
+  );
+  return moneyToInput(fila?.monto ?? fila?.precio ?? "");
+}
+
+function normalizarVarianteDetectada(variante = {}) {
+  return {
+    ...variante,
+    nombre_variante: toUpperCaseValue(String(variante.nombre_variante ?? variante.nombre ?? "").trim()),
+    sku: toUpperCaseValue(String(variante.sku ?? variante.sku_variante ?? "").trim()),
+    stock: variante.stock === null || variante.stock === undefined ? "" : String(variante.stock),
+    precio_costo: precioPrincipalVariante(variante, 1, ["precio_costo", "costo"]),
+    precio: precioPrincipalVariante(variante, 2, ["precio", "precio_venta"]),
+    precio_promo: precioPrincipalVariante(variante, 3, ["precio_promo", "precio_promocional"]),
+    atributos: (Array.isArray(variante.atributos) ? variante.atributos : [])
+      .filter((atributo) => atributo && (atributo.atributo || atributo.nombre) && (atributo.valor || atributo.nombre_valor))
+      .map((atributo) => ({
+        atributo: toUpperCaseValue(String(atributo.atributo ?? atributo.nombre ?? "").trim()),
+        valor: toUpperCaseValue(String(atributo.valor ?? atributo.nombre_valor ?? "").trim()),
+      })),
+  };
+}
+
+function prepararVarianteDetectadaParaApi(variante = {}) {
+  const principales = new Set([1, 2, 3]);
+  const precios = (Array.isArray(variante.precios) ? variante.precios : [])
+    .filter((fila) => !principales.has(Number(fila?.id_tipo_precio_stock ?? fila?.id ?? 0)))
+    .map((fila) => ({ ...fila }));
+  [
+    [1, variante.precio_costo],
+    [2, variante.precio],
+    [3, variante.precio_promo],
+  ].forEach(([idTipo, valor]) => {
+    const monto = moneyToApi(valor);
+    if (monto !== "") precios.push({ id_tipo_precio_stock: idTipo, monto, precio: monto });
+  });
+  return {
+    ...variante,
+    nombre_variante: toUpperCaseValue(String(variante.nombre_variante || "").trim()),
+    sku: toUpperCaseValue(String(variante.sku || "").trim()),
+    stock: variante.stock !== "" ? String(variante.stock) : "0",
+    atributos: Array.isArray(variante.atributos) ? variante.atributos : [],
+    precios,
+  };
+}
+
+function stockTotalVariantes(variantes = []) {
+  return (Array.isArray(variantes) ? variantes : []).reduce(
+    (total, variante) => total + Math.max(0, Number(variante?.stock || 0) || 0),
+    0
+  );
+}
+
 function TipoBadge({ tipo }) {
   const map = {
     csv: { label: "CSV", cls: "cmi-badge--csv" },
@@ -447,9 +506,18 @@ function recalcularProductoDetectadoInicial(producto = {}) {
 }
 
 function normalizarProductoDetectado(item = {}, tiposPrecio = []) {
+  const variantes = (Array.isArray(item.variantes) ? item.variantes : []).map(normalizarVarianteDetectada);
   let precioCosto = moneyToInput(item.precio_costo ?? "");
   let precioVenta = moneyToInput(item.precio ?? item.precio_venta ?? "");
   let precioPromo = moneyToInput(item.precio_promo ?? item.precio_promocional ?? "");
+
+  // En productos con variantes, el formulario general muestra la primera variante
+  // como referencia; cada valor real se conserva y se edita en su tarjeta individual.
+  if (variantes.length > 0) {
+    if (!precioCosto) precioCosto = variantes[0].precio_costo;
+    if (!precioVenta) precioVenta = variantes[0].precio;
+    if (!precioPromo) precioPromo = variantes[0].precio_promo;
+  }
 
   const tiposExtra = [];
   const vistos = new Set();
@@ -478,7 +546,9 @@ function normalizarProductoDetectado(item = {}, tiposPrecio = []) {
     precio_promo: precioPromo,
     margen_promo_porcentaje: moneyToInput(item.margen_promo_porcentaje ?? ""),
     margen_promo_valor: moneyToInput(item.margen_promo_valor ?? ""),
-    stock: item.stock === null || item.stock === undefined ? "" : String(item.stock),
+    stock: variantes.length > 0
+      ? String(stockTotalVariantes(variantes))
+      : item.stock === null || item.stock === undefined ? "" : String(item.stock),
     descripcion: toUpperCaseValue(String(item.descripcion ?? "").trim()),
     id_categoria_stock:
       item.id_categoria_stock === null || item.id_categoria_stock === undefined
@@ -486,8 +556,8 @@ function normalizarProductoDetectado(item = {}, tiposPrecio = []) {
         : String(item.id_categoria_stock),
     imagen: null,
     tipos_precio_extra: tiposExtra,
-    tiene_variantes: Boolean(item.tiene_variantes) || (Array.isArray(item.variantes) && item.variantes.length > 0),
-    variantes: Array.isArray(item.variantes) ? item.variantes : [],
+    tiene_variantes: Boolean(item.tiene_variantes) || variantes.length > 0,
+    variantes,
   };
 
   return recalcularProductoDetectadoInicial(productoBase);
@@ -603,6 +673,27 @@ function ModalConfirmarProductosIA({
     ]);
   };
 
+  const cambiarVariante = (productoIdx, varianteIdx, field, value) => {
+    const actuales = Array.isArray(productos[productoIdx]?.variantes)
+      ? productos[productoIdx].variantes
+      : [];
+    const siguientes = actuales.map((variante, idx) =>
+      idx === varianteIdx ? { ...variante, [field]: value } : variante
+    );
+    onChangeProducto(productoIdx, "variantes", siguientes);
+    if (field === "stock") onChangeProducto(productoIdx, "stock", String(stockTotalVariantes(siguientes)));
+  };
+
+  const quitarVariante = (productoIdx, varianteIdx) => {
+    const actuales = Array.isArray(productos[productoIdx]?.variantes)
+      ? productos[productoIdx].variantes
+      : [];
+    const siguientes = actuales.filter((_, idx) => idx !== varianteIdx);
+    onChangeProducto(productoIdx, "variantes", siguientes);
+    onChangeProducto(productoIdx, "tiene_variantes", siguientes.length > 0);
+    onChangeProducto(productoIdx, "stock", String(stockTotalVariantes(siguientes)));
+  };
+
   return createPortal(
     <>
       <div ref={overlayRef} data-stock-modal-overlay="true" className={["mi-modal__overlay", dark ? "mi-modal__overlay--dark" : ""].join(" ").trim()}>
@@ -645,6 +736,7 @@ function ModalConfirmarProductosIA({
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {productos.map((item, idx) => {
                 const err = errores[`fila_${idx}`] || {};
+                const tieneVariantes = Array.isArray(item.variantes) && item.variantes.length > 0;
                 return (
                   <div
                     key={idx}
@@ -686,13 +778,14 @@ function ModalConfirmarProductosIA({
                             placeholder="Ej: 04163"
                           />
                         </FloatingField>
-                        <FloatingField label="Stock" icon={faCubesStacked} error={err.stock}>
+                        <FloatingField label={tieneVariantes ? "Stock total de variantes" : "Stock"} icon={faCubesStacked} error={err.stock}>
                           <input
                             className="cmi-input"
-                            value={item.stock}
+                            value={tieneVariantes ? String(stockTotalVariantes(item.variantes)) : item.stock}
                             onChange={(e) => onChangeProducto(idx, "stock", onlyNumbers(e.target.value))}
                             placeholder="Ej: 25"
                             inputMode="numeric"
+                            readOnly={tieneVariantes}
                           />
                         </FloatingField>
                       </div>
@@ -703,10 +796,105 @@ function ModalConfirmarProductosIA({
                         </div>
                       ) : null}
 
+                      {tieneVariantes ? (
+                        <div className="cmi-priceBlock">
+                          <div className="cmi-priceBlock__title">
+                            <FontAwesomeIcon icon={faBoxesStacked} /> Variantes detectadas: stock y precios
+                          </div>
+                          {err.variantes ? <ErrorMsg msg={err.variantes} /> : null}
+
+                          {item.variantes.map((variante, varianteIdx) => (
+                            <div
+                              className="cmi-extraPriceCard"
+                              key={`${variante.sku || variante.nombre_variante || "variante"}-${varianteIdx}`}
+                              style={{ display: "flex", flexDirection: "column", gap: 12 }}
+                            >
+                              <div className="cmi-extraPriceCard__head">
+                                <div className="cmi-extraPriceCard__title">Variante {varianteIdx + 1}</div>
+                                <button
+                                  type="button"
+                                  className="mit-btn mit-btn--ghost"
+                                  onClick={() => quitarVariante(idx, varianteIdx)}
+                                  disabled={confirmando || item.variantes.length <= 1}
+                                >
+                                  <FontAwesomeIcon icon={faTrashCan} /> Quitar
+                                </button>
+                              </div>
+
+                              <div className="fl-row" style={{ gridTemplateColumns: "1.5fr 1fr 0.7fr" }}>
+                                <FloatingField label="Nombre de variante *">
+                                  <input
+                                    className="cmi-input"
+                                    value={variante.nombre_variante || ""}
+                                    onChange={(e) => cambiarVariante(idx, varianteIdx, "nombre_variante", toUpperCaseValue(e.target.value))}
+                                    placeholder="Ej: NEGRO / M"
+                                  />
+                                </FloatingField>
+                                <FloatingField label="SKU variante" icon={faBarcode}>
+                                  <input
+                                    className="cmi-input"
+                                    value={variante.sku || ""}
+                                    onChange={(e) => cambiarVariante(idx, varianteIdx, "sku", toUpperCaseValue(e.target.value))}
+                                    placeholder="SKU"
+                                  />
+                                </FloatingField>
+                                <FloatingField label="Stock" icon={faCubesStacked}>
+                                  <input
+                                    className="cmi-input"
+                                    value={variante.stock ?? ""}
+                                    onChange={(e) => cambiarVariante(idx, varianteIdx, "stock", onlyNumbers(e.target.value))}
+                                    inputMode="numeric"
+                                    placeholder="0"
+                                  />
+                                </FloatingField>
+                              </div>
+
+                              {Array.isArray(variante.atributos) && variante.atributos.length > 0 ? (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                  {variante.atributos.map((atributo, atributoIdx) => (
+                                    <span
+                                      key={`${atributo.atributo}-${atributoIdx}`}
+                                      className="cmi-badge"
+                                      style={{ padding: "6px 9px" }}
+                                    >
+                                      {atributo.atributo}: {atributo.valor}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
+
+                              <div className="fl-row" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+                                <FloatingField label="Precio de costo">
+                                  <PriceInput
+                                    name={`variante_precio_costo_${idx}_${varianteIdx}`}
+                                    value={variante.precio_costo || ""}
+                                    onChange={(e) => cambiarVariante(idx, varianteIdx, "precio_costo", normalizeMoneyInput(e.target.value))}
+                                  />
+                                </FloatingField>
+                                <FloatingField label="Precio de venta *">
+                                  <PriceInput
+                                    name={`variante_precio_${idx}_${varianteIdx}`}
+                                    value={variante.precio || ""}
+                                    onChange={(e) => cambiarVariante(idx, varianteIdx, "precio", normalizeMoneyInput(e.target.value))}
+                                  />
+                                </FloatingField>
+                                <FloatingField label="Precio promocional">
+                                  <PriceInput
+                                    name={`variante_precio_promo_${idx}_${varianteIdx}`}
+                                    value={variante.precio_promo || ""}
+                                    onChange={(e) => cambiarVariante(idx, varianteIdx, "precio_promo", normalizeMoneyInput(e.target.value))}
+                                  />
+                                </FloatingField>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+
                       {/* ── PRECIOS ── */}
                       <div className="cmi-priceBlock">
                         <div className="cmi-priceBlock__title">
-                          <FontAwesomeIcon icon={faMoneyBillTrendUp} /> Precios principales
+                          <FontAwesomeIcon icon={faMoneyBillTrendUp} /> {tieneVariantes ? "Precio de referencia (primera variante)" : "Precios principales"}
                         </div>
 
                         <FloatingField label="Precio de costo" error={err.precio_costo}>
@@ -716,6 +904,7 @@ function ModalConfirmarProductosIA({
                             onChange={(e) => onRecalcByCost(idx, e.target.value)}
                             onBlur={(e) => onRecalcByCost(idx, e.target.value)}
                             onFocus={(e) => onChangeProducto(idx, "precio_costo", formatMoneyFocus(e.target.value))}
+                            disabled={tieneVariantes}
                           />
                         </FloatingField>
 
@@ -727,6 +916,7 @@ function ModalConfirmarProductosIA({
                               onChange={(e) => onPricingChange(idx, e.target.value, "price", "venta")}
                               onBlur={() => onPricingBlur(idx, "price", "venta")}
                               onFocus={(e) => onChangeProducto(idx, "precio", formatMoneyFocus(e.target.value))}
+                              disabled={tieneVariantes}
                             />
                           </FloatingField>
                           <FloatingField label="Margen %">
@@ -736,7 +926,7 @@ function ModalConfirmarProductosIA({
                               onChange={(e) => onPricingChange(idx, e.target.value, "marginPct", "venta")}
                               onBlur={() => onPricingBlur(idx, "marginPct", "venta")}
                               onFocus={(e) => onChangeProducto(idx, "margen_venta_porcentaje", formatMoneyFocus(e.target.value))}
-                              disabled={!item.precio_costo}
+                              disabled={tieneVariantes || !item.precio_costo}
                             />
                           </FloatingField>
                           <FloatingField label="Margen $">
@@ -746,7 +936,7 @@ function ModalConfirmarProductosIA({
                               onChange={(e) => onPricingChange(idx, e.target.value, "marginValue", "venta")}
                               onBlur={() => onPricingBlur(idx, "marginValue", "venta")}
                               onFocus={(e) => onChangeProducto(idx, "margen_venta_valor", formatMoneyFocus(e.target.value))}
-                              disabled={!item.precio_costo}
+                              disabled={tieneVariantes || !item.precio_costo}
                             />
                           </FloatingField>
                         </div>
@@ -759,6 +949,7 @@ function ModalConfirmarProductosIA({
                               onChange={(e) => onPricingChange(idx, e.target.value, "price", "promo")}
                               onBlur={() => onPricingBlur(idx, "price", "promo")}
                               onFocus={(e) => onChangeProducto(idx, "precio_promo", formatMoneyFocus(e.target.value))}
+                              disabled={tieneVariantes}
                             />
                           </FloatingField>
                           <FloatingField label="Margen %">
@@ -768,7 +959,7 @@ function ModalConfirmarProductosIA({
                               onChange={(e) => onPricingChange(idx, e.target.value, "marginPct", "promo")}
                               onBlur={() => onPricingBlur(idx, "marginPct", "promo")}
                               onFocus={(e) => onChangeProducto(idx, "margen_promo_porcentaje", formatMoneyFocus(e.target.value))}
-                              disabled={!item.precio_costo}
+                              disabled={tieneVariantes || !item.precio_costo}
                             />
                           </FloatingField>
                           <FloatingField label="Margen $">
@@ -778,7 +969,7 @@ function ModalConfirmarProductosIA({
                               onChange={(e) => onPricingChange(idx, e.target.value, "marginValue", "promo")}
                               onBlur={() => onPricingBlur(idx, "marginValue", "promo")}
                               onFocus={(e) => onChangeProducto(idx, "margen_promo_valor", formatMoneyFocus(e.target.value))}
-                              disabled={!item.precio_costo}
+                              disabled={tieneVariantes || !item.precio_costo}
                             />
                           </FloatingField>
                         </div>
@@ -1480,14 +1671,32 @@ export default function ModalCargaMasiva({
     let hayError = false;
     productosDetectados.forEach((item, idx) => {
       const fila = {};
+      const variantes = Array.isArray(item.variantes) ? item.variantes : [];
+      const tieneVariantes = variantes.length > 0 || Boolean(item.tiene_variantes);
       const venta = Number(String(item.precio || "").replace(",", "."));
       const costo = item.precio_costo !== "" ? Number(String(item.precio_costo).replace(",", ".")) : null;
       const promo = item.precio_promo !== "" ? Number(String(item.precio_promo).replace(",", ".")) : null;
       if (!String(item.nombre || "").trim()) fila.nombre = "El nombre es obligatorio";
       if (costo !== null && (Number.isNaN(costo) || costo < 0)) fila.precio_costo = "Costo inválido";
-      if (!item.precio || Number.isNaN(venta) || venta < 0) fila.precio = "Ingresá un precio válido";
+      if (!tieneVariantes && (!item.precio || Number.isNaN(venta) || venta < 0)) fila.precio = "Ingresá un precio válido";
       if (item.precio_promo && (Number.isNaN(promo) || promo < 0)) fila.precio_promo = "Precio promo inválido";
       if (item.stock !== "" && (Number.isNaN(Number(item.stock)) || Number(item.stock) < 0)) fila.stock = "Stock inválido";
+      if (tieneVariantes) {
+        const varianteInvalida = variantes.find((variante) => {
+          const nombre = String(variante?.nombre_variante || "").trim();
+          const stock = Number(variante?.stock ?? 0);
+          const precio = Number(String(variante?.precio || "").replace(",", "."));
+          const costoRaw = String(variante?.precio_costo || "").trim();
+          const costoVariante = costoRaw === "" ? 0 : Number(costoRaw.replace(",", "."));
+          const promoRaw = String(variante?.precio_promo || "").trim();
+          const promoVariante = promoRaw === "" ? 0 : Number(promoRaw.replace(",", "."));
+          return !nombre || Number.isNaN(stock) || stock < 0 || !variante?.precio || Number.isNaN(precio) || precio < 0
+            || Number.isNaN(costoVariante) || costoVariante < 0 || Number.isNaN(promoVariante) || promoVariante < 0;
+        });
+        if (!variantes.length || varianteInvalida) {
+          fila.variantes = "Revisá nombre, stock y precio de venta de todas las variantes.";
+        }
+      }
       const extrasInvalidos = (item.tipos_precio_extra || []).some((x) => {
         const nombreTipo = String(x.tipo_nombre || "").trim();
         const precioTipo = String(x.precio || "").trim();
@@ -1568,7 +1777,9 @@ export default function ModalCargaMasiva({
             fd.append("margen_promo_valor", moneyToApi(item.margen_promo_valor));
             fd.append("stock", item.stock !== "" ? String(item.stock) : "");
             fd.append("descripcion", toUpperCaseValue(String(item.descripcion || "").trim()));
-            const variantesPayload = Array.isArray(item.variantes) ? item.variantes : [];
+            const variantesPayload = Array.isArray(item.variantes)
+              ? item.variantes.map(prepararVarianteDetectadaParaApi)
+              : [];
             if (variantesPayload.length > 0 || item.tiene_variantes) {
               fd.append("tiene_variantes", "1");
               fd.append("variantes", JSON.stringify(variantesPayload));
