@@ -5,6 +5,7 @@ import "../../Global/Global_css/Global_Section.css";
 import "../../Global/Global_css/roots.css";
 import "../../Global/Global_css/Global_oscuro.css";
 import "./DocumentosComerciales.css";
+import "./DocumentosComercialesResponsive.css";
 import Toast from "../../Global/Toast.jsx";
 import Calendario from "../../Global/Calendario/Calendario.jsx";
 import "../../Global/Calendario/calendario.css";

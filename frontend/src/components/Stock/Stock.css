@@ -1530,6 +1530,19 @@ html[data-theme="oscuro"] .prod-variantExtraPrices small {
     flex: 1 1 100%;
     min-width: 0;
   }
+
+  .stock-tableActionsMobile .stock-actionBtn__text {
+    display: none;
+  }
+
+  .stock-tableActionsMobile .stock-actionBtn {
+    justify-content: center;
+  }
+
+  .prod-variantBadge__label,
+  .prod-variantBadge__detail {
+    display: none;
+  }
 }
 
 html[data-theme="oscuro"] .stock-tableFooter {
@@ -1805,6 +1818,7 @@ html[data-theme="oscuro"] .prod-statusChip--inactive {
   padding: 0 12px !important;
   border-radius: 999px !important;
   border: 1px solid color-mix(in srgb, var(--nv-action, #0055BB) 26%, transparent) !important;
+
   background: linear-gradient(135deg,
     color-mix(in srgb, var(--nv-action, #0055BB) 14%, var(--balto-card, #fff)),
     color-mix(in srgb, var(--nv-action, #0055BB) 7%, var(--balto-card, #fff))
@@ -1814,6 +1828,10 @@ html[data-theme="oscuro"] .prod-statusChip--inactive {
   font-weight: 680 !important;
   letter-spacing: .01em !important;
   box-shadow: 0 8px 18px -14px color-mix(in srgb, var(--nv-action, #0055BB) 70%, transparent) !important;
+}
+
+.prod-variantBadge__label {
+  margin-left: 4px;
 }
 
 .prod-variantBadge--count::before {

@@ -2412,6 +2412,8 @@ const Stock = () => {
               "stock-actionBtn",
               "stock-actionBtn--bajas",
             ].join(" ")}
+            aria-label={mostrarDadosDeBaja ? "Ver activos" : "Ver dados de baja"}
+            title={mostrarDadosDeBaja ? "Ver activos" : "Ver dados de baja"}
             onClick={() => {
               const seed = Date.now();
               setErroresImagenes({});
@@ -2428,7 +2430,10 @@ const Stock = () => {
               setPaginaActual(1);
             }}
           >
-            <FontAwesomeIcon icon={faRotateLeft} /> {mostrarDadosDeBaja ? "Ver activos" : "Ver dados de baja"}
+            <FontAwesomeIcon icon={faRotateLeft} />
+            <span className="stock-actionBtn__text">
+              {mostrarDadosDeBaja ? "Ver activos" : "Ver dados de baja"}
+            </span>
           </button>
         ) : null}
 
@@ -2436,10 +2441,13 @@ const Stock = () => {
           <button
             type="button"
             className="mov-btn mov-btn--ghost stock-actionBtn stock-actionBtn--ajuste"
+            aria-label="Ajustar precios"
+            title="Ajustar precios"
             onClick={() => setModalAjustePreciosAbierto(true)}
             disabled={mostrarDadosDeBaja}
           >
-            <FontAwesomeIcon icon={faMoneyBillTrendUp} /> Ajustar precios
+            <FontAwesomeIcon icon={faMoneyBillTrendUp} />
+            <span className="stock-actionBtn__text">Ajustar precios</span>
           </button>
         ) : null}
 
@@ -2724,8 +2732,13 @@ const Stock = () => {
                               <span className="mov-ellipsissss">{prodConImagen.nombre}</span>
                               {tieneVariantesParaMostrar ? (
                                 <span className="prod-variantBadge prod-variantBadge--count">
-                                  {totalVariantesProducto || variantesActivasProducto || 0} variantes
-                                  {!mostrarDadosDeBaja && variantesInactivasProducto > 0 ? ` · ${variantesInactivasProducto} baja${variantesInactivasProducto === 1 ? "" : "s"}` : ""}
+                                  <span>{totalVariantesProducto || variantesActivasProducto || 0}</span>
+                                  <span className="prod-variantBadge__label">variantes</span>
+                                  {!mostrarDadosDeBaja && variantesInactivasProducto > 0 ? (
+                                    <span className="prod-variantBadge__detail">
+                                      {` · ${variantesInactivasProducto} baja${variantesInactivasProducto === 1 ? "" : "s"}`}
+                                    </span>
+                                  ) : null}
                                 </span>
                               ) : null}
                               {productoInactivo ? <span className="prod-variantBadge prod-variantBadge--inactive">Dado de baja</span> : null}
