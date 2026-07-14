@@ -29,10 +29,12 @@ import "./Stock.css";
 import "../Global/Global_css/Global_Section.css";
 
 const API_URL = `${String(BASE_URL || "").replace(/\/+$/, "")}/api.php`;
-const TOAST_LOADING_DURATION = 90000;
+const TOAST_LOADING_DURATION = 300000;
 const PRECIOS_MASIVOS_LOADING_THRESHOLD = 10;
 const STOCK_CHANGE_CHECK_MS = 2500;
 const OPTIMISTIC_PRODUCT_GRACE_MS = 20000;
+const TIENDANUBE_SYNC_MAX_WAIT_MS = 240000;
+const TIENDANUBE_SYNC_RETRY_MS = 1800;
 
 
 function buildHeadersGET() {
@@ -122,6 +124,116 @@ async function apiPost(url, body) {
   });
 
   return await parseJsonOrThrow(res);
+}
+
+function extraerIdsJobsTiendaNube(response) {
+  const ids = new Set();
+  const visitados = new WeakSet();
+
+  const recorrer = (value) => {
+    if (!value || typeof value !== "object") return;
+    if (visitados.has(value)) return;
+    visitados.add(value);
+
+    if (Array.isArray(value)) {
+      value.forEach(recorrer);
+      return;
+    }
+
+    const id = Number(value.id_job ?? value.job_id ?? value.idJob ?? 0);
+    if (id > 0) ids.add(id);
+
+    Object.entries(value).forEach(([key, nested]) => {
+      if (
+        key === "tiendanube_sync" ||
+        key === "tiendanube_reintento" ||
+        key === "job_reintento" ||
+        key === "resultados" ||
+        key === "resultados_proceso" ||
+        key === "data"
+      ) {
+        recorrer(nested);
+      }
+    });
+  };
+
+  recorrer(response?.tiendanube_sync ?? response?.data?.tiendanube_sync ?? response);
+  return Array.from(ids);
+}
+
+function detalleErrorJobs(estado) {
+  return (Array.isArray(estado?.jobs) ? estado.jobs : [])
+    .map((job) => String(job?.error || "").trim())
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function tiendaNubeNoConectada(response) {
+  const sync = response?.tiendanube_sync ?? response?.data?.tiendanube_sync ?? null;
+  const motivo = String(sync?.motivo || "").trim().toLowerCase();
+  return motivo === "sin_conexion_tiendanube_activa" || motivo === "tiendanube_no_conectada";
+}
+
+async function esperarSincronizacionTiendaNube(response) {
+  const idsJobs = extraerIdsJobsTiendaNube(response);
+  if (idsJobs.length === 0) {
+    return { esperado: false, finalizado: true, exitoso: true, estado: null, error: "" };
+  }
+
+  const { idTenant } = getUsuarioAuditData();
+  const startedAt = Date.now();
+  let ultimoEstado = null;
+  let ultimoError = "";
+
+  while (Date.now() - startedAt < TIENDANUBE_SYNC_MAX_WAIT_MS) {
+    try {
+      // Cada vuelta intenta ejecutar exactamente el job de esta acción. Si una
+      // respuesta larga se corta, el backend continúa y la siguiente vuelta consulta
+      // o recupera el job; no queda esperando al cron general.
+      const proceso = await apiPost(API_URL, {
+        action: "stock_tiendanube_jobs_procesar",
+        ids_jobs: idsJobs,
+        limit: 1,
+        ...(idTenant ? { tenant_id: idTenant } : {}),
+      });
+      ultimoEstado = proceso?.data && typeof proceso.data === "object" ? proceso.data : proceso;
+    } catch (errorProceso) {
+      ultimoError = String(errorProceso?.message || errorProceso || "").trim();
+    }
+
+    try {
+      const consulta = await apiPost(API_URL, {
+        action: "stock_tiendanube_jobs_estado",
+        ids_jobs: idsJobs,
+        procesar_pendientes: false,
+        ...(idTenant ? { tenant_id: idTenant } : {}),
+      });
+      ultimoEstado = consulta?.data && typeof consulta.data === "object" ? consulta.data : consulta;
+    } catch (errorEstado) {
+      ultimoError = String(errorEstado?.message || errorEstado || ultimoError).trim();
+    }
+
+    if (ultimoEstado?.finalizado === true) {
+      const exitoso = ultimoEstado?.exitoso === true;
+      return {
+        esperado: true,
+        finalizado: true,
+        exitoso,
+        estado: ultimoEstado,
+        error: exitoso ? "" : detalleErrorJobs(ultimoEstado) || "Tienda Nube rechazó la sincronización.",
+      };
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, TIENDANUBE_SYNC_RETRY_MS));
+  }
+
+  return {
+    esperado: true,
+    finalizado: false,
+    exitoso: false,
+    estado: ultimoEstado,
+    error: ultimoError || "La sincronización sigue en proceso.",
+  };
 }
 
 function formatMoney(value) {
@@ -334,6 +446,25 @@ function normalizeVariantesCollection(items = []) {
     .filter(Boolean);
 }
 
+function mergeVariantesPreferenciaLocal(variantesServidor = [], variantesLocales = []) {
+  const servidor = normalizeVariantesCollection(variantesServidor);
+  const locales = normalizeVariantesCollection(variantesLocales);
+  if (locales.length === 0) return servidor;
+  if (servidor.length === 0) return locales;
+
+  // El snapshot optimista conserva los valores recién guardados en Balto, pero no
+  // debe ocultar una variante nueva que ya ingresó a la DB desde Tienda Nube.
+  // Los IDs compartidos mantienen la copia local; sólo se anexan filas realmente
+  // nuevas informadas por el servidor.
+  const idsLocales = new Set(locales.map((variante) => getVarianteId(variante)).filter((id) => id > 0));
+  const nuevasDelServidor = servidor.filter((variante) => {
+    const id = getVarianteId(variante);
+    return id > 0 && !idsLocales.has(id);
+  });
+
+  return [...locales, ...nuevasDelServidor];
+}
+
 function variantAttributesLabel(variante = {}) {
   const attrs = Array.isArray(variante?.atributos) ? variante.atributos : [];
   const label = attrs
@@ -418,10 +549,7 @@ function mergeProductoPreferenciaLocal(productoServidor = null, productoLocal = 
       Array.isArray(local?.precios) && local.precios.length > 0
         ? local.precios
         : servidor?.precios,
-    variantes:
-      Array.isArray(local?.variantes) && local.variantes.length > 0
-        ? local.variantes
-        : servidor?.variantes,
+    variantes: mergeVariantesPreferenciaLocal(servidor?.variantes, local?.variantes),
   });
 }
 
@@ -610,6 +738,13 @@ const Stock = () => {
       response ??
       null;
 
+    // Si el tenant no usa Tienda Nube, la acción terminó correctamente en Balto y no
+    // corresponde mostrar avisos de sincronización ni advertencias de conexión externa.
+    if (tiendaNubeNoConectada(response)) {
+      mostrarToast("exito", mensajeLocal, 2500);
+      return;
+    }
+
     const encolados = Number(sync?.encolados ?? sync?.pendientes ?? 0);
     const erroresCola = Number(sync?.errores ?? 0);
     const colaAceptada =
@@ -629,6 +764,27 @@ const Stock = () => {
     const feedback = tiendaNubeFeedback(response, mensajeLocal);
     mostrarToast(feedback.tipo, feedback.mensaje, feedback.tipo === "advertencia" ? 5000 : 2500);
   }, [mostrarToast]);
+
+  const mostrarResultadoTiendaNubeConfirmado = useCallback((response, mensajeLocal, confirmacion) => {
+    if (!confirmacion?.esperado) {
+      mostrarResultadoTiendaNube(response, mensajeLocal);
+      return;
+    }
+
+    if (confirmacion.exitoso) {
+      mostrarToast("exito", mensajeLocal, 2500);
+      return;
+    }
+
+    const detalle = String(confirmacion?.error || "").trim();
+    mostrarToast(
+      "advertencia",
+      confirmacion?.finalizado
+        ? `${mensajeLocal} Tienda Nube no pudo completar el cambio: ${detalle || "revisá la sincronización."}`
+        : `${mensajeLocal} Tienda Nube sigue procesando el cambio y quedó protegido en la cola.`,
+      8000
+    );
+  }, [mostrarResultadoTiendaNube, mostrarToast]);
 
   const cerrarToast = useCallback(() => setToast(null), []);
 
@@ -655,6 +811,8 @@ const Stock = () => {
 
     setCargaPreciosMasivos({
       total: Number(estado?.total || 0),
+      tiendaNubeActiva:
+        typeof estado?.tiendaNubeActiva === "boolean" ? estado.tiendaNubeActiva : undefined,
       startedAt: Date.now(),
     });
   }, []);
@@ -1404,9 +1562,10 @@ const Stock = () => {
       const productoOptimista = opciones?.ignorarOptimista === true
         ? null
         : obtenerProductoOptimistaActivo(id);
+      const variantesServidor = data?.variantes || data?.data?.variantes || [];
       const variantesFuente = Array.isArray(productoOptimista?.variantes)
-        ? productoOptimista.variantes
-        : data?.variantes || data?.data?.variantes || [];
+        ? mergeVariantesPreferenciaLocal(variantesServidor, productoOptimista.variantes)
+        : variantesServidor;
       const variantes = normalizeVariantesCollection(variantesFuente);
       const variantesActivas = variantes.filter((variante) => Number(variante?.activo ?? 1) === 1);
       const stockVariantesActivas = variantesActivas.reduce((total, variante) => {
@@ -1980,6 +2139,8 @@ const Stock = () => {
         throw new Error(data.mensaje || (permanente ? "Error al eliminar el producto" : "Error al dar de baja el producto"));
       }
 
+      const confirmacionTiendaNube = await esperarSincronizacionTiendaNube(data);
+
       if (permanente) {
         const conocidas = { ...(imagenesConocidasPorProductoRef.current || {}) };
         delete conocidas[productoId];
@@ -1989,7 +2150,11 @@ const Stock = () => {
       limpiarEstadoVisualProducto(productoId);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
-      mostrarResultadoTiendaNube(data, permanente ? "Producto eliminado permanentemente." : "Producto dado de baja correctamente.");
+      mostrarResultadoTiendaNubeConfirmado(
+        data,
+        permanente ? "Producto eliminado permanentemente." : "Producto dado de baja correctamente.",
+        confirmacionTiendaNube
+      );
     } catch (error) {
       mostrarToast("error", error.message || (permanente ? "No se pudo eliminar el producto." : "No se pudo dar de baja el producto."));
     } finally {
@@ -2025,6 +2190,8 @@ const Stock = () => {
         throw new Error(data?.mensaje || "No se pudo reactivar el producto.");
       }
 
+      const confirmacionTiendaNube = await esperarSincronizacionTiendaNube(data);
+
       const productoReactivado = extractProductoFromApiResponse(data);
       if (productoReactivado) {
         registrarImagenConocidaProducto({ ...producto, ...productoReactivado });
@@ -2034,7 +2201,7 @@ const Stock = () => {
       limpiarEstadoVisualProducto(productoId);
       await refrescarDespuesDeGuardar();
       notifyListsUpdated();
-      mostrarResultadoTiendaNube(data, "Producto dado de alta correctamente.");
+      mostrarResultadoTiendaNubeConfirmado(data, "Producto dado de alta correctamente.", confirmacionTiendaNube);
     } catch (error) {
       mostrarToast("error", error?.message || "No se pudo dar de alta el producto.");
     } finally {
@@ -2163,6 +2330,8 @@ const Stock = () => {
         throw new Error(data?.mensaje || (permanente ? "No se pudo eliminar la variante." : "No se pudo dar de baja la variante."));
       }
 
+      const confirmacionTiendaNube = await esperarSincronizacionTiendaNube(data);
+
       const varianteRespuesta = data?.variante || data?.data?.variante || null;
       limpiarProductoOptimista(productoId);
       if (varianteRespuesta) {
@@ -2181,7 +2350,11 @@ const Stock = () => {
       // puntual de variantes queda ultima y recalcula el total visible de la fila.
       await cargarVariantesProducto(productoId, { ignorarOptimista: true });
       notifyListsUpdated();
-      mostrarResultadoTiendaNube(data, permanente ? "Variante eliminada permanentemente." : "Variante dada de baja correctamente.");
+      mostrarResultadoTiendaNubeConfirmado(
+        data,
+        permanente ? "Variante eliminada permanentemente." : "Variante dada de baja correctamente.",
+        confirmacionTiendaNube
+      );
     } catch (error) {
       mostrarToast("error", error?.message || (permanente ? "No se pudo eliminar la variante." : "No se pudo dar de baja la variante."));
     } finally {
@@ -2216,6 +2389,8 @@ const Stock = () => {
         throw new Error(data?.mensaje || "No se pudo reactivar la variante.");
       }
 
+      const confirmacionTiendaNube = await esperarSincronizacionTiendaNube(data);
+
       const varianteRespuesta = data?.variante || data?.data?.variante || null;
       limpiarProductoOptimista(productoId);
       setVariantesPorProducto((prev) => {
@@ -2238,7 +2413,7 @@ const Stock = () => {
       await refrescarDespuesDeGuardar();
       await cargarVariantesProducto(productoId, { ignorarOptimista: true });
       notifyListsUpdated();
-      mostrarResultadoTiendaNube(data, "Variante dada de alta correctamente.");
+      mostrarResultadoTiendaNubeConfirmado(data, "Variante dada de alta correctamente.", confirmacionTiendaNube);
     } catch (error) {
       mostrarToast("error", error?.message || "No se pudo dar de alta la variante.");
     } finally {
@@ -3149,22 +3324,31 @@ const Stock = () => {
             );
 
             // La respuesta del alta ya confirma que el producto quedó guardado en Balto
-            // y que la sincronización con Tienda Nube fue aceptada por la cola. No volvemos
-            // a bloquear el modal esperando el job externo: esa espera era la que generaba
-            // el falso "la conexión tardó demasiado" aunque el producto terminara creado.
+            // y que la sincronización con Tienda Nube fue aceptada por la cola. Ahora
+            // despertamos ese job dirigido y esperamos su estado real: si la respuesta
+            // larga se corta, el backend continúa y este flujo vuelve a consultar.
             if (esAltaIndividual) {
+              const tieneSyncTiendaNube = extraerIdsJobsTiendaNube(response).length > 0;
+              if (tieneSyncTiendaNube) {
+                mostrarToastCarga("Sincronizando producto con Tienda Nube...");
+              }
+              const confirmacionTiendaNube = await esperarSincronizacionTiendaNube(response);
               setModalAbierto(false);
               notifyListsUpdated();
-              mostrarResultadoTiendaNube(response, "Producto agregado correctamente.");
-
-              // La cola y el worker del servidor son responsables de Tienda Nube. Cerrar
-              // la pestaña no cancela ni condiciona la sincronización.
+              mostrarResultadoTiendaNubeConfirmado(
+                response,
+                "Producto agregado correctamente.",
+                confirmacionTiendaNube
+              );
             }
 
             // Refrescar la grilla es una tarea posterior al guardado. Si esa consulta
             // puntual falla, no debe convertir un alta exitosa en un mensaje de error.
             try {
-              await refrescarDespuesDeGuardar(productoGuardado);
+              await refrescarDespuesDeGuardar(productoGuardado, {
+                ...opciones,
+                producto_optimista: opciones?.producto_optimista || productoGuardado,
+              });
             } catch (refreshError) {
               console.warn("[Stock] El producto se guardó, pero la grilla no pudo refrescarse en ese instante.", refreshError);
             }
@@ -3188,13 +3372,21 @@ const Stock = () => {
           onGuardado={async (productoGuardado, opciones = {}) => {
             const productoIdEditado = getProductoId(productoGuardado) || Number(opciones?.productoId || productoEditarId || 0);
 
-            // La respuesta de actualizar ya confirma el COMMIT local y trae el producto
-            // completo con variantes, precios e imagen. Cerramos el modal y reemplazamos
-            // inmediatamente el toast de carga por el éxito; no esperamos una segunda
-            // consulta que podía cruzarse con el job de Tienda Nube y disparar el falso
-            // aviso global de conexión aunque la edición ya estuviera guardada.
+            // La respuesta confirma el COMMIT local. El mismo job durable se procesa de
+            // inmediato y se supervisa antes de cerrar; perder una respuesta intermedia
+            // ya no convierte la edición en error ni la deja esperando al cron.
+            const response = opciones?.response || opciones;
+            const tieneSyncTiendaNube = extraerIdsJobsTiendaNube(response).length > 0;
+            if (tieneSyncTiendaNube) {
+              mostrarToastCarga("Sincronizando cambios con Tienda Nube...");
+            }
+            const confirmacionTiendaNube = await esperarSincronizacionTiendaNube(response);
             handleCerrarEditar();
-            mostrarResultadoTiendaNube(opciones?.response || opciones, "Producto editado correctamente.");
+            mostrarResultadoTiendaNubeConfirmado(
+              response,
+              "Producto editado correctamente.",
+              confirmacionTiendaNube
+            );
 
             await refrescarDespuesDeGuardar(productoGuardado, {
               ...opciones,
@@ -3412,12 +3604,22 @@ const Stock = () => {
               <img src={BaltoCargaGif} alt="Balto cargando" className="stock-priceLoadingModal__gif" />
             </div>
             <div className="stock-priceLoadingModal__content">
-              <h3>Actualizando precios en Balto y Tienda Nube</h3>
+              <h3>
+                {cargaPreciosMasivos.tiendaNubeActiva === true
+                  ? "Actualizando precios en Balto y Tienda Nube"
+                  : cargaPreciosMasivos.tiendaNubeActiva === false
+                    ? "Actualizando precios en Balto"
+                    : "Actualizando precios"}
+              </h3>
               <p>Esta acción puede tardar unos segundos.</p>
               <small>
                 {cargaPreciosMasivos.total > 0
-                  ? `${cargaPreciosMasivos.total} precios en proceso. Si la conexión con Tienda Nube está activa, también se sincronizan allá.`
-                  : "Si la conexión con Tienda Nube está activa, también se sincronizan allá."}
+                  ? cargaPreciosMasivos.tiendaNubeActiva === true
+                    ? `${cargaPreciosMasivos.total} precios en proceso y sincronización con Tienda Nube.`
+                    : `${cargaPreciosMasivos.total} precios en proceso.`
+                  : cargaPreciosMasivos.tiendaNubeActiva === true
+                    ? "Sincronizando los cambios con Tienda Nube."
+                    : "Procesando los cambios en Balto."}
               </small>
             </div>
           </div>

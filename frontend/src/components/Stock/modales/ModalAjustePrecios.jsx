@@ -27,7 +27,7 @@ import {
 import "./ModalAjustePrecios.css";
 import { isTopStockModal } from "./modalStackUtils";
 
-const TOAST_LOADING_DURATION = 90000;
+const TOAST_LOADING_DURATION = 600000;
 const DEFAULT_BULK_LOADING_THRESHOLD = 10;
 const TIENDANUBE_JOB_GROUP_SIZE = 25;
 
@@ -164,8 +164,15 @@ async function sincronizarPreciosTiendaNube(response) {
   for (const grupo of chunkArray(idsJobs, TIENDANUBE_JOB_GROUP_SIZE)) {
     while (Date.now() - startedAt < maxWaitMs) {
       try {
-        // El navegador solo observa. El worker/cron procesa la cola aunque el usuario
-        // cierre el modal o la pestaña, evitando concurrencia y falsos timeouts.
+        // Procesamos tandas chicas desde esta misma experiencia. Cada job conserva su
+        // candado y estado durable: si una respuesta larga se pierde, la próxima vuelta
+        // consulta el resultado o recupera el job sin esperar al cron general.
+        await apiPost("stock_tiendanube_jobs_procesar", {
+          ids_jobs: grupo,
+          limit: 5,
+          ...(idTenant ? { tenant_id: idTenant } : {}),
+        });
+
         const estadoRes = await apiPost("stock_tiendanube_jobs_estado", {
           ids_jobs: grupo,
           procesar_pendientes: false,
@@ -407,7 +414,7 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado, onProcesoMasiv
 
     const totalSeleccionados = seleccionadosArray.length;
     const mostrarCargaMasiva = totalSeleccionados >= Number(umbralProcesoMasivo || DEFAULT_BULK_LOADING_THRESHOLD);
-    const mensajeCarga = "Actualizando precios en Balto y Tienda Nube...";
+    const mensajeCarga = "Actualizando precios...";
     let guardadoEnBalto = false;
 
     setGuardando(true);
@@ -427,10 +434,22 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado, onProcesoMasiv
       guardadoEnBalto = true;
       if (typeof onGuardado === "function") await onGuardado(data);
 
-      const confirmacionTiendaNube = await sincronizarPreciosTiendaNube(data);
       const sync = getTiendaNubeSyncPayload(data);
       const totalSync = Number(sync?.total_productos || 0);
       const encolados = Number(sync?.encolados || sync?.pendientes || 0);
+      const motivoSync = String(sync?.motivo || "").trim().toLowerCase();
+      const tiendaNubeNoConectada =
+        motivoSync === "sin_conexion_tiendanube_activa" || motivoSync === "tiendanube_no_conectada";
+
+      if (mostrarCargaMasiva && typeof onProcesoMasivo === "function") {
+        onProcesoMasivo({
+          open: true,
+          total: totalSeleccionados,
+          tiendaNubeActiva: extractTiendaNubeJobIds(data).length > 0,
+        });
+      }
+
+      const confirmacionTiendaNube = await sincronizarPreciosTiendaNube(data);
 
 
       if (confirmacionTiendaNube.esperado) {
@@ -446,6 +465,11 @@ const ModalAjustePrecios = ({ open, onClose, onToast, onGuardado, onProcesoMasiv
             8000
           );
         }
+        return;
+      }
+
+      if (tiendaNubeNoConectada) {
+        avisar("exito", "Precios actualizados correctamente en Balto.");
         return;
       }
 
