@@ -2389,6 +2389,11 @@ export default function ModalEditarProducto({
       fd.append("descripcion", toUpperCaseValue(formNormalizado.descripcion.trim()));
       fd.append("tiene_variantes", formNormalizado.tiene_variantes ? "1" : "0");
 
+      // Balto confirma primero el cambio local. Tienda Nube queda a cargo de la cola
+      // durable/worker para que una demora externa nunca mantenga abierto este guardado.
+      fd.append("diferir_sync", "1");
+      fd.append("origen_sync", "edicion_individual");
+
       fd.append("id_categoria_stock", categoriaId !== "" ? categoriaId : "");
 
       const categoriasIdsPayload = Array.from(

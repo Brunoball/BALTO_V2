@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import ModalCargaMasiva from "./modales/ModalCargaMasiva";
 import ModalEditarProducto from "./modales/ModalEditarStock";
@@ -34,8 +34,6 @@ const TOAST_LOADING_DURATION = 300000;
 const PRECIOS_MASIVOS_LOADING_THRESHOLD = 10;
 const STOCK_CHANGE_CHECK_MS = 2500;
 const OPTIMISTIC_PRODUCT_GRACE_MS = 20000;
-const TIENDANUBE_SYNC_MAX_WAIT_MS = 240000;
-const TIENDANUBE_SYNC_RETRY_MS = 1800;
 
 
 function buildHeadersGET() {
@@ -162,12 +160,6 @@ function extraerIdsJobsTiendaNube(response) {
   return Array.from(ids);
 }
 
-function detalleErrorJobs(estado) {
-  return (Array.isArray(estado?.jobs) ? estado.jobs : [])
-    .map((job) => String(job?.error || "").trim())
-    .filter(Boolean)
-    .join(" · ");
-}
 
 function tiendaNubeNoConectada(response) {
   const sync = response?.tiendanube_sync ?? response?.data?.tiendanube_sync ?? null;
@@ -181,59 +173,18 @@ async function esperarSincronizacionTiendaNube(response) {
     return { esperado: false, finalizado: true, exitoso: true, estado: null, error: "" };
   }
 
-  const { idTenant } = getUsuarioAuditData();
-  const startedAt = Date.now();
-  let ultimoEstado = null;
-  let ultimoError = "";
-
-  while (Date.now() - startedAt < TIENDANUBE_SYNC_MAX_WAIT_MS) {
-    try {
-      // Cada vuelta intenta ejecutar exactamente el job de esta acción. Si una
-      // respuesta larga se corta, el backend continúa y la siguiente vuelta consulta
-      // o recupera el job; no queda esperando al cron general.
-      const proceso = await apiPost(API_URL, {
-        action: "stock_tiendanube_jobs_procesar",
-        ids_jobs: idsJobs,
-        limit: 1,
-        ...(idTenant ? { tenant_id: idTenant } : {}),
-      });
-      ultimoEstado = proceso?.data && typeof proceso.data === "object" ? proceso.data : proceso;
-    } catch (errorProceso) {
-      ultimoError = String(errorProceso?.message || errorProceso || "").trim();
-    }
-
-    try {
-      const consulta = await apiPost(API_URL, {
-        action: "stock_tiendanube_jobs_estado",
-        ids_jobs: idsJobs,
-        procesar_pendientes: false,
-        ...(idTenant ? { tenant_id: idTenant } : {}),
-      });
-      ultimoEstado = consulta?.data && typeof consulta.data === "object" ? consulta.data : consulta;
-    } catch (errorEstado) {
-      ultimoError = String(errorEstado?.message || errorEstado || ultimoError).trim();
-    }
-
-    if (ultimoEstado?.finalizado === true) {
-      const exitoso = ultimoEstado?.exitoso === true;
-      return {
-        esperado: true,
-        finalizado: true,
-        exitoso,
-        estado: ultimoEstado,
-        error: exitoso ? "" : detalleErrorJobs(ultimoEstado) || "Tienda Nube rechazó la sincronización.",
-      };
-    }
-
-    await new Promise((resolve) => window.setTimeout(resolve, TIENDANUBE_SYNC_RETRY_MS));
-  }
-
+  // El guardado local ya terminó y la cola durable aceptó la sincronización.
+  // A partir de acá el worker/cron es el único responsable de Tienda Nube:
+  // el navegador no procesa jobs ni espera llamadas externas que podrían activar
+  // el aviso global de conexión aunque Balto ya haya guardado correctamente.
   return {
     esperado: true,
     finalizado: false,
-    exitoso: false,
-    estado: ultimoEstado,
-    error: ultimoError || "La sincronización sigue en proceso.",
+    exitoso: true,
+    diferido: true,
+    ids_jobs: idsJobs,
+    estado: null,
+    error: "",
   };
 }
 
@@ -464,6 +415,25 @@ function mergeVariantesPreferenciaLocal(variantesServidor = [], variantesLocales
   });
 
   return [...locales, ...nuevasDelServidor];
+}
+
+function preservarVariantesInactivasOmitidas(variantesServidor = [], variantesConocidas = []) {
+  const servidor = normalizeVariantesCollection(variantesServidor);
+  const conocidas = normalizeVariantesCollection(variantesConocidas);
+  if (conocidas.length === 0) return servidor;
+
+  const idsServidor = new Set(
+    servidor.map((variante) => getVarianteId(variante)).filter((id) => id > 0)
+  );
+  const bajasOmitidas = conocidas.filter((variante) => {
+    const id = getVarianteId(variante);
+    return id > 0 && Number(variante?.activo ?? 1) === 0 && !idsServidor.has(id);
+  });
+
+  if (bajasOmitidas.length === 0) return servidor;
+  return [...servidor, ...bajasOmitidas].sort(
+    (a, b) => getVarianteId(a) - getVarianteId(b)
+  );
 }
 
 function variantAttributesLabel(variante = {}) {
@@ -711,13 +681,145 @@ const Stock = () => {
   const imagenesTemporalesRef = useRef({});
   const imagenesConocidasPorProductoRef = useRef({});
   const productosOptimistasRef = useRef({});
+  const variantesPorProductoRef = useRef({});
   const impactoEliminarRequestRef = useRef(0);
   const impactoEliminarVarianteRequestRef = useRef(0);
   const productosRequestRef = useRef(0);
   const categoriaFiltroDropdownRef = useRef(null);
+  const tablaScrollRef = useRef(null);
+  const tablaScrollSnapshotRef = useRef({
+    top: 0,
+    left: 0,
+    anchorId: 0,
+    anchorOffset: 0,
+    restaurar: false,
+  });
+  const tablaScrollRafRef = useRef([]);
+  const tablaScrollTimerRef = useRef([]);
   const stockVersionRef = useRef({ catalogo: "", imagenes: "", categorias: "" });
   const stockChangeCheckRunningRef = useRef(false);
   const productosPorPagina = 20;
+
+  useEffect(() => {
+    variantesPorProductoRef.current = variantesPorProducto;
+  }, [variantesPorProducto]);
+
+  const cancelarRestauracionScrollTabla = useCallback(() => {
+    tablaScrollRafRef.current.forEach((id) => window.cancelAnimationFrame(id));
+    tablaScrollTimerRef.current.forEach((id) => window.clearTimeout(id));
+    tablaScrollRafRef.current = [];
+    tablaScrollTimerRef.current = [];
+  }, []);
+
+  const capturarPosicionScrollTabla = useCallback((opciones = {}) => {
+    const forzar = opciones?.forzar === true;
+    if (tablaScrollSnapshotRef.current?.restaurar && !forzar) return;
+
+    const contenedor = tablaScrollRef.current;
+    if (!contenedor) return;
+
+    const contenedorRect = contenedor.getBoundingClientRect();
+    const filas = Array.from(
+      contenedor.querySelectorAll("[data-stock-product-id]")
+    );
+    const primeraVisible = filas.find(
+      (fila) => fila.getBoundingClientRect().bottom > contenedorRect.top + 1
+    );
+
+    tablaScrollSnapshotRef.current = {
+      top: contenedor.scrollTop,
+      left: contenedor.scrollLeft,
+      anchorId: Number(primeraVisible?.dataset?.stockProductId || 0),
+      anchorOffset: primeraVisible
+        ? primeraVisible.getBoundingClientRect().top - contenedorRect.top
+        : 0,
+      restaurar: true,
+    };
+  }, []);
+
+  const aplicarPosicionScrollTabla = useCallback((finalizar = true) => {
+    const contenedor = tablaScrollRef.current;
+    const actual = tablaScrollSnapshotRef.current;
+    if (!contenedor || !actual?.restaurar) return;
+
+    let destinoTop = Number(actual.top || 0);
+    if (actual.anchorId > 0) {
+      const filaAncla = contenedor.querySelector(
+        `[data-stock-product-id="${actual.anchorId}"]`
+      );
+
+      if (filaAncla) {
+        const contenedorRect = contenedor.getBoundingClientRect();
+        const offsetActual = filaAncla.getBoundingClientRect().top - contenedorRect.top;
+        destinoTop = contenedor.scrollTop + offsetActual - Number(actual.anchorOffset || 0);
+      }
+    }
+
+    const maxTop = Math.max(0, contenedor.scrollHeight - contenedor.clientHeight);
+    contenedor.scrollTop = Math.max(0, Math.min(destinoTop, maxTop));
+    contenedor.scrollLeft = Math.max(0, Number(actual.left || 0));
+
+    if (finalizar) {
+      tablaScrollSnapshotRef.current = { ...actual, restaurar: false };
+      tablaScrollRafRef.current = [];
+      tablaScrollTimerRef.current = [];
+    }
+  }, []);
+
+  const programarRestauracionScrollTabla = useCallback((opciones = {}) => {
+    const reactivar = opciones?.reactivar === true;
+    const snapshot = tablaScrollSnapshotRef.current;
+
+    if (reactivar && snapshot && (snapshot.anchorId > 0 || snapshot.top > 0 || snapshot.left > 0)) {
+      tablaScrollSnapshotRef.current = { ...snapshot, restaurar: true };
+    }
+
+    if (!tablaScrollSnapshotRef.current?.restaurar) return;
+
+    cancelarRestauracionScrollTabla();
+
+    // Se restaura más de una vez porque, después de la recarga general, la fila
+    // puede volver a cambiar de alto al llegar el detalle puntual de variantes.
+    // El último pase deja la posición estabilizada sin enviar la tabla al inicio.
+    const demoras = [0, 80, 220];
+    demoras.forEach((demora, indice) => {
+      const timerId = window.setTimeout(() => {
+        const raf1 = window.requestAnimationFrame(() => {
+          const raf2 = window.requestAnimationFrame(() => {
+            aplicarPosicionScrollTabla(indice === demoras.length - 1);
+          });
+          tablaScrollRafRef.current.push(raf2);
+        });
+        tablaScrollRafRef.current.push(raf1);
+      }, demora);
+      tablaScrollTimerRef.current.push(timerId);
+    });
+  }, [aplicarPosicionScrollTabla, cancelarRestauracionScrollTabla]);
+
+  const descartarPosicionScrollTabla = useCallback(() => {
+    cancelarRestauracionScrollTabla();
+    tablaScrollSnapshotRef.current = {
+      top: 0,
+      left: 0,
+      anchorId: 0,
+      anchorOffset: 0,
+      restaurar: false,
+    };
+
+    const contenedor = tablaScrollRef.current;
+    if (contenedor) {
+      contenedor.scrollTop = 0;
+      contenedor.scrollLeft = 0;
+    }
+  }, [cancelarRestauracionScrollTabla]);
+
+  useLayoutEffect(() => {
+    if (loading || !tablaScrollSnapshotRef.current?.restaurar) return undefined;
+    programarRestauracionScrollTabla();
+    return cancelarRestauracionScrollTabla;
+  }, [cancelarRestauracionScrollTabla, loading, productosRaw, programarRestauracionScrollTabla]);
+
+  useEffect(() => cancelarRestauracionScrollTabla, [cancelarRestauracionScrollTabla]);
 
   const mostrarToast = useCallback((tipo, mensaje, duracion = 2500) => {
     setToast({ tipo, mensaje, duracion, id: Date.now() + Math.random() });
@@ -1169,7 +1271,9 @@ const Stock = () => {
   const recargarTodo = useCallback(async (opciones = {}) => {
     const mostrarLoader = opciones?.mostrarLoader !== false;
     const seed = opciones?.seed || Date.now();
+    const preservarScroll = opciones?.preservarScroll !== false;
 
+    if (preservarScroll) capturarPosicionScrollTabla();
     if (mostrarLoader) setLoading(true);
     setError(null);
 
@@ -1244,7 +1348,7 @@ const Stock = () => {
     } finally {
       if (mostrarLoader) setLoading(false);
     }
-  }, [busquedaConsulta, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina, prepararProductosParaMostrar, rearmarMiniaturasProductos]);
+  }, [busquedaConsulta, capturarPosicionScrollTabla, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina, prepararProductosParaMostrar, rearmarMiniaturasProductos]);
 
   const refrescarProductoPorId = useCallback(async (productoId, opciones = {}) => {
     const id = Number(productoId || 0);
@@ -1369,6 +1473,8 @@ const Stock = () => {
 
   const refrescarDespuesDeGuardar = useCallback(
     async (productoGuardado = null, opciones = {}) => {
+      capturarPosicionScrollTabla({ forzar: opciones?.forzar_captura_scroll !== false });
+
       const productoFuente = opciones?.producto_optimista || productoGuardado;
       const productoOptimista = productoFuente
         ? registrarProductoOptimista(productoFuente, opciones?.optimistic_ttl_ms)
@@ -1430,6 +1536,7 @@ const Stock = () => {
     },
     [
       aplicarImagenTemporalProducto,
+      capturarPosicionScrollTabla,
       completarProductoConImagenConocida,
       invalidarMiniaturaProducto,
       limpiarImagenTemporalProducto,
@@ -1472,6 +1579,9 @@ const Stock = () => {
 
     const silencioso = opciones?.silencioso === true;
     const preservarImagenes = opciones?.preservarImagenes === true;
+    const preservarScroll = opciones?.preservarScroll === true || silencioso;
+
+    if (preservarScroll) capturarPosicionScrollTabla();
 
     if (!silencioso) {
       setLoading(true);
@@ -1526,7 +1636,7 @@ const Stock = () => {
         setLoading(false);
       }
     }
-  }, [busquedaConsulta, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina, prepararProductosParaMostrar, rearmarMiniaturasProductos]);
+  }, [busquedaConsulta, capturarPosicionScrollTabla, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina, prepararProductosParaMostrar, rearmarMiniaturasProductos]);
 
 
   const cargarVariantesProducto = useCallback(async (productoId, opciones = {}) => {
@@ -1567,14 +1677,27 @@ const Stock = () => {
       const variantesFuente = Array.isArray(productoOptimista?.variantes)
         ? mergeVariantesPreferenciaLocal(variantesServidor, productoOptimista.variantes)
         : variantesServidor;
-      const variantes = normalizeVariantesCollection(variantesFuente);
+      const variantesNormalizadas = normalizeVariantesCollection(variantesFuente);
+      // Un webhook o una lectura transitoria puede omitir durante unos segundos una
+      // variante que Balto ya confirmó como dada de baja. No se la quita de la vista:
+      // sólo una eliminación permanente explícita puede hacer desaparecer esa fila.
+      const variantes = opciones?.permitirOmitidas === true
+        ? variantesNormalizadas
+        : preservarVariantesInactivasOmitidas(
+            variantesNormalizadas,
+            variantesPorProductoRef.current?.[id] || []
+          );
       const variantesActivas = variantes.filter((variante) => Number(variante?.activo ?? 1) === 1);
       const stockVariantesActivas = variantesActivas.reduce((total, variante) => {
         const stock = Number(variante?.stock ?? 0);
         return total + (Number.isFinite(stock) ? stock : 0);
       }, 0);
       const varianteResumen = variantesActivas[0] || variantes[0] || null;
-      setVariantesPorProducto((prev) => ({ ...prev, [id]: variantes }));
+      setVariantesPorProducto((prev) => {
+        const next = { ...prev, [id]: variantes };
+        variantesPorProductoRef.current = next;
+        return next;
+      });
       // La fila padre resume las variantes: suma stock activo y toma los precios
       // de la primera variante activa (o la primera registrada si todas están de
       // baja). Así abrir/cerrar el detalle nunca cambia lo que muestra la tabla.
@@ -1607,7 +1730,8 @@ const Stock = () => {
       );
     } catch (err) {
       if (!silencioso) {
-        setVariantesPorProducto((prev) => ({ ...prev, [id]: [] }));
+        // Un fallo de red no significa que las variantes hayan sido eliminadas.
+        // Se conserva exactamente la última lista válida y sólo se informa el error.
         setErrorVariantesPorProducto((prev) => ({
           ...prev,
           [id]: err?.message || "No se pudieron cargar las variantes.",
@@ -1633,6 +1757,7 @@ const Stock = () => {
   }, [cargarVariantesProducto, variantesAbiertas, variantesPorProducto]);
 
   useEffect(() => {
+    variantesPorProductoRef.current = {};
     setVariantesPorProducto({});
     setErrorVariantesPorProducto({});
     setLoadingVariantesPorProducto({});
@@ -1854,10 +1979,11 @@ const Stock = () => {
   }, [categoriaFiltro, categoriasPorId]);
 
   const seleccionarCategoriaFiltro = useCallback((id) => {
+    descartarPosicionScrollTabla();
     setCategoriaFiltro(id ? String(id) : "");
     setCategoriaDropdownAbierto(false);
     setPaginaActual(1);
-  }, []);
+  }, [descartarPosicionScrollTabla]);
 
   const toggleCategoriaFiltroExpandida = useCallback((id) => {
     const n = Number(id || 0);
@@ -1948,11 +2074,13 @@ const Stock = () => {
     : 0;
 
   const handleBusqueda = (e) => {
+    descartarPosicionScrollTabla();
     setBusqueda(e.target.value);
     setPaginaActual(1);
   };
 
   const limpiarBusqueda = () => {
+    descartarPosicionScrollTabla();
     setBusqueda("");
     setBusquedaConsulta("");
     setPaginaActual(1);
@@ -1963,6 +2091,7 @@ const Stock = () => {
   };
 
   const handleOrden = (campo) => {
+    descartarPosicionScrollTabla();
     setOrden((prev) =>
       prev.campo === campo
         ? { campo, dir: prev.dir === "ASC" ? "DESC" : "ASC" }
@@ -2307,6 +2436,7 @@ const Stock = () => {
       return;
     }
 
+    capturarPosicionScrollTabla({ forzar: true });
     setProcesandoVarianteId(varianteId);
     setAccionEliminacionVariante(permanente ? "eliminar" : "baja");
     setModalBajaVarianteAbierto(false);
@@ -2335,21 +2465,28 @@ const Stock = () => {
 
       const varianteRespuesta = data?.variante || data?.data?.variante || null;
       limpiarProductoOptimista(productoId);
-      if (varianteRespuesta) {
-        setVariantesPorProducto((prev) => ({
-          ...prev,
-          [productoId]: (Array.isArray(prev[productoId]) ? prev[productoId] : []).map((item) =>
-            getVarianteId(item) === varianteId
-              ? (normalizeVarianteListItem({ ...item, ...varianteRespuesta, activo: 0 }) || item)
-              : item
-          ),
-        }));
-      }
+      setVariantesPorProducto((prev) => {
+        const actuales = Array.isArray(prev[productoId]) ? prev[productoId] : [];
+        const actualizadas = permanente
+          ? actuales.filter((item) => getVarianteId(item) !== varianteId)
+          : actuales.map((item) =>
+              getVarianteId(item) === varianteId
+                ? (normalizeVarianteListItem({ ...item, ...(varianteRespuesta || {}), activo: 0 }) || item)
+                : item
+            );
+        const next = { ...prev, [productoId]: actualizadas };
+        variantesPorProductoRef.current = next;
+        return next;
+      });
 
-      await refrescarDespuesDeGuardar();
+      await refrescarDespuesDeGuardar(null, { forzar_captura_scroll: false });
       // La recarga general puede completar con un snapshot anterior. La lectura
       // puntual de variantes queda ultima y recalcula el total visible de la fila.
-      await cargarVariantesProducto(productoId, { ignorarOptimista: true });
+      await cargarVariantesProducto(productoId, {
+        ignorarOptimista: true,
+        permitirOmitidas: permanente,
+      });
+      programarRestauracionScrollTabla({ reactivar: true });
       notifyListsUpdated();
       mostrarResultadoTiendaNubeConfirmado(
         data,
@@ -2372,6 +2509,7 @@ const Stock = () => {
     const varianteId = getVarianteId(variante);
     if (!productoId || !varianteId || procesandoVarianteId) return;
 
+    capturarPosicionScrollTabla({ forzar: true });
     setProcesandoVarianteId(varianteId);
     mostrarToastCarga("Dando de alta variante...");
 
@@ -2411,8 +2549,9 @@ const Stock = () => {
         };
       });
 
-      await refrescarDespuesDeGuardar();
+      await refrescarDespuesDeGuardar(null, { forzar_captura_scroll: false });
       await cargarVariantesProducto(productoId, { ignorarOptimista: true });
+      programarRestauracionScrollTabla({ reactivar: true });
       notifyListsUpdated();
       mostrarResultadoTiendaNubeConfirmado(data, "Variante dada de alta correctamente.", confirmacionTiendaNube);
     } catch (error) {
@@ -2764,7 +2903,10 @@ const Stock = () => {
         <button
           type="button"
           className="prod-pagination__btn prod-pagination__btn--nav"
-          onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
+          onClick={() => {
+            descartarPosicionScrollTabla();
+            setPaginaActual((p) => Math.max(1, p - 1));
+          }}
           disabled={paginaActual === 1}
         >
           Anterior
@@ -2781,7 +2923,10 @@ const Stock = () => {
                 key={p}
                 type="button"
                 className={["prod-pagination__btn", p === paginaActual ? "is-active" : ""].filter(Boolean).join(" ")}
-                onClick={() => setPaginaActual(p)}
+                onClick={() => {
+                  descartarPosicionScrollTabla();
+                  setPaginaActual(p);
+                }}
               >
                 {p}
               </button>
@@ -2796,7 +2941,10 @@ const Stock = () => {
         <button
           type="button"
           className="prod-pagination__btn prod-pagination__btn--nav"
-          onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
+          onClick={() => {
+            descartarPosicionScrollTabla();
+            setPaginaActual((p) => Math.min(totalPaginas, p + 1));
+          }}
           disabled={paginaActual === totalPaginas}
         >
           Siguiente
@@ -2822,6 +2970,7 @@ const Stock = () => {
             aria-label={mostrarDadosDeBaja ? "Ver activos" : "Ver dados de baja"}
             title={mostrarDadosDeBaja ? "Ver activos" : "Ver dados de baja"}
             onClick={() => {
+              descartarPosicionScrollTabla();
               const seed = Date.now();
               setErroresImagenes({});
               setReintentosImagenes({});
@@ -3015,6 +3164,7 @@ const Stock = () => {
           </div>
 
           <div
+            ref={tablaScrollRef}
             className={[
               "mov-tableWrap",
               "stock-tableWrap",
@@ -3084,6 +3234,7 @@ const Stock = () => {
                         <React.Fragment key={productoId}>
                         <div
                           className={`mov-gridTable mov-gridTable--row ${tieneVariantesParaMostrar ? "prod-row--expandable" : ""} ${variantesAbiertas[productoId] ? "is-variants-open" : ""}`}
+                          data-stock-product-id={productoId}
                           style={{ gridTemplateColumns: GRID_COLS }}
                           role="row"
                           tabIndex={tieneVariantesParaMostrar ? 0 : undefined}
@@ -3324,15 +3475,9 @@ const Stock = () => {
               opciones?.data
             );
 
-            // La respuesta del alta ya confirma que el producto quedó guardado en Balto
-            // y que la sincronización con Tienda Nube fue aceptada por la cola. Ahora
-            // despertamos ese job dirigido y esperamos su estado real: si la respuesta
-            // larga se corta, el backend continúa y este flujo vuelve a consultar.
+            // La respuesta del alta ya confirma el COMMIT local y la aceptación de la
+            // cola durable. El worker continúa Tienda Nube sin bloquear al usuario.
             if (esAltaIndividual) {
-              const tieneSyncTiendaNube = extraerIdsJobsTiendaNube(response).length > 0;
-              if (tieneSyncTiendaNube) {
-                mostrarToastCarga("Sincronizando producto con Tienda Nube...");
-              }
               const confirmacionTiendaNube = await esperarSincronizacionTiendaNube(response);
               setModalAbierto(false);
               notifyListsUpdated();
@@ -3373,14 +3518,9 @@ const Stock = () => {
           onGuardado={async (productoGuardado, opciones = {}) => {
             const productoIdEditado = getProductoId(productoGuardado) || Number(opciones?.productoId || productoEditarId || 0);
 
-            // La respuesta confirma el COMMIT local. El mismo job durable se procesa de
-            // inmediato y se supervisa antes de cerrar; perder una respuesta intermedia
-            // ya no convierte la edición en error ni la deja esperando al cron.
+            // La respuesta confirma el COMMIT local. La grilla usa el producto optimista
+            // y el worker continúa Tienda Nube sin mantener abierto el guardado.
             const response = opciones?.response || opciones;
-            const tieneSyncTiendaNube = extraerIdsJobsTiendaNube(response).length > 0;
-            if (tieneSyncTiendaNube) {
-              mostrarToastCarga("Sincronizando cambios con Tienda Nube...");
-            }
             const confirmacionTiendaNube = await esperarSincronizacionTiendaNube(response);
             handleCerrarEditar();
             mostrarResultadoTiendaNubeConfirmado(
