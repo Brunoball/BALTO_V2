@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import ModalCargaMasiva from "./modales/ModalCargaMasiva";
 import ModalEditarProducto from "./modales/ModalEditarStock";
 import ModalAjustePrecios from "./modales/ModalAjustePrecios";
@@ -3597,34 +3598,36 @@ const Stock = () => {
       />
 
 
-      {cargaPreciosMasivos && (
-        <div className="stock-priceLoadingOverlay" role="status" aria-live="polite">
-          <div className="stock-priceLoadingModal">
-            <div className="stock-priceLoadingModal__icon">
-              <img src={BaltoCargaGif} alt="Balto cargando" className="stock-priceLoadingModal__gif" />
+      {cargaPreciosMasivos &&
+        createPortal(
+          <div className="stock-priceLoadingOverlay" role="status" aria-live="polite">
+            <div className="stock-priceLoadingModal">
+              <div className="stock-priceLoadingModal__icon">
+                <img src={BaltoCargaGif} alt="Balto cargando" className="stock-priceLoadingModal__gif" />
+              </div>
+              <div className="stock-priceLoadingModal__content">
+                <h3>
+                  {cargaPreciosMasivos.tiendaNubeActiva === true
+                    ? "Actualizando precios en Balto y Tienda Nube"
+                    : cargaPreciosMasivos.tiendaNubeActiva === false
+                      ? "Actualizando precios en Balto"
+                      : "Actualizando precios"}
+                </h3>
+                <p>Esta acción puede tardar unos segundos.</p>
+                <small>
+                  {cargaPreciosMasivos.total > 0
+                    ? cargaPreciosMasivos.tiendaNubeActiva === true
+                      ? `${cargaPreciosMasivos.total} precios en proceso y sincronización con Tienda Nube.`
+                      : `${cargaPreciosMasivos.total} precios en proceso.`
+                    : cargaPreciosMasivos.tiendaNubeActiva === true
+                      ? "Sincronizando los cambios con Tienda Nube."
+                      : "Procesando los cambios en Balto."}
+                </small>
+              </div>
             </div>
-            <div className="stock-priceLoadingModal__content">
-              <h3>
-                {cargaPreciosMasivos.tiendaNubeActiva === true
-                  ? "Actualizando precios en Balto y Tienda Nube"
-                  : cargaPreciosMasivos.tiendaNubeActiva === false
-                    ? "Actualizando precios en Balto"
-                    : "Actualizando precios"}
-              </h3>
-              <p>Esta acción puede tardar unos segundos.</p>
-              <small>
-                {cargaPreciosMasivos.total > 0
-                  ? cargaPreciosMasivos.tiendaNubeActiva === true
-                    ? `${cargaPreciosMasivos.total} precios en proceso y sincronización con Tienda Nube.`
-                    : `${cargaPreciosMasivos.total} precios en proceso.`
-                  : cargaPreciosMasivos.tiendaNubeActiva === true
-                    ? "Sincronizando los cambios con Tienda Nube."
-                    : "Procesando los cambios en Balto."}
-              </small>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {toast ? (
         <Toast
