@@ -4,6 +4,7 @@ import "../../Global/Global_css/Global_Section.css";
 import "../../Global/Global_css/GlobalResponsiveV2.css";
 import "../../Global/Global_css/roots.css";
 import "../../Global/Global_css/Global_oscuro.css";
+import "./Ventas.css";
 
 import Toast from "../../Global/Toast.jsx";
 import Calendario from "../../Global/Calendario/Calendario.jsx";
@@ -614,8 +615,8 @@ export default function Ventas() {
   const yaTieneNC = useMemo(() => Number(selectedRow?.factura_emitida_en_arca || 0) === 1 && Number(selectedRow?.factura_tiene_nota_credito || 0) === 1, [selectedRow]);
   const deleteModalExtraContent = useMemo(() => {
     if (!selectedRow) return null;
-    if (requiereNC) return <div className="extraContent-ventas"><div style={{ fontWeight: 700, marginBottom: 6 }}>Esta venta tiene una factura emitida en ARCA</div><div style={{ lineHeight: 1.5 }}>Antes de eliminarla, primero tenés que emitir una nota de crédito.</div></div>;
-    if (yaTieneNC) return <div style={{ background: "#f6ffed", border: "1px solid #b7eb8f", color: "#237804", borderRadius: 12, padding: 12, marginTop: 10 }}><div style={{ fontWeight: 700, marginBottom: 6 }}>La nota de crédito ya fue emitida</div><div style={{ lineHeight: 1.5 }}>Ahora ya podés eliminar la venta sin problema.</div></div>;
+    if (requiereNC) return <div className="extraContent-ventas extraContent-ventas--warning"><div className="extraContent-ventas__title">Esta venta tiene una factura emitida en ARCA</div><div className="extraContent-ventas__text">Antes de eliminarla, primero tenés que emitir una nota de crédito.</div></div>;
+    if (yaTieneNC) return <div className="extraContent-ventas extraContent-ventas--success"><div className="extraContent-ventas__title">La nota de crédito ya fue emitida</div><div className="extraContent-ventas__text">Ahora ya podés eliminar la venta sin problema.</div></div>;
     return null;
   }, [selectedRow, requiereNC, yaTieneNC]);
   const deleteModalConfig = useMemo(() => {
