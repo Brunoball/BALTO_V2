@@ -3373,7 +3373,7 @@ const Stock = () => {
                       return (
                         <React.Fragment key={productoId}>
                         <div
-                          className={`mov-gridTable mov-gridTable--row ${tieneVariantesParaMostrar ? "prod-row--expandable" : ""} ${variantesAbiertas[productoId] ? "is-variants-open" : ""}`}
+                          className={`mov-gridTable mov-gridTable--row ${tieneVariantesParaMostrar ? "prod-row--expandable" : ""} ${tieneVariantesParaMostrar && variantesAbiertas[productoId] ? "is-variants-open" : ""}`}
                           data-stock-product-id={productoId}
                           style={{ gridTemplateColumns: GRID_COLS }}
                           role="row"
@@ -3558,7 +3558,9 @@ const Stock = () => {
                             </div>
                           </div>
                         </div>
-                        {variantesAbiertas[productoId] ? renderVariantesProducto(prodConImagen) : null}
+                        {tieneVariantesParaMostrar && variantesAbiertas[productoId]
+                          ? renderVariantesProducto(prodConImagen)
+                          : null}
                         </React.Fragment>
                       );
                     })

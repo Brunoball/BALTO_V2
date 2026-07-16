@@ -800,6 +800,10 @@ export default function ModalCargaIndividualProducto({
   const inputImagenRef = useRef(null);
   const categoriasPanelRef = useRef(null);
   const variantesPanelRef = useRef(null);
+  // El estado de React deshabilita el botón en el siguiente render, pero dos clicks
+  // muy rápidos pueden entrar al handler antes de ese render y enviar dos POST. Este
+  // candado sincrónico cierra la ventana y garantiza una sola alta por apertura.
+  const guardandoRef = useRef(false);
 
   const [guardando, setGuardando] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -1568,6 +1572,8 @@ export default function ModalCargaIndividualProducto({
   };
 
   const handleGuardar = async () => {
+    if (guardandoRef.current) return;
+
     const formNormalizado = hydratePricingFormValues(form);
     const errs = validar(formNormalizado);
 
@@ -1583,6 +1589,7 @@ export default function ModalCargaIndividualProducto({
       return;
     }
 
+    guardandoRef.current = true;
     setGuardando(true);
     setErrores({});
     setForm((p) => ({ ...p, ...formNormalizado }));
@@ -1699,6 +1706,7 @@ export default function ModalCargaIndividualProducto({
     } catch (err) {
       mostrarToast(errorToText(err, "Error al guardar el producto"), "error");
     } finally {
+      guardandoRef.current = false;
       setGuardando(false);
     }
   };
