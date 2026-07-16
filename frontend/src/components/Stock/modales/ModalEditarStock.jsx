@@ -1137,6 +1137,7 @@ export default function ModalEditarProducto({
   const categoriasPanelRef = useRef(null);
   const variantesPanelRef = useRef(null);
   const inputImagenRef = useRef(null);
+  const variantesAntesDeDesactivarRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -1454,6 +1455,7 @@ export default function ModalEditarProducto({
       setCargaActiva("producto");
       setErrores({});
       setVariantesEliminadasIds([]);
+      variantesAntesDeDesactivarRef.current = null;
 
       try {
         const url = `${API_URL}?action=stock_producto_obtener&id=${encodeURIComponent(
@@ -2423,8 +2425,17 @@ export default function ModalEditarProducto({
               precios: buildVariantPricePayload(variant),
             }))
         : [];
+      const variantesEliminadasNormalizadas = Array.from(
+        new Set((variantesEliminadasIds || []).map((id) => Number(id)).filter((id) => id > 0))
+      );
       fd.append("variantes", JSON.stringify(variantesPayload));
-      fd.append("variantes_eliminadas_ids", JSON.stringify(variantesEliminadasIds));
+      fd.append("variantes_eliminadas_ids", JSON.stringify(variantesEliminadasNormalizadas));
+      if (variantesEliminadasNormalizadas.length > 0) {
+        // La edición que elimina variantes es una decisión explícita del usuario.
+        // Esto permite desvincular referencias históricas sin convertir el guardado
+        // en un error ambiguo ni obligar a repetir la acción variante por variante.
+        fd.append("confirmar_desvinculacion_variantes", "1");
+      }
 
       if (idUsuarioMaster > 0) {
         fd.append("idUsuarioMaster", String(idUsuarioMaster));
@@ -2475,6 +2486,7 @@ export default function ModalEditarProducto({
         imagen_eliminada: eliminarImagenActual && !nuevaImagenFile,
         imagen_file: nuevaImagenFile || null,
         variantes_desactivadas: !formNormalizado.tiene_variantes,
+        variantes_eliminadas_ids: variantesEliminadasNormalizadas,
         producto_optimista: productoGuardado,
         response: data,
         tiendanube_sync: data?.tiendanube_sync ?? data?.data?.tiendanube_sync ?? null,
@@ -3008,6 +3020,21 @@ export default function ModalEditarProducto({
                           setForm((prev) => {
                             const variantesActuales = Array.isArray(prev.variantes) ? prev.variantes : [];
                             if (!checked) {
+                              // Se conserva una copia sólo dentro del modal para que destildar y
+                              // volver a tildar antes de guardar sea realmente reversible.
+                              variantesAntesDeDesactivarRef.current = variantesActuales.map((variant) => ({
+                                ...variant,
+                                atributos: Array.isArray(variant?.atributos)
+                                  ? variant.atributos.map((attr) => ({ ...attr }))
+                                  : [],
+                                categorias_ids: Array.isArray(variant?.categorias_ids)
+                                  ? [...variant.categorias_ids]
+                                  : [],
+                                precios_extra: Array.isArray(variant?.precios_extra)
+                                  ? variant.precios_extra.map((precio) => ({ ...precio }))
+                                  : [],
+                              }));
+
                               const idsExistentes = variantesActuales
                                 .map((variant) => Number(variant?.id_stock_variante || 0))
                                 .filter((id) => id > 0);
@@ -3026,11 +3053,29 @@ export default function ModalEditarProducto({
                               };
                             }
 
+                            const guardadas = Array.isArray(variantesAntesDeDesactivarRef.current)
+                              ? variantesAntesDeDesactivarRef.current
+                              : [];
+                            const variantesRestauradas = guardadas.length > 0 ? guardadas : variantesActuales;
+                            const idsRestaurados = new Set(
+                              variantesRestauradas
+                                .map((variant) => Number(variant?.id_stock_variante || 0))
+                                .filter((id) => id > 0)
+                            );
+                            if (idsRestaurados.size > 0) {
+                              setVariantesEliminadasIds((ids) =>
+                                (ids || []).filter((id) => !idsRestaurados.has(Number(id)))
+                              );
+                            }
+                            variantesAntesDeDesactivarRef.current = null;
+
                             return {
                               ...prev,
                               tiene_variantes: true,
                               variantes: syncVariantsExtraPrices(
-                                variantesActuales.length ? variantesActuales : [emptyVariantRow(prev.tipos_precio_extra)],
+                                variantesRestauradas.length
+                                  ? variantesRestauradas
+                                  : [emptyVariantRow(prev.tipos_precio_extra)],
                                 prev.tipos_precio_extra
                               ),
                             };

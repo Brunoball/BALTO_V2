@@ -34,6 +34,7 @@ const TOAST_LOADING_DURATION = 300000;
 const PRECIOS_MASIVOS_LOADING_THRESHOLD = 10;
 const STOCK_CHANGE_CHECK_MS = 2500;
 const OPTIMISTIC_PRODUCT_GRACE_MS = 20000;
+const VARIANT_MUTATION_GRACE_MS = 180000;
 
 
 function buildHeadersGET() {
@@ -436,6 +437,25 @@ function preservarVariantesInactivasOmitidas(variantesServidor = [], variantesCo
   );
 }
 
+function aplicarProteccionMutacionVariantes(variantes = [], proteccion = null) {
+  const normalizadas = normalizeVariantesCollection(variantes);
+  if (!proteccion || Number(proteccion?.expiresAt || 0) <= Date.now()) return normalizadas;
+  if (proteccion?.forceNoVariants === true) return [];
+
+  const eliminadas = new Set(
+    Object.keys(proteccion?.deletedIds || {}).map((id) => Number(id)).filter((id) => id > 0)
+  );
+  const estados = proteccion?.desiredActive || {};
+
+  return normalizadas
+    .filter((variante) => !eliminadas.has(getVarianteId(variante)))
+    .map((variante) => {
+      const id = getVarianteId(variante);
+      if (!id || !Object.prototype.hasOwnProperty.call(estados, id)) return variante;
+      return { ...variante, activo: Number(estados[id]) === 1 ? 1 : 0 };
+    });
+}
+
 function variantAttributesLabel(variante = {}) {
   const attrs = Array.isArray(variante?.atributos) ? variante.atributos : [];
   const label = attrs
@@ -682,6 +702,7 @@ const Stock = () => {
   const imagenesConocidasPorProductoRef = useRef({});
   const productosOptimistasRef = useRef({});
   const variantesPorProductoRef = useRef({});
+  const mutacionesVariantesRef = useRef({});
   const impactoEliminarRequestRef = useRef(0);
   const impactoEliminarVarianteRequestRef = useRef(0);
   const productosRequestRef = useRef(0);
@@ -703,6 +724,59 @@ const Stock = () => {
   useEffect(() => {
     variantesPorProductoRef.current = variantesPorProducto;
   }, [variantesPorProducto]);
+
+  const obtenerProteccionMutacionVariantes = useCallback((productoId) => {
+    const id = Number(productoId || 0);
+    if (!id) return null;
+    const registro = mutacionesVariantesRef.current?.[id] || null;
+    if (!registro) return null;
+    if (Number(registro?.expiresAt || 0) > Date.now()) return registro;
+
+    const next = { ...(mutacionesVariantesRef.current || {}) };
+    delete next[id];
+    mutacionesVariantesRef.current = next;
+    return null;
+  }, []);
+
+  const registrarMutacionVariantes = useCallback((productoId, cambios = {}) => {
+    const id = Number(productoId || 0);
+    if (!id) return null;
+
+    const actual = obtenerProteccionMutacionVariantes(id) || {};
+    const deletedIds = { ...(actual?.deletedIds || {}) };
+    (Array.isArray(cambios?.deletedIds) ? cambios.deletedIds : []).forEach((varianteId) => {
+      const idVariante = Number(varianteId || 0);
+      if (idVariante > 0) deletedIds[idVariante] = true;
+    });
+
+    const desiredActive = { ...(actual?.desiredActive || {}) };
+    Object.entries(cambios?.desiredActive || {}).forEach(([varianteId, estado]) => {
+      const idVariante = Number(varianteId || 0);
+      if (idVariante > 0) desiredActive[idVariante] = Number(estado) === 1 ? 1 : 0;
+    });
+
+    Object.keys(deletedIds).forEach((varianteId) => {
+      delete desiredActive[varianteId];
+    });
+
+    const fuerzaVariantesDefinida = Object.prototype.hasOwnProperty.call(cambios || {}, "forceNoVariants");
+    const registro = {
+      deletedIds,
+      desiredActive,
+      // Un guardado que vuelve a habilitar variantes debe poder levantar de forma
+      // explícita la protección de "producto simple" creada por una acción anterior.
+      forceNoVariants: fuerzaVariantesDefinida
+        ? cambios.forceNoVariants === true
+        : actual?.forceNoVariants === true,
+      expiresAt: Date.now() + Math.max(15000, Number(cambios?.duracionMs || VARIANT_MUTATION_GRACE_MS)),
+    };
+
+    mutacionesVariantesRef.current = {
+      ...(mutacionesVariantesRef.current || {}),
+      [id]: registro,
+    };
+    return registro;
+  }, [obtenerProteccionMutacionVariantes]);
 
   const cancelarRestauracionScrollTabla = useCallback(() => {
     tablaScrollRafRef.current.forEach((id) => window.cancelAnimationFrame(id));
@@ -1129,6 +1203,24 @@ const Stock = () => {
     (items = []) => {
       const normalizados = normalizeProductosCollection(items)
         .map((item) => aplicarProductoOptimista(item))
+        .map((item) => {
+          const idProducto = getProductoId(item);
+          const proteccion = obtenerProteccionMutacionVariantes(idProducto);
+          if (!item || proteccion?.forceNoVariants !== true) return item;
+
+          // Durante la ventana en que Tienda Nube procesa la conversión, cualquier
+          // snapshot viejo se representa como producto simple y no puede reabrir filas.
+          return normalizeProductoListItem({
+            ...item,
+            tiene_variantes: false,
+            cantidad_variantes: 0,
+            cantidad_variantes_total: 0,
+            cantidad_variantes_activas: 0,
+            cantidad_variantes_inactivas: 0,
+            stock_variantes: 0,
+            variantes: [],
+          });
+        })
         .filter(Boolean);
 
       // En la primera página se conserva también un alta local que todavía no
@@ -1167,6 +1259,7 @@ const Stock = () => {
       completarProductoConImagenConocida,
       listarProductosOptimistasActivos,
       mostrarDadosDeBaja,
+      obtenerProteccionMutacionVariantes,
       paginaActual,
       registrarImagenConocidaProducto,
     ]
@@ -1485,6 +1578,22 @@ const Stock = () => {
         Number(opciones?.productoId || 0);
       const imagenActualizada = !!opciones?.imagen_actualizada;
       const imagenEliminada = !!opciones?.imagen_eliminada;
+      const variantesEliminadasIds = Array.isArray(opciones?.variantes_eliminadas_ids)
+        ? opciones.variantes_eliminadas_ids.map((id) => Number(id)).filter((id) => id > 0)
+        : [];
+
+      const estadoVariantesDefinido = Object.prototype.hasOwnProperty.call(
+        opciones || {},
+        "variantes_desactivadas"
+      );
+      if (productoId > 0 && (variantesEliminadasIds.length > 0 || estadoVariantesDefinido)) {
+        registrarMutacionVariantes(productoId, {
+          deletedIds: variantesEliminadasIds,
+          ...(estadoVariantesDefinido
+            ? { forceNoVariants: opciones?.variantes_desactivadas === true }
+            : {}),
+        });
+      }
 
       if (productoId > 0 && imagenActualizada && opciones?.imagen_file) {
         aplicarImagenTemporalProducto(productoId, opciones.imagen_file);
@@ -1505,10 +1614,19 @@ const Stock = () => {
         rearmarMiniaturasProductos([productoConImagen], Date.now());
 
         if (productoId > 0 && Array.isArray(productoConImagen?.variantes)) {
-          setVariantesPorProducto((prev) => ({
-            ...prev,
-            [productoId]: normalizeVariantesCollection(productoConImagen.variantes),
-          }));
+          const proteccion = obtenerProteccionMutacionVariantes(productoId);
+          const variantesProtegidas = aplicarProteccionMutacionVariantes(
+            productoConImagen.variantes,
+            proteccion
+          );
+          setVariantesPorProducto((prev) => {
+            const next = {
+              ...prev,
+              [productoId]: variantesProtegidas,
+            };
+            variantesPorProductoRef.current = next;
+            return next;
+          });
           setErrorVariantesPorProducto((prev) => {
             const next = { ...prev };
             delete next[productoId];
@@ -1543,7 +1661,9 @@ const Stock = () => {
       programarRefrescoPostImagen,
       rearmarMiniaturasProductos,
       registrarImagenConocidaProducto,
+      registrarMutacionVariantes,
       registrarProductoOptimista,
+      obtenerProteccionMutacionVariantes,
       refrescarListaYProducto,
     ]
   );
@@ -1681,12 +1801,15 @@ const Stock = () => {
       // Un webhook o una lectura transitoria puede omitir durante unos segundos una
       // variante que Balto ya confirmó como dada de baja. No se la quita de la vista:
       // sólo una eliminación permanente explícita puede hacer desaparecer esa fila.
-      const variantes = opciones?.permitirOmitidas === true
+      const variantesBase = opciones?.permitirOmitidas === true
         ? variantesNormalizadas
         : preservarVariantesInactivasOmitidas(
             variantesNormalizadas,
             variantesPorProductoRef.current?.[id] || []
           );
+      const proteccionMutacion = obtenerProteccionMutacionVariantes(id);
+      const variantes = aplicarProteccionMutacionVariantes(variantesBase, proteccionMutacion);
+      const productoForzadoSimple = proteccionMutacion?.forceNoVariants === true;
       const variantesActivas = variantes.filter((variante) => Number(variante?.activo ?? 1) === 1);
       const stockVariantesActivas = variantesActivas.reduce((total, variante) => {
         const stock = Number(variante?.stock ?? 0);
@@ -1706,9 +1829,13 @@ const Stock = () => {
           getProductoId(producto) === id
             ? {
                 ...producto,
-                tiene_variantes: variantes.length > 0 || !!producto?.tiene_variantes,
-                stock: stockVariantesActivas,
-                stock_variantes: stockVariantesActivas,
+                tiene_variantes: productoForzadoSimple
+                  ? false
+                  : (variantes.length > 0 || !!producto?.tiene_variantes),
+                stock: productoForzadoSimple && variantes.length === 0
+                  ? Number(producto?.stock ?? 0)
+                  : stockVariantesActivas,
+                stock_variantes: productoForzadoSimple ? 0 : stockVariantesActivas,
                 ...(categoriaFiltro
                   ? {}
                   : {
@@ -1742,7 +1869,7 @@ const Stock = () => {
         setLoadingVariantesPorProducto((prev) => ({ ...prev, [id]: false }));
       }
     }
-  }, [categoriaFiltro, obtenerProductoOptimistaActivo]);
+  }, [categoriaFiltro, obtenerProductoOptimistaActivo, obtenerProteccionMutacionVariantes]);
 
   const toggleVariantesProducto = useCallback((producto) => {
     const id = getProductoId(producto);
@@ -2463,6 +2590,14 @@ const Stock = () => {
 
       const confirmacionTiendaNube = await esperarSincronizacionTiendaNube(data);
 
+      registrarMutacionVariantes(productoId, permanente
+        ? {
+            deletedIds: [varianteId],
+            forceNoVariants: data?.producto_quedo_sin_variantes === true,
+          }
+        : { desiredActive: { [varianteId]: 0 }, forceNoVariants: false }
+      );
+
       const varianteRespuesta = data?.variante || data?.data?.variante || null;
       limpiarProductoOptimista(productoId);
       setVariantesPorProducto((prev) => {
@@ -2530,23 +2665,28 @@ const Stock = () => {
 
       const confirmacionTiendaNube = await esperarSincronizacionTiendaNube(data);
 
+      registrarMutacionVariantes(productoId, {
+        desiredActive: { [varianteId]: 1 },
+        forceNoVariants: false,
+      });
+
       const varianteRespuesta = data?.variante || data?.data?.variante || null;
       limpiarProductoOptimista(productoId);
       setVariantesPorProducto((prev) => {
         const actuales = Array.isArray(prev[productoId]) ? prev[productoId] : [];
         if (!actuales.length && !varianteRespuesta) return prev;
-        return {
-          ...prev,
-          [productoId]: actuales.map((item) => {
-            const idItem = getVarianteId(item);
-            if (idItem !== varianteId) return item;
-            return {
-              ...item,
-              ...(varianteRespuesta && typeof varianteRespuesta === "object" ? varianteRespuesta : {}),
-              activo: 1,
-            };
-          }),
-        };
+        const actualizadas = actuales.map((item) => {
+          const idItem = getVarianteId(item);
+          if (idItem !== varianteId) return item;
+          return {
+            ...item,
+            ...(varianteRespuesta && typeof varianteRespuesta === "object" ? varianteRespuesta : {}),
+            activo: 1,
+          };
+        });
+        const next = { ...prev, [productoId]: actualizadas };
+        variantesPorProductoRef.current = next;
+        return next;
       });
 
       await refrescarDespuesDeGuardar(null, { forzar_captura_scroll: false });
