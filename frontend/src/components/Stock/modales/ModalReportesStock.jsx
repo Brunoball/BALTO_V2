@@ -4,10 +4,13 @@ import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faArrowsRotate,
+  faBoxesStacked,
   faChartColumn,
   faFileExcel,
   faFilePdf,
   faFilter,
+  faLayerGroup,
+  faMoneyBillTrendUp,
   faTriangleExclamation,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
@@ -63,6 +66,136 @@ function formatCell(value, type) {
   if (type === "money") return formatMoney(value);
   if (type === "number") return formatNumber(value);
   return String(value);
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function getColumnDescriptor(column = {}) {
+  return normalizeText(`${column?.key || ""} ${column?.label || ""}`);
+}
+
+function isStatusColumn(column = {}) {
+  return /estado|situacion/.test(getColumnDescriptor(column));
+}
+
+function isStockQuantityColumn(column = {}) {
+  const descriptor = getColumnDescriptor(column);
+  return (
+    /stock/.test(descriptor) &&
+    !/(valor|valuad|importe|monto|precio|costo)/.test(descriptor) &&
+    column?.type !== "money"
+  );
+}
+
+function getVisibleReportColumns(columns = []) {
+  return (Array.isArray(columns) ? columns : []).filter((column) => !isStatusColumn(column));
+}
+
+function getReportGridTemplate(columns = []) {
+  if (!Array.isArray(columns) || columns.length === 0) return "minmax(0, 1fr)";
+
+  return columns
+    .map((column) => {
+      const descriptor = getColumnDescriptor(column);
+
+      if (column?.type === "money" || column?.type === "number") {
+        return "minmax(105px, .8fr)";
+      }
+
+      if (/(producto|nombre|descripcion|categor)/.test(descriptor)) {
+        return "minmax(165px, 1.4fr)";
+      }
+
+      return "minmax(125px, 1fr)";
+    })
+    .join(" ");
+}
+
+function getRowIndicator(row = {}, columns = []) {
+  const statusColumn = columns.find(isStatusColumn);
+  const statusValue = statusColumn ? normalizeText(row?.[statusColumn.key]) : "";
+
+  if (/(baja|inactiv|sin stock|agotad|cancel)/.test(statusValue)) {
+    return { tone: "danger", label: "Crítico" };
+  }
+  if (/(bajo|pendiente|alerta)/.test(statusValue)) {
+    return { tone: "warning", label: "Atención" };
+  }
+  if (/(activ|disponible|complet|vigente)/.test(statusValue)) {
+    return { tone: "success", label: "Disponible" };
+  }
+
+  const stockColumn = columns.find(isStockQuantityColumn);
+  if (stockColumn) {
+    const stock = Number(row?.[stockColumn.key] || 0);
+    if (stock <= 0) return { tone: "danger", label: "Sin stock" };
+    if (stock <= 10) return { tone: "warning", label: "Stock bajo" };
+    return { tone: "success", label: "Disponible" };
+  }
+
+  return { tone: "neutral", label: "Sin indicador" };
+}
+
+function getSummaryVisual(item = {}, index = 0) {
+  const label = normalizeText(item?.label);
+
+  if (/(venta|monto|importe|valor|total)/.test(label)) {
+    return { icon: faMoneyBillTrendUp, tone: "green" };
+  }
+  if (/categor/.test(label)) {
+    return { icon: faLayerGroup, tone: "pink" };
+  }
+  if (/(producto|item|unidad|stock)/.test(label)) {
+    return { icon: faBoxesStacked, tone: "blue" };
+  }
+
+  const fallbackTones = ["yellow", "blue", "green", "pink"];
+  return { icon: faChartColumn, tone: fallbackTones[index % fallbackTones.length] };
+}
+
+function getReportCellPresentation(column = {}, value) {
+  if (value === null || value === undefined || value === "") return null;
+
+  const descriptor = getColumnDescriptor(column);
+  const formattedValue = formatCell(value, column?.type);
+
+  if (/categor/.test(descriptor)) return null;
+
+  if (/\bsku\b|codigo/.test(descriptor)) {
+    return { label: formattedValue, tone: "code" };
+  }
+
+  if (/(posicion|ranking|puesto)/.test(descriptor)) {
+    return { label: `#${formattedValue}`, tone: "rank" };
+  }
+
+  if (isStockQuantityColumn(column)) {
+    const stock = Number(value || 0);
+    if (stock <= 0) return { label: "Sin stock", tone: "danger" };
+    if (stock <= 10) return { label: formattedValue, tone: "warning" };
+    return { label: formattedValue, tone: "success" };
+  }
+
+  return null;
+}
+
+function renderReportCell(column, value) {
+  const presentation = getReportCellPresentation(column, value);
+  if (!presentation) return formatCell(value, column?.type);
+
+  return (
+    <span
+      className={`rs-tableChip rs-tableChip--${presentation.tone}`}
+      title={presentation.label}
+    >
+      {presentation.label}
+    </span>
+  );
 }
 
 function safeFilename(value) {
@@ -198,7 +331,7 @@ const ModalReportesStock = ({ open, onClose, onToast, categorias = [] }) => {
   }, [onClose, open]);
 
   const downloadExcel = () => {
-    const columns = Array.isArray(reporte?.columnas) ? reporte.columnas : [];
+    const columns = getVisibleReportColumns(reporte?.columnas);
     const rows = Array.isArray(reporte?.filas) ? reporte.filas : [];
     const summaries = Array.isArray(reporte?.resumen) ? reporte.resumen : [];
     if (!columns.length) return;
@@ -304,7 +437,9 @@ const ModalReportesStock = ({ open, onClose, onToast, categorias = [] }) => {
 
   if (!open || typeof document === "undefined") return null;
 
-  const columns = Array.isArray(reporte?.columnas) ? reporte.columnas : [];
+  const reportColumns = Array.isArray(reporte?.columnas) ? reporte.columnas : [];
+  const columns = getVisibleReportColumns(reportColumns);
+  const reportGridTemplate = getReportGridTemplate(columns);
   const rows = Array.isArray(reporte?.filas) ? reporte.filas : [];
   const summaries = Array.isArray(reporte?.resumen) ? reporte.resumen : [];
   const unlinkedItems = Number(reporte?.meta?.items_sin_producto || 0);
@@ -415,12 +550,25 @@ const ModalReportesStock = ({ open, onClose, onToast, categorias = [] }) => {
             ) : reporte ? (
               <>
                 <div className="rs-summaryGrid">
-                  {summaries.map((item, index) => (
-                    <article className="rs-summaryCard" key={`${item.label}-${index}`}>
-                      <span>{item.label}</span>
-                      <strong>{formatCell(item.value, item.type)}</strong>
-                    </article>
-                  ))}
+                  {summaries.map((item, index) => {
+                    const visual = getSummaryVisual(item, index);
+                    return (
+                      <article
+                        className={`rs-summaryCard rs-summaryCard--${visual.tone}`}
+                        key={`${item.label}-${index}`}
+                      >
+                        <div className="rs-summaryCard__icon" aria-hidden="true">
+                          <FontAwesomeIcon icon={visual.icon} />
+                        </div>
+                        <div className="rs-summaryCard__body">
+                          <span>{item.label}</span>
+                          <strong title={formatCell(item.value, item.type)}>
+                            {formatCell(item.value, item.type)}
+                          </strong>
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
 
                 {unlinkedItems > 0 ? (
@@ -433,25 +581,69 @@ const ModalReportesStock = ({ open, onClose, onToast, categorias = [] }) => {
                   </div>
                 ) : null}
 
+                <div className="rs-tableMeta">
+                  <span>Detalle del reporte</span>
+                  <div className="rs-tableLegend" aria-label="Indicadores de estado">
+                    <span><i className="rs-statusDot rs-statusDot--success" /> Disponible</span>
+                    <span><i className="rs-statusDot rs-statusDot--warning" /> Atención</span>
+                    <span><i className="rs-statusDot rs-statusDot--danger" /> Crítico</span>
+                  </div>
+                </div>
+
                 <div className="rs-tableWrap">
-                  <table className="rs-table">
-                    <thead>
-                      <tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr>
-                    </thead>
-                    <tbody>
+                  <div
+                    className="rs-table"
+                    role="table"
+                    aria-label="Detalle del reporte de stock"
+                    aria-colcount={columns.length}
+                    aria-rowcount={rows.length + 1}
+                    style={{
+                      "--rs-grid-template": reportGridTemplate,
+                      "--rs-column-count": Math.max(columns.length, 1),
+                    }}
+                  >
+                    <div className="rs-table__head" role="rowgroup">
+                      <div className="rs-table__row rs-table__row--head" role="row">
+                        {columns.map((column) => (
+                          <div
+                            role="columnheader"
+                            key={column.key}
+                            className={`rs-table__cell${column.type === "money" || column.type === "number" ? " is-number" : ""}`}
+                          >
+                            {column.label}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rs-table__body" role="rowgroup">
                       {rows.length === 0 ? (
-                        <tr><td colSpan={Math.max(1, columns.length)} className="rs-table__empty">No hay datos que cumplan los filtros seleccionados.</td></tr>
-                      ) : rows.map((row, rowIndex) => (
-                        <tr key={`${row?.id_stock_producto || "row"}-${row?.id_stock_variante || 0}-${rowIndex}`}>
-                          {columns.map((column) => (
-                            <td key={column.key} className={column.type === "money" || column.type === "number" ? "is-number" : ""}>
-                              {formatCell(row?.[column.key], column.type)}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                        <div className="rs-table__empty" role="row">
+                          <div role="cell">No hay datos que cumplan los filtros seleccionados.</div>
+                        </div>
+                      ) : rows.map((row, rowIndex) => {
+                        const indicator = getRowIndicator(row, reportColumns);
+                        return (
+                          <div
+                            role="row"
+                            className={`rs-table__row rs-tableRow rs-tableRow--${indicator.tone}`}
+                            key={`${row?.id_stock_producto || "row"}-${row?.id_stock_variante || 0}-${rowIndex}`}
+                            title={`Indicador: ${indicator.label}`}
+                          >
+                            {columns.map((column) => (
+                              <div
+                                role="cell"
+                                key={column.key}
+                                className={`rs-table__cell${column.type === "money" || column.type === "number" ? " is-number" : ""}`}
+                              >
+                                {renderReportCell(column, row?.[column.key])}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="rs-reportFooter">Total de filas: {formatNumber(reporte?.meta?.total_filas || rows.length)}</div>
