@@ -4,6 +4,7 @@ import ModalCargaMasiva from "./modales/ModalCargaMasiva";
 import ModalEditarProducto from "./modales/ModalEditarStock";
 import ModalAjustePrecios from "./modales/ModalAjustePrecios";
 import ModalHistorialPreciosProducto from "./modales/ModalHistorialPreciosProducto";
+import ModalReportesStock from "./modales/ModalReportesStock";
 import ModalDarBajaStock from "./modales/ModalDarBajaStock";
 import ModalEliminarStock from "./modales/ModalEliminarStock";
 import Toast from "../Global/Toast";
@@ -25,6 +26,7 @@ import {
   faMoneyBillTrendUp,
   faClockRotateLeft,
   faRotateLeft,
+  faChartColumn,
 } from "@fortawesome/free-solid-svg-icons";
 import "./Stock.css";
 import "../Global/Global_css/Global_Section.css";
@@ -664,6 +666,7 @@ const Stock = () => {
   const [modalEditarAbierto, setModalEditarAbierto] = useState(false);
   const [productoEditarId, setProductoEditarId] = useState(null);
   const [modalAjustePreciosAbierto, setModalAjustePreciosAbierto] = useState(false);
+  const [modalReportesAbierto, setModalReportesAbierto] = useState(false);
   const [productoHistorialPrecios, setProductoHistorialPrecios] = useState(null);
 
   const [modalDarBajaProductoAbierto, setModalDarBajaProductoAbierto] = useState(false);
@@ -3094,7 +3097,7 @@ const Stock = () => {
   };
 
   const renderStockToolbarActions = (extraClassName = "", options = {}) => {
-    const { showToggleBajas = true, showAjustePrecios = true, showAgregarProducto = true } = options;
+    const { showToggleBajas = true, showReportes = true, showAjustePrecios = true, showAgregarProducto = true } = options;
 
     return (
       <div className={["stock-tableActions", extraClassName].filter(Boolean).join(" ")}>
@@ -3130,6 +3133,19 @@ const Stock = () => {
             <span className="stock-actionBtn__text">
               {mostrarDadosDeBaja ? "Ver activos" : "Ver dados de baja"}
             </span>
+          </button>
+        ) : null}
+
+        {showReportes ? (
+          <button
+            type="button"
+            className="mov-btn mov-btn--ghost stock-actionBtn stock-actionBtn--reportes"
+            aria-label="Reportes de Stock"
+            title="Reportes de Stock"
+            onClick={() => setModalReportesAbierto(true)}
+          >
+            <FontAwesomeIcon icon={faChartColumn} />
+            <span className="stock-actionBtn__text">Reportes</span>
           </button>
         ) : null}
 
@@ -3275,7 +3291,7 @@ const Stock = () => {
             </div>
 
             <div className="mov-card__actions stock-tableActionsAddMobile">
-              {renderStockToolbarActions("", { showToggleBajas: false, showAjustePrecios: false })}
+              {renderStockToolbarActions("", { showToggleBajas: false, showReportes: false, showAjustePrecios: false })}
             </div>
           </div>
 
@@ -3577,6 +3593,15 @@ const Stock = () => {
         </section>
       </div>
 
+
+      {modalReportesAbierto && (
+        <ModalReportesStock
+          open={modalReportesAbierto}
+          onClose={() => setModalReportesAbierto(false)}
+          onToast={mostrarToast}
+          categorias={categorias}
+        />
+      )}
 
       {modalAjustePreciosAbierto && (
         <ModalAjustePrecios

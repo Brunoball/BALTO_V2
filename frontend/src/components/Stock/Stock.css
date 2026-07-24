@@ -2005,3 +2005,21 @@ html[data-theme="oscuro"] .stock-priceLoadingModal__content small {
 }
 
 /* Modal local para elegir entre baja lógica y eliminación permanente */
+
+/* Reportes de Stock */
+.stock-tableActions .stock-actionBtn--reportes {
+  border-color: rgba(0, 85, 187, 0.26);
+  color: var(--nv-action, #0055bb);
+  background: rgba(0, 85, 187, 0.06);
+}
+
+.stock-tableActions .stock-actionBtn--reportes:hover:not(:disabled) {
+  border-color: rgba(0, 85, 187, 0.42);
+  background: rgba(0, 85, 187, 0.12);
+}
+
+html[data-theme="oscuro"] .stock-tableActions .stock-actionBtn--reportes {
+  border-color: rgba(78, 161, 255, 0.34);
+  color: #78b7ff;
+  background: rgba(78, 161, 255, 0.10);
+}
