@@ -39,7 +39,16 @@ const DEFAULT_CONDICIONES_PRESUPUESTO = {
 };
 
 function buildDefaultCondicionesPresupuesto() {
-  return { ...DEFAULT_CONDICIONES_PRESUPUESTO };
+  return {
+    ...DEFAULT_CONDICIONES_PRESUPUESTO,
+    plazoEntrega: upperInput(DEFAULT_CONDICIONES_PRESUPUESTO.plazoEntrega),
+    formaPago: upperInput(DEFAULT_CONDICIONES_PRESUPUESTO.formaPago),
+    condicionesComerciales: upperInput(DEFAULT_CONDICIONES_PRESUPUESTO.condicionesComerciales),
+    notas: upperInput(DEFAULT_CONDICIONES_PRESUPUESTO.notas),
+    garantia: upperInput(DEFAULT_CONDICIONES_PRESUPUESTO.garantia),
+    lugarEntrega: upperInput(DEFAULT_CONDICIONES_PRESUPUESTO.lugarEntrega),
+    moneda: upperInput(DEFAULT_CONDICIONES_PRESUPUESTO.moneda),
+  };
 }
 
 function todayISO() {
@@ -78,13 +87,13 @@ function normalizeCondicionesPresupuesto(input, fechaBase) {
   return {
     validez_dias: validezDias,
     fecha_validez: fechaValidez,
-    plazo_entrega: safeStr(data.plazoEntrega ?? data.plazo_entrega),
-    forma_pago: safeStr(data.formaPago ?? data.forma_pago),
-    condiciones_comerciales: safeStr(data.condicionesComerciales ?? data.condiciones_comerciales),
-    notas: safeStr(data.notas),
-    garantia: safeStr(data.garantia),
-    lugar_entrega: safeStr(data.lugarEntrega ?? data.lugar_entrega),
-    moneda: safeStr(data.moneda || "ARS"),
+    plazo_entrega: upperStr(data.plazoEntrega ?? data.plazo_entrega),
+    forma_pago: upperStr(data.formaPago ?? data.forma_pago),
+    condiciones_comerciales: upperStr(data.condicionesComerciales ?? data.condiciones_comerciales),
+    notas: upperStr(data.notas),
+    garantia: upperStr(data.garantia),
+    lugar_entrega: upperStr(data.lugarEntrega ?? data.lugar_entrega),
+    moneda: upperStr(data.moneda || "ARS"),
   };
 }
 
@@ -95,6 +104,14 @@ function safeNumber(v) {
 
 function safeStr(v) {
   return String(v ?? "").trim();
+}
+
+function upperInput(v) {
+  return String(v ?? "").toLocaleUpperCase("es-AR");
+}
+
+function upperStr(v) {
+  return upperInput(v).trim();
 }
 
 function normalizeText(v) {
@@ -299,11 +316,11 @@ function normalizeConfigFacturacionPresupuesto(cfg) {
 }
 
 function getDetalleNombre(d) {
-  return safeStr(d?.nombre || d?.descripcion || d?.detalle || d?.producto || d?.label || "");
+  return upperStr(d?.nombre || d?.descripcion || d?.detalle || d?.producto || d?.label || "");
 }
 
 function getDetalleCodigo(d) {
-  return safeStr(d?.sku || d?.codigo || d?.codigo_barra || d?.codigo_producto || "");
+  return upperStr(d?.sku || d?.codigo || d?.codigo_barra || d?.codigo_producto || "");
 }
 
 function getStockDisponible(detalle) {
@@ -686,6 +703,55 @@ function buildEmptyRow() {
   };
 }
 
+function buildRowFromModelItem(item) {
+  const raw = item && typeof item === "object" ? item : {};
+  const idDetalle = Number(raw.id_detalle || 0);
+  const idStockProducto = Number(raw.id_stock_producto || 0);
+  const idStockVariante = Number(raw.id_stock_variante || 0);
+  const cantidad = safeNumber(raw.cantidad);
+  const precio = safeNumber(raw.precio ?? raw.precio_unitario);
+  const ivaPct = safeNumber(raw.iva_pct ?? raw.ivaPct);
+
+  return {
+    ...buildEmptyRow(),
+    id_detalle: idDetalle > 0 ? idDetalle : NULL_OPTION,
+    id_stock_producto: idStockProducto > 0 ? idStockProducto : NULL_OPTION,
+    id_stock_variante: idStockVariante > 0 ? idStockVariante : NULL_OPTION,
+    detalleText: upperStr(raw.descripcion || raw.detalle || raw.nombre || raw.detalle_nombre),
+    codigo: upperStr(raw.codigo || raw.sku || raw.stock_producto_sku || raw.stock_variante_sku),
+    cantidad: cantidad > 0 ? cantidad : 1,
+    precio: precio >= 0 ? precio : 0,
+    ivaPct: ivaPct >= 0 ? ivaPct : 0,
+    stock_disponible: null,
+    sinStock: false,
+    precios_disponibles: [],
+    id_tipo_precio_stock: NULL_OPTION,
+    precio_tipo_label: "",
+  };
+}
+
+function buildCondicionesFromModel(modelo) {
+  const raw = modelo && typeof modelo === "object" ? modelo : {};
+  const c = raw.condiciones_presupuesto && typeof raw.condiciones_presupuesto === "object"
+    ? raw.condiciones_presupuesto
+    : {};
+  const defaults = buildDefaultCondicionesPresupuesto();
+  const validez = raw.validez_dias ?? c.validez_dias ?? c.validezDias ?? defaults.validezDias;
+
+  return {
+    validezDias: validez === null || validez === undefined ? defaults.validezDias : String(validez),
+    plazoEntrega: upperStr(raw.plazo_entrega || c.plazo_entrega || c.plazoEntrega || defaults.plazoEntrega),
+    formaPago: upperStr(raw.forma_pago || c.forma_pago || c.formaPago || defaults.formaPago),
+    condicionesComerciales: upperStr(
+      raw.condiciones_comerciales || c.condiciones_comerciales || c.condicionesComerciales || defaults.condicionesComerciales
+    ),
+    notas: upperStr(raw.notas || raw.observaciones || c.notas || defaults.notas),
+    garantia: upperStr(raw.garantia || c.garantia || defaults.garantia),
+    lugarEntrega: upperStr(raw.lugar_entrega || c.lugar_entrega || c.lugarEntrega || defaults.lugarEntrega),
+    moneda: upperStr(raw.moneda || c.moneda || defaults.moneda || "ARS"),
+  };
+}
+
 function normalizeLists(lists) {
   const src = lists && typeof lists === "object" ? lists : {};
   const l = src.listas && typeof src.listas === "object" ? src.listas : src;
@@ -769,7 +835,7 @@ async function apiPostForm(url, formData) {
   return await parseJsonOrThrow(res);
 }
 
-export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, onSaved }) {
+export default function ModalNuevoPresupuesto({ open, lists, initialModel = null, modelsOpen = false, onOpenModels, onClose, onToast, onSaved }) {
   const API = `${BASE_URL}/api.php`;
   const API_PADRON_CUIT = `${API}?action=padron_cuit&op=padron_cuit`;
   const API_SAVE_CLIENTE_DESDE_ARCA = `${API}?action=cliente_fiscal_crear_desde_arca`;
@@ -787,6 +853,11 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
   const [observaciones, setObservaciones] = useState("");
   const [condiciones, setCondiciones] = useState(buildDefaultCondicionesPresupuesto);
   const [rows, setRows] = useState([buildEmptyRow()]);
+  const [presupuestoPersonalizado, setPresupuestoPersonalizado] = useState(false);
+  const [modeloOrigen, setModeloOrigen] = useState(null);
+  const [guardarComoModelo, setGuardarComoModelo] = useState(false);
+  const [modeloNombre, setModeloNombre] = useState("");
+  const [modeloDescripcion, setModeloDescripcion] = useState("");
   const [saving, setSaving] = useState(false);
   const [configFacturacion, setConfigFacturacion] = useState(null);
   const [addUI, setAddUI] = useState({
@@ -826,6 +897,11 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
     setObservaciones("");
     setCondiciones(buildDefaultCondicionesPresupuesto());
     setRows([buildEmptyRow()]);
+    setPresupuestoPersonalizado(false);
+    setModeloOrigen(null);
+    setGuardarComoModelo(false);
+    setModeloNombre("");
+    setModeloDescripcion("");
     setSaving(false);
     setAddUI({ open: false, cuit: "", fiscalData: null, fiscalError: "", lookupLoading: false, saving: false });
     let alive = true;
@@ -842,6 +918,21 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
     };
   }, [open, API]);
 
+  useEffect(() => {
+    if (!open) return;
+    const modelo = initialModel && Number(initialModel?.id_modelo || 0) > 0 ? initialModel : null;
+    if (!modelo) return;
+    const modelItems = Array.isArray(modelo.items) ? modelo.items : [];
+    setObservaciones(upperInput(modelo.observaciones || modelo.notas));
+    setCondiciones(buildCondicionesFromModel(modelo));
+    setRows(modelItems.length ? modelItems.map(buildRowFromModelItem) : [buildEmptyRow()]);
+    setPresupuestoPersonalizado(Number(modelo.es_personalizado ?? 1) === 1);
+    setModeloOrigen(modelo);
+    setGuardarComoModelo(false);
+    setModeloNombre("");
+    setModeloDescripcion("");
+  }, [initialModel, open]);
+
   const updateRow = useCallback((rowId, patch) => {
     setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, ...patch } : r)));
   }, []);
@@ -855,7 +946,27 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
   }, []);
 
   const updateCondicion = useCallback((key, value) => {
-    setCondiciones((prev) => ({ ...prev, [key]: value }));
+    const nextValue = key === "validezDias" ? value : upperInput(value);
+    setCondiciones((prev) => ({ ...prev, [key]: nextValue }));
+  }, []);
+
+  const handlePresupuestoPersonalizadoChange = useCallback((enabled) => {
+    const next = Boolean(enabled);
+    setPresupuestoPersonalizado(next);
+    if (next) {
+      setRows((prev) => prev.map((row) => ({
+        ...row,
+        precios_disponibles: [],
+        id_tipo_precio_stock: NULL_OPTION,
+        precio_tipo_label: "",
+      })));
+    } else {
+      setRows((prev) => prev.map((row) => (
+        row.sinStock || isSinStock(row.stock_disponible)
+          ? { ...row, cantidad: "" }
+          : row
+      )));
+    }
   }, []);
 
   const resetAddUIState = useCallback(() => {
@@ -882,7 +993,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
     });
 
     setClienteSel(item);
-    setCliInput(cliente.nombre || "");
+    setCliInput(upperInput(cliente.nombre || ""));
 
     return { ...item, cliente_fiscal: fiscalRaw || null };
   }, []);
@@ -996,12 +1107,13 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
 
     const id = getClienteId(cliente);
     setClienteSel(id ? cliente : null);
-    setCliInput(getClienteNombre(cliente));
+    setCliInput(upperInput(getClienteNombre(cliente)));
   }, [startAddCliente]);
 
   const handleClienteInputChange = useCallback((value) => {
-    setCliInput(value);
-    const norm = normalizeText(value);
+    const upperValue = upperInput(value);
+    setCliInput(upperValue);
+    const norm = normalizeText(upperValue);
     const exact = clientesList.find((c) => !isAddClienteOption(c) && normalizeText(getClienteNombre(c)) === norm) || null;
     setClienteSel(exact);
   }, [clientesList]);
@@ -1021,25 +1133,25 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
       id_stock_variante: idStockVariante || NULL_OPTION,
       detalleText: nombreDetalle,
       codigo: getDetalleCodigo(detalle),
-      cantidad: sinStock ? "" : 1,
+      cantidad: sinStock && !presupuestoPersonalizado ? "" : 1,
       precio: inicial ? safeNumber(inicial.monto) : 0,
       precioDraft: "",
       precioFocused: false,
-      id_tipo_precio_stock: inicial?.value || NULL_OPTION,
-      precio_tipo_label: inicial?.tipo_precio || "",
-      precios_disponibles: precios,
+      id_tipo_precio_stock: presupuestoPersonalizado ? NULL_OPTION : (inicial?.value || NULL_OPTION),
+      precio_tipo_label: presupuestoPersonalizado ? "" : (inicial?.tipo_precio || ""),
+      precios_disponibles: presupuestoPersonalizado ? [] : precios,
       stock_disponible: stockDisponible,
       sinStock,
     });
 
-    if (sinStock) {
-      onToast?.("advertencia", `El producto "${nombreDetalle}" no tiene stock disponible.`, 2500);
+    if (sinStock && !presupuestoPersonalizado) {
+      onToast?.("advertencia", `El producto "${nombreDetalle}" no tiene stock disponible. Activá Presupuesto personalizado para usarlo sin descontar stock.`, 3200);
     }
-  }, [onToast, updateRow]);
+  }, [onToast, presupuestoPersonalizado, updateRow]);
 
   const handleDetalleInputChange = useCallback((rowId, value) => {
     updateRow(rowId, {
-      detalleText: value,
+      detalleText: upperInput(value),
       id_detalle: NULL_OPTION,
       id_stock_producto: NULL_OPTION,
       id_stock_variante: NULL_OPTION,
@@ -1057,7 +1169,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
     const row = rows.find((r) => r.id === rowId);
     if (!row) return;
 
-    if (row.sinStock || isSinStock(row.stock_disponible)) {
+    if (!presupuestoPersonalizado && (row.sinStock || isSinStock(row.stock_disponible))) {
       updateRow(rowId, { cantidad: "" });
       return;
     }
@@ -1066,6 +1178,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
     if (typeof cantidadFinal === "number" && cantidadFinal < 0) cantidadFinal = 0;
 
     if (
+      !presupuestoPersonalizado &&
       row.stock_disponible !== null &&
       row.stock_disponible !== undefined &&
       row.stock_disponible !== "" &&
@@ -1078,7 +1191,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
     }
 
     updateRow(rowId, { cantidad: cantidadFinal });
-  }, [onToast, rows, updateRow]);
+  }, [onToast, presupuestoPersonalizado, rows, updateRow]);
 
   const handlePrecioTipoChange = useCallback((rowId, value) => {
     const row = rows.find((r) => r.id === rowId);
@@ -1176,7 +1289,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
     if (!open) return undefined;
 
     const handleKeyDown = (e) => {
-      if (addUI.open) return;
+      if (addUI.open || modelsOpen) return;
       if (e.key === "Escape" || e.key === "Esc") {
         e.preventDefault();
         requestClose();
@@ -1185,7 +1298,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, requestClose, addUI.open]);
+  }, [open, requestClose, addUI.open, modelsOpen]);
 
   const totals = useMemo(() => {
     return computedRows.reduce(
@@ -1211,6 +1324,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
     }
     const validItems = computedRows.filter((r) => safeStr(r.detalleText) && r.cantidad > 0 && r.precio > 0);
     if (!validItems.length) return "Agregá al menos un producto o servicio con cantidad y precio.";
+    if (guardarComoModelo && !safeStr(modeloNombre)) return "Ingresá un nombre para guardar el presupuesto como modelo.";
 
     const problems = [];
     computedRows.forEach((r, idx) => {
@@ -1221,7 +1335,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
       if (!(r.precio > 0)) problems.push(`Fila ${idx + 1}: el precio debe ser mayor a 0.`);
     });
     return problems[0] || "";
-  }, [clienteSel, fecha, computedRows, condiciones.validezDias]);
+  }, [clienteSel, fecha, computedRows, condiciones.validezDias, guardarComoModelo, modeloNombre]);
 
   const buildItemsPayload = useCallback(() => {
     return computedRows
@@ -1231,8 +1345,8 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
         id_stock_producto: r.id_stock_producto || null,
         id_stock_variante: r.id_stock_variante || null,
         codigo: r.codigo || "",
-        descripcion: safeStr(r.detalleText),
-        detalle: safeStr(r.detalleText),
+        descripcion: upperStr(r.detalleText),
+        detalle: upperStr(r.detalleText),
         cantidad: r.cantidad,
         precio: r.precio,
         precio_unitario: r.precio,
@@ -1246,7 +1360,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
   }, [computedRows]);
 
   const uploadPresupuestoPdf = useCallback(async ({ idMovimiento, payload, items }) => {
-    const clienteNombre = getClienteNombre(clienteSel) || cliInput;
+    const clienteNombre = upperStr(getClienteNombre(clienteSel) || cliInput);
     const idCliente = getClienteId(clienteSel);
     let clienteFiscal = null;
 
@@ -1347,7 +1461,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
     const payload = {
       fecha: fechaEnvio,
       id_cliente: idCliente,
-      cliente_nombre: getClienteNombre(clienteSel) || cliInput,
+      cliente_nombre: upperStr(getClienteNombre(clienteSel) || cliInput),
       detalle: detallePresupuesto,
       descripcion: detallePresupuesto,
       concepto: detallePresupuesto,
@@ -1367,6 +1481,13 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
       lugar_entrega: condicionesPayload.lugar_entrega,
       moneda: condicionesPayload.moneda,
       condiciones_presupuesto: condicionesPayload,
+      es_personalizado: presupuestoPersonalizado ? 1 : 0,
+      presupuesto_personalizado: presupuestoPersonalizado ? 1 : 0,
+      id_modelo_origen: Number(modeloOrigen?.id_modelo || 0) || null,
+      nombre_modelo_origen: upperStr(modeloOrigen?.nombre),
+      guardar_como_modelo: guardarComoModelo ? 1 : 0,
+      modelo_nombre: guardarComoModelo ? upperStr(modeloNombre) : "",
+      modelo_descripcion: guardarComoModelo ? upperStr(modeloDescripcion) : "",
       items,
       ...getAuditUserPayload(),
     };
@@ -1377,14 +1498,21 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
       const idMovimiento = Number(creado?.id_movimiento || creado?.movimiento?.id_movimiento || 0);
       if (!idMovimiento) throw new Error("El presupuesto se guardó, pero el backend no devolvió id_movimiento.");
       await uploadPresupuestoPdf({ idMovimiento, payload, items });
-      onToast?.("exito", "Presupuesto generado y vinculado correctamente.", 3200);
-      onSaved?.({ id_movimiento: idMovimiento });
+      const modeloGuardado = creado?.modelo_guardado || creado?.modelo || null;
+      onToast?.(
+        "exito",
+        guardarComoModelo || modeloGuardado
+          ? "Presupuesto generado y modelo base guardado correctamente."
+          : "Presupuesto generado y vinculado correctamente.",
+        3400
+      );
+      onSaved?.({ id_movimiento: idMovimiento, modelo_guardado: modeloGuardado });
     } catch (err) {
       onToast?.("error", err?.message || "No se pudo generar el presupuesto.", 5200);
     } finally {
       setSaving(false);
     }
-  }, [API, buildItemsPayload, clienteSel, cliInput, fecha, observaciones, condiciones, onSaved, onToast, totals, uploadPresupuestoPdf, validate]);
+  }, [API, buildItemsPayload, clienteSel, cliInput, fecha, observaciones, condiciones, guardarComoModelo, modeloDescripcion, modeloNombre, modeloOrigen, onSaved, onToast, presupuestoPersonalizado, totals, uploadPresupuestoPdf, validate]);
 
   if (!open) return null;
 
@@ -1423,11 +1551,43 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
         </div>
 
         <form className="gm-modal-content presupuesto-modal__content" onSubmit={handleSubmit}>
+          <div className={`presupuesto-mode-panel ${presupuestoPersonalizado ? "is-active" : ""}`}>
+            <label className="presupuesto-mode-toggle">
+              <input
+                type="checkbox"
+                checked={presupuestoPersonalizado}
+                onChange={(e) => handlePresupuestoPersonalizadoChange(e.target.checked)}
+                disabled={saving}
+              />
+              <span>
+                <b>Presupuesto personalizado / servicio</b>
+                <small>
+                  Permite escribir materiales o tareas a mano, usar cantidades decimales (metros, m², etc.) y tomar referencias del stock aunque no tengan existencia.
+                </small>
+              </span>
+            </label>
+            <div className="presupuesto-mode-actions">
+              {modeloOrigen?.nombre ? (
+                <span className="presupuesto-model-loaded" title={safeStr(modeloOrigen.descripcion)}>
+                  Modelo cargado: <b>{modeloOrigen.nombre}</b>
+                </span>
+              ) : null}
+              <button
+                type="button"
+                className="presupuesto-model-button"
+                onClick={() => onOpenModels?.()}
+                disabled={saving}
+              >
+                Ver modelos de presupuesto
+              </button>
+            </div>
+          </div>
+
           <div className="gm-movement-layout">
             <section className="gm-table gm-table--movement gm-movement-main dc-presupuesto-table">
               <div className="gm-table-head">
                 <div className="gm-table-th" style={{ paddingLeft: 10 }}>Detalle</div>
-                <div className="gm-table-th">Cant.</div>
+                <div className="gm-table-th">{presupuestoPersonalizado ? "Cant./medida" : "Cant."}</div>
                 <div className="gm-table-th right">Precio</div>
                 <div className="gm-table-th">IVA %</div>
                 <div className="gm-table-th right">IVA $</div>
@@ -1441,7 +1601,7 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                     r.stock_disponible !== null && r.stock_disponible !== undefined
                       ? Number(r.stock_disponible)
                       : null;
-                  const rowSinStock = r.sinStock || isSinStock(stockNum);
+                  const rowSinStock = !presupuestoPersonalizado && (r.sinStock || isSinStock(stockNum));
 
                   return (
                     <div key={r.id} className={`gm-table-row ${rowSinStock ? "gm-table-row--sin-stock" : ""}`}>
@@ -1451,7 +1611,9 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                           onChange={(val) => handleDetalleInputChange(r.id, val)}
                           onSelect={(d) => handleSelectDetalle(r.id, d)}
                           options={detallesList}
-                          placeholder="Escribí o buscá un producto…"
+                          placeholder={presupuestoPersonalizado ? "Escribí un material/servicio o buscá en stock…" : "Escribí o buscá un producto…"}
+                          emptyMessage={presupuestoPersonalizado ? "No existe en stock: podés dejar el texto escrito y cargarlo manualmente" : "Sin productos disponibles"}
+                          allowOutOfStock={presupuestoPersonalizado}
                           disabled={saving}
                           showAllOnFocus={false}
                           maxItems={18}
@@ -1463,8 +1625,8 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                         <input
                           className="gm-cell-input gm-cell-input--center"
                           type="number"
-                          min={rowSinStock ? undefined : "1"}
-                          step="1"
+                          min={rowSinStock ? undefined : (presupuestoPersonalizado ? "0.01" : "1")}
+                          step={presupuestoPersonalizado ? "0.01" : "1"}
                           value={rowSinStock ? "" : r.cantidad}
                           onChange={(e) =>
                             handleCantidadChange(r.id, e.target.value === "" ? "" : Number(e.target.value))
@@ -1736,6 +1898,49 @@ export default function ModalNuevoPresupuesto({ open, lists, onClose, onToast, o
                     </div>
 
 
+                    <div className={`presupuesto-save-model ${guardarComoModelo ? "is-active" : ""}`}>
+                      <label className="presupuesto-save-model__toggle">
+                        <input
+                          type="checkbox"
+                          checked={guardarComoModelo}
+                          onChange={(e) => setGuardarComoModelo(e.target.checked)}
+                          disabled={saving}
+                        />
+                        <span>
+                          <b>Guardar también como modelo base</b>
+                          <small>El presupuesto normal se crea igual y queda disponible para convertirlo en venta.</small>
+                        </span>
+                      </label>
+
+                      {guardarComoModelo ? (
+                        <div className="presupuesto-save-model__fields">
+                          <div className="gm-field">
+                            <input
+                              className="gm-input"
+                              type="text"
+                              placeholder=" "
+                              value={modeloNombre}
+                              onChange={(e) => setModeloNombre(upperInput(e.target.value))}
+                              maxLength={150}
+                              disabled={saving}
+                            />
+                            <label className="gm-label">Nombre del modelo *</label>
+                          </div>
+                          <div className="gm-field">
+                            <textarea
+                              className="gm-input presupuesto-model-description"
+                              placeholder=" "
+                              value={modeloDescripcion}
+                              onChange={(e) => setModeloDescripcion(upperInput(e.target.value))}
+                              maxLength={500}
+                              disabled={saving}
+                              rows={2}
+                            />
+                            <label className="gm-label">Descripción del modelo</label>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
 
                     <div className="dc-info presupuesto-info">
                       Se guarda como presupuesto y genera PDF con validez, entrega, pago y condiciones. No impacta caja, ARCA ni medio de pago.

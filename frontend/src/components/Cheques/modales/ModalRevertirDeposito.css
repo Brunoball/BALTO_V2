@@ -1,0 +1,135 @@
+.cheque-reversion-modal {
+  width: min(570px, 94vw);
+}
+
+.cheque-reversion-modal__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cheque-reversion-modal__question {
+  margin: 0 0 14px;
+  color: var(--mi-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.cheque-reversion-modal__summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.cheque-reversion-modal__summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--mi-border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--mi-soft, rgba(15, 23, 42, 0.035));
+}
+
+.cheque-reversion-modal__summary span {
+  color: var(--mi-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cheque-reversion-modal__summary strong {
+  overflow: hidden;
+  color: var(--mi-text);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cheque-reversion-modal__summaryFull,
+.cheque-reversion-modal__fieldFull {
+  grid-column: 1 / -1;
+}
+
+.cheque-reversion-modal__fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.cheque-reversion-modal__textarea {
+  min-height: 108px;
+  padding-top: 18px;
+  resize: vertical;
+}
+
+.cheque-reversion-modal__counter {
+  margin-top: 4px;
+  color: var(--mi-muted);
+  font-size: 11px;
+  text-align: right;
+}
+
+.cheque-reversion-modal__error {
+  display: block;
+  margin-top: 5px;
+  color: var(--color-danger, #b91c1c);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cheque-reversion-modal__info {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--color-warning, #f59e0b);
+  border-radius: var(--radius-md, 10px);
+  background: var(--color-warning-soft, rgba(245, 158, 11, 0.12));
+  color: color-mix(in srgb, var(--color-warning, #f59e0b) 55%, var(--mi-text));
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.cheque-reversion-modal__info svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--color-warning, #f59e0b);
+}
+
+.cheque-reversion-modal__actions {
+  margin-top: 14px;
+}
+
+html[data-theme="oscuro"] .cheque-reversion-modal__summary > div,
+body.dark .cheque-reversion-modal__summary > div {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+html[data-theme="oscuro"] .cheque-reversion-modal__info,
+body.dark .cheque-reversion-modal__info {
+  background: rgba(245, 158, 11, 0.1);
+  color: rgba(255, 237, 213, 0.88);
+}
+
+@media (max-width: 560px) {
+  .cheque-reversion-modal__summary {
+    grid-template-columns: 1fr;
+  }
+
+  .cheque-reversion-modal__summaryFull {
+    grid-column: auto;
+  }
+
+  .cheque-reversion-modal__actions {
+    flex-direction: column-reverse;
+  }
+
+  .cheque-reversion-modal__actions .mit-btn {
+    width: 100%;
+  }
+}

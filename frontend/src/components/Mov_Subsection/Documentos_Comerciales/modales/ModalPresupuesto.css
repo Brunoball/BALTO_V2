@@ -816,3 +816,162 @@ body.dark .dc-payment-readonly-cheque span b {
   width: 100%;
   min-width: 0;
 }
+
+
+/* === Presupuestos personalizados y modelos base === */
+.presupuesto-mode-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 14px;
+  padding: 13px 15px;
+  border: 1px solid rgba(15, 23, 42, .12);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, .88);
+}
+
+.presupuesto-mode-panel.is-active {
+  border-color: rgba(0, 85, 187, .34);
+  background: rgba(0, 85, 187, .06);
+}
+
+.presupuesto-mode-toggle,
+.presupuesto-save-model__toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.presupuesto-mode-toggle input,
+.presupuesto-save-model__toggle input {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  accent-color: #0055bb;
+  flex: 0 0 auto;
+}
+
+.presupuesto-mode-toggle span,
+.presupuesto-save-model__toggle span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.presupuesto-mode-toggle b,
+.presupuesto-save-model__toggle b {
+  color: var(--nv-text, #172b3a);
+  font-size: .82rem;
+}
+
+.presupuesto-mode-toggle small,
+.presupuesto-save-model__toggle small {
+  color: var(--nv-muted, #64748b);
+  font-size: .7rem;
+  line-height: 1.35;
+}
+
+.presupuesto-mode-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.presupuesto-model-button {
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 85, 187, .28);
+  border-radius: 10px;
+  background: #fff;
+  color: #0055bb;
+  font-size: .74rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.presupuesto-model-button:hover { background: rgba(0, 85, 187, .07); }
+.presupuesto-model-button:disabled { opacity: .55; cursor: not-allowed; }
+
+.presupuesto-model-loaded {
+  max-width: 290px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: rgba(0, 85, 187, .09);
+  color: #0055bb;
+  font-size: .7rem;
+}
+
+.presupuesto-save-model {
+  display: grid;
+  gap: 11px;
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, .10);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, .72);
+}
+
+.presupuesto-save-model.is-active {
+  border-color: rgba(0, 85, 187, .28);
+  background: rgba(0, 85, 187, .05);
+}
+
+.presupuesto-save-model__fields {
+  display: grid;
+  gap: 10px;
+}
+
+.presupuesto-model-description {
+  min-height: 68px;
+  resize: vertical;
+  padding-top: 18px !important;
+}
+
+html[data-theme="oscuro"] .presupuesto-mode-panel,
+body.dark .presupuesto-mode-panel,
+html[data-theme="oscuro"] .presupuesto-save-model,
+body.dark .presupuesto-save-model {
+  background: rgba(255, 255, 255, .035);
+  border-color: rgba(255, 255, 255, .11);
+}
+
+html[data-theme="oscuro"] .presupuesto-mode-panel.is-active,
+body.dark .presupuesto-mode-panel.is-active,
+html[data-theme="oscuro"] .presupuesto-save-model.is-active,
+body.dark .presupuesto-save-model.is-active {
+  background: rgba(78, 152, 255, .10);
+  border-color: rgba(119, 185, 255, .32);
+}
+
+html[data-theme="oscuro"] .presupuesto-mode-toggle b,
+body.dark .presupuesto-mode-toggle b,
+html[data-theme="oscuro"] .presupuesto-save-model__toggle b,
+body.dark .presupuesto-save-model__toggle b {
+  color: rgba(241, 247, 255, .94);
+}
+
+html[data-theme="oscuro"] .presupuesto-model-button,
+body.dark .presupuesto-model-button {
+  background: rgba(255, 255, 255, .05);
+  border-color: rgba(119, 185, 255, .28);
+  color: #77b9ff;
+}
+
+@media (max-width: 850px) {
+  .presupuesto-mode-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .presupuesto-mode-actions {
+    justify-content: flex-start;
+  }
+}

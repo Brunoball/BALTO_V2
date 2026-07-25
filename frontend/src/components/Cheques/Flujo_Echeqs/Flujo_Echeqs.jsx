@@ -4,6 +4,7 @@ import "../../Global/Global_css/Global_Section.css";
 import "../../Global/Global_css/Global_responsive.css";
 import Toast from "../../Global/Toast.jsx";
 import ModalVerComprobante from "../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
+import ModalRevertirDeposito from "../modales/ModalRevertirDeposito.jsx";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faMagnifyingGlass,
@@ -12,6 +13,7 @@ import {
   faBuildingColumns,
   faCircleInfo,
   faEye,
+  faRotateLeft,
 } from "@fortawesome/free-solid-svg-icons";
 
 /* ═══════════════════════════════════════════
@@ -26,6 +28,68 @@ function getAuthHeaders() {
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   return headers;
+}
+
+function usuarioActualEsAdmin() {
+  try {
+    const usuario = JSON.parse(localStorage.getItem("usuario") || "null");
+    const idRol = Number(
+      usuario?.id_rol ??
+        usuario?.idRol ??
+        usuario?.idRolMaster ??
+        usuario?.id_rol_master ??
+        0
+    );
+    const rol = String(
+      usuario?.tipo_rol ??
+        usuario?.rol ??
+        usuario?.nombre_rol ??
+        usuario?.nombreRol ??
+        ""
+    )
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
+
+    return (
+      idRol === 1 ||
+      ["1", "admin", "administrator", "administrador", "superadmin", "super_admin"].includes(rol)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function notifyReversionDeposito() {
+  try {
+    if (typeof window === "undefined") return;
+
+    const storage = window.sessionStorage || null;
+    const prefix = "balto_movimientos_perf_v2:";
+    if (storage) {
+      const scopes = [":otros_egresos:listar", ":movimientos:listar", ":flujo_caja"];
+      const keys = [];
+      for (let i = 0; i < storage.length; i += 1) {
+        const key = storage.key(i);
+        if (key?.startsWith(prefix) && scopes.some((scope) => key.includes(scope))) {
+          keys.push(key);
+        }
+      }
+      keys.forEach((key) => storage.removeItem(key));
+    }
+
+    window.dispatchEvent(
+      new CustomEvent("balto:movimientos-mutados", {
+        detail: {
+          origen: "reversion_deposito_echeq_banco",
+          modulos: ["otros_egresos", "movimientos", "flujo_caja", "echeqs"],
+          ts: Date.now(),
+        },
+      })
+    );
+  } catch {
+    // La actualización visual nunca debe bloquear una reversión ya confirmada.
+  }
 }
 
 function withSessionKey(url) {
@@ -293,6 +357,11 @@ const Flujo_Echeqs = () => {
   const [modalComprobanteTitle, setModalComprobanteTitle] =
     useState("Comprobante de E-Cheq");
 
+  const [modalReversionOpen, setModalReversionOpen] = useState(false);
+  const [reversionRow, setReversionRow] = useState(null);
+  const [revirtiendo, setRevirtiendo] = useState(false);
+  const esAdmin = useMemo(() => usuarioActualEsAdmin(), []);
+
   const showToast = useCallback((tipo, mensaje, duracion = 2600) => {
     setToast({ tipo, mensaje, duracion });
   }, []);
@@ -387,6 +456,83 @@ const Flujo_Echeqs = () => {
     [API_URL]
   );
 
+  const closeModalReversion = useCallback(() => {
+    if (revirtiendo) return;
+    setModalReversionOpen(false);
+    setReversionRow(null);
+  }, [revirtiendo]);
+
+  const openModalReversion = useCallback(
+    (row) => {
+      if (!esAdmin) {
+        showToast("error", "Sólo un administrador puede reactivar un depósito.");
+        return;
+      }
+
+      const flujo = normalizeFlujoEcheq(row);
+      if (
+        Number(flujo?.id_cheque || 0) <= 0 ||
+        normalizarEvento(flujo?.evento) !== EVENTO_CANONICO.DEPOSITADO_BANCO ||
+        String(flujo?.estado || "").trim().toUpperCase() !== "DEPOSITADO_BANCO"
+      ) {
+        showToast("error", "Este depósito ya no se puede reactivar desde el flujo.");
+        return;
+      }
+
+      setReversionRow(flujo);
+      setModalReversionOpen(true);
+    },
+    [esAdmin, showToast]
+  );
+
+  const confirmarReversion = useCallback(
+    async (payload) => {
+      const idCheque = Number(reversionRow?.id_cheque || 0);
+      if (!idCheque || revirtiendo) return;
+
+      setRevirtiendo(true);
+      try {
+        const params = new URLSearchParams();
+        params.set("action", "echeq_deposito_revertir");
+
+        const data = await parseJsonOrThrow(
+          await fetch(`${API_URL}?${params.toString()}`, {
+            method: "POST",
+            headers: {
+              ...getAuthHeaders(),
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              id_cheque: idCheque,
+              fecha_reversion: payload?.fecha_reversion,
+              motivo: payload?.motivo,
+              confirmacion: true,
+            }),
+          })
+        );
+
+        setModalReversionOpen(false);
+        setReversionRow(null);
+        notifyReversionDeposito();
+        await fetchFlujo({ offset: 0, append: false, qValue: debouncedQ });
+        showToast(
+          "exito",
+          data?.mensaje || "E-Cheq reactivado correctamente y disponible en cartera.",
+          3600
+        );
+      } catch (errorReversion) {
+        showToast(
+          "error",
+          errorReversion?.message || "No se pudo reactivar el e-cheq.",
+          4800
+        );
+      } finally {
+        setRevirtiendo(false);
+      }
+    },
+    [API_URL, debouncedQ, fetchFlujo, reversionRow, revirtiendo, showToast]
+  );
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQ(q);
@@ -427,6 +573,28 @@ const Flujo_Echeqs = () => {
   const rows = useMemo(() => {
     return allRows;
   }, [allRows]);
+
+  const depositosRevertibles = useMemo(() => {
+    const ids = new Set();
+    const chequesVistos = new Set();
+
+    for (const row of rows) {
+      const idCheque = Number(row?.id_cheque || 0);
+      if (
+        idCheque <= 0 ||
+        chequesVistos.has(idCheque) ||
+        normalizarEvento(row?.evento) !== EVENTO_CANONICO.DEPOSITADO_BANCO ||
+        String(row?.estado || "").trim().toUpperCase() !== "DEPOSITADO_BANCO"
+      ) {
+        continue;
+      }
+
+      chequesVistos.add(idCheque);
+      ids.add(Number(row?.id_flujo || 0));
+    }
+
+    return ids;
+  }, [rows]);
 
   const handleLoadMore = useCallback(async () => {
     if (!hasMore || loadingMore) return;
@@ -600,6 +768,15 @@ const Flujo_Echeqs = () => {
         title={modalComprobanteTitle}
       />
 
+      <ModalRevertirDeposito
+        open={modalReversionOpen}
+        onClose={closeModalReversion}
+        onConfirm={confirmarReversion}
+        loading={revirtiendo}
+        cheque={reversionRow}
+        tipoLabel="E-Cheq"
+      />
+
       {error && (
         <div className="mov-alert" role="alert">
           {error}
@@ -693,6 +870,11 @@ const Flujo_Echeqs = () => {
                   const puedeVerComprobante =
                     Number(r?.id_cheque || 0) > 0 && !!r?.tiene_comprobante;
 
+                  const puedeReactivarDeposito =
+                    esAdmin &&
+                    Number(r?.id_cheque || 0) > 0 &&
+                    depositosRevertibles.has(Number(r?.id_flujo || 0));
+
                   return (
                     <div
                       key={r.id_flujo}
@@ -757,6 +939,18 @@ const Flujo_Echeqs = () => {
                                 >
                                   <FontAwesomeIcon icon={faEye} />
                                 </button>
+
+                                {puedeReactivarDeposito && (
+                                  <button
+                                    type="button"
+                                    className="mov-iconBtn"
+                                    title="Reactivar en cartera"
+                                    onClick={() => openModalReversion(r)}
+                                    disabled={revirtiendo}
+                                  >
+                                    <FontAwesomeIcon icon={faRotateLeft} />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           );

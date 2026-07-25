@@ -1001,10 +1001,12 @@ export default function ModalPagarOrdenesPago({
           : mediosPagoInfo.map((x) => x.nombre).join(" + ");
 
       let restante = Math.max(0, total);
-      const seleccionConImportes = (Array.isArray(seleccion) ? seleccion : [])
-        .map((r) => {
+      const seleccionLista = Array.isArray(seleccion) ? seleccion : [];
+      const ultimoIdx = seleccionLista.length - 1;
+      const seleccionConImportes = seleccionLista
+        .map((r, idx) => {
           const saldo = getSaldoPendienteRow(r);
-          const aplicado = Math.min(saldo, restante);
+          const aplicado = idx === ultimoIdx ? restante : Math.min(saldo, restante);
           restante = Math.max(0, restante - aplicado);
 
           return {
@@ -1089,7 +1091,7 @@ export default function ModalPagarOrdenesPago({
 
     // Permitimos que el importe del medio de pago supere el saldo seleccionado.
     // Ejemplo: cheque/eCheq de $2.000 para cancelar un saldo de $1.500.
-    // El backend imputa sólo el saldo real y egresa el cheque completo de cartera.
+    // El backend registra el importe completo y aplica el excedente a la última deuda seleccionada.
 
     return { ok: true };
   }, [deudasOrdenadas, selectedIds, mediosFilas, mediosPago, sumaMediosPago, totalSeleccionado]);
@@ -1163,17 +1165,18 @@ export default function ModalPagarOrdenesPago({
       setUltimoCobroId(Number(idsPagoFinales?.[0] || resp?.id_pago || resp?.id_cobro || 0) || null);
 
       const montoAplicadoFinal = safeNumber(
-        resp?.total_pagado ?? resp?.monto_pagado ?? resp?.monto_cobrado ?? Math.min(sumaMediosPago, totalSeleccionado)
+        resp?.total_pagado ?? resp?.monto_pagado ?? resp?.monto_cobrado ?? sumaMediosPago
       );
 
       let restantePagoLocal = Math.max(0, montoAplicadoFinal);
+      const ultimoIdSeleccionado = ids[ids.length - 1] || null;
       setRows((prev) =>
         (Array.isArray(prev) ? prev : []).map((r) => {
           const id = Number(r?.id_movimiento || 0);
           if (!id || !ids.includes(id) || restantePagoLocal <= 0) return r;
 
           const saldoAntes = getSaldoPendienteRow(r);
-          const aplicado = Math.min(saldoAntes, restantePagoLocal);
+          const aplicado = id === ultimoIdSeleccionado ? restantePagoLocal : Math.min(saldoAntes, restantePagoLocal);
           restantePagoLocal = Math.max(0, restantePagoLocal - aplicado);
 
           const nuevoCobrado = getCobradoTotalRow(r) + aplicado;

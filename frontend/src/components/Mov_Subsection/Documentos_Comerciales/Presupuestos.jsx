@@ -10,6 +10,7 @@ import Toast from "../../Global/Toast.jsx";
 import Calendario from "../../Global/Calendario/Calendario.jsx";
 import "../../Global/Calendario/calendario.css";
 import ModalNuevoPresupuesto from "./modales/ModalNuevoPresupuesto.jsx";
+import ModalModelosPresupuesto from "./modales/ModalModelosPresupuesto.jsx";
 import ModalEliminar from "../../Global/Modales/ModalEliminar.jsx";
 import ModalAsignarPresupuestoVenta from "./modales/ModalAsignarPresupuestoVenta.jsx";
 import BotonExportar from "../../Global/Boton_Exportar/BotonExportar.jsx";
@@ -553,6 +554,8 @@ export default function Presupuestos() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState(null);
   const [openAdd, setOpenAdd] = useState(false);
+  const [openModels, setOpenModels] = useState(false);
+  const [selectedModelForNew, setSelectedModelForNew] = useState(null);
   const [openDel, setOpenDel] = useState(false);
   const [openConvert, setOpenConvert] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
@@ -821,6 +824,7 @@ export default function Presupuestos() {
   const handleOpenNuevoPresupuesto = useCallback((event) => {
     event?.preventDefault?.();
     event?.stopPropagation?.();
+    setSelectedModelForNew(null);
     setOpenAdd(true);
   }, []);
 
@@ -1318,7 +1322,7 @@ export default function Presupuestos() {
                 <div className="cc-floatingField cc-floatingField--search is-active">
                   <div className="cc-searchInput">
                     <div className="cc-searchInput__fieldWrap">
-                      <input className="cc-input cc-input--floating" id="presu-docs-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por descripción..." disabled={loadingLists} />
+                      <input className="cc-input cc-input--floating" id="presu-docs-search" value={q} onChange={(e) => setQ(String(e.target.value ?? "").toLocaleUpperCase("es-AR"))} placeholder="Buscar por descripción..." disabled={loadingLists} />
                       <span className="cc-floatingLabel"><FontAwesomeIcon icon={faMagnifyingGlass} /> Búsqueda</span>
                       {q.trim() !== "" && <button type="button" className="cc-clearSearch cc-clearSearch--inside" title="Limpiar búsqueda" onClick={() => setQ("")}><FontAwesomeIcon icon={faTimes} /></button>}
                     </div>
@@ -1330,6 +1334,9 @@ export default function Presupuestos() {
 
           <div className="mov-card__actions" style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <BotonExportar className="doccom-exportBtn" disabled={loadingRows || filteredRows.length === 0} loading={false} label="Exportar" title={filteredRows.length ? "Exportar archivo" : "No hay datos para exportar"} opciones={exportOptions} align="right" />
+            <button type="button" className="mov-btn" onClick={() => setOpenModels(true)} title="Ver y administrar modelos de presupuesto">
+              Modelos
+            </button>
             <button type="button" className="mov-btn mov-btn--primary" onClick={handleOpenNuevoPresupuesto} title="Crear nuevo presupuesto">
               <FontAwesomeIcon icon={faPlus} /> Nuevo presupuesto
             </button>
@@ -1386,7 +1393,36 @@ export default function Presupuestos() {
         </div>
       </section>
 
-      <ModalNuevoPresupuesto open={openAdd} lists={lists} onClose={() => setOpenAdd(false)} onToast={showToast} onSaved={async () => { setOpenAdd(false); setQ(""); await reloadVista(); }} />
+      <ModalNuevoPresupuesto
+        open={openAdd}
+        lists={lists}
+        initialModel={selectedModelForNew}
+        modelsOpen={openModels}
+        onOpenModels={() => setOpenModels(true)}
+        onClose={() => {
+          setOpenAdd(false);
+          setSelectedModelForNew(null);
+        }}
+        onToast={showToast}
+        onSaved={async () => {
+          setOpenAdd(false);
+          setSelectedModelForNew(null);
+          setQ("");
+          await reloadVista();
+        }}
+      />
+
+      <ModalModelosPresupuesto
+        open={openModels}
+        lists={lists}
+        onClose={() => setOpenModels(false)}
+        onToast={showToast}
+        onUseModel={(modelo) => {
+          setSelectedModelForNew({ ...(modelo || {}) });
+          setOpenModels(false);
+          setOpenAdd(true);
+        }}
+      />
 
       <ModalAsignarPresupuestoVenta
         open={openConvert}

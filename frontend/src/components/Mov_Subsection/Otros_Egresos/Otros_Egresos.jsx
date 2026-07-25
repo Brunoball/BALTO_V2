@@ -2066,15 +2066,17 @@ export default function OtrosEgresos() {
                                   </button>
                                 )}
 
-                                <button
-                                  type="button"
-                                  className="mov-iconBtn mov-iconBtn--danger"
-                                  title="Eliminar"
-                                  disabled={isAnyLoading || loadingListsCtx || deletingId === r.id_movimiento}
-                                  onClick={() => handleOpenDeleteModal(r)}
-                                >
-                                  {deletingId === r.id_movimiento ? "..." : <FontAwesomeIcon icon={faTrashCan} />}
-                                </button>
+                                {!esDepositoChequeEgreso && (
+                                  <button
+                                    type="button"
+                                    className="mov-iconBtn mov-iconBtn--danger"
+                                    title="Eliminar"
+                                    disabled={isAnyLoading || loadingListsCtx || deletingId === r.id_movimiento}
+                                    onClick={() => handleOpenDeleteModal(r)}
+                                  >
+                                    {deletingId === r.id_movimiento ? "..." : <FontAwesomeIcon icon={faTrashCan} />}
+                                  </button>
+                                )}
                               </div>
                             </div>
                           );
