@@ -1,6 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FaArrowRotateLeft, FaCircleInfo, FaXmark } from "react-icons/fa6";
+import {
+  FaArrowRotateLeft,
+  FaBuildingColumns,
+  FaCircleInfo,
+  FaDollarSign,
+  FaHashtag,
+  FaXmark,
+} from "react-icons/fa6";
 import "../../Global/Global_css/Global_Modals.css";
 import "./ModalRevertirDeposito.css";
 
@@ -50,6 +57,7 @@ export default function ModalRevertirDeposito({
   const [fechaReversion, setFechaReversion] = useState("");
   const [motivo, setMotivo] = useState("");
   const [errors, setErrors] = useState({});
+  const fechaInputRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -70,6 +78,16 @@ export default function ModalRevertirDeposito({
   }, [open, loading, onClose]);
 
   if (!open) return null;
+
+  const abrirCalendario = () => {
+    if (loading) return;
+
+    try {
+      fechaInputRef.current?.showPicker?.();
+    } catch {
+      fechaInputRef.current?.focus();
+    }
+  };
 
   const confirmar = () => {
     const nextErrors = {};
@@ -93,23 +111,28 @@ export default function ModalRevertirDeposito({
   };
 
   return createPortal(
-    <div className="mi-mini__overlay cheque-reversion-modal__overlay" role="presentation">
+    <div className="mi-modal__overlay cheque-reversion-modal__overlay" role="presentation">
       <div
-        className="mi-mini__modal cheque-reversion-modal"
+        className="mi-modal__container cheque-reversion-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-revertir-deposito-title"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="mi-mini__head">
-          <h4 id="modal-revertir-deposito-title" className="mi-mini__title cheque-reversion-modal__title">
+        <div className="mi-modal__header">
+          <div className="mi-modal__head-icon" aria-hidden="true">
             <FaArrowRotateLeft />
-            <span>Reactivar en cartera</span>
-          </h4>
+          </div>
+
+          <div className="mi-modal__head-left">
+            <h2 id="modal-revertir-deposito-title" className="mi-modal__title">
+              Reactivar en cartera
+            </h2>
+          </div>
 
           <button
             type="button"
-            className="mi-mini__close"
+            className="mi-modal__close"
             onClick={() => (!loading ? onClose?.() : null)}
             disabled={loading}
             aria-label="Cerrar"
@@ -118,32 +141,51 @@ export default function ModalRevertirDeposito({
           </button>
         </div>
 
-        <div className="mi-mini__body">
+        <div className="mi-modal__content cheque-reversion-modal__content">
           <p className="cheque-reversion-modal__question">
             El {tipoLabel.toLowerCase()} volverá a quedar disponible en cartera. El egreso de depósito no se edita ni se elimina.
           </p>
 
           <div className="cheque-reversion-modal__summary">
-            <div>
-              <span>Emisor</span>
-              <strong>{safeText(cheque?.emisor)}</strong>
+            <div className="cheque-reversion-modal__summaryCard cheque-reversion-modal__summaryCard--issuer">
+              <div className="cheque-reversion-modal__summaryIcon" aria-hidden="true">
+                <FaBuildingColumns />
+              </div>
+              <div className="cheque-reversion-modal__summaryContent">
+                <span>Emisor</span>
+                <strong>{safeText(cheque?.emisor)}</strong>
+              </div>
             </div>
-            <div>
-              <span>Número</span>
-              <strong>{safeText(cheque?.numero_cheque)}</strong>
+
+            <div className="cheque-reversion-modal__summaryCard cheque-reversion-modal__summaryCard--number">
+              <div className="cheque-reversion-modal__summaryIcon" aria-hidden="true">
+                <FaHashtag />
+              </div>
+              <div className="cheque-reversion-modal__summaryContent">
+                <span>Número</span>
+                <strong>{safeText(cheque?.numero_cheque)}</strong>
+              </div>
             </div>
-            <div className="cheque-reversion-modal__summaryFull">
-              <span>Importe</span>
-              <strong>{moneyARS(cheque?.importe)}</strong>
+
+            <div className="cheque-reversion-modal__summaryCard cheque-reversion-modal__summaryCard--amount">
+              <div className="cheque-reversion-modal__summaryIcon" aria-hidden="true">
+                <FaDollarSign />
+              </div>
+              <div className="cheque-reversion-modal__summaryContent">
+                <span>Importe</span>
+                <strong>{moneyARS(cheque?.importe)}</strong>
+              </div>
             </div>
           </div>
 
           <div className="cheque-reversion-modal__fields">
             <div className="fl-field">
               <input
+                ref={fechaInputRef}
                 className="fl-input"
                 type="date"
                 value={fechaReversion}
+                onClick={abrirCalendario}
                 onChange={(event) => {
                   setFechaReversion(event.target.value);
                   setErrors((prev) => ({ ...prev, fecha: "" }));
@@ -155,7 +197,7 @@ export default function ModalRevertirDeposito({
               {errors.fecha && <small className="cheque-reversion-modal__error">{errors.fecha}</small>}
             </div>
 
-            <div className="fl-field cheque-reversion-modal__fieldFull">
+            <div className="fl-field">
               <textarea
                 className="fl-input cheque-reversion-modal__textarea"
                 value={motivo}
@@ -166,7 +208,7 @@ export default function ModalRevertirDeposito({
                 }}
                 disabled={loading}
                 placeholder=" "
-                rows={4}
+                rows={3}
               />
               <label className="fl-label">Motivo obligatorio</label>
               <div className="cheque-reversion-modal__counter">{motivo.length}/500</div>
@@ -180,25 +222,25 @@ export default function ModalRevertirDeposito({
               Esta acción conserva el depósito original en el historial, registra la reversión y devuelve el valor a cartera.
             </span>
           </div>
+        </div>
 
-          <div className="mi-mini__actions cheque-reversion-modal__actions">
-            <button
-              type="button"
-              className="mit-btn mit-btn--ghost"
-              onClick={() => (!loading ? onClose?.() : null)}
-              disabled={loading}
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              className="mit-btn mit-btn--solid"
-              onClick={confirmar}
-              disabled={loading}
-            >
-              {loading ? "Reactivando..." : `Reactivar ${tipoLabel}`}
-            </button>
-          </div>
+        <div className="mit-actions cheque-reversion-modal__actions">
+          <button
+            type="button"
+            className="mit-btn mit-btn--ghost"
+            onClick={() => (!loading ? onClose?.() : null)}
+            disabled={loading}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="mit-btn mit-btn--solid"
+            onClick={confirmar}
+            disabled={loading}
+          >
+            {loading ? "Reactivando..." : `Reactivar ${tipoLabel}`}
+          </button>
         </div>
       </div>
     </div>,

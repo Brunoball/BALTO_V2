@@ -463,11 +463,7 @@ html[data-theme="oscuro"] .gm-movement-side .gm-actions {
 /* Header alineado con el scrollbar real del cuerpo.
    Solo agrega gutter cuando el cuerpo de la tabla realmente scrollea. */
 .gm-table-head--body-scroll {
-  padding-right: var(--gm-table-scrollbar-gutter, 12px);
-}
-
-.gm-table-body.has-scroll,
-.gm-table-body--scroll {
+  overflow: hidden;
   scrollbar-gutter: stable;
 }
 

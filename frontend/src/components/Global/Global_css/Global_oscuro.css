@@ -265,7 +265,6 @@
   color: rgba(255,255,255,.92);
   border-bottom: 1px solid rgba(255,255,255,.10);
   overflow: auto;
-  scrollbar-gutter: stable;
 }
 
 .cmp-gridCell,

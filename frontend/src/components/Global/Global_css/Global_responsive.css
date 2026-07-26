@@ -1740,10 +1740,6 @@ min-height: 40vh !important;
     background: #f8fafc;
   }
 
-  .cc-cliente-table__body--stable{
-    scrollbar-gutter: auto;
-  }
-
   .cc-cliente-table__row--desktop{
     display: none !important;
   }

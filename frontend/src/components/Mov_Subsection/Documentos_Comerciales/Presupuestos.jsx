@@ -7,6 +7,7 @@ import "../../Global/Global_css/Global_oscuro.css";
 import "./DocumentosComerciales.css";
 import "./DocumentosComercialesResponsive.css";
 import Toast from "../../Global/Toast.jsx";
+import useTableScrollGutter from "../../Global/useTableScrollGutter.jsx";
 import Calendario from "../../Global/Calendario/Calendario.jsx";
 import "../../Global/Calendario/calendario.css";
 import ModalNuevoPresupuesto from "./modales/ModalNuevoPresupuesto.jsx";
@@ -544,6 +545,7 @@ function documentLabel(tipo) {
 
 export default function Presupuestos() {
   const API = `${BASE_URL}/api.php`;
+  const [tableWrapRef, hasTableScroll] = useTableScrollGutter();
   const { lists: listasCtx, loadingLists, error: errorLists, ensureListsLoaded } = useListas();
   const { dateRange, setDateRange } = useDateRange();
   const [rows, setRows] = useState([]);
@@ -576,8 +578,6 @@ export default function Presupuestos() {
   const liveTokenRef = useRef("");
   const signedUrlCacheRef = useRef(new Map());
   const cacheRef = useRef(new Map());
-  const tableWrapRef = useRef(null);
-  const [hasTableScroll, setHasTableScroll] = useState(false);
 
   const showToast = useCallback((tipo, mensaje, duracion = 3200) => setToast({ tipo, mensaje, duracion }), []);
   const closeToast = useCallback(() => setToast(null), []);
@@ -1163,60 +1163,31 @@ export default function Presupuestos() {
 
   const confirmDelete = useCallback(async () => {
     const id = getMovimientoId(selectedRow);
-    if (!id) return;
+    if (!id) throw new Error("No se pudo identificar el presupuesto seleccionado.");
+
     if (selectedRow?.convertido_a_venta) {
-      showToast("advertencia", "Este presupuesto ya fue convertido a venta. No conviene eliminarlo porque queda como respaldo del proceso.", 4200);
-      return;
+      throw new Error("Este presupuesto ya fue convertido a venta y debe conservarse como respaldo del proceso.");
     }
+
     setDeletingId(id);
     try {
       await apiPostJson(`${API}?action=presupuestos_eliminar`, {
         id_movimiento: id,
         ...getAuditUserPayload(),
       });
-      showToast("exito", "Presupuesto eliminado correctamente.", 3000);
       setOpenDel(false);
       setSelectedRow(null);
       await reloadVista();
-    } catch (e) {
-      showToast("error", e?.message || "No se pudo eliminar el presupuesto.", 4500);
     } finally {
       setDeletingId(null);
     }
-  }, [API, apiPostJson, reloadVista, selectedRow, showToast]);
+  }, [API, apiPostJson, reloadVista, selectedRow]);
 
   const filteredRows = useMemo(() => {
     const qq = normalizeSearchText(q);
     if (!qq) return rows;
     return rows.filter((r) => normalizeSearchText(Object.values(r).join(" | ")).includes(qq));
   }, [q, rows]);
-
-  const checkTableScroll = useCallback(() => {
-    const el = tableWrapRef.current;
-    if (!el) return;
-
-    const nextHasScroll = el.scrollHeight > el.clientHeight + 1;
-    setHasTableScroll((prev) => (prev === nextHasScroll ? prev : nextHasScroll));
-  }, []);
-
-  useEffect(() => {
-    const el = tableWrapRef.current;
-    const frameId = requestAnimationFrame(checkTableScroll);
-
-    let resizeObserver = null;
-    if (el && typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(() => checkTableScroll());
-      resizeObserver.observe(el);
-    }
-
-    window.addEventListener("resize", checkTableScroll);
-
-    return () => {
-      cancelAnimationFrame(frameId);
-      window.removeEventListener("resize", checkTableScroll);
-      if (resizeObserver) resizeObserver.disconnect();
-    };
-  }, [checkTableScroll, filteredRows.length, loadingRows, loadingMore, hasMore]);
 
   const dateRangeLabel = useMemo(() => {
     if (dateRange.from && dateRange.to) return `${formatDateUI(dateRange.from)} - ${formatDateUI(dateRange.to)}`;
@@ -1297,7 +1268,7 @@ export default function Presupuestos() {
       {errorLists && <div className="mov-alert" role="alert">{errorLists}</div>}
       {error && <div className="mov-alert" role="alert">{error}</div>}
 
-      <section className={["mov-card mov-card--table","doccom-presupuestosTable",hasTableScroll ? "has-y-scroll" : "no-y-scroll",].join(" ")}>
+      <section className="mov-card mov-card--table doccom-presupuestosTable">
         <div className="mov-card__head  doc-card__head">
           <div className="mov-card__headLeft">
             <div className="title-mov doccom-titleBlock">
@@ -1343,7 +1314,7 @@ export default function Presupuestos() {
           </div>
         </div>
 
-        <div className="mov-gridTable mov-gridTable--head" style={{ gridTemplateColumns: gridCols }} role="row">
+        <div className={`mov-gridTable mov-gridTable--head ${hasTableScroll ? "has-y-scroll" : ""}`} style={{ gridTemplateColumns: gridCols }} role="row">
           {columns.map((c) => <div key={c.key} className={["mov-gridCell", "mov-gridCell--head", c.align === "right" ? "is-right" : "", c.align === "center" ? "is-center" : ""].join(" ")} role="columnheader">{c.label}</div>)}
         </div>
 

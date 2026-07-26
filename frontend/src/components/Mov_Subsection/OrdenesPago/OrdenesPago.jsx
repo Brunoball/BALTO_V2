@@ -13,6 +13,7 @@ import "../../Global/Calendario/calendario.css";
 
 
 import Toast from "../../Global/Toast.jsx";
+import useTableScrollGutter from "../../Global/useTableScrollGutter.jsx";
 
 import BotonExportar from "../../Global/Boton_Exportar/BotonExportar.jsx";
 
@@ -313,6 +314,7 @@ function downloadBlob(content, fileName, mimeType) {
 
 export default function OrdenesPago() {
   const API = `${BASE_URL}/api.php`;
+  const [tableWrapRef, hasTableScroll] = useTableScrollGutter();
 
   const {
     lists: listasCtx,
@@ -1367,7 +1369,7 @@ export default function OrdenesPago() {
           </div>
         </div>
 
-        <div className="mov-gridTable mov-gridTable--head" style={{ gridTemplateColumns: gridCols }} role="row">
+        <div className={`mov-gridTable mov-gridTable--head ${hasTableScroll ? "has-y-scroll" : ""}`} style={{ gridTemplateColumns: gridCols }} role="row">
           {columns.map((c) => (
             <div
               key={c.key}
@@ -1384,7 +1386,7 @@ export default function OrdenesPago() {
           ))}
         </div>
 
-        <div className="mov-tableWrap" role="rowgroup">
+        <div className="mov-tableWrap" role="rowgroup" ref={tableWrapRef}>
           <div className={["mov-gridBody", "mov-gridBody--relative", showSkeleton ? "mov-softLoading" : ""].join(" ")}>
             {showSkeleton ? (
               <div className="mov-skeletonWrap" aria-busy="true">

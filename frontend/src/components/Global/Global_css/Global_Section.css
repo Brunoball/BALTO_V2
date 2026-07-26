@@ -478,21 +478,16 @@
 }
 
 /* =========================================================
-   MOV — Scroll estable (aunque no haya scroll)
-   - Reserva gutter del scrollbar para evitar saltos
-   - Mantiene overflow auto siempre
+   MOV — Alineación dinámica entre header y cuerpo
+   - El cuerpo conserva su scroll natural
+   - El header reserva gutter únicamente si el cuerpo scrollea
 ========================================================= */
-
-/* ✅ El que realmente scrollea */
 
 .mov-tableWrap,
 .mov-tableWrap--mov{
-  overflow: auto;      
-  overflow-x: hidden;           /* siempre auto */
-  scrollbar-gutter: stable;       /* reserva espacio aunque no haya scroll */
+  overflow: auto;
+  overflow-x: hidden;
 }
-
-/* ✅ Si tenés scroll horizontal a veces, esto ayuda */
 
 .mov-gridTable--head{
   position: sticky;
@@ -502,7 +497,10 @@
   color: rgba(255,255,255,.92);
   border-bottom: 1px solid rgba(255,255,255,.10);
   overflow: hidden;
-  scrollbar-gutter: auto;
+}
+
+.mov-gridTable--head.has-y-scroll{
+  scrollbar-gutter: stable;
 }
 
 /* Chips de estado (tabla) */

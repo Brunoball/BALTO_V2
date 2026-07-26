@@ -4,6 +4,7 @@ import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalPresupuesto.css";
+import "./ModalPresupuestosChecklist.css";
 import BASE_URL from "../../../../config/config";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
 import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
@@ -1552,14 +1553,15 @@ export default function ModalNuevoPresupuesto({ open, lists, initialModel = null
 
         <form className="gm-modal-content presupuesto-modal__content" onSubmit={handleSubmit}>
           <div className={`presupuesto-mode-panel ${presupuestoPersonalizado ? "is-active" : ""}`}>
-            <label className="presupuesto-mode-toggle">
+            <label className="gm-inline-check presupuesto-check-card presupuesto-mode-toggle">
               <input
                 type="checkbox"
                 checked={presupuestoPersonalizado}
                 onChange={(e) => handlePresupuestoPersonalizadoChange(e.target.checked)}
                 disabled={saving}
               />
-              <span>
+              <span className="gm-inline-check__box" aria-hidden="true" />
+              <span className="presupuesto-check-card__copy">
                 <b>Presupuesto personalizado / servicio</b>
                 <small>
                   Permite escribir materiales o tareas a mano, usar cantidades decimales (metros, m², etc.) y tomar referencias del stock aunque no tengan existencia.
@@ -1574,7 +1576,7 @@ export default function ModalNuevoPresupuesto({ open, lists, initialModel = null
               ) : null}
               <button
                 type="button"
-                className="presupuesto-model-button"
+                className="gm-action-btn gm-action-btn--secondary presupuesto-model-button"
                 onClick={() => onOpenModels?.()}
                 disabled={saving}
               >
@@ -1899,14 +1901,15 @@ export default function ModalNuevoPresupuesto({ open, lists, initialModel = null
 
 
                     <div className={`presupuesto-save-model ${guardarComoModelo ? "is-active" : ""}`}>
-                      <label className="presupuesto-save-model__toggle">
+                      <label className="gm-inline-check presupuesto-check-card presupuesto-save-model__toggle">
                         <input
                           type="checkbox"
                           checked={guardarComoModelo}
                           onChange={(e) => setGuardarComoModelo(e.target.checked)}
                           disabled={saving}
                         />
-                        <span>
+                        <span className="gm-inline-check__box" aria-hidden="true" />
+                        <span className="presupuesto-check-card__copy">
                           <b>Guardar también como modelo base</b>
                           <small>El presupuesto normal se crea igual y queda disponible para convertirlo en venta.</small>
                         </span>

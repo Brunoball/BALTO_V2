@@ -2,10 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import BASE_URL from "../../../../config/config";
 import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
+import ModalEliminar from "../../../Global/Modales/ModalEliminar.jsx";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalModelosPresupuesto.css";
+import "./ModalPresupuestosChecklist.css";
 
 const IVA_OPTIONS = [0, 10.5, 21, 27];
 
@@ -150,6 +152,7 @@ export default function ModalModelosPresupuesto({ open, lists, onClose, onToast,
   const [editorOpen, setEditorOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [modeloEliminar, setModeloEliminar] = useState(null);
   const [form, setForm] = useState({
     id_modelo: null,
     nombre: "",
@@ -187,6 +190,7 @@ export default function ModalModelosPresupuesto({ open, lists, onClose, onToast,
     setQ("");
     setEditorOpen(false);
     setDeletingId(null);
+    setModeloEliminar(null);
     cargar();
   }, [open, cargar]);
 
@@ -339,9 +343,10 @@ export default function ModalModelosPresupuesto({ open, lists, onClose, onToast,
     }
   }, [API, cargar, form, itemsPayload, onToast]);
 
-  const eliminar = useCallback(async (modelo) => {
-    const id = Number(modelo?.id_modelo || 0);
-    if (!id) return;
+  const eliminar = useCallback(async () => {
+    const id = Number(modeloEliminar?.id_modelo || 0);
+    if (!id) throw new Error("No se pudo identificar el modelo seleccionado.");
+
     setDeletingId(id);
     try {
       const res = await fetch(`${API}?action=presupuestos_modelos_eliminar`, {
@@ -351,72 +356,156 @@ export default function ModalModelosPresupuesto({ open, lists, onClose, onToast,
       });
       await parseJson(res);
       setModelos((prev) => prev.filter((m) => Number(m?.id_modelo) !== id));
-      onToast?.("exito", "Modelo eliminado correctamente.", 3000);
-    } catch (e) {
-      onToast?.("error", e?.message || "No se pudo eliminar el modelo.", 4500);
+      setModeloEliminar(null);
     } finally {
       setDeletingId(null);
     }
-  }, [API, onToast]);
+  }, [API, modeloEliminar]);
 
   if (!open) return null;
 
   return createPortal(
-    <div className="pm-gallery-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && !saving && onClose?.()}>
-      <div className="pm-gallery-modal" role="dialog" aria-modal="true" aria-label="Modelos de presupuesto" onMouseDown={(e) => e.stopPropagation()}>
-        <header className="pm-gallery-head">
-          <div>
-            <h2>{editorOpen ? (form.id_modelo ? "Editar modelo" : "Nuevo modelo") : "Modelos de presupuesto"}</h2>
-            <p>{editorOpen ? "Definí los elementos base. Después cada presupuesto puede cambiar cantidades, medidas y precios." : "Guardá estructuras repetitivas como techo, portón, puerta o cualquier trabajo personalizado."}</p>
+    <div
+      className="gm-modal-overlay presupuesto-modelos-overlay"
+      role="presentation"
+      onMouseDown={(e) => e.target === e.currentTarget && !saving && onClose?.()}
+    >
+      <div
+        className={`gm-modal-container gm-modal-v2 presupuesto-modelos-modal ${
+          editorOpen ? "gm-modal-container--movement presupuesto-modelos-modal--editor" : ""
+        }`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Modelos de presupuesto"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <header className="gm-modal-header">
+          <div className="gm-modal-head-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M7 3.75h8.5L20.25 8.5V20.25H7V3.75Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+              <path d="M15.5 3.75V8.5h4.75M10.25 12h6.75M10.25 15.5h6.75" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M3.75 7.25v13h12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </div>
-          <button type="button" className="pm-gallery-close" onClick={() => editorOpen ? setEditorOpen(false) : onClose?.()} disabled={saving}>✕</button>
+          <div className="gm-modal-head-left">
+            <h2 className="gm-modal-title">
+              {editorOpen ? (form.id_modelo ? "Editar modelo" : "Nuevo modelo") : "Modelos de presupuesto"}
+            </h2>
+            <p className="gm-modal-subtitle">
+              {editorOpen
+                ? "Definí los elementos base; después cada presupuesto puede ajustar cantidades, medidas y precios."
+                : "Guardá y reutilizá estructuras de trabajos frecuentes."}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="gm-modal-close"
+            onClick={() => editorOpen ? setEditorOpen(false) : onClose?.()}
+            disabled={saving}
+            aria-label={editorOpen ? "Volver a modelos" : "Cerrar"}
+          >
+            ✕
+          </button>
         </header>
 
         {!editorOpen ? (
-          <div className="pm-gallery-body">
-            <div className="pm-gallery-toolbar">
-              <div className="pm-gallery-search">
-                <span>⌕</span>
-                <input value={q} onChange={(e) => setQ(upperInput(e.target.value))} placeholder="Buscar por nombre o material…" />
+          <div className="gm-modal-content presupuesto-modelos-content">
+            <div className="presupuesto-modelos-toolbar">
+              <div className="gm-field presupuesto-modelos-search">
+                <svg className="presupuesto-modelos-search__icon" width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
+                  <path d="m16 16 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+                <input
+                  className="gm-input"
+                  value={q}
+                  onChange={(e) => setQ(upperInput(e.target.value))}
+                  placeholder=" "
+                  aria-label="Buscar por nombre o material"
+                />
+                <label className="gm-label">Buscar por nombre o material</label>
               </div>
-              <button type="button" className="pm-btn pm-btn--primary" onClick={openCreate}>+ Crear modelo</button>
+              <button
+                type="button"
+                className="gm-action-btn gm-action-btn--save presupuesto-modelos-create"
+                onClick={openCreate}
+              >
+                <span aria-hidden="true">＋</span>
+                Crear modelo
+              </button>
             </div>
 
             {loading ? (
-              <div className="pm-gallery-empty">Cargando modelos…</div>
+              <div className="gm-table-empty presupuesto-modelos-empty" aria-live="polite">Cargando modelos…</div>
             ) : filtered.length === 0 ? (
-              <div className="pm-gallery-empty">{q ? "No hay modelos que coincidan con la búsqueda." : "Todavía no hay modelos guardados."}</div>
+              <div className="gm-table-empty presupuesto-modelos-empty">
+                {q ? "No hay modelos que coincidan con la búsqueda." : "Todavía no hay modelos guardados."}
+              </div>
             ) : (
-              <div className="pm-gallery-grid">
+              <div className="presupuesto-modelos-grid">
                 {filtered.map((modelo) => (
-                  <article className="pm-model-card" key={modelo.id_modelo}>
-                    <div className="pm-model-card__top">
-                      <span className="pm-model-card__badge">{Number(modelo.es_personalizado ?? 1) === 1 ? "PERSONALIZADO" : "CON STOCK"}</span>
+                  <article className="presupuesto-modelo-card" key={modelo.id_modelo}>
+                    <div className="presupuesto-modelo-card__top">
+                      <div className="presupuesto-modelo-card__eyebrow">
+                        <span className="presupuesto-modelo-card__icon" aria-hidden="true">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                            <path d="M6.75 3.75h7.8l3.7 3.7v12.8H6.75V3.75Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                            <path d="M14.55 3.75v3.7h3.7M9.75 11h5.5M9.75 14.5h5.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                        <span className="presupuesto-modelo-card__badge">
+                          {Number(modelo.es_personalizado ?? 1) === 1 ? "PERSONALIZADO" : "CON STOCK"}
+                        </span>
+                      </div>
                       <strong>{upperStr(modelo.nombre) || "MODELO SIN NOMBRE"}</strong>
                       <p>{upperStr(modelo.descripcion) || "SIN DESCRIPCIÓN"}</p>
                     </div>
-                    <div className="pm-model-card__items">
+                    <div className="presupuesto-modelo-card__items">
+                      <div className="presupuesto-modelo-card__section-title">Elementos incluidos</div>
                       {(Array.isArray(modelo.items) ? modelo.items : []).slice(0, 5).map((item, idx) => (
-                        <div key={`${modelo.id_modelo}-${idx}`}><span>{safeNumber(item.cantidad)}×</span>{upperStr(item.descripcion || item.nombre)}</div>
+                        <div key={`${modelo.id_modelo}-${idx}`}>
+                          <span>{safeNumber(item.cantidad)}×</span>
+                          <b>{upperStr(item.descripcion || item.nombre)}</b>
+                        </div>
                       ))}
+                      {(!Array.isArray(modelo.items) || modelo.items.length === 0) && (
+                        <small className="presupuesto-modelo-card__empty-items">Sin elementos cargados</small>
+                      )}
                       {Number(modelo.cantidad_items || 0) > 5 && <small>+ {Number(modelo.cantidad_items) - 5} elementos más</small>}
                     </div>
-                    <div className="pm-model-card__summary">
-                      <span>{Number(modelo.cantidad_items || 0)} elementos</span>
-                      <b>{moneyARS(modelo.total_modelo || 0)}</b>
+                    <div className="presupuesto-modelo-card__summary">
+                      <div className="presupuesto-modelo-card__metric">
+                        <span>Elementos</span>
+                        <b>{Number(modelo.cantidad_items || 0)}</b>
+                      </div>
+                      <div className="presupuesto-modelo-card__metric presupuesto-modelo-card__metric--total">
+                        <span>Total base</span>
+                        <b>{moneyARS(modelo.total_modelo || 0)}</b>
+                      </div>
                     </div>
-                    <div className="pm-model-card__actions">
-                      <button type="button" className="pm-btn pm-btn--primary" onClick={() => onUseModel?.(modelo)}>Usar modelo</button>
-                      <button type="button" className="pm-btn" onClick={() => openEdit(modelo)}>Editar</button>
+                    <div className="presupuesto-modelo-card__actions">
                       <button
                         type="button"
-                        className={`pm-btn pm-btn--danger ${deletingId === Number(modelo.id_modelo) ? "is-confirm" : ""}`}
-                        disabled={deletingId && deletingId !== Number(modelo.id_modelo)}
-                        onClick={() => deletingId === Number(modelo.id_modelo) ? eliminar(modelo) : setDeletingId(Number(modelo.id_modelo))}
+                        className="gm-action-btn gm-action-btn--save presupuesto-modelo-card__button"
+                        onClick={() => onUseModel?.(modelo)}
                       >
-                        {deletingId === Number(modelo.id_modelo) ? "Confirmar" : "Eliminar"}
+                        Usar modelo
                       </button>
-                      {deletingId === Number(modelo.id_modelo) && <button type="button" className="pm-btn" onClick={() => setDeletingId(null)}>Cancelar</button>}
+                      <button
+                        type="button"
+                        className="gm-action-btn gm-action-btn--secondary presupuesto-modelo-card__button"
+                        onClick={() => openEdit(modelo)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="gm-action-btn gm-action-btn--danger presupuesto-modelo-card__button"
+                        disabled={Boolean(deletingId)}
+                        onClick={() => setModeloEliminar(modelo)}
+                      >
+                        Eliminar
+                      </button>
                     </div>
                   </article>
                 ))}
@@ -424,66 +513,257 @@ export default function ModalModelosPresupuesto({ open, lists, onClose, onToast,
             )}
           </div>
         ) : (
-          <div className="pm-editor-body">
-            <div className="pm-editor-meta">
-              <label><span>Nombre del modelo *</span><input value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: upperInput(e.target.value) }))} placeholder="Ej.: Techo de chapa" /></label>
-              <label><span>Descripción</span><input value={form.descripcion} onChange={(e) => setForm((p) => ({ ...p, descripcion: upperInput(e.target.value) }))} placeholder="Uso interno para identificarlo" /></label>
-              <label className="pm-switch-line">
-                <input type="checkbox" checked={form.es_personalizado} onChange={(e) => setForm((p) => ({ ...p, es_personalizado: e.target.checked }))} />
-                <span><b>Trabajo personalizado</b><small>Permite materiales escritos a mano y productos sin stock disponible.</small></span>
-              </label>
-            </div>
+          <div className="gm-modal-content presupuesto-modelos-editor">
+            <div className="gm-movement-layout presupuesto-modelos-editor__layout">
+              <section className="gm-table gm-table--movement gm-movement-main presupuesto-modelos-table">
+                <div className="gm-table-head">
+                  <div className="gm-table-th">Elemento / material</div>
+                  <div className="gm-table-th">Cantidad / medida</div>
+                  <div className="gm-table-th right">Precio</div>
+                  <div className="gm-table-th">IVA</div>
+                  <div className="gm-table-th right">Total</div>
+                  <div className="gm-table-th" />
+                </div>
+                <div className="gm-table-body presupuesto-modelos-table__body">
+                  {form.rows.map((row) => {
+                    const subtotal = safeNumber(row.cantidad) * safeNumber(row.precio);
+                    const totalRow = subtotal + subtotal * safeNumber(row.iva_pct) / 100;
+                    return (
+                      <div className="gm-table-row" key={row.localId}>
+                        <div className="gm-table-cell gm-table-cell--detail">
+                          <ProductStockAutocomplete
+                            value={row.descripcion}
+                            onChange={(value) => updateRow(row.localId, { descripcion: upperInput(value), id_detalle: null, id_stock_producto: null, id_stock_variante: null, codigo: "" })}
+                            onSelect={(option) => selectStock(row.localId, option)}
+                            options={stockOptions}
+                            allowOutOfStock={form.es_personalizado}
+                            showAllOnFocus={true}
+                            placeholder="Buscar en stock o escribir manualmente…"
+                            emptyMessage="Sin coincidencias. Podés dejar el texto escrito."
+                            disabled={saving}
+                            inputClassName="gm-cell-input"
+                          />
+                        </div>
+                        <div className="gm-table-cell gm-table-cell--center">
+                          <input
+                            className="gm-cell-input gm-cell-input--center"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={row.cantidad}
+                            onChange={(e) => updateRow(row.localId, { cantidad: e.target.value })}
+                            disabled={saving}
+                          />
+                        </div>
+                        <div className="gm-table-cell gm-table-cell--center">
+                          <input
+                            className="gm-cell-input gm-cell-input--right"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={row.precio}
+                            onChange={(e) => updateRow(row.localId, { precio: e.target.value })}
+                            disabled={saving}
+                          />
+                        </div>
+                        <div className="gm-table-cell gm-table-cell--center">
+                          <select
+                            className="gm-cell-input gm-cell-input--center gm-cell-input--select"
+                            value={row.iva_pct}
+                            onChange={(e) => updateRow(row.localId, { iva_pct: Number(e.target.value) })}
+                            disabled={saving}
+                          >
+                            {IVA_OPTIONS.map((iva) => <option key={iva} value={iva}>{iva} %</option>)}
+                          </select>
+                        </div>
+                        <div className="gm-table-cell gm-table-cell--right gm-table-cell--mono gm-table-cell--total">
+                          {moneyARS(totalRow)}
+                        </div>
+                        <div className="gm-table-cell gm-table-cell--center">
+                          <button
+                            type="button"
+                            className="gm-row-delete"
+                            onClick={() => setForm((p) => ({ ...p, rows: p.rows.length <= 1 ? p.rows : p.rows.filter((x) => x.localId !== row.localId) }))}
+                            disabled={saving || form.rows.length <= 1}
+                            title="Eliminar elemento"
+                            aria-label="Eliminar elemento"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
 
-            <div className="pm-editor-table">
-              <div className="pm-editor-row pm-editor-row--head"><span>Elemento / material</span><span>Cantidad / medida</span><span>Precio</span><span>IVA</span><span>Total</span><span /></div>
-              {form.rows.map((row) => {
-                const subtotal = safeNumber(row.cantidad) * safeNumber(row.precio);
-                const totalRow = subtotal + subtotal * safeNumber(row.iva_pct) / 100;
-                return (
-                  <div className="pm-editor-row" key={row.localId}>
-                    <ProductStockAutocomplete
-                      value={row.descripcion}
-                      onChange={(value) => updateRow(row.localId, { descripcion: upperInput(value), id_detalle: null, id_stock_producto: null, id_stock_variante: null, codigo: "" })}
-                      onSelect={(option) => selectStock(row.localId, option)}
-                      options={stockOptions}
-                      allowOutOfStock={form.es_personalizado}
-                      showAllOnFocus={true}
-                      placeholder="Buscar en stock o escribir manualmente…"
-                      emptyMessage="Sin coincidencias. Podés dejar el texto escrito."
-                      disabled={saving}
-                      inputClassName="pm-editor-input"
-                    />
-                    <input type="number" min="0.01" step="0.01" value={row.cantidad} onChange={(e) => updateRow(row.localId, { cantidad: e.target.value })} disabled={saving} />
-                    <input type="number" min="0" step="0.01" value={row.precio} onChange={(e) => updateRow(row.localId, { precio: e.target.value })} disabled={saving} />
-                    <select value={row.iva_pct} onChange={(e) => updateRow(row.localId, { iva_pct: Number(e.target.value) })} disabled={saving}>{IVA_OPTIONS.map((iva) => <option key={iva} value={iva}>{iva} %</option>)}</select>
-                    <b>{moneyARS(totalRow)}</b>
-                    <button type="button" className="pm-row-delete" onClick={() => setForm((p) => ({ ...p, rows: p.rows.length <= 1 ? p.rows : p.rows.filter((x) => x.localId !== row.localId) }))} disabled={saving || form.rows.length <= 1}>×</button>
+                <div className="presupuesto-modelos-conditions" aria-label="Condiciones comerciales del modelo">
+                  <div className="presupuesto-modelos-conditions__title">
+                    <span className="gm-section-dot" />
+                    Condiciones comerciales
                   </div>
-                );
-              })}
-              <div className="pm-editor-table__foot">
-                <button type="button" className="pm-btn" onClick={() => setForm((p) => ({ ...p, rows: [...p.rows, emptyRow()] }))} disabled={saving}>+ Agregar elemento</button>
-                <div><span>Total base</span><b>{moneyARS(total)}</b></div>
+                  <div className="presupuesto-modelos-conditions__grid">
+                    <div className="gm-field presupuesto-modelos-field--small">
+                      <input
+                        className="gm-input"
+                        type="number"
+                        min="0"
+                        max="3650"
+                        step="1"
+                        placeholder=" "
+                        value={form.validez_dias}
+                        onChange={(e) => setForm((p) => ({ ...p, validez_dias: e.target.value }))}
+                        disabled={saving}
+                      />
+                      <label className="gm-label">Validez (días)</label>
+                    </div>
+                    <div className="gm-field presupuesto-modelos-field--textarea">
+                      <textarea className="gm-input" rows={2} placeholder=" " value={form.plazo_entrega} onChange={(e) => setForm((p) => ({ ...p, plazo_entrega: upperInput(e.target.value) }))} disabled={saving} />
+                      <label className="gm-label">Plazo de entrega / ejecución</label>
+                    </div>
+                    <div className="gm-field presupuesto-modelos-field--textarea">
+                      <textarea className="gm-input" rows={2} placeholder=" " value={form.forma_pago} onChange={(e) => setForm((p) => ({ ...p, forma_pago: upperInput(e.target.value) }))} disabled={saving} />
+                      <label className="gm-label">Forma de pago</label>
+                    </div>
+                    <div className="gm-field presupuesto-modelos-field--textarea">
+                      <textarea className="gm-input" rows={2} placeholder=" " value={form.condiciones_comerciales} onChange={(e) => setForm((p) => ({ ...p, condiciones_comerciales: upperInput(e.target.value) }))} disabled={saving} />
+                      <label className="gm-label">Condiciones comerciales</label>
+                    </div>
+                    <div className="gm-field presupuesto-modelos-field--textarea">
+                      <textarea className="gm-input" rows={2} placeholder=" " value={form.garantia} onChange={(e) => setForm((p) => ({ ...p, garantia: upperInput(e.target.value) }))} disabled={saving} />
+                      <label className="gm-label">Garantía</label>
+                    </div>
+                    <div className="gm-field presupuesto-modelos-field--textarea">
+                      <textarea className="gm-input" rows={2} placeholder=" " value={form.lugar_entrega} onChange={(e) => setForm((p) => ({ ...p, lugar_entrega: upperInput(e.target.value) }))} disabled={saving} />
+                      <label className="gm-label">Lugar de entrega / instalación</label>
+                    </div>
+                    <div className="gm-field presupuesto-modelos-field--textarea presupuesto-modelos-field--wide">
+                      <textarea className="gm-input" rows={2} placeholder=" " value={form.notas} onChange={(e) => setForm((p) => ({ ...p, notas: upperInput(e.target.value) }))} disabled={saving} />
+                      <label className="gm-label">Notas</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="gm-table-foot">
+                  <div className="gm-foot-actions">
+                    <button
+                      type="button"
+                      className="gm-foot-btn"
+                      onClick={() => setForm((p) => ({ ...p, rows: [...p.rows, emptyRow()] }))}
+                      disabled={saving}
+                    >
+                      <span className="gm-foot-btn__icon" aria-hidden="true">
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                          <path d="M5 1.5V8.5M1.5 5H8.5" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
+                        </svg>
+                      </span>
+                      Agregar elemento
+                    </button>
+                  </div>
+                  <div className="gm-summary-chips">
+                    <div className="gm-summary-chip gm-summary-chip--total">
+                      <span>Total base</span>
+                      <b>{moneyARS(total)}</b>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <div className="gm-movement-side presupuesto-modelos-side">
+                <aside className="gm-aside">
+                  <div className="gm-section">
+                    <div className="gm-section-head">
+                      <div className="gm-section-dot" />
+                      <span>Datos del modelo</span>
+                    </div>
+                    <div className="gm-section-body">
+                      <div className="gm-field">
+                        <input
+                          className="gm-input"
+                          value={form.nombre}
+                          onChange={(e) => setForm((p) => ({ ...p, nombre: upperInput(e.target.value) }))}
+                          placeholder=" "
+                          maxLength={150}
+                          disabled={saving}
+                        />
+                        <label className="gm-label">Nombre del modelo *</label>
+                      </div>
+                      <div className="gm-field">
+                        <textarea
+                          className="gm-input presupuesto-modelos-description"
+                          value={form.descripcion}
+                          onChange={(e) => setForm((p) => ({ ...p, descripcion: upperInput(e.target.value) }))}
+                          placeholder=" "
+                          maxLength={500}
+                          rows={3}
+                          disabled={saving}
+                        />
+                        <label className="gm-label">Descripción</label>
+                      </div>
+                      <label className={`gm-inline-check presupuesto-check-card presupuesto-modelos-check ${form.es_personalizado ? "is-active" : ""}`}>
+                        <input
+                          type="checkbox"
+                          checked={form.es_personalizado}
+                          onChange={(e) => setForm((p) => ({ ...p, es_personalizado: e.target.checked }))}
+                          disabled={saving}
+                        />
+                        <span className="gm-inline-check__box" aria-hidden="true" />
+                        <span className="presupuesto-check-card__copy">
+                          <b>Trabajo personalizado</b>
+                          <small>Permite materiales escritos a mano y productos sin stock disponible.</small>
+                        </span>
+                      </label>
+                      <div className="gm-info-box presupuesto-modelos-info">
+                        El modelo quedará disponible para reutilizar su estructura en nuevos presupuestos.
+                      </div>
+                    </div>
+                  </div>
+                </aside>
+
+                <div className="gm-actions gm-actions--sticky presupuesto-modelos-actions">
+                  <button type="button" className="gm-action-btn gm-action-btn--save" onClick={guardar} disabled={saving}>
+                    {saving ? "Guardando…" : "Guardar modelo"}
+                  </button>
+                  <button type="button" className="gm-action-btn gm-action-btn--cancel" onClick={() => setEditorOpen(false)} disabled={saving}>
+                    Volver
+                  </button>
+                </div>
               </div>
             </div>
-
-            <div className="pm-editor-conditions">
-              <label><span>Validez (días)</span><input type="number" min="0" max="3650" step="1" value={form.validez_dias} onChange={(e) => setForm((p) => ({ ...p, validez_dias: e.target.value }))} /></label>
-              <label><span>Plazo de entrega / ejecución</span><textarea rows={2} value={form.plazo_entrega} onChange={(e) => setForm((p) => ({ ...p, plazo_entrega: upperInput(e.target.value) }))} /></label>
-              <label><span>Forma de pago</span><textarea rows={2} value={form.forma_pago} onChange={(e) => setForm((p) => ({ ...p, forma_pago: upperInput(e.target.value) }))} /></label>
-              <label><span>Condiciones comerciales</span><textarea rows={2} value={form.condiciones_comerciales} onChange={(e) => setForm((p) => ({ ...p, condiciones_comerciales: upperInput(e.target.value) }))} /></label>
-              <label><span>Garantía</span><textarea rows={2} value={form.garantia} onChange={(e) => setForm((p) => ({ ...p, garantia: upperInput(e.target.value) }))} /></label>
-              <label><span>Lugar de entrega / instalación</span><textarea rows={2} value={form.lugar_entrega} onChange={(e) => setForm((p) => ({ ...p, lugar_entrega: upperInput(e.target.value) }))} /></label>
-              <label><span>Notas</span><textarea rows={2} value={form.notas} onChange={(e) => setForm((p) => ({ ...p, notas: upperInput(e.target.value) }))} /></label>
-            </div>
-
-            <footer className="pm-editor-actions">
-              <button type="button" className="pm-btn" onClick={() => setEditorOpen(false)} disabled={saving}>Volver</button>
-              <button type="button" className="pm-btn pm-btn--primary" onClick={guardar} disabled={saving}>{saving ? "Guardando…" : "Guardar modelo"}</button>
-            </footer>
           </div>
         )}
       </div>
+
+      <ModalEliminar
+        open={Boolean(modeloEliminar)}
+        row={modeloEliminar}
+        loading={deletingId === Number(modeloEliminar?.id_modelo || 0)}
+        onClose={() => setModeloEliminar(null)}
+        onConfirm={eliminar}
+        onToast={onToast}
+        title="Eliminar modelo de presupuesto"
+        message="¿Seguro que querés eliminar este modelo de presupuesto?"
+        warning="Esta acción no se puede deshacer."
+        loadingMessage="Eliminando modelo de presupuesto…"
+        successMessage="Modelo eliminado correctamente."
+        errorMessage="No se pudo eliminar el modelo."
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        confirmVariant="danger"
+        details={[
+          { label: "ID Modelo", value: `#${modeloEliminar?.id_modelo ?? "—"}` },
+          { label: "Nombre", value: upperStr(modeloEliminar?.nombre) || "—" },
+          {
+            label: "Elementos",
+            value: String(
+              Number(
+                modeloEliminar?.cantidad_items ??
+                  (Array.isArray(modeloEliminar?.items) ? modeloEliminar.items.length : 0)
+              )
+            ),
+          },
+          { label: "Total base", value: moneyARS(modeloEliminar?.total_modelo || 0) },
+        ]}
+      />
     </div>,
     document.body
   );

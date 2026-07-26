@@ -178,6 +178,37 @@ function wrapByWidth(doc, value, maxW) {
   return lines.length ? lines : [t];
 }
 
+function wrapCompactByWidth(doc, value, maxW) {
+  const t = sanitizePdfText(value);
+  const limit = Math.max(1, Number(maxW) || 0);
+  if (!t) return [];
+  if (doc.getTextWidth(t) <= limit) return [t];
+
+  const lines = [];
+  let rest = t;
+
+  while (rest) {
+    let low = 1;
+    let high = rest.length;
+    let best = 1;
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      if (doc.getTextWidth(rest.slice(0, mid)) <= limit) {
+        best = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    lines.push(rest.slice(0, best));
+    rest = rest.slice(best);
+  }
+
+  return lines;
+}
+
 function getWidthUntil(x, maxX, gap = 8) {
   const from = Number(x);
   const to = Number(maxX);
@@ -534,7 +565,7 @@ function getColumns(doc) {
   const W = doc.internal.pageSize.getWidth();
   const B = 10;
   const innerW = W - B * 2;
-  const wCodigo = 46;
+  const wCodigo = 76;
   const wCant = 56;
   const wUM = 44;
   const wPU = 72;
@@ -572,14 +603,20 @@ function drawTableHeader(doc, y) {
 }
 
 function drawTableRow(doc, item, idx, cols, y, maxBodyY) {
+  set(doc, "helvetica", "normal", 8.7);
+  const codeMaxW = cols.x1 - cols.padR - (cols.x0 + cols.padL);
   const descMaxW = cols.x2 - cols.padR - (cols.x1 + cols.padL);
+  const codeLines = wrapCompactByWidth(
+    doc,
+    item.codigo || String(idx + 1),
+    Math.max(20, codeMaxW)
+  );
   const descLines = wrapByWidth(doc, item.descripcion, Math.max(20, descMaxW));
   const lh = 11;
-  const blockH = Math.max(14, descLines.length * lh);
+  const blockH = Math.max(14, Math.max(codeLines.length, descLines.length) * lh);
   if (y + blockH > maxBodyY) return { y, drawn: false };
 
-  set(doc, "helvetica", "normal", 8.7);
-  text(doc, s(item.codigo || String(idx + 1)), cols.x0 + cols.padL, y);
+  codeLines.forEach((ln, li) => text(doc, ln, cols.x0 + cols.padL, y + li * lh));
   descLines.forEach((ln, li) => text(doc, ln, cols.x1 + cols.padL, y + li * lh));
   text(doc, numEs(item.cantidad, 2), cols.x3 - cols.padR, y, { align: "right" });
   text(doc, s(item.unidad || "u"), cols.x4 - cols.padR, y, { align: "right" });

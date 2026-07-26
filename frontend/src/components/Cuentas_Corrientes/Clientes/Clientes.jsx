@@ -38,18 +38,13 @@ function moneyARS(v) {
   }
 }
 
-function moneyToneClass(value) {
-  const n = Number(value || 0);
-  if (n < 0) return "cc-money cc-money--negative";
-  if (n > 0) return "cc-money cc-money--positive";
-  return "cc-money cc-money--neutral";
-}
-
 function saldoClienteToneClass(value) {
-  const n = Number(value || 0);
-  if (n > 0) return "cc-money cc-money--negative";
-  if (n < 0) return "cc-money cc-money--positive";
-  return "cc-money cc-money--neutral";
+  const saldo = Number(value || 0);
+  if (!Number.isFinite(saldo)) return "cc-money cc-money--neutral";
+
+  const saldoEnCentavos = Math.round(saldo * 100);
+  if (saldoEnCentavos > 0) return "cc-money cc-money--negative";
+  return "cc-money cc-money--positive";
 }
 
 function saldoTotalClienteToneClass(totales) {
@@ -62,13 +57,7 @@ function saldoTotalClienteToneClass(totales) {
 }
 
 function saldoMovimientoToneClass(row) {
-  const debito = Number(row?.debito || 0);
-  const credito = Number(row?.credito || 0);
-
-  if (debito > 0 && credito <= 0) return "cc-money cc-money--negative";
-  if (credito > 0 && debito <= 0) return "cc-money cc-money--positive";
-
-  return moneyToneClass(row?.saldo);
+  return saldoClienteToneClass(row?.saldo);
 }
 
 function formatDateISO(d) {

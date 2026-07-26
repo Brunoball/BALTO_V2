@@ -5,6 +5,7 @@ import "../../Global/Global_css/roots.css";
 import "./RecibosResponsive.css";
 
 import Toast from "../../Global/Toast.jsx";
+import useTableScrollGutter from "../../Global/useTableScrollGutter.jsx";
 
 import Calendario from "../../Global/Calendario/Calendario.jsx";
 import "../../Global/Calendario/calendario.css";
@@ -304,6 +305,7 @@ function isAccionNoValidaErrorMessage(msg) {
 
 export default function Recibos() {
   const API = `${BASE_URL}/api.php`;
+  const [tableWrapRef, hasTableScroll] = useTableScrollGutter();
 
   const {
     lists: listasCtx,
@@ -1335,7 +1337,7 @@ export default function Recibos() {
           </div>
         </div>
 
-        <div className="mov-gridTable mov-gridTable--head" style={{ gridTemplateColumns: gridCols }} role="row">
+        <div className={`mov-gridTable mov-gridTable--head ${hasTableScroll ? "has-y-scroll" : ""}`} style={{ gridTemplateColumns: gridCols }} role="row">
           {columns.map((c) => (
             <div
               key={c.key}
@@ -1352,7 +1354,7 @@ export default function Recibos() {
           ))}
         </div>
 
-        <div className="mov-tableWrap mov-table---Wrap" role="rowgroup">
+        <div className="mov-tableWrap mov-table---Wrap" role="rowgroup" ref={tableWrapRef}>
           <div className={["mov-gridBody", "mov-gridBody--relative", loadingRows ? "mov-softLoading" : ""].join(" ")}>
             {loadingRows ? (
               <div className="mov-skeletonWrap" aria-busy="true">
