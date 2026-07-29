@@ -205,7 +205,8 @@ export async function buildNotaCreditoPdf(data = {}) {
   );
 
   const fileName = buildFileName(data);
-  const tipoLabel = cbteTipoLabel(data?.cbte_tipo);
+  const esInterna = String(data?.modalidad || "").toUpperCase() === "INTERNA";
+  const tipoLabel = esInterna ? "NOTA DE CRÉDITO INTERNA" : cbteTipoLabel(data?.cbte_tipo);
 
   const qrUrl = String(data?.qr_url || "").trim();
   const qrImageDataUrl = await buildQrImageDataUrl(qrUrl);
@@ -231,7 +232,7 @@ export async function buildNotaCreditoPdf(data = {}) {
   doc.setTextColor(...primary);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.text("NOTA DE CRÉDITO ELECTRÓNICA", margin + 18, 13);
+  doc.text(esInterna ? "NOTA DE CRÉDITO INTERNA" : "NOTA DE CRÉDITO ELECTRÓNICA", margin + 18, 13);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);

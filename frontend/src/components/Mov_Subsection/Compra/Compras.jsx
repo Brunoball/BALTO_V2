@@ -11,6 +11,7 @@ import "../../Global/Calendario/calendario.css";
 
 import ModalNuevaCompra from "./modales/ModalNuevaCompra.jsx";
 import ModalEditarCompra from "./modales/ModalEditarCompra.jsx";
+import ModalNotaCreditoProveedor from "./modales/ModalNotaCreditoProveedor.jsx";
 import { ModalDetalleMovimientoCompra } from "../../Global/Modales/ModalDetalleMovimiento.jsx";
 import ModalVerComprobante from "../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import ModalEliminarMovimientos from "../../Global/Modales/ModalEliminar.jsx";
@@ -31,6 +32,7 @@ import {
   faTimes,
   faBoxOpen,
   faInfoCircle,
+  faFileInvoiceDollar,
 } from "@fortawesome/free-solid-svg-icons";
 
 import * as XLSX from "xlsx";
@@ -485,6 +487,7 @@ export default function Compras() {
 
   const [openNueva, setOpenNueva] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
+  const [openNotaCredito, setOpenNotaCredito] = useState(false);
   const [openDel, setOpenDel] = useState(false);
   const [openVerComp, setOpenVerComp] = useState(false);
   const [openMediosPago, setOpenMediosPago] = useState(false);
@@ -1635,6 +1638,16 @@ export default function Compras() {
                                 <button
                                   type="button"
                                   className="mov-iconBtn"
+                                  title="Registrar nota de crédito del proveedor"
+                                  onClick={() => { setSelectedRow(r); setOpenNotaCredito(true); }}
+                                  disabled={isAnyLoading || loadingListsCtx}
+                                >
+                                  <FontAwesomeIcon icon={faFileInvoiceDollar} />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="mov-iconBtn"
                                   title="Editar"
                                   onClick={() => openEditModal(r)}
                                   disabled={isAnyLoading || loadingListsCtx}
@@ -1754,6 +1767,21 @@ export default function Compras() {
         onSaved={async () => {
           await refreshAfterSave();
           showToast("exito", "Compra actualizada correctamente.", 2400);
+        }}
+      />
+
+      <ModalNotaCreditoProveedor
+        open={openNotaCredito}
+        row={selectedRow}
+        onClose={() => {
+          setOpenNotaCredito(false);
+          setSelectedRow(null);
+        }}
+        onToast={showToast}
+        onDone={async () => {
+          setOpenNotaCredito(false);
+          await refreshAfterSave();
+          showToast("exito", "Nota de crédito del proveedor aplicada.", 3600);
         }}
       />
 

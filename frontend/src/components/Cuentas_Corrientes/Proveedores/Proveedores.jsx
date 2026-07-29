@@ -234,7 +234,7 @@ function comprobanteLabelFromTipo(tipo = "", fallback = "Comprobante") {
   if (t === "REMITO") return "Remito";
   if (t === "RECIBO") return "Recibo";
   if (t === "ORDEN_PAGO") return "Orden de pago";
-  if (t === "NOTA_CREDITO") return "Nota de crédito";
+  if (["NOTA_CREDITO", "NOTA_CREDITO_INTERNA"].includes(t)) return "Nota de crédito";
   if (t === "NOTA_DEBITO") return "Nota de débito";
   return safeText(fallback) || "Comprobante";
 }
@@ -243,9 +243,10 @@ function comprobanteRank(doc) {
   const t = safeText(doc?.tipo || doc?.tipo_relacion || "").toUpperCase();
   const k = safeText(doc?.key || "").toLowerCase();
   if (["VENTA_NO_FACTURADA", "FACTURA_INTERNA", "FACTURA", "FACTURA_FISCAL", "COMPROBANTE_FISCAL"].includes(t) || k.includes("factura") || k.includes("venta_no_facturada")) return 10;
-  if (["NOTA_CREDITO", "NOTA_DEBITO"].includes(t)) return 15;
   if (t === "REMITO" || k.includes("remito")) return 20;
-  return 30;
+  if (["NOTA_CREDITO", "NOTA_CREDITO_INTERNA"].includes(t) || k.includes("nota_credito")) return 30;
+  if (t === "NOTA_DEBITO" || k.includes("nota_debito")) return 40;
+  return 50;
 }
 
 function normalizeCCComprobanteDocs(row) {
@@ -880,14 +881,19 @@ export default function ProveedoresCC() {
         docs.forEach((doc) => prewarmComprobanteUrl(doc.url, safeText(doc?.mime || doc?.archivo_mime)));
 
         const isHistorialMovimiento = row?.tipo_registro === "historial_movimiento";
-        const isCobro = !isHistorialMovimiento && Number(row?.credito || 0) > 0;
+        const isNotaCredito = row?.tipo_registro === "nota_credito";
+        const isCobro = !isHistorialMovimiento && !isNotaCredito && Number(row?.credito || 0) > 0;
         const isMovimiento = isHistorialMovimiento || Number(row?.debito || 0) > 0;
 
         setPreviewComprobante({
           open: true,
           url: docs[0]?.url || "",
           mime: docs[0]?.mime || docs[0]?.archivo_mime || safeText(row?.comprobante_mime) || "application/pdf",
-          title: isCobro
+          title: isNotaCredito
+          ? row?.comprobante
+            ? `Nota de crédito · ${row.comprobante}`
+            : "Nota de crédito"
+          : isCobro
           ? row?.comprobante
             ? `Orden de pago · ${row.comprobante}`
             : "Orden de pago"
@@ -1335,7 +1341,8 @@ export default function ProveedoresCC() {
               detailRows.map((r, i) => {
                 const verHabilitado = canPreviewComprobante(r);
                 const puedeEliminar = !isHistorialTab && canDeleteCobro(r);
-                const isCobro = !isHistorialTab && Number(r.credito || 0) > 0;
+                const isNotaCredito = !isHistorialTab && r?.tipo_registro === "nota_credito";
+                const isCobro = !isHistorialTab && !isNotaCredito && Number(r.credito || 0) > 0;
 
                 return (
                   <div
@@ -1380,7 +1387,9 @@ export default function ProveedoresCC() {
                           disabled={!verHabilitado}
                           title={
                             verHabilitado
-                              ? isCobro
+                              ? isNotaCredito
+                                ? "Ver nota de crédito"
+                                : isCobro
                                 ? "Ver recibo / comprobante del cobro"
                                 : "Ver factura / comprobante de la deuda"
                               : "Este registro no tiene comprobante asociado"

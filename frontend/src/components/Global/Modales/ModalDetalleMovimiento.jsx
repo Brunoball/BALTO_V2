@@ -391,7 +391,7 @@ export default function ModalDetalleMovimiento({
   const totalItems = resumenItems.total;
 
   const totalMedios = useMemo(
-    () => medios.reduce((acc, item) => acc + getMedioMontoVisible(item), 0),
+    () => medios.reduce((acc, item) => acc + getMedioMontoAplicado(item), 0),
     [medios]
   );
 

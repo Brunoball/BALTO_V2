@@ -31,6 +31,7 @@ import {
   faEye,
   faBoxOpen,
   faInfoCircle,
+  faFileInvoiceDollar,
 } from "@fortawesome/free-solid-svg-icons";
 
 import * as XLSX from "xlsx";
@@ -121,13 +122,29 @@ function normalizeComprobanteDocs(row) {
       if (!Number.isFinite(id) || id <= 0) return null;
       const tipo = String(doc?.tipo ?? doc?.comprobante_tipo ?? "").trim().toUpperCase();
       const key = String(doc?.key ?? "").trim().toLowerCase();
-      const label = String(doc?.label ?? doc?.title ?? (tipo === "REMITO" ? "Remito" : tipo === "VENTA_NO_FACTURADA" ? "Venta no facturada" : "Factura")).trim();
+      const defaultLabel = tipo === "REMITO"
+        ? "Remito"
+        : ["NOTA_CREDITO", "NOTA_CREDITO_INTERNA"].includes(tipo)
+          ? "Nota de crédito"
+          : tipo === "NOTA_DEBITO"
+            ? "Nota de débito"
+            : tipo === "VENTA_NO_FACTURADA"
+              ? "Venta no facturada"
+              : "Factura";
+      const defaultKey = tipo === "REMITO"
+        ? "remito"
+        : ["NOTA_CREDITO", "NOTA_CREDITO_INTERNA"].includes(tipo)
+          ? "nota_credito"
+          : tipo === "NOTA_DEBITO"
+            ? "nota_debito"
+            : "factura";
+      const label = String(doc?.label ?? doc?.title ?? defaultLabel).trim();
       return {
         ...doc,
         id_comprobante: id,
         id_archivo: id,
         tipo,
-        key: key || (tipo === "REMITO" ? "remito" : "factura"),
+        key: key || defaultKey,
         label,
         title: String(doc?.title ?? label).trim() || label,
         mime: String(doc?.mime ?? doc?.archivo_mime ?? "application/pdf").trim() || "application/pdf",
@@ -137,7 +154,11 @@ function normalizeComprobanteDocs(row) {
     .filter(Boolean)
     .sort((a, b) => {
       const rank = (d) => {
-        if (String(d?.tipo || "").toUpperCase() === "REMITO" || String(d?.key || "").toLowerCase() === "remito") return 2;
+        const tipo = String(d?.tipo || "").toUpperCase();
+        const key = String(d?.key || "").toLowerCase();
+        if (tipo === "REMITO" || key.includes("remito")) return 2;
+        if (["NOTA_CREDITO", "NOTA_CREDITO_INTERNA"].includes(tipo) || key.includes("nota_credito")) return 3;
+        if (tipo === "NOTA_DEBITO" || key.includes("nota_debito")) return 4;
         return 1;
       };
       const ra = rank(a), rb = rank(b);
@@ -319,6 +340,7 @@ export default function Ventas() {
   const [openAdd, setOpenAdd] = useState(false);
   const [openDel, setOpenDel] = useState(false);
   const [openNC, setOpenNC] = useState(false);
+  const [modoNC, setModoNC] = useState("NORMAL");
   const [openDetalleMovimiento, setOpenDetalleMovimiento] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
   const [openVerComprobante, setOpenVerComprobante] = useState(false);
@@ -530,7 +552,7 @@ export default function Ventas() {
     { key: "txt", label: "Exportar TXT (.txt)", onClick: () => handleExport("txt") },
   ], [handleExport]);
   const reloadVista = useCallback(async () => { cacheRef.current.clear(); clearMovPerfCache(VENTAS_LIST_CACHE_KEY); signedUrlCacheRef.current.clear(); signedUrlInFlightRef.current.clear(); await loadRows({ from: dateRange.from, to: dateRange.to, q, offset: 0, append: false, bypassCache: true }); try { const token = await fetchLiveToken(dateRange.from, dateRange.to, q); liveTokenRef.current = token; } catch {} }, [dateRange.from, dateRange.to, loadRows, q, fetchLiveToken]);
-  const confirmDelete = async () => {
+  const confirmDelete = async ({ permitirFiscalAnulada = false } = {}) => {
     if (!selectedRow?.id_movimiento) return;
     const id = selectedRow.id_movimiento;
     setDeletingId(id);
@@ -542,7 +564,10 @@ export default function Ventas() {
       sp.set("action", "ventas_eliminar");
       sp.set("id_movimiento", String(id));
 
-      const data = await apiPostJson(`${API}?${sp.toString()}`, { idUsuario });
+      const data = await apiPostJson(`${API}?${sp.toString()}`, {
+        idUsuario,
+        eliminar_fiscal_anulada: permitirFiscalAnulada ? 1 : 0,
+      });
       if (!data?.exito) throw new Error(data?.mensaje || "No se pudo eliminar.");
 
       ["presupuestos:listar:v2", "presupuestos:listar:v3", "presupuestos:listar:v4"].forEach((scope) => clearMovPerfCache(scope));
@@ -613,20 +638,75 @@ export default function Ventas() {
   const handlePrewarmComprobante = useCallback(async (r) => {
     buildComprobanteCandidatesFromRow(r).forEach((doc) => getComprobanteSignedUrl(doc.id_comprobante, doc.cacheSalt).catch(() => {}));
   }, [getComprobanteSignedUrl]);
-  const requiereNC = useMemo(() => Number(selectedRow?.factura_emitida_en_arca || 0) === 1 && Number(selectedRow?.factura_tiene_nota_credito || 0) !== 1, [selectedRow]);
-  const yaTieneNC = useMemo(() => Number(selectedRow?.factura_emitida_en_arca || 0) === 1 && Number(selectedRow?.factura_tiene_nota_credito || 0) === 1, [selectedRow]);
+  const esVentaFiscal = useMemo(() => Number(selectedRow?.factura_emitida_en_arca || 0) === 1, [selectedRow]);
+  const tieneNotaCreditoInterna = useMemo(() => {
+    if (!selectedRow || esVentaFiscal) return false;
+    if (Number(selectedRow?.tiene_nota_credito_fiscal || 0) === 1) return false;
+    return Number(selectedRow?.tiene_nota_credito_interna || 0) === 1
+      || Number(selectedRow?.tiene_nota_credito || 0) === 1
+      || Number(selectedRow?.nota_credito_cantidad || 0) > 0
+      || Number(selectedRow?.monto_acreditado || 0) > 0;
+  }, [selectedRow, esVentaFiscal]);
+  const cantidadNotasCreditoInternas = useMemo(() => {
+    const cantidad = Number(selectedRow?.nota_credito_cantidad || 0);
+    return Number.isFinite(cantidad) && cantidad > 0 ? cantidad : (tieneNotaCreditoInterna ? 1 : 0);
+  }, [selectedRow, tieneNotaCreditoInterna]);
+  const tieneNotaCreditoFiscal = useMemo(() => (
+    esVentaFiscal && (
+      Number(selectedRow?.tiene_nota_credito_fiscal || 0) === 1
+      || Number(selectedRow?.factura_tiene_nota_credito || 0) === 1
+      || Number(selectedRow?.nota_credito_cantidad || 0) > 0
+      || Number(selectedRow?.monto_acreditado || 0) > 0
+    )
+  ), [selectedRow, esVentaFiscal]);
+  const notaCreditoFiscalTotal = useMemo(() => (
+    tieneNotaCreditoFiscal && (
+      Number(selectedRow?.nota_credito_total || 0) === 1
+      || Number(selectedRow?.monto_total ?? selectedRow?.total ?? 0) <= 0.004
+    )
+  ), [selectedRow, tieneNotaCreditoFiscal]);
+  const cantidadNotasCreditoFiscal = useMemo(() => {
+    const cantidad = Number(selectedRow?.nota_credito_cantidad || 0);
+    return Number.isFinite(cantidad) && cantidad > 0 ? cantidad : (tieneNotaCreditoFiscal ? 1 : 0);
+  }, [selectedRow, tieneNotaCreditoFiscal]);
   const deleteModalExtraContent = useMemo(() => {
     if (!selectedRow) return null;
-    if (requiereNC) return <div className="extraContent-ventas extraContent-ventas--warning"><div className="extraContent-ventas__title">Esta venta tiene una factura emitida en ARCA</div><div className="extraContent-ventas__text">Antes de eliminarla, primero tenés que emitir una nota de crédito.</div></div>;
-    if (yaTieneNC) return <div className="extraContent-ventas extraContent-ventas--success"><div className="extraContent-ventas__title">La nota de crédito ya fue emitida</div><div className="extraContent-ventas__text">Ahora ya podés eliminar la venta sin problema.</div></div>;
+    if (esVentaFiscal) {
+      if (notaCreditoFiscalTotal) {
+        return <div style={{ background: "#f6ffed", border: "1px solid #b7eb8f", color: "#237804", borderRadius: 12, padding: 12, marginTop: 10 }}><div style={{ fontWeight: 700, marginBottom: 6 }}>La nota de crédito ya fue emitida</div><div style={{ lineHeight: 1.5 }}>Ahora ya podés eliminar la venta.</div></div>;
+      }
+      const texto = tieneNotaCreditoFiscal
+        ? "La venta tiene una acreditación parcial. Para eliminarla, primero emití una nota de crédito por todo el saldo pendiente en ARCA."
+        : "Para eliminar esta venta, primero emití una nota de crédito por el total en ARCA.";
+      return <div className="extraContent-ventas extraContent-ventas--warning"><div className="extraContent-ventas__title">Se requiere una nota de crédito total</div><div className="extraContent-ventas__text">{texto}</div></div>;
+    }
+    if (tieneNotaCreditoInterna) {
+      const textoCantidad = cantidadNotasCreditoInternas === 1 ? "La nota de crédito interna asociada" : `Las ${cantidadNotasCreditoInternas} notas de crédito internas asociadas`;
+      return <div className="extraContent-ventas extraContent-ventas--warning"><div className="extraContent-ventas__title">También se eliminarán las notas de crédito</div><div className="extraContent-ventas__text">{textoCantidad}, sus comprobantes internos y sus impactos de stock se eliminarán junto con la venta.</div></div>;
+    }
     return null;
-  }, [selectedRow, requiereNC, yaTieneNC]);
+  }, [selectedRow, esVentaFiscal, notaCreditoFiscalTotal, tieneNotaCreditoFiscal, tieneNotaCreditoInterna, cantidadNotasCreditoInternas]);
   const deleteModalConfig = useMemo(() => {
-    const details = [{ label: "ID Movimiento", value: `#${selectedRow?.id_movimiento ?? "—"}` }, { label: "Cliente", value: selectedRow?.cliente || "—" }, { label: "Concepto", value: selectedRow?.detalle ?? selectedRow?.descripcion ?? selectedRow?.concepto ?? "—" }, { label: "Monto", value: moneyARS(selectedRow?.monto_total ?? selectedRow?.total ?? selectedRow?.total_general ?? 0) }];
-    if (requiereNC) return { title: "No se puede eliminar todavía", message: "Esta venta tiene una factura emitida en ARCA.", warning: "Primero debés generar la nota de crédito correspondiente.", confirmLabel: "Eliminar", confirmDisabled: true, secondaryActionLabel: "Emitir nota de crédito", confirmVariant: "danger", details };
-    if (yaTieneNC) return { title: "Eliminar venta", message: "Esta venta ya tiene su nota de crédito asociada.", warning: "Ahora sí podés eliminar el registro definitivamente.", confirmLabel: "Eliminar", confirmDisabled: false, secondaryActionLabel: "", confirmVariant: "danger", details };
+    const details = [{ label: "ID Movimiento", value: `#${selectedRow?.id_movimiento ?? "—"}` }, { label: "Cliente", value: selectedRow?.cliente || "—" }, { label: "Concepto", value: selectedRow?.detalle ?? selectedRow?.descripcion ?? selectedRow?.concepto ?? "—" }, { label: "Monto neto", value: moneyARS(selectedRow?.monto_total ?? selectedRow?.total ?? selectedRow?.total_general ?? 0) }];
+    if (tieneNotaCreditoInterna) details.push({ label: "Notas internas asociadas", value: String(cantidadNotasCreditoInternas) });
+    if (esVentaFiscal) {
+      details.push({ label: "Estado fiscal", value: notaCreditoFiscalTotal ? "ANULADA POR NOTA DE CRÉDITO" : tieneNotaCreditoFiscal ? "ACREDITACIÓN PARCIAL" : "FACTURA EMITIDA" });
+      if (tieneNotaCreditoFiscal) details.push({ label: "Notas de crédito", value: String(cantidadNotasCreditoFiscal) });
+      if (notaCreditoFiscalTotal) return { title: "Eliminar venta", message: "Esta venta ya tiene su nota de crédito asociada.", warning: "Ahora sí podés eliminar el registro definitivamente.", confirmLabel: "Eliminar", confirmDisabled: false, secondaryActionLabel: "", confirmVariant: "danger", details };
+      return {
+        title: "No se puede eliminar todavía",
+        message: tieneNotaCreditoFiscal ? "La factura de ARCA todavía tiene saldo pendiente." : "Esta venta tiene una factura emitida en ARCA.",
+        warning: "",
+        confirmLabel: "Eliminar",
+        confirmDisabled: true,
+        secondaryActionLabel: "Emitir nota de crédito",
+        confirmVariant: "danger",
+        details,
+      };
+    }
+    if (tieneNotaCreditoInterna) return { title: "Eliminar venta y notas de crédito", message: "¿Seguro que querés eliminar esta venta y todas sus notas de crédito internas?", warning: "Se eliminarán definitivamente la venta, las notas internas y sus comprobantes. Balto revertirá ambos impactos para dejar el stock correcto.", confirmLabel: "Eliminar todo", confirmDisabled: false, secondaryActionLabel: "", confirmVariant: "danger", details };
     return { title: "Eliminar venta", message: "¿Seguro que querés eliminar esta venta definitivamente?", warning: "Esta acción no se puede deshacer.", confirmLabel: "Eliminar", confirmDisabled: false, secondaryActionLabel: "", confirmVariant: "danger", details };
-  }, [selectedRow, requiereNC, yaTieneNC]);
+  }, [selectedRow, esVentaFiscal, tieneNotaCreditoInterna, cantidadNotasCreditoInternas, tieneNotaCreditoFiscal, notaCreditoFiscalTotal, cantidadNotasCreditoFiscal]);
   const isAnyLoading = loadingRows || loadingMore;
   const skelWidths = useMemo(() => ({ fecha: ["44%", "38%", "40%", "36%"], detalle: ["72%", "58%", "66%", "48%"], cliente: ["62%", "54%", "46%", "58%"], total: ["38%", "30%", "34%", "28%"] }), []);
   const renderSkeletonRow = (idx) => <div key={`skel-${idx}`} className="mov-gridTable mov-gridTable--row mov-row--skeleton" style={{ gridTemplateColumns: gridCols }} role="row" aria-hidden="true">{columns.map((c) => c.key === "acciones" ? <div key={c.key} className="mov-gridCell mov-gridCell--actions is-center" role="cell" data-label={c.label}><div className="mov-skelActions"><span className="mov-skelIcon" /><span className="mov-skelIcon" /><span className="mov-skelIcon" /></div></div> : <div key={c.key} className={["mov-gridCell", c.align === "right" ? "is-right" : "", c.align === "center" ? "is-center" : ""].join(" ")} role="cell" data-label={c.label}><span className="mov-skeletonBar" style={{ width: (skelWidths[c.key] || ["60%"])[idx % (skelWidths[c.key] || ["60% "]).length] }} /></div>)}</div>;
@@ -655,11 +735,91 @@ export default function Ventas() {
           </div>
         </div>
         <div className={`mov-gridTable mov-gridTable--head ${hasTableScroll ? "has-y-scroll" : ""}`} style={{ gridTemplateColumns: gridCols }} role="row">{columns.map((c) => <div key={c.key} className={["mov-gridCell", "mov-gridCell--head", c.align === "right" ? "is-right" : "", c.align === "center" ? "is-center" : ""].join(" ")} role="columnheader">{c.label}</div>)}</div>
-        <div className="mov-tableWrap" role="rowgroup" ref={tableWrapRef}><div className={["mov-gridBody", "mov-gridBody--relative", loadingRows ? "mov-softLoading" : ""].join(" ")}>{loadingRows ? <div className="mov-skeletonWrap" aria-busy="true">{Array.from({ length: SKELETON_ROWS }).map((_, i) => renderSkeletonRow(i))}</div> : <>{filteredRows.map((r) => { const key = getRowKey(r); const facturaId = getFacturaIdComprobante(r); const remitoId = getRemitoIdComprobante(r); const tieneComprobante = !!(facturaId || remitoId); return <div key={key} className="mov-gridTable mov-gridTable--row" style={{ gridTemplateColumns: gridCols }} role="row">{columns.map((c) => { if (c.key === "acciones") return <div key={c.key} className={["mov-gridCell", "mov-gridCell--actions", "is-center"].join(" ")} role="cell" data-label={c.label}><div className="mov-actionsInline"><button type="button" className={["mov-iconBtn", tieneComprobante ? "mov-iconBtn--comprobante" : "mov-iconBtn--disabled"].join(" ")} title={tieneComprobante ? "Ver comprobantes" : "Sin comprobantes"} disabled={!tieneComprobante || isAnyLoading} onMouseEnter={() => { if (tieneComprobante) handlePrewarmComprobante(r); }} onPointerEnter={() => { if (tieneComprobante) handlePrewarmComprobante(r); }} onFocus={() => { if (tieneComprobante) handlePrewarmComprobante(r); }} onClick={() => { if (tieneComprobante) handleVerComprobante(r); }} style={{ opacity: tieneComprobante ? 1 : 0.35, cursor: tieneComprobante ? "pointer" : "not-allowed" }}><FontAwesomeIcon icon={faEye} /></button><button type="button" className="mov-iconBtn" title="Ver información completa del movimiento" disabled={isAnyLoading} onClick={() => { setSelectedRow(r); setOpenDetalleMovimiento(true); }}><FontAwesomeIcon icon={faInfoCircle} /></button><button type="button" className="mov-iconBtn mov-iconBtn--danger" title="Eliminar" disabled={isAnyLoading || loadingListsCtx || deletingId === r.id_movimiento} onClick={() => { setSelectedRow(r); setOpenDel(true); }}>{deletingId === r.id_movimiento ? "..." : <FontAwesomeIcon icon={faTrashCan} />}</button></div></div>; const val = c.render ? c.render(r) : safeText(r[c.key]); return <div key={c.key} className={["mov-gridCell", c.align === "right" ? "is-right" : "", c.align === "center" ? "is-center" : "", c.strong ? "is-strong" : ""].filter(Boolean).join(" ")} role="cell" data-label={c.label} title={typeof val === "string" ? val : undefined}><span className="mov-ellipsissss">{val}</span></div>; })}</div>; })}{!isAnyLoading && filteredRows.length === 0 && <div className="cc-emptyState"><FontAwesomeIcon icon={faBoxOpen} className="cc-emptyIcon" /><div className="cc-emptyText">{q.trim() ? `No se encontraron ventas para "${q.trim()}".` : "No hay ventas para mostrar en el rango de fechas seleccionado."}</div></div>}{!loadingRows && hasMore && filteredRows.length > 0 && <div style={{ display: "flex", justifyContent: "center", padding: "12px 0" }}><button type="button" className="mov-btn mov-btn--loadAll" onClick={handleLoadMore} disabled={loadingMore || loadingListsCtx} title="Cargar los próximos 100 registros">{loadingMore ? "Cargando…" : "Cargar 100 más"}</button></div>}{loadingMore && <div className="mov-skeletonMore" aria-busy="true" aria-label="Cargando más registros">{Array.from({ length: 6 }).map((_, i) => renderSkeletonRow(i))}</div>}</>}</div></div>
+        <div className="mov-tableWrap" role="rowgroup" ref={tableWrapRef}><div className={["mov-gridBody", "mov-gridBody--relative", loadingRows ? "mov-softLoading" : ""].join(" ")}>{loadingRows ? <div className="mov-skeletonWrap" aria-busy="true">{Array.from({ length: SKELETON_ROWS }).map((_, i) => renderSkeletonRow(i))}</div> : <>{filteredRows.map((r) => { const key = getRowKey(r); const tieneComprobante = buildComprobanteCandidatesFromRow(r).length > 0; return <div key={key} className="mov-gridTable mov-gridTable--row" style={{ gridTemplateColumns: gridCols }} role="row">{columns.map((c) => { if (c.key === "acciones") return <div key={c.key} className={["mov-gridCell", "mov-gridCell--actions", "is-center"].join(" ")} role="cell" data-label={c.label}><div className="mov-actionsInline"><button type="button" className={["mov-iconBtn", tieneComprobante ? "mov-iconBtn--comprobante" : "mov-iconBtn--disabled"].join(" ")} title={tieneComprobante ? "Ver comprobantes" : "Sin comprobantes"} disabled={!tieneComprobante || isAnyLoading} onMouseEnter={() => { if (tieneComprobante) handlePrewarmComprobante(r); }} onPointerEnter={() => { if (tieneComprobante) handlePrewarmComprobante(r); }} onFocus={() => { if (tieneComprobante) handlePrewarmComprobante(r); }} onClick={() => { if (tieneComprobante) handleVerComprobante(r); }} style={{ opacity: tieneComprobante ? 1 : 0.35, cursor: tieneComprobante ? "pointer" : "not-allowed" }}><FontAwesomeIcon icon={faEye} /></button><button type="button" className="mov-iconBtn" title="Ver información completa del movimiento" disabled={isAnyLoading} onClick={() => { setSelectedRow(r); setOpenDetalleMovimiento(true); }}><FontAwesomeIcon icon={faInfoCircle} /></button><button type="button" className="mov-iconBtn" title="Emitir nota de crédito" disabled={isAnyLoading || loadingListsCtx} onClick={() => { setSelectedRow(r); setModoNC("NORMAL"); setOpenNC(true); }}><FontAwesomeIcon icon={faFileInvoiceDollar} /></button><button type="button" className="mov-iconBtn mov-iconBtn--danger" title="Eliminar" disabled={isAnyLoading || loadingListsCtx || deletingId === r.id_movimiento} onClick={() => { setSelectedRow(r); setOpenDel(true); }}>{deletingId === r.id_movimiento ? "..." : <FontAwesomeIcon icon={faTrashCan} />}</button></div></div>; const val = c.render ? c.render(r) : safeText(r[c.key]); return <div key={c.key} className={["mov-gridCell", c.align === "right" ? "is-right" : "", c.align === "center" ? "is-center" : "", c.strong ? "is-strong" : ""].filter(Boolean).join(" ")} role="cell" data-label={c.label} title={typeof val === "string" ? val : undefined}><span className="mov-ellipsissss">{val}</span></div>; })}</div>; })}{!isAnyLoading && filteredRows.length === 0 && <div className="cc-emptyState"><FontAwesomeIcon icon={faBoxOpen} className="cc-emptyIcon" /><div className="cc-emptyText">{q.trim() ? `No se encontraron ventas para "${q.trim()}".` : "No hay ventas para mostrar en el rango de fechas seleccionado."}</div></div>}{!loadingRows && hasMore && filteredRows.length > 0 && <div style={{ display: "flex", justifyContent: "center", padding: "12px 0" }}><button type="button" className="mov-btn mov-btn--loadAll" onClick={handleLoadMore} disabled={loadingMore || loadingListsCtx} title="Cargar los próximos 100 registros">{loadingMore ? "Cargando…" : "Cargar 100 más"}</button></div>}{loadingMore && <div className="mov-skeletonMore" aria-busy="true" aria-label="Cargando más registros">{Array.from({ length: 6 }).map((_, i) => renderSkeletonRow(i))}</div>}</>}</div></div>
       </section>
       <ModalNuevaVenta open={openAdd} lists={lists} periodoDefault={dateRange.from ? `${String(dateRange.from.getMonth() + 1).padStart(2, "0")}-${dateRange.from.getFullYear()}` : ""} onClose={() => setOpenAdd(false)} onToast={showToast} onSaved={async () => { try { setOpenAdd(false); setQ(""); skipSearchRef.current = true; liveTokenRef.current = null; signedUrlCacheRef.current.clear(); signedUrlInFlightRef.current.clear(); await refreshPeriodos(); await reloadVista(); } catch (e) { showToast("error", e?.message || "Se guardó, pero falló la recarga.", 4200); } }} />
-      <ModalEliminar open={openDel} row={selectedRow} loading={deletingId === selectedRow?.id_movimiento} onClose={() => { setOpenDel(false); setSelectedRow(null); }} onConfirm={requiereNC ? null : confirmDelete} onToast={showToast} title={deleteModalConfig.title} message={deleteModalConfig.message} warning={deleteModalConfig.warning} loadingMessage="Eliminando venta…" successMessage="Venta eliminada correctamente." errorMessage="No se pudo eliminar la venta." confirmLabel={deleteModalConfig.confirmLabel} cancelLabel="Cancelar" confirmDisabled={deleteModalConfig.confirmDisabled} confirmVariant={deleteModalConfig.confirmVariant} secondaryActionLabel={deleteModalConfig.secondaryActionLabel} onSecondaryAction={requiereNC ? async () => { setOpenDel(false); setOpenNC(true); } : null} details={deleteModalConfig.details} extraContent={deleteModalExtraContent} />
-      <ModalEmitirNotaCreditoVenta open={openNC} row={selectedRow} onClose={() => setOpenNC(false)} onToast={showToast} onDone={async () => { const currentId = selectedRow?.id_movimiento || null; setOpenNC(false); await reloadVista(); if (currentId) { const updated = rowsRef.current.find((x) => getMovimientoId(x) === currentId) || null; setSelectedRow(updated); if (updated) setOpenDel(true); } showToast("exito", "Nota de crédito emitida. Ahora ya podés eliminar la venta.", 3600); }} />
+      <ModalEliminar
+        open={openDel}
+        row={selectedRow}
+        loading={deletingId === selectedRow?.id_movimiento}
+        onClose={() => { setOpenDel(false); setSelectedRow(null); }}
+        onConfirm={esVentaFiscal
+          ? (notaCreditoFiscalTotal ? () => confirmDelete({ permitirFiscalAnulada: true }) : null)
+          : confirmDelete}
+        onToast={showToast}
+        title={deleteModalConfig.title}
+        message={deleteModalConfig.message}
+        warning={deleteModalConfig.warning}
+        loadingMessage={esVentaFiscal ? "Eliminando venta…" : tieneNotaCreditoInterna ? "Eliminando venta y notas de crédito…" : "Eliminando venta…"}
+        successMessage={esVentaFiscal ? "Venta eliminada correctamente." : tieneNotaCreditoInterna ? "Venta y notas de crédito internas eliminadas correctamente." : "Venta eliminada correctamente."}
+        errorMessage="No se pudo eliminar la venta."
+        confirmLabel={deleteModalConfig.confirmLabel}
+        cancelLabel="Cancelar"
+        confirmDisabled={deleteModalConfig.confirmDisabled}
+        confirmVariant={deleteModalConfig.confirmVariant}
+        secondaryActionLabel={deleteModalConfig.secondaryActionLabel}
+        onSecondaryAction={esVentaFiscal && !notaCreditoFiscalTotal ? async () => {
+          setOpenDel(false);
+          setModoNC("ELIMINAR_TOTAL");
+          setOpenNC(true);
+        } : null}
+        details={deleteModalConfig.details}
+        extraContent={deleteModalExtraContent}
+      />
+      <ModalEmitirNotaCreditoVenta
+        open={openNC}
+        row={selectedRow}
+        modo={modoNC}
+        onClose={() => { setOpenNC(false); setModoNC("NORMAL"); setSelectedRow(null); }}
+        onToast={showToast}
+        onDone={async () => {
+          const currentId = Number(selectedRow?.id_movimiento || 0);
+          const currentRow = selectedRow;
+          const currentMode = modoNC;
+          signedUrlCacheRef.current.clear();
+          signedUrlInFlightRef.current.clear();
+          setOpenNC(false);
+          setModoNC("NORMAL");
+
+          let reloadError = null;
+          try {
+            await reloadVista();
+          } catch (e) {
+            reloadError = e;
+            console.warn("Nota de crédito aplicada, pero no se pudo refrescar la lista automáticamente:", e);
+          }
+
+          if (currentMode === "ELIMINAR_TOTAL") {
+            const updated = rowsRef.current.find((x) => getMovimientoId(x) === currentId) || (currentRow ? {
+              ...currentRow,
+              factura_tiene_nota_credito: 1,
+              tiene_nota_credito_fiscal: 1,
+              nota_credito_total: 1,
+              monto_total: 0,
+              total: 0,
+            } : null);
+            setSelectedRow(updated);
+            setOpenDel(Boolean(updated));
+            showToast(
+              reloadError ? "advertencia" : "exito",
+              reloadError
+                ? "La nota de crédito fue emitida. Ahora confirmá la eliminación; la lista no pudo actualizarse automáticamente."
+                : "Nota de crédito emitida. Ahora ya podés eliminar la venta.",
+              reloadError ? 5200 : 3600
+            );
+            return;
+          }
+
+          setSelectedRow(null);
+          showToast(
+            reloadError ? "advertencia" : "exito",
+            reloadError
+              ? "La nota de crédito fue aplicada, pero no se pudo actualizar la lista automáticamente."
+              : "Nota de crédito aplicada. La venta original se conserva en el historial.",
+            reloadError ? 5200 : 3800
+          );
+        }}
+      />
       <ModalDetalleMovimientoVenta
         open={openDetalleMovimiento}
         row={selectedRow}

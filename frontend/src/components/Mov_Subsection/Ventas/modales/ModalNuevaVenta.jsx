@@ -3045,6 +3045,10 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
   const submit = useCallback(async () => {
     if (saving) return;
 
+    // El boton Guardar venta siempre debe ejecutar el flujo sin facturacion.
+    // Si antes se abrio y cerro el modal fiscal, no reutilizamos la accion "facturar".
+    setAccionContado("guardar");
+
     const { sessionKey } = getAuthInfo();
     if (!sessionKey) {
       showToast("error", "No hay sesión activa (Falta X-Session).", 5200);
@@ -3059,11 +3063,6 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
     const v = validate();
     if (!v.ok) {
       showToast("advertencia", v.msg || "Faltan datos.", 4200);
-      return;
-    }
-
-    if (tipoVentaSeleccionado && accionContado === "facturar") {
-      await abrirResumenFactura();
       return;
     }
 
@@ -3116,14 +3115,11 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
     addUI.open,
     validate,
     showToast,
-    tipoVentaSeleccionado,
-    accionContado,
     guardarVentaBatch,
     generarYVincularVentaNoFacturadaPdf,
     generarYVincularRemitoPdf,
     subirArchivosChequesCreados,
     onSaved,
-    abrirResumenFactura,
   ]);
 
   const consultarArcaPanelFiscal = useCallback(async () => {
@@ -3667,7 +3663,11 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
         }}
         onLookup={consultarArcaPanelFiscal}
         onClose={() => {
-          if (!saving && !fiscalLookupLoading) setFiscalPanelOpen(false);
+          if (!saving && !fiscalLookupLoading) {
+            setFiscalPanelOpen(false);
+            setAccionContado("guardar");
+            setFiscalError("");
+          }
         }}
         onConfirm={confirmarFiscalPanelYFacturar}
       />

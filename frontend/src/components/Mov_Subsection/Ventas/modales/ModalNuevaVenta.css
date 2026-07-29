@@ -469,3 +469,87 @@ html[data-theme="oscuro"] .modal-nc-summary__row--total b {
   }
 }
 
+
+/* =========================================================
+   Notas de crédito parciales
+========================================================= */
+.modal-nc-container { width: min(1080px, calc(100vw - 28px)); max-height: calc(100vh - 28px); }
+.modal-nc-body { overflow: auto; }
+.modal-nc-grid--totals { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.modal-nc-grid--totals .modal-nc-card { display: flex; flex-direction: column; gap: 5px; min-height: 72px; justify-content: center; }
+.modal-nc-grid--totals .modal-nc-card span { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #718096; }
+.modal-nc-grid--totals .modal-nc-card strong { font-size: 16px; }
+.modal-nc-card--accent { border-color: rgba(152,27,62,.32) !important; background: rgba(152,27,62,.06) !important; }
+.modal-nc-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 14px; }
+.modal-nc-form-grid--three { grid-template-columns: 2fr 1fr 1fr; }
+.modal-nc-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.modal-nc-field > span { color: #667085; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .035em; }
+.modal-nc-field input,.modal-nc-field select { width: 100%; min-height: 42px; border: 1px solid #d8dee8; border-radius: 9px; padding: 8px 10px; background: var(--mi-surface,#fff); color: var(--mi-text,#202532); font: inherit; box-sizing: border-box; }
+.modal-nc-field input:focus,.modal-nc-field select:focus { outline: none; border-color: rgba(152,27,62,.58); box-shadow: 0 0 0 3px rgba(152,27,62,.10); }
+.modal-nc-section-title { margin: 18px 0 8px; font-weight: 800; font-size: 13px; color: var(--mi-text,#202532); }
+.modal-nc-table-wrap { overflow-x: auto; border: 1px solid #e1e6ee; border-radius: 11px; }
+.modal-nc-table { width: 100%; border-collapse: collapse; min-width: 720px; font-size: 12px; }
+.modal-nc-table th { padding: 9px 10px; background: #f6f8fb; color: #687487; text-align: left; text-transform: uppercase; font-size: 10px; letter-spacing: .035em; }
+.modal-nc-table td { padding: 8px 10px; border-top: 1px solid #edf0f4; vertical-align: middle; }
+.modal-nc-table td:nth-child(2),.modal-nc-table td:nth-child(5),.modal-nc-table th:nth-child(2),.modal-nc-table th:nth-child(5) { text-align: right; }
+.modal-nc-table td:nth-child(4),.modal-nc-table th:nth-child(4) { text-align: center; }
+.modal-nc-table input[type="number"] { width: 110px; min-height: 34px; border: 1px solid #d8dee8; border-radius: 7px; padding: 5px 8px; }
+.modal-nc-table input[type="checkbox"] { width: 17px; height: 17px; accent-color: #981b3e; }
+.modal-nc-history { margin-top: 13px; padding: 10px 12px; border-radius: 9px; background: #f7f8fb; color: #596579; font-size: 12px; }
+html[data-theme="oscuro"] .modal-nc-field input,html[data-theme="oscuro"] .modal-nc-field select { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.14); color: #fff; }
+html[data-theme="oscuro"] .modal-nc-table-wrap { border-color: rgba(255,255,255,.12); }
+html[data-theme="oscuro"] .modal-nc-table th { background: rgba(255,255,255,.06); color: rgba(255,255,255,.72); }
+html[data-theme="oscuro"] .modal-nc-table td { border-color: rgba(255,255,255,.08); }
+html[data-theme="oscuro"] .modal-nc-history { background: rgba(255,255,255,.05); color: rgba(255,255,255,.76); }
+@media (max-width: 800px) { .modal-nc-grid--totals { grid-template-columns: repeat(2,minmax(0,1fr)); } .modal-nc-form-grid,.modal-nc-form-grid--three { grid-template-columns: 1fr; } }
+
+.modal-nc-arca-notice {
+  margin-bottom: 14px;
+  padding: 13px 14px;
+  border: 1px solid rgba(152, 27, 62, .28);
+  border-radius: 11px;
+  background: rgba(152, 27, 62, .055);
+  color: var(--mi-text, #202532);
+}
+.modal-nc-arca-notice__title {
+  margin-bottom: 5px;
+  color: #981b3e;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .045em;
+}
+.modal-nc-arca-notice__text {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.modal-nc-arca-notice__meta {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 5px 9px;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(152, 27, 62, .16);
+}
+.modal-nc-arca-notice__meta span {
+  color: #7b8494;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .035em;
+}
+.modal-nc-arca-notice__meta strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+html[data-theme="oscuro"] .modal-nc-arca-notice {
+  border-color: rgba(232, 92, 134, .34);
+  background: rgba(152, 27, 62, .18);
+  color: #fff;
+}
+html[data-theme="oscuro"] .modal-nc-arca-notice__title { color: #ff9dba; }
+html[data-theme="oscuro"] .modal-nc-arca-notice__meta { border-top-color: rgba(255, 255, 255, .12); }
+html[data-theme="oscuro"] .modal-nc-arca-notice__meta span { color: rgba(255, 255, 255, .64); }
+@media (max-width: 680px) {
+  .modal-nc-arca-notice__meta { grid-template-columns: 1fr; }
+}

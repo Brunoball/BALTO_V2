@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import BASE_URL from "../../../../config/config.jsx";
 import ModalFacturaBaltoResumen from "../../Facturacion/ModalFacturaBaltoResumen.jsx";
@@ -8,637 +8,494 @@ import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "./ModalNuevaVenta.css";
 import { DEMO_BLOCK_MESSAGE, isBaltoDemoMode } from "../../../../utils/demoMode";
 
+const MOTIVOS = [
+  ["DEVOLUCION_MERCADERIA", "DEVOLUCIÓN DE MERCADERÍA"],
+  ["DESCUENTO", "DESCUENTO"],
+  ["BONIFICACION", "BONIFICACIÓN"],
+  ["ANULACION_TOTAL", "ANULACIÓN TOTAL"],
+  ["DIFERENCIA_PRECIO", "DIFERENCIA DE PRECIO"],
+  ["OTRO", "OTRO AJUSTE"],
+];
+
+const IVA_OPTIONS = [
+  { label: "0 %", value: 0 },
+  { label: "10,5 %", value: 10.5 },
+  { label: "21 %", value: 21 },
+  { label: "27 %", value: 27 },
+];
+
+const MOTIVOS_AJUSTE_SIN_STOCK = ["DESCUENTO", "BONIFICACION", "DIFERENCIA_PRECIO", "OTRO"];
+
 function todayISO() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-
-function safeStr(v) {
-  return String(v ?? "").trim();
+function safeStr(v) { return String(v ?? "").trim(); }
+function onlyDigits(v) { return String(v ?? "").replace(/\D/g, ""); }
+function money(v) {
+  return Number(v || 0).toLocaleString("es-AR", { style: "currency", currency: "ARS" });
 }
-
-
-function onlyDigits(v) {
-  return String(v ?? "").replace(/\D/g, "");
+function numberValue(v) {
+  const n = Number(String(v ?? "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
 }
-
+function makeIdempotencyKey(id) {
+  const uuid = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `nc-venta-${id || 0}-${uuid}`.slice(0, 100);
+}
 function ymd8FromAny(v) {
   const s = safeStr(v);
   if (/^\d{8}$/.test(s)) return s;
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s.replaceAll("-", "");
   return onlyDigits(s).slice(0, 8);
 }
-
 function normalizeCbtesAsocNC(items, facturaOriginal = null) {
   const source = Array.isArray(items) && items.length ? items : facturaOriginal ? [facturaOriginal] : [];
   const out = [];
   const seen = new Set();
-
   source.forEach((row) => {
     if (!row || typeof row !== "object") return;
-
-    const tipo = Number(row.tipo ?? row.Tipo ?? row.cbte_tipo ?? row.CbteTipo ?? 0);
-    const ptoVta = Number(row.pto_vta ?? row.PtoVta ?? row.ptoVta ?? row.punto_venta ?? 0);
-    const nro = Number(row.nro ?? row.Nro ?? row.cbte_nro ?? row.CbteNro ?? row.numero ?? 0);
-
+    const tipo = Number(row.tipo ?? row.Tipo ?? row.cbte_tipo ?? 0);
+    const ptoVta = Number(row.pto_vta ?? row.PtoVta ?? row.punto_venta ?? 0);
+    const nro = Number(row.nro ?? row.Nro ?? row.cbte_nro ?? row.numero ?? 0);
     if (!tipo || !ptoVta || !nro) return;
-
-    const item = { tipo, pto_vta: ptoVta, nro };
-    const cuit = onlyDigits(row.cuit ?? row.Cuit ?? row.cuit_emisor ?? row.CuitEmisor ?? "");
-    const fecha = ymd8FromAny(row.fecha ?? row.cbte_fch ?? row.CbteFch ?? row.fecha_cbte ?? "");
-
+    const item = { tipo, pto_vta: ptoVta, nro, Tipo: tipo, PtoVta: ptoVta, Nro: nro };
+    const cuit = onlyDigits(row.cuit ?? row.Cuit ?? row.cuit_emisor ?? "");
+    const fecha = ymd8FromAny(row.fecha ?? row.cbte_fch ?? row.fecha_cbte ?? "");
     if (cuit) item.cuit = cuit;
     if (/^\d{8}$/.test(fecha)) item.fecha = fecha;
-
-    const key = `${item.tipo}-${item.pto_vta}-${item.nro}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push(item);
+    const key = `${tipo}-${ptoVta}-${nro}`;
+    if (!seen.has(key)) { seen.add(key); out.push(item); }
   });
-
   return out;
 }
-
 function getAuthInfo() {
   const token = (localStorage.getItem("token") || "").trim();
-  const sessionKey = (
-    localStorage.getItem("session_key") ||
-    localStorage.getItem("sessionKey") ||
-    localStorage.getItem("X-Session") ||
-    ""
-  ).trim();
-  return { token, sessionKey };
+  const sessionKey = (localStorage.getItem("session_key") || localStorage.getItem("sessionKey") || localStorage.getItem("X-Session") || "").trim();
+  let idUsuario = 0;
+  try {
+    const u = JSON.parse(localStorage.getItem("usuario") || "null");
+    idUsuario = Number(u?.idUsuarioMaster ?? u?.idUsuario ?? u?.id_usuario ?? u?.id ?? 0) || 0;
+  } catch {}
+  return { token, sessionKey, idUsuario };
 }
-
-function buildHeadersGET() {
+function headers(json = false) {
   const { token, sessionKey } = getAuthInfo();
-  const h = {};
+  const h = json ? { "Content-Type": "application/json" } : {};
   if (sessionKey) h["X-Session"] = sessionKey;
   if (token) h.Authorization = `Bearer ${token}`;
   return h;
 }
-
-function buildHeadersPOSTJson() {
-  const { token, sessionKey } = getAuthInfo();
-  const h = { "Content-Type": "application/json" };
-  if (sessionKey) h["X-Session"] = sessionKey;
-  if (token) h.Authorization = `Bearer ${token}`;
-  return h;
-}
-
-function buildHeadersPOSTForm() {
-  const { token, sessionKey } = getAuthInfo();
-  const h = {};
-  if (sessionKey) h["X-Session"] = sessionKey;
-  if (token) h.Authorization = `Bearer ${token}`;
-  return h;
-}
-
 async function parseJsonOrThrow(res) {
   const text = await res.text();
-  if (!text) throw new Error("Respuesta vacía del servidor.");
-
   let data = null;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error(text);
-  }
-
-  if (!data?.exito) {
-    throw new Error(data?.mensaje || "Error en la operación.");
-  }
-
+  try { data = text ? JSON.parse(text) : null; } catch { throw new Error(text || "Respuesta inválida del servidor."); }
+  if (!res.ok || !data?.exito) throw new Error(data?.mensaje || data?.message || "Error en la operación.");
   return data;
 }
-
 function extractFacturaPayload(factEmitida) {
-  if (!factEmitida) return null;
-  if (factEmitida.factura) return factEmitida.factura;
-  if (factEmitida.data?.factura) return factEmitida.data.factura;
-  if (factEmitida.data) return factEmitida.data;
-  return factEmitida;
+  return factEmitida?.factura || factEmitida?.data?.factura || factEmitida?.data || factEmitida || null;
+}
+function letraComprobante(tipo) {
+  const map = { 1: "A", 3: "A", 6: "B", 8: "B", 11: "C", 13: "C" };
+  return map[Number(tipo)] || "";
+}
+function numeroComprobante(ptoVta, numero) {
+  const pv = Number(ptoVta || 0);
+  const nro = Number(numero || 0);
+  if (!pv || !nro) return "—";
+  return `${String(pv).padStart(5, "0")}-${String(nro).padStart(8, "0")}`;
 }
 
+function ajustarItemsAlTotal(items, objetivo) {
+  const totalObjetivo = Number(Number(objetivo || 0).toFixed(2));
+  const base = Number(items.reduce((acc, item) => acc + Number(item.total || 0), 0).toFixed(2));
+  if (!items.length || totalObjetivo <= 0 || base <= 0) return items;
 
-export default function ModalEmitirNotaCreditoVenta({
-  open,
-  row,
-  onClose,
-  onToast,
-  onDone,
-}) {
+  const factor = totalObjetivo / base;
+  let acumulado = 0;
+  return items.map((item, index) => {
+    const esUltimo = index === items.length - 1;
+    const totalAnterior = Number(item.total || 0);
+    const subtotalAnterior = Number(item.subtotal || 0);
+    const total = esUltimo
+      ? Number(Math.max(0, totalObjetivo - acumulado).toFixed(2))
+      : Number((totalAnterior * factor).toFixed(2));
+    acumulado = Number((acumulado + total).toFixed(2));
+    const proporcionSubtotal = totalAnterior > 0 ? Math.min(1, subtotalAnterior / totalAnterior) : 1;
+    const subtotal = Number((total * proporcionSubtotal).toFixed(2));
+    const iva_monto = Number((total - subtotal).toFixed(2));
+    return { ...item, subtotal, iva_monto, total };
+  });
+}
+
+export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToast, onDone, modo = "NORMAL" }) {
   const API = `${BASE_URL}/api.php`;
-
+  const esEliminacionTotal = modo === "ELIMINAR_TOTAL";
+  const [contexto, setContexto] = useState(null);
+  const [items, setItems] = useState([]);
+  const [motivo, setMotivo] = useState("DEVOLUCION_MERCADERIA");
+  const [observaciones, setObservaciones] = useState("");
+  const [importeAjuste, setImporteAjuste] = useState("");
+  const [ivaAjuste, setIvaAjuste] = useState("0");
+  const [descripcionAjuste, setDescripcionAjuste] = useState("DESCUENTO / BONIFICACIÓN");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [motivo, setMotivo] = useState("Anulación de venta");
-  const [contexto, setContexto] = useState(null);
   const [openResumen, setOpenResumen] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  const idempotencyRef = useRef("");
 
-useEffect(() => {
-  if (!open) return;
-
-  const h = (e) => {
-    if (e.key !== "Escape") return;
-
-    // Si está abierto el modal de resumen, este modal de atrás NO debe cerrarse.
-    if (openResumen) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (typeof e.stopImmediatePropagation === "function") {
-      e.stopImmediatePropagation();
-    }
-
-    if (!loading) {
-      onClose?.();
-    }
-  };
-
-  document.addEventListener("keydown", h, true);
-
-  return () => {
-    document.removeEventListener("keydown", h, true);
-  };
-}, [open, openResumen, loading, onClose]);
-
-  const showToast = useCallback(
-    (tipo, mensaje, duracion = 2800) => onToast?.(tipo, mensaje, duracion),
-    [onToast]
-  );
+  const showToast = useCallback((tipo, mensaje, duracion = 3200) => onToast?.(tipo, mensaje, duracion), [onToast]);
 
   const cargarContexto = useCallback(async () => {
-    if (!row?.id_movimiento) return;
-
-    setLoading(true);
-    setError("");
-
+    const id = Number(row?.id_movimiento || 0);
+    if (!id) return;
+    setLoading(true); setError("");
     try {
-      const sp = new URLSearchParams();
-      sp.set("action", "ventas_nota_credito_contexto");
-      sp.set("id_movimiento", String(row.id_movimiento));
-
-      const res = await fetch(`${API}?${sp.toString()}`, {
-        method: "GET",
-        headers: buildHeadersGET(),
-      });
-
+      const res = await fetch(`${API}?action=ventas_nota_credito_contexto&id_movimiento=${id}`, { headers: headers() });
       const data = await parseJsonOrThrow(res);
-      setContexto(data.contexto || null);
-    } catch (e) {
-      setError(e.message || "No se pudo cargar el contexto de nota de crédito.");
-    } finally {
-      setLoading(false);
-    }
-  }, [API, row]);
+      const ctx = data.contexto || data.data?.contexto || null;
+      setContexto(ctx);
+      const itemsContexto = (ctx?.items || []).map((it) => ({
+        id_item_origen: Number(it.id_item),
+        descripcion: it.descripcion_resuelta || it.descripcion || "Ítem",
+        disponible: Number(it.cantidad_disponible || 0),
+        cantidadOriginal: Number(it.cantidad_original || it.cantidad || 0),
+        precio: Number(it.precio || 0),
+        subtotalOriginal: Number(it.subtotal || 0),
+        ivaMontoOriginal: Number(it.iva_monto || 0),
+        totalOriginal: Number(it.total || 0),
+        iva_pct: Number(it.iva_pct || 0),
+        cantidad: esEliminacionTotal && Number(it.cantidad_disponible || 0) > 0 ? String(Number(it.cantidad_disponible || 0)) : "",
+        afecta_stock: true,
+      }));
+      setItems(itemsContexto);
+      if (esEliminacionTotal) setMotivo("ANULACION_TOTAL");
+      const ivaVenta = itemsContexto.find((it) => Number.isFinite(it.iva_pct))?.iva_pct ?? 0;
+      setIvaAjuste(String(ivaVenta));
+    } catch (e) { setError(e.message || "No se pudo cargar la venta."); }
+    finally { setLoading(false); }
+  }, [API, row, esEliminacionTotal]);
 
   useEffect(() => {
-    if (open) {
-      setContexto(null);
-      setError("");
-      setOpenResumen(false);
-      setMotivo("Anulación de venta");
-      cargarContexto();
+    if (!open) return;
+    idempotencyRef.current = makeIdempotencyKey(row?.id_movimiento);
+    setContexto(null); setItems([]); setMotivo(esEliminacionTotal ? "ANULACION_TOTAL" : "DEVOLUCION_MERCADERIA"); setObservaciones("");
+    setImporteAjuste(""); setIvaAjuste("0"); setDescripcionAjuste("DESCUENTO / BONIFICACIÓN");
+    setError(""); setOpenResumen(false); cargarContexto();
+  }, [open, row?.id_movimiento, cargarContexto, esEliminacionTotal]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const prev = document.body.style.overflow; document.body.style.overflow = "hidden";
+    const key = (e) => { if (e.key === "Escape" && !openResumen && !loading) onClose?.(); };
+    document.addEventListener("keydown", key, true);
+    return () => { document.body.style.overflow = prev; document.removeEventListener("keydown", key, true); };
+  }, [open, openResumen, loading, onClose]);
+
+  const esAjusteSinStock = MOTIVOS_AJUSTE_SIN_STOCK.includes(motivo);
+
+  useEffect(() => {
+    if (motivo === "ANULACION_TOTAL") {
+      setItems((prev) => prev.map((it) => ({ ...it, cantidad: it.disponible > 0 ? String(it.disponible) : "", afecta_stock: true })));
+      setImporteAjuste("");
+    } else if (esAjusteSinStock) {
+      setItems((prev) => prev.map((it) => ({ ...it, cantidad: "", afecta_stock: false })));
+      const labels = {
+        DESCUENTO: "DESCUENTO",
+        BONIFICACION: "BONIFICACIÓN",
+        DIFERENCIA_PRECIO: "DIFERENCIA DE PRECIO",
+        OTRO: "OTRO AJUSTE",
+      };
+      setDescripcionAjuste(labels[motivo] || "DESCUENTO / BONIFICACIÓN");
+    } else {
+      setImporteAjuste("");
+      setItems((prev) => prev.map((it) => ({ ...it, afecta_stock: true })));
     }
-  }, [open, cargarContexto]);
+  }, [motivo, esAjusteSinStock]);
+
+  const totalDisponible = Number(contexto?.total_disponible || 0);
+  const itemsSeleccionadosBase = useMemo(() => items.filter((it) => numberValue(it.cantidad) > 0).map((it) => {
+    const cantidad = numberValue(it.cantidad);
+    const qOriginal = Math.max(0.000001, it.cantidadOriginal);
+    const subtotal = Number(((it.subtotalOriginal / qOriginal) * cantidad).toFixed(2));
+    const iva_monto = Number(((it.ivaMontoOriginal / qOriginal) * cantidad).toFixed(2));
+    const total = Number(((it.totalOriginal / qOriginal) * cantidad).toFixed(2));
+    return { ...it, cantidad, subtotal, iva_monto, total };
+  }), [items]);
+  const itemsSeleccionados = useMemo(
+    () => esEliminacionTotal ? ajustarItemsAlTotal(itemsSeleccionadosBase, totalDisponible) : itemsSeleccionadosBase,
+    [esEliminacionTotal, itemsSeleccionadosBase, totalDisponible]
+  );
+  const ajuste = esEliminacionTotal && itemsSeleccionados.length === 0
+    ? Math.max(0, totalDisponible)
+    : (esAjusteSinStock ? Math.max(0, numberValue(importeAjuste)) : 0);
+  const totalSeleccionado = useMemo(() => Number((itemsSeleccionados.reduce((a, it) => a + it.total, 0) + ajuste).toFixed(2)), [itemsSeleccionados, ajuste]);
+  const modalidad = contexto?.modalidad_requerida || "INTERNA";
+  const facturaOriginal = contexto?.factura_original || null;
+  const asociacionFiscalValida = modalidad !== "ARCA" || Boolean(
+    Number(facturaOriginal?.id_comprobante_fiscal || 0) > 0 &&
+    Number(facturaOriginal?.cbte_tipo || 0) > 0 &&
+    Number(facturaOriginal?.pto_vta || 0) > 0 &&
+    Number(facturaOriginal?.cbte_nro || 0) > 0 &&
+    safeStr(facturaOriginal?.cae)
+  );
+  const excede = totalSeleccionado - totalDisponible > 0.05;
+  const coincideTotalEliminacion = !esEliminacionTotal || Math.abs(totalSeleccionado - totalDisponible) <= 0.05;
+  const puedeContinuar = totalSeleccionado > 0 && !excede && coincideTotalEliminacion && asociacionFiscalValida && itemsSeleccionados.every((it) => it.cantidad <= it.disponible + 0.0001);
+
+  const payloadBase = useCallback(() => ({
+    id_movimiento_origen: Number(row?.id_movimiento),
+    modalidad,
+    motivo,
+    fecha: todayISO(),
+    observaciones,
+    id_usuario: getAuthInfo().idUsuario || null,
+    idempotency_key: idempotencyRef.current,
+    eliminar_movimiento_total: esEliminacionTotal ? 1 : 0,
+    items: esAjusteSinStock || (esEliminacionTotal && itemsSeleccionados.length === 0)
+      ? []
+      : itemsSeleccionados.map((it) => ({ id_item_origen: it.id_item_origen, cantidad: it.cantidad, afecta_stock: Boolean(it.afecta_stock) })),
+    importe_ajuste: esAjusteSinStock || (esEliminacionTotal && itemsSeleccionados.length === 0) ? ajuste : 0,
+    iva_pct_ajuste: Math.max(0, numberValue(ivaAjuste)),
+    descripcion_ajuste: esEliminacionTotal ? "ANULACIÓN TOTAL" : (descripcionAjuste || "DESCUENTO / BONIFICACIÓN"),
+  }), [row, modalidad, motivo, observaciones, esAjusteSinStock, esEliminacionTotal, itemsSeleccionados, ajuste, ivaAjuste, descripcionAjuste]);
+
+  const itemsFactura = useMemo(() => {
+    const out = itemsSeleccionados.map((it) => ({
+      codigo: String(it.id_item_origen), descripcion: it.descripcion, cantidad: it.cantidad,
+      precio: Number((it.subtotal / it.cantidad).toFixed(2)), precio_unitario: Number((it.subtotal / it.cantidad).toFixed(2)),
+      subtotal: it.subtotal, iva_pct: it.iva_pct, iva_monto: it.iva_monto, total: it.total,
+    }));
+    if (ajuste > 0) {
+      const pct = Math.max(0, numberValue(ivaAjuste));
+      const subtotal = pct > 0 ? Number((ajuste / (1 + pct / 100)).toFixed(2)) : ajuste;
+      out.push({ codigo: "AJ", descripcion: esEliminacionTotal ? "ANULACIÓN TOTAL" : (descripcionAjuste || "DESCUENTO / BONIFICACIÓN"), cantidad: 1, precio: subtotal, precio_unitario: subtotal, subtotal, iva_pct: pct, iva_monto: Number((ajuste - subtotal).toFixed(2)), total: ajuste });
+    }
+    return out;
+  }, [itemsSeleccionados, ajuste, ivaAjuste, descripcionAjuste, esEliminacionTotal]);
 
   const resumenData = useMemo(() => {
     if (!contexto) return null;
-
+    const mov = contexto.movimiento || {};
+    const cf = contexto.cliente_facturacion || {};
+    const cfg = contexto.config_facturacion || {};
     return {
-      id_pago: null,
-      id_sistema: null,
-      id_movimiento: contexto?.id_movimiento || null,
-      labelCliente:
-        contexto?.cliente_facturacion?.razon_social ||
-        contexto?.cliente_nombre ||
-        "Cliente",
-      labelSistema: `Nota de crédito de venta #${contexto?.id_movimiento || ""}`,
-      cliente_facturacion: contexto?.cliente_facturacion || {},
-      id_cliente: contexto?.id_cliente || null,
-      id_tipo_venta: contexto?.id_tipo_venta || null,
-      id_medio_pago: contexto?.id_medio_pago || null,
-      id_clasificacion: null,
-      fecha_cbte_iso: todayISO(),
-      vto_pago_iso: todayISO(),
-      cbte_tipo: Number(contexto?.nota_credito?.cbte_tipo || 13),
-      pto_vta: Number(contexto?.nota_credito?.pto_vta || 2),
-      items_facturacion: Array.isArray(contexto?.items_facturacion)
-        ? contexto.items_facturacion
-        : [],
-      total_ars: Number(contexto?.total || 0),
-      monto: Number(contexto?.total || 0),
-      importe: Number(contexto?.total || 0),
-      observaciones: motivo,
-      concepto: 1,
-      config_facturacion: contexto?.config_facturacion || {},
-      id_config_facturacion:
-        contexto?.config_facturacion?.id_config_facturacion ||
-        contexto?.config_facturacion?.idConfigFacturacion ||
-        null,
-      idConfigFacturacion:
-        contexto?.config_facturacion?.idConfigFacturacion ||
-        contexto?.config_facturacion?.id_config_facturacion ||
-        null,
-      emisor: contexto?.config_facturacion || null,
-      cbtes_asoc: normalizeCbtesAsocNC(contexto?.cbtes_asoc || [], contexto?.factura_original || null),
-      factura_original: contexto?.factura_original || null,
-      emisor_nombre: safeStr(
-        contexto?.config_facturacion?.razon_social ||
-        contexto?.config_facturacion?.nombre_fantasia ||
-        contexto?.config_facturacion?.emisor_nombre
+      id_movimiento: Number(row?.id_movimiento || 0), labelCliente: cf.razon_social || mov.cliente_nombre || "Cliente",
+      labelSistema: `Nota de crédito de venta #${row?.id_movimiento || ""}`, cliente_facturacion: cf,
+      id_cliente: mov.id_cliente || null, id_tipo_venta: mov.id_tipo_venta || null,
+      fecha_cbte_iso: todayISO(), vto_pago_iso: todayISO(), cbte_tipo: Number(contexto?.nota_credito?.cbte_tipo || 13),
+      pto_vta: Number(contexto?.nota_credito?.pto_vta || 2), items_facturacion: itemsFactura,
+      total_ars: totalSeleccionado, monto: totalSeleccionado, importe: totalSeleccionado,
+      observaciones: observaciones || MOTIVOS.find(([k]) => k === motivo)?.[1] || "Nota de crédito", concepto: 1,
+      config_facturacion: cfg, id_config_facturacion: cfg.id_config_facturacion || cfg.idConfigFacturacion || null,
+      idConfigFacturacion: cfg.idConfigFacturacion || cfg.id_config_facturacion || null, emisor: cfg,
+      id_comprobante_original: Number(contexto?.factura_original?.id_comprobante || 0) || null,
+      id_comprobante_fiscal_original: Number(contexto?.factura_original?.id_comprobante_fiscal || 0) || null,
+      cbtes_asoc: normalizeCbtesAsocNC(
+        (contexto.cbtes_asoc || []).map((asoc) => ({ ...asoc, cuit_emisor: safeStr(cfg.cuit) })),
+        {
+          ...(contexto.factura_original || {}),
+          cuit_emisor: safeStr(cfg.cuit),
+        }
       ),
-      emisor_domicilio: safeStr(contexto?.config_facturacion?.domicilio_comercial),
-      cuit_emisor: safeStr(contexto?.config_facturacion?.cuit),
-      cond_iva_emisor: safeStr(contexto?.config_facturacion?.condicion_iva),
-      ingresos_brutos_emisor: safeStr(contexto?.config_facturacion?.ingresos_brutos),
-      fecha_inicio_actividades_emisor: safeStr(
-        contexto?.config_facturacion?.fecha_inicio_actividades
-      ),
-      logo_url: safeStr(contexto?.config_facturacion?.logo_url),
+      factura_original: {
+        ...(contexto.factura_original || {}),
+        cuit_emisor: safeStr(cfg.cuit),
+      },
+      emisor_nombre: safeStr(cfg.razon_social || cfg.nombre_fantasia || cfg.emisor_nombre), emisor_domicilio: safeStr(cfg.domicilio_comercial),
+      cuit_emisor: safeStr(cfg.cuit), cond_iva_emisor: safeStr(cfg.condicion_iva), ingresos_brutos_emisor: safeStr(cfg.ingresos_brutos),
+      fecha_inicio_actividades_emisor: safeStr(cfg.fecha_inicio_actividades), logo_url: safeStr(cfg.logo_url), modalidad,
     };
-  }, [contexto, motivo]);
+  }, [contexto, row, itemsFactura, totalSeleccionado, observaciones, motivo, modalidad]);
 
-  const configsFacturacionNCIniciales = useMemo(
-    () => (contexto?.config_facturacion ? [contexto.config_facturacion] : []),
-    [contexto]
-  );
+  const uploadPdf = useCallback(async (idMovimientoDestino, pdfBlob, filename, tipo, meta) => {
+    const fd = new FormData(); fd.append("tipo", tipo); fd.append("id_movimiento", String(idMovimientoDestino));
+    fd.append("pdf", pdfBlob, filename); fd.append("meta", JSON.stringify(meta || {}));
+    const res = await fetch(`${API}?action=ventas_comprobantes_vincular_movimiento`, { method: "POST", headers: headers(), body: fd });
+    return parseJsonOrThrow(res);
+  }, [API]);
 
-  const handleEmitida = useCallback(
-    async (factEmitida) => {
-      if (!row?.id_movimiento || !contexto?.factura_original?.id_comprobante) {
-        throw new Error("Faltan datos para registrar la nota de crédito.");
+  const crearInterna = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const res = await fetch(`${API}?action=ventas_nota_credito_crear`, { method: "POST", headers: headers(true), body: JSON.stringify(payloadBase()) });
+      const data = await parseJsonOrThrow(res);
+      const idNcMov = Number(data.id_movimiento_nota_credito || data.data?.id_movimiento_nota_credito || 0);
+      if (idNcMov) {
+        try {
+          const pdf = await saveNotaCreditoPdf({ ...resumenData, modalidad: "INTERNA", cbte_tipo: 0, pto_vta: 0, cbte_nro: idNcMov, resultado: "INTERNA", fecha_cbte: todayISO(), items_facturacion: itemsFactura }, { autoDownload: false });
+          if (pdf?.pdfBlob) await uploadPdf(idNcMov, pdf.pdfBlob, pdf.pdfFilename || `nota_credito_interna_${idNcMov}.pdf`, "NOTA_CREDITO_INTERNA", { tipo: "NOTA_CREDITO_INTERNA", id_movimiento_origen: row.id_movimiento, motivo, observaciones });
+        } catch (pdfError) { showToast("advertencia", `La nota quedó aplicada, pero no se pudo guardar el PDF: ${pdfError.message}`, 5200); }
       }
+      showToast("exito", "Nota de crédito interna aplicada correctamente."); await onDone?.(data);
+    } catch (e) { setError(e.message || "No se pudo aplicar la nota de crédito."); showToast("error", e.message || "No se pudo aplicar la nota de crédito.", 4400); }
+    finally { setLoading(false); }
+  }, [API, payloadBase, resumenData, itemsFactura, uploadPdf, row, motivo, observaciones, showToast, onDone]);
 
-      setLoading(true);
-      setError("");
-
-      try {
-        const payload = extractFacturaPayload(factEmitida);
-        if (!payload) {
-          throw new Error("No se recibió la respuesta de emisión de ARCA.");
-        }
-
-        if (!payload?.cae || String(payload?.resultado || "").toUpperCase() !== "A") {
-          throw new Error(
-            "La nota de crédito no fue autorizada por ARCA. No se generó el PDF ni se registró."
-          );
-        }
-
-        showToast("cargando", "Registrando nota de crédito…", 12000);
-
-        let pdfBlob =
-          factEmitida?.pdf_blob instanceof Blob ? factEmitida.pdf_blob : null;
-
-        let pdfFilename =
-          safeStr(factEmitida?.pdf_filename) ||
-          `nota_credito_${row.id_movimiento}.pdf`;
-
-        if (!pdfBlob) {
-          const pdfData = {
-            ...resumenData,
-            cae: payload?.cae ?? null,
-            cae_vto: payload?.cae_vto ?? null,
-            cbte_nro: payload?.cbte_nro ?? null,
-            cbte_tipo: payload?.cbte_tipo ?? resumenData?.cbte_tipo ?? 13,
-            pto_vta: payload?.pto_vta ?? resumenData?.pto_vta ?? 2,
-            resultado: payload?.resultado ?? null,
-            fecha_cbte: payload?.fecha_cbte ?? todayISO(),
-            fecha_cbte_iso: payload?.fecha_cbte ?? todayISO(),
-            doc_tipo: payload?.doc_tipo ?? contexto?.cliente_facturacion?.doc_tipo ?? null,
-            doc_nro:
-              payload?.doc_nro ??
-              contexto?.cliente_facturacion?.doc_nro ??
-              contexto?.cliente_facturacion?.cuit ??
-              null,
-            qr_url: payload?.qr_url ?? null,
-            qr_base64: payload?.qr_base64 ?? null,
-            qr_payload: payload?.qr_payload ?? null,
-            observaciones: motivo,
-          };
-
-          const out = await saveNotaCreditoPdf(pdfData, {
-            autoDownload: false,
-          });
-
-          pdfBlob = out?.pdfBlob instanceof Blob ? out.pdfBlob : null;
-          pdfFilename = out?.pdfFilename || pdfFilename;
-        }
-
-        if (!pdfBlob) {
-          throw new Error("No se pudo obtener el PDF de la nota de crédito.");
-        }
-
-        const fd = new FormData();
-        fd.append("tipo", "NOTA_CREDITO");
-        fd.append("id_movimiento", String(row.id_movimiento));
-        fd.append("pdf", pdfBlob, pdfFilename);
-        fd.append(
-          "meta",
-          JSON.stringify({
-            tipo: "NOTA_CREDITO",
-            id_movimiento: row.id_movimiento,
-            id_comprobante_origen: contexto.factura_original.id_comprobante,
-            cae: payload?.cae ?? null,
-            cae_vto: payload?.cae_vto ?? null,
-            cbte_nro: payload?.cbte_nro ?? null,
-            cbte_tipo: payload?.cbte_tipo ?? resumenData?.cbte_tipo ?? 13,
-            pto_vta: payload?.pto_vta ?? resumenData?.pto_vta ?? 2,
-            resultado: payload?.resultado ?? null,
-            doc_tipo: payload?.doc_tipo ?? contexto?.cliente_facturacion?.doc_tipo ?? null,
-            doc_nro:
-              payload?.doc_nro ??
-              contexto?.cliente_facturacion?.doc_nro ??
-              contexto?.cliente_facturacion?.cuit ??
-              null,
-            fecha_cbte: payload?.fecha_cbte ?? todayISO(),
-            motivo,
-            cbtes_asoc: normalizeCbtesAsocNC(resumenData?.cbtes_asoc || [], contexto?.factura_original || null),
-            factura_origen: contexto?.factura_original ?? null,
-          })
-        );
-
-        const resUpload = await fetch(
-          `${API}?action=ventas_comprobantes_vincular_movimiento`,
-          {
-            method: "POST",
-            headers: buildHeadersPOSTForm(),
-            body: fd,
-          }
-        );
-
-        const uploadData = await parseJsonOrThrow(resUpload);
-        const idComprobanteNC = Number(uploadData?.id_comprobante || 0);
-
-        if (!idComprobanteNC) {
-          throw new Error(
-            "No se pudo obtener el id_comprobante de la nota de crédito registrada."
-          );
-        }
-
-        const resRel = await fetch(`${API}?action=ventas_nota_credito_vincular`, {
-          method: "POST",
-          headers: buildHeadersPOSTJson(),
-          body: JSON.stringify({
-            id_movimiento: row.id_movimiento,
-            id_comprobante_original: contexto.factura_original.id_comprobante,
-            id_comprobante_nota_credito: idComprobanteNC,
-            observacion: motivo,
-          }),
-        });
-
-        await parseJsonOrThrow(resRel);
-
-        showToast(
-          "exito",
-          "Nota de crédito emitida, descargada y vinculada correctamente.",
-          3600
-        );
-
-        setOpenResumen(false);
-        onDone?.();
-      } catch (e) {
-        setError(e.message || "Error registrando la nota de crédito.");
-        showToast(
-          "error",
-          e.message || "Error registrando la nota de crédito.",
-          4200
-        );
-      } finally {
-        setLoading(false);
+  const handleEmitida = useCallback(async (factEmitida) => {
+    setLoading(true); setError("");
+    try {
+      const fiscal = extractFacturaPayload(factEmitida);
+      if (!fiscal?.cae || String(fiscal?.resultado || "").toUpperCase() !== "A") throw new Error("ARCA no autorizó la nota de crédito.");
+      let pdfBlob = factEmitida?.pdf_blob instanceof Blob ? factEmitida.pdf_blob : null;
+      let filename = safeStr(factEmitida?.pdf_filename) || `nota_credito_${row.id_movimiento}.pdf`;
+      if (!pdfBlob) {
+        const out = await saveNotaCreditoPdf({ ...resumenData, ...fiscal, fecha_cbte_iso: fiscal.fecha_cbte || todayISO(), items_facturacion: itemsFactura }, { autoDownload: false });
+        pdfBlob = out?.pdfBlob; filename = out?.pdfFilename || filename;
       }
-    },
-    [API, contexto, motivo, onDone, row, resumenData, showToast]
-  );
+      if (!(pdfBlob instanceof Blob)) throw new Error("No se pudo generar el PDF de la nota de crédito.");
+      const fiscalJson = {
+        ...(fiscal?.json_arca && typeof fiscal.json_arca === "object" ? fiscal.json_arca : {}),
+        cuit_emisor: safeStr(fiscal.cuit_emisor || resumenData.cuit_emisor),
+        comprobante: {
+          cbte_tipo: Number(fiscal.cbte_tipo || resumenData.cbte_tipo),
+          pto_vta: Number(fiscal.pto_vta || resumenData.pto_vta),
+          cbte_nro: Number(fiscal.cbte_nro || 0),
+          resultado: fiscal.resultado,
+          cae: fiscal.cae,
+          cae_vto: fiscal.cae_vto,
+          fecha_cbte: fiscal.fecha_cbte,
+          doc_tipo: fiscal.doc_tipo,
+          doc_nro: fiscal.doc_nro,
+          imp_total: Number(fiscal.imp_total || totalSeleccionado),
+          imp_neto: Number(fiscal.imp_neto || 0),
+          imp_iva: Number(fiscal.imp_iva || 0),
+          cbtes_asoc: resumenData.cbtes_asoc,
+        },
+        cbtes_asoc: resumenData.cbtes_asoc,
+        factura_original: resumenData.factura_original,
+      };
+      const upload = await uploadPdf(row.id_movimiento, pdfBlob, filename, "NOTA_CREDITO", {
+        tipo: "NOTA_CREDITO", emitido_en_arca: 1, id_movimiento: row.id_movimiento,
+        id_comprobante_origen: contexto?.factura_original?.id_comprobante,
+        id_comprobante_fiscal_original: contexto?.factura_original?.id_comprobante_fiscal,
+        ...fiscal, json_arca: fiscalJson, motivo, observaciones,
+        cbtes_asoc: resumenData.cbtes_asoc, factura_origen: resumenData.factura_original || null,
+      });
+      const idArchivo = Number(upload.id_comprobante || upload.data?.id_comprobante || 0);
+      if (!idArchivo) throw new Error("No se obtuvo el identificador del comprobante fiscal.");
+      const body = { ...payloadBase(), modalidad: "ARCA", id_comprobante_nota_credito: idArchivo,
+        id_comprobante_original: Number(contexto?.factura_original?.id_comprobante || 0),
+        id_comprobante_fiscal_original: Number(contexto?.factura_original?.id_comprobante_fiscal || 0),
+        factura_original: resumenData.factura_original,
+        cbtes_asoc: resumenData.cbtes_asoc,
+        importe_fiscal: Number(fiscal.imp_total || totalSeleccionado),
+        comprobante_tipo: String(fiscal.cbte_tipo || resumenData.cbte_tipo), comprobante_punto_venta: Number(fiscal.pto_vta || resumenData.pto_vta),
+        comprobante_numero: String(fiscal.cbte_nro || ""), comprobante_fecha: fiscal.fecha_cbte || todayISO(), comprobante_cae: fiscal.cae };
+      const res = await fetch(`${API}?action=ventas_nota_credito_aplicar`, { method: "POST", headers: headers(true), body: JSON.stringify(body) });
+      const data = await parseJsonOrThrow(res);
+      if (!esEliminacionTotal) {
+        showToast("exito", "Nota de crédito ARCA autorizada y aplicada correctamente.", 4200);
+      }
+      setOpenResumen(false);
+      await onDone?.(data);
+    } catch (e) { setError(e.message || "No se pudo registrar la nota de crédito."); showToast("error", e.message || "No se pudo registrar la nota de crédito.", 4800); }
+    finally { setLoading(false); }
+  }, [API, row, contexto, resumenData, itemsFactura, totalSeleccionado, uploadPdf, motivo, observaciones, payloadBase, showToast, onDone, esEliminacionTotal]);
+
+  const continuar = () => {
+    if (isBaltoDemoMode()) return showToast("advertencia", DEMO_BLOCK_MESSAGE, 5200);
+    if (modalidad === "ARCA" && !asociacionFiscalValida) {
+      return setError("No se pudo identificar correctamente la factura ARCA original. No se emitirá ninguna nota de crédito sin el comprobante asociado.");
+    }
+    if (!puedeContinuar) {
+      if (esEliminacionTotal && !coincideTotalEliminacion) return setError("No se pudo calcular exactamente el saldo total pendiente de la venta.");
+      return setError(excede ? "El importe supera el saldo disponible." : "Seleccioná productos o ingresá un descuento.");
+    }
+    if (modalidad === "ARCA") setOpenResumen(true); else crearInterna();
+  };
 
   if (!open) return null;
-
-  return createPortal(
-    <>
-      <div className="gm-modal-overlay">
-        <div
-          className="gm-modal-container gm-modal-v2 modal-nc-container"
-          role="dialog"
-          aria-modal="true"
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <div className="gm-modal-header">
-            <div className="gm-modal-head-icon" aria-hidden="true">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="9" y1="13" x2="15" y2="13" />
-                <line x1="9" y1="17" x2="12" y2="17" />
-              </svg>
+  return createPortal(<>
+    <div className="gm-modal-overlay"><div className="gm-modal-container gm-modal-v2 modal-nc-container" role="dialog" aria-modal="true">
+      <div className="gm-modal-header"><div className="gm-modal-head-left"><h2 className="gm-modal-title">{esEliminacionTotal ? "Emitir nota de crédito" : "Nota de crédito de venta"}</h2><p className="gm-modal-subtitle">Venta #{row?.id_movimiento || "—"} · {esEliminacionTotal ? "ANULACIÓN TOTAL" : modalidad === "ARCA" ? "Emisión ARCA" : "Comprobante interno"}</p></div><button className="gm-modal-close" onClick={onClose} disabled={loading}>✕</button></div>
+      <div className="gm-modal-content modal-nc-body">
+        {loading && !contexto && <div className="modal-nc-loading">Cargando venta…</div>}
+        {error && <div className="modal-nc-error">{error}</div>}
+        {contexto && <>
+          {modalidad === "ARCA" && <div className="modal-nc-arca-notice">
+            <div className="modal-nc-arca-notice__title">VENTA FACTURADA EN ARCA</div>
+            <div className="modal-nc-arca-notice__text">
+              {esEliminacionTotal ? <>
+                Se emitirá una <b>NOTA DE CRÉDITO {letraComprobante(contexto?.nota_credito?.cbte_tipo)} TOTAL</b> por todo el saldo pendiente y se asociará a la
+                {" "}<b>FACTURA {letraComprobante(facturaOriginal?.cbte_tipo)} {numeroComprobante(facturaOriginal?.pto_vta, facturaOriginal?.cbte_nro)}</b>.
+                Después volverás al modal de eliminación para confirmar si querés borrar la venta.
+              </> : <>
+                Al confirmar, Balto emitirá una <b>NOTA DE CRÉDITO {letraComprobante(contexto?.nota_credito?.cbte_tipo)}</b> en ARCA y la asociará obligatoriamente a la
+                {" "}<b>FACTURA {letraComprobante(facturaOriginal?.cbte_tipo)} {numeroComprobante(facturaOriginal?.pto_vta, facturaOriginal?.cbte_nro)}</b>.
+                Podés acreditar una parte o anular el total disponible.
+              </>}
             </div>
-
-            <div className="gm-modal-head-left">
-              <h2 className="gm-modal-title">Emitir nota de crédito</h2>
-              {row?.id_movimiento && (
-                <p className="gm-modal-subtitle">Movimiento #{row.id_movimiento}</p>
-              )}
+            <div className="modal-nc-arca-notice__meta">
+              <span>COMPROBANTE ASOCIADO</span>
+              <strong>FACTURA {letraComprobante(facturaOriginal?.cbte_tipo)} {numeroComprobante(facturaOriginal?.pto_vta, facturaOriginal?.cbte_nro)}</strong>
+              <span>CAE</span>
+              <strong>{safeStr(facturaOriginal?.cae) || "—"}</strong>
             </div>
+          </div>}
 
-            <button
-              type="button"
-              className="gm-modal-close"
-              onClick={onClose}
-              disabled={loading}
-              aria-label="Cerrar"
-            >
-              ✕
-            </button>
-          </div>
-
-          <div className="gm-modal-content modal-nc-body">
-            {loading && !contexto && (
-              <div className="modal-nc-loading">
-                <span className="modal-nc-loading__dot" />
-                Cargando contexto…
+          {esEliminacionTotal ? <>
+            <div className="modal-nc-grid">
+              <div className="modal-nc-card">
+                <b>Factura original</b>
+                <div className="modal-nc-card__row"><span>Tipo</span><strong>FACTURA {letraComprobante(facturaOriginal?.cbte_tipo) || "—"}</strong></div>
+                <div className="modal-nc-card__row"><span>Comprobante</span><strong>{numeroComprobante(facturaOriginal?.pto_vta, facturaOriginal?.cbte_nro)}</strong></div>
+                <div className="modal-nc-card__row"><span>CAE</span><strong>{safeStr(facturaOriginal?.cae) || "—"}</strong></div>
               </div>
-            )}
+              <div className="modal-nc-card">
+                <b>Cliente fiscal</b>
+                <div className="modal-nc-card__row"><span>Razón social</span><strong>{contexto?.cliente_facturacion?.razon_social || contexto?.movimiento?.cliente_nombre || "—"}</strong></div>
+                <div className="modal-nc-card__row"><span>CUIT / Documento</span><strong>{safeStr(contexto?.cliente_facturacion?.doc_nro || contexto?.cliente_facturacion?.cuit) || "—"}</strong></div>
+              </div>
+            </div>
+            <div className="modal-nc-grid modal-nc-grid--totals">
+              <div className="modal-nc-card"><span>Total original</span><strong>{money(contexto.total_original)}</strong></div>
+              <div className="modal-nc-card"><span>Ya acreditado</span><strong>{money(contexto.total_acreditado)}</strong></div>
+              <div className="modal-nc-card modal-nc-card--accent"><span>Nota a emitir</span><strong>{money(totalSeleccionado)}</strong></div>
+            </div>
+            <div className="modal-nc-form-grid">
+              <label className="modal-nc-field"><span>Motivo</span><input value="ANULACIÓN TOTAL" disabled /></label>
+              <label className="modal-nc-field"><span>Observaciones</span><input value={observaciones} onChange={(e) => setObservaciones(e.target.value.toUpperCase())} placeholder="DETALLE OPCIONAL" disabled={loading}/></label>
+            </div>
+            {!!contexto.notas_credito?.length && <div className="modal-nc-history"><b>Notas anteriores:</b> {contexto.notas_credito.map((n) => `${n.comprobante_numero || `#${n.id_movimiento_nc}`} (${money(n.total)})`).join(" · ")}</div>}
+          </> : <>
+            <div className="modal-nc-grid modal-nc-grid--totals">
+              <div className="modal-nc-card"><span>Total original</span><strong>{money(contexto.total_original)}</strong></div>
+              <div className="modal-nc-card"><span>Ya acreditado</span><strong>{money(contexto.total_acreditado)}</strong></div>
+              <div className="modal-nc-card"><span>Disponible</span><strong>{money(totalDisponible)}</strong></div>
+              <div className="modal-nc-card modal-nc-card--accent"><span>Esta nota</span><strong>{money(totalSeleccionado)}</strong></div>
+            </div>
 
-            {error && <div className="modal-nc-error">{error}</div>}
+            <div className="modal-nc-form-grid">
+              <label className="modal-nc-field"><span>Motivo</span><select value={motivo} onChange={(e) => setMotivo(e.target.value)} disabled={loading}>{MOTIVOS.map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+              <label className="modal-nc-field"><span>Observaciones</span><input value={observaciones} onChange={(e) => setObservaciones(e.target.value.toUpperCase())} placeholder="DETALLE OPCIONAL" disabled={loading}/></label>
+            </div>
 
-            {contexto && (
-              <>
-                <div className="modal-nc-grid">
-                  <div className="modal-nc-card modal-nc-cds">
-                    <b>Factura original</b>
+            {!esAjusteSinStock && <>
+              <div className="modal-nc-section-title">Productos de la venta</div>
+              <div className="modal-nc-table-wrap"><table className="modal-nc-table"><thead><tr><th>Producto</th><th>Disponible</th><th>Devuelve / acredita</th><th>Reingresa stock</th><th>Importe</th></tr></thead><tbody>
+                {items.map((it, idx) => {
+                  const sel = itemsSeleccionados.find((x) => x.id_item_origen === it.id_item_origen);
+                  return <tr key={it.id_item_origen}><td>{it.descripcion}</td><td>{it.disponible}</td><td><input type="number" min="0" max={it.disponible} step="0.01" value={it.cantidad} disabled={loading} onChange={(e) => setItems((prev) => prev.map((x,j) => j === idx ? {...x, cantidad: e.target.value} : x))}/></td><td><input type="checkbox" checked={it.afecta_stock} disabled={loading || !numberValue(it.cantidad)} onChange={(e) => setItems((prev) => prev.map((x,j) => j === idx ? {...x, afecta_stock: e.target.checked} : x))}/></td><td>{money(sel?.total || 0)}</td></tr>;
+                })}
+              </tbody></table></div>
+            </>}
 
-                    <div className="modal-nc-card__row">
-                      <span>Comprobante</span>
-                      <strong>#{contexto?.factura_original?.id_comprobante || "—"}</strong>
-                    </div>
-
-                    <div className="modal-nc-card__row">
-                      <span>Tipo</span>
-                      <strong>{contexto?.factura_original?.cbte_tipo || "—"}</strong>
-                    </div>
-
-                    <div className="modal-nc-card__row">
-                      <span>Punto de venta</span>
-                      <strong>{contexto?.factura_original?.pto_vta || "—"}</strong>
-                    </div>
-
-                    <div className="modal-nc-card__row">
-                      <span>Número</span>
-                      <strong>{contexto?.factura_original?.cbte_nro || "—"}</strong>
-                    </div>
-
-                    <div className="modal-nc-card__row">
-                      <span>CAE</span>
-                      <strong className="modal-nc-card__cae">
-                        {contexto?.factura_original?.cae || "—"}
-                      </strong>
-                    </div>
-                  </div>
-
-                  <div className="modal-nc-card modal-nc-cds">
-                    <b>Cliente fiscal</b>
-
-                    <div className="modal-nc-card__row modal-nc-card__row--full">
-                      <span>Razón social</span>
-                      <strong>{contexto?.cliente_facturacion?.razon_social || "—"}</strong>
-                    </div>
-
-                    <div className="modal-nc-card__row">
-                      <span>Doc.</span>
-                      <strong>
-                        {contexto?.cliente_facturacion?.doc_tipo || "—"} /{" "}
-                        {contexto?.cliente_facturacion?.doc_nro || "—"}
-                      </strong>
-                    </div>
-
-                    <div className="modal-nc-card__row">
-                      <span>CUIT</span>
-                      <strong>{contexto?.cliente_facturacion?.cuit || "—"}</strong>
-                    </div>
-
-                    <div className="modal-nc-card__row">
-                      <span>IVA</span>
-                      <strong>
-                        {contexto?.cliente_facturacion?.condicion_iva ||
-                          contexto?.cliente_facturacion?.cond_iva ||
-                          "—"}
-                      </strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="modal-nc-summary">
-                  <div className="modal-nc-summary__title">Nota de crédito a emitir</div>
-
-                  <div className="modal-nc-summary__rows">
-                    <div className="modal-nc-summary__row">
-                      <span>Tipo NC</span>
-                      <b>{contexto?.nota_credito?.cbte_tipo || "—"}</b>
-                    </div>
-
-                    <div className="modal-nc-summary__row">
-                      <span>Punto de venta</span>
-                      <b>{contexto?.nota_credito?.pto_vta || "—"}</b>
-                    </div>
-
-                    <div className="modal-nc-summary__row modal-nc-summary__row--total">
-                      <span>Total</span>
-                      <b>${Number(contexto?.total || 0).toLocaleString("es-AR")}</b>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="fl-field">
-                  <textarea
-                    id="motivo-nc-venta"
-                    className="fl-input modal-nc-textarea"
-                    placeholder=" "
-                    value={motivo}
-                    onChange={(e) => setMotivo(e.target.value)}
-                    rows={3}
-                    disabled={loading}
-                  />
-                  <label className="fl-label" htmlFor="motivo-nc-venta">
-                    Motivo
-                  </label>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="mit-actions">
-            <button
-              type="button"
-              className="mit-btn mit-btn--ghost"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="button"
-              className="mit-btn mit-btn--solid"
-              onClick={() => {
-                if (isBaltoDemoMode()) {
-                  showToast("advertencia", DEMO_BLOCK_MESSAGE, 5200);
-                  return;
-                }
-                setOpenResumen(true);
-              }}
-              disabled={loading || !contexto}
-            >
-              {loading ? "Procesando…" : "Continuar emisión"}
-            </button>
-          </div>
-        </div>
+            {esAjusteSinStock && <>
+              <div className="modal-nc-section-title">Descuento o ajuste sin stock</div>
+              <div className="modal-nc-form-grid modal-nc-form-grid--three">
+                <label className="modal-nc-field"><span>Descripción</span><input value={descripcionAjuste} onChange={(e) => setDescripcionAjuste(e.target.value.toUpperCase())} disabled={loading}/></label>
+                <label className="modal-nc-field"><span>Importe total</span><input type="number" min="0" step="0.01" value={importeAjuste} onChange={(e) => setImporteAjuste(e.target.value)} disabled={loading}/></label>
+                <label className="modal-nc-field"><span>IVA % incluido</span><select value={String(ivaAjuste)} onChange={(e) => setIvaAjuste(e.target.value)} disabled={loading}>{IVA_OPTIONS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select></label>
+              </div>
+            </>}
+            {excede && <div className="modal-nc-error">La nota supera el importe todavía disponible.</div>}
+            {!!contexto.notas_credito?.length && <div className="modal-nc-history"><b>Notas anteriores:</b> {contexto.notas_credito.map((n) => `${n.comprobante_numero || `#${n.id_movimiento_nc}`} (${money(n.total)})`).join(" · ")}</div>}
+          </>}
+        </>}
       </div>
-
-      {openResumen && resumenData && (
-        <ModalFacturaBaltoResumen
-          open={openResumen}
-          onClose={() => setOpenResumen(false)}
-          onBack={() => setOpenResumen(false)}
-          onCloseAll={() => setOpenResumen(false)}
-          apiBase={`${BASE_URL}/api.php`}
-          action="movimientos"
-          data={resumenData}
-          docTipo={Number(resumenData?.cliente_facturacion?.doc_tipo || 80)}
-          docNro={safeStr(
-            resumenData?.cliente_facturacion?.doc_nro ||
-              resumenData?.cliente_facturacion?.cuit
-          )}
-          cbteTipo={Number(resumenData?.cbte_tipo || 13)}
-          ptoVta={String(resumenData?.pto_vta || 2)}
-          onDone={async (fact) => await handleEmitida(fact)}
-          forceTestAmount={false}
-          testAmount={null}
-          skipMovimientoAutocreacion={true}
-          pdfMode="nota_credito"
-          configsFacturacionInicial={configsFacturacionNCIniciales}
-        />
-      )}
-    </>,
-    document.body
-  );
+      <div className="mit-actions"><button className="mit-btn mit-btn--ghost" onClick={onClose} disabled={loading}>Cancelar</button><button className="mit-btn mit-btn--solid" onClick={continuar} disabled={loading || !contexto || !puedeContinuar}>{loading ? "Procesando…" : esEliminacionTotal ? "Emitir nota de crédito" : modalidad === "ARCA" ? "Continuar con ARCA" : "Aplicar nota de crédito"}</button></div>
+    </div></div>
+    {openResumen && resumenData && <ModalFacturaBaltoResumen open={openResumen} onClose={() => setOpenResumen(false)} onBack={() => setOpenResumen(false)} onCloseAll={() => setOpenResumen(false)} apiBase={`${BASE_URL}/api.php`} action="movimientos" data={resumenData} docTipo={Number(resumenData?.cliente_facturacion?.doc_tipo || 80)} docNro={safeStr(resumenData?.cliente_facturacion?.doc_nro || resumenData?.cliente_facturacion?.cuit)} cbteTipo={Number(resumenData.cbte_tipo || 13)} ptoVta={String(resumenData.pto_vta || 2)} onDone={handleEmitida} forceTestAmount={false} testAmount={null} skipMovimientoAutocreacion={true} pdfMode="nota_credito" configsFacturacionInicial={contexto?.config_facturacion ? [contexto.config_facturacion] : []}/>} 
+  </>, document.body);
 }
