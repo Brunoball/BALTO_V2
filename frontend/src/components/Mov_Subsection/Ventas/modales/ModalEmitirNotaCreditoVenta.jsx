@@ -1,11 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faArrowDown,
+  faCreditCard,
+  faMoneyBillTrendUp,
+  faWallet,
+} from "@fortawesome/free-solid-svg-icons";
 import BASE_URL from "../../../../config/config.jsx";
 import ModalFacturaBaltoResumen from "../../Facturacion/ModalFacturaBaltoResumen.jsx";
 import { saveNotaCreditoPdf } from "../../../../utils/NotaCreditoPdfBuilder.js";
 import "../../../Global/Global_css/roots.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
-import "./ModalNuevaVenta.css";
+import "./ModalEmitirNotaCreditoVenta.css";
 import { DEMO_BLOCK_MESSAGE, isBaltoDemoMode } from "../../../../utils/demoMode";
 
 const MOTIVOS = [
@@ -406,96 +413,438 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
   };
 
   if (!open) return null;
-  return createPortal(<>
-    <div className="gm-modal-overlay"><div className="gm-modal-container gm-modal-v2 modal-nc-container" role="dialog" aria-modal="true">
-      <div className="gm-modal-header"><div className="gm-modal-head-left"><h2 className="gm-modal-title">{esEliminacionTotal ? "Emitir nota de crédito" : "Nota de crédito de venta"}</h2><p className="gm-modal-subtitle">Venta #{row?.id_movimiento || "—"} · {esEliminacionTotal ? "ANULACIÓN TOTAL" : modalidad === "ARCA" ? "Emisión ARCA" : "Comprobante interno"}</p></div><button className="gm-modal-close" onClick={onClose} disabled={loading}>✕</button></div>
-      <div className="gm-modal-content modal-nc-body">
-        {loading && !contexto && <div className="modal-nc-loading">Cargando venta…</div>}
-        {error && <div className="modal-nc-error">{error}</div>}
-        {contexto && <>
-          {modalidad === "ARCA" && <div className="modal-nc-arca-notice">
-            <div className="modal-nc-arca-notice__title">VENTA FACTURADA EN ARCA</div>
-            <div className="modal-nc-arca-notice__text">
-              {esEliminacionTotal ? <>
-                Se emitirá una <b>NOTA DE CRÉDITO {letraComprobante(contexto?.nota_credito?.cbte_tipo)} TOTAL</b> por todo el saldo pendiente y se asociará a la
-                {" "}<b>FACTURA {letraComprobante(facturaOriginal?.cbte_tipo)} {numeroComprobante(facturaOriginal?.pto_vta, facturaOriginal?.cbte_nro)}</b>.
-                Después volverás al modal de eliminación para confirmar si querés borrar la venta.
-              </> : <>
-                Al confirmar, Balto emitirá una <b>NOTA DE CRÉDITO {letraComprobante(contexto?.nota_credito?.cbte_tipo)}</b> en ARCA y la asociará obligatoriamente a la
-                {" "}<b>FACTURA {letraComprobante(facturaOriginal?.cbte_tipo)} {numeroComprobante(facturaOriginal?.pto_vta, facturaOriginal?.cbte_nro)}</b>.
-                Podés acreditar una parte o anular el total disponible.
-              </>}
-            </div>
-            <div className="modal-nc-arca-notice__meta">
-              <span>COMPROBANTE ASOCIADO</span>
-              <strong>FACTURA {letraComprobante(facturaOriginal?.cbte_tipo)} {numeroComprobante(facturaOriginal?.pto_vta, facturaOriginal?.cbte_nro)}</strong>
-              <span>CAE</span>
-              <strong>{safeStr(facturaOriginal?.cae) || "—"}</strong>
-            </div>
-          </div>}
 
-          {esEliminacionTotal ? <>
-            <div className="modal-nc-grid">
-              <div className="modal-nc-card">
-                <b>Factura original</b>
-                <div className="modal-nc-card__row"><span>Tipo</span><strong>FACTURA {letraComprobante(facturaOriginal?.cbte_tipo) || "—"}</strong></div>
-                <div className="modal-nc-card__row"><span>Comprobante</span><strong>{numeroComprobante(facturaOriginal?.pto_vta, facturaOriginal?.cbte_nro)}</strong></div>
-                <div className="modal-nc-card__row"><span>CAE</span><strong>{safeStr(facturaOriginal?.cae) || "—"}</strong></div>
+  const notasAnteriores = contexto?.notas_credito?.map(
+    (nota) => `${nota.comprobante_numero || `#${nota.id_movimiento_nc}`} (${money(nota.total)})`
+  ).join(" · ");
+
+  return createPortal(
+    <>
+      <div className="gm-modal-overlay">
+        <div
+          className="gm-modal-container gm-modal-v2 ncv-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ncv-modal-title"
+        >
+          <header className="gm-modal-header">
+            <div className="gm-modal-head-icon ncv-modal__head-icon" aria-hidden="true">↩</div>
+            <div className="gm-modal-head-left">
+              <h2 className="gm-modal-title" id="ncv-modal-title">
+                {esEliminacionTotal ? "Emitir nota de crédito" : "Nota de crédito de venta"}
+              </h2>
+              <p className="gm-modal-subtitle">
+                Venta #{row?.id_movimiento || "—"} ·{" "}
+                {esEliminacionTotal
+                  ? "Anulación total"
+                  : modalidad === "ARCA"
+                    ? "Emisión ARCA"
+                    : "Comprobante interno"}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="gm-modal-close"
+              onClick={onClose}
+              disabled={loading}
+              aria-label="Cerrar modal"
+            >
+              ✕
+            </button>
+          </header>
+
+          <div className="gm-modal-content ncv-modal__body">
+            {loading && !contexto && (
+              <div className="ncv-feedback ncv-feedback--loading" role="status">
+                <span className="ncv-feedback__dot" aria-hidden="true" />
+                Cargando venta…
               </div>
-              <div className="modal-nc-card">
-                <b>Cliente fiscal</b>
-                <div className="modal-nc-card__row"><span>Razón social</span><strong>{contexto?.cliente_facturacion?.razon_social || contexto?.movimiento?.cliente_nombre || "—"}</strong></div>
-                <div className="modal-nc-card__row"><span>CUIT / Documento</span><strong>{safeStr(contexto?.cliente_facturacion?.doc_nro || contexto?.cliente_facturacion?.cuit) || "—"}</strong></div>
+            )}
+
+            {error && (
+              <div className="ncv-feedback ncv-feedback--error" role="alert">
+                {error}
               </div>
-            </div>
-            <div className="modal-nc-grid modal-nc-grid--totals">
-              <div className="modal-nc-card"><span>Total original</span><strong>{money(contexto.total_original)}</strong></div>
-              <div className="modal-nc-card"><span>Ya acreditado</span><strong>{money(contexto.total_acreditado)}</strong></div>
-              <div className="modal-nc-card modal-nc-card--accent"><span>Nota a emitir</span><strong>{money(totalSeleccionado)}</strong></div>
-            </div>
-            <div className="modal-nc-form-grid">
-              <label className="modal-nc-field"><span>Motivo</span><input value="ANULACIÓN TOTAL" disabled /></label>
-              <label className="modal-nc-field"><span>Observaciones</span><input value={observaciones} onChange={(e) => setObservaciones(e.target.value.toUpperCase())} placeholder="DETALLE OPCIONAL" disabled={loading}/></label>
-            </div>
-            {!!contexto.notas_credito?.length && <div className="modal-nc-history"><b>Notas anteriores:</b> {contexto.notas_credito.map((n) => `${n.comprobante_numero || `#${n.id_movimiento_nc}`} (${money(n.total)})`).join(" · ")}</div>}
-          </> : <>
-            <div className="modal-nc-grid modal-nc-grid--totals">
-              <div className="modal-nc-card"><span>Total original</span><strong>{money(contexto.total_original)}</strong></div>
-              <div className="modal-nc-card"><span>Ya acreditado</span><strong>{money(contexto.total_acreditado)}</strong></div>
-              <div className="modal-nc-card"><span>Disponible</span><strong>{money(totalDisponible)}</strong></div>
-              <div className="modal-nc-card modal-nc-card--accent"><span>Esta nota</span><strong>{money(totalSeleccionado)}</strong></div>
-            </div>
+            )}
 
-            <div className="modal-nc-form-grid">
-              <label className="modal-nc-field"><span>Motivo</span><select value={motivo} onChange={(e) => setMotivo(e.target.value)} disabled={loading}>{MOTIVOS.map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></label>
-              <label className="modal-nc-field"><span>Observaciones</span><input value={observaciones} onChange={(e) => setObservaciones(e.target.value.toUpperCase())} placeholder="DETALLE OPCIONAL" disabled={loading}/></label>
-            </div>
+            {contexto && (
+              <>
+                {modalidad === "ARCA" && (
+                  <div className="gm-info-box ncv-arca-notice">
+                    <div className="ncv-arca-notice__title">Venta facturada en ARCA</div>
+                    <div className="ncv-arca-notice__text">
+                      {esEliminacionTotal ? (
+                        <>
+                          Se emitirá una{" "}
+                          <b>NOTA DE CRÉDITO {letraComprobante(contexto?.nota_credito?.cbte_tipo)} TOTAL</b>{" "}
+                          por todo el saldo pendiente y se asociará a la{" "}
+                          <b>
+                            FACTURA {letraComprobante(facturaOriginal?.cbte_tipo)}{" "}
+                            {numeroComprobante(facturaOriginal?.pto_vta, facturaOriginal?.cbte_nro)}
+                          </b>
+                          . Después volverás al modal de eliminación para confirmar si querés borrar la venta.
+                        </>
+                      ) : (
+                        <>
+                          Al confirmar, Balto emitirá una{" "}
+                          <b>NOTA DE CRÉDITO {letraComprobante(contexto?.nota_credito?.cbte_tipo)}</b>{" "}
+                          en ARCA y la asociará obligatoriamente a la{" "}
+                          <b>
+                            FACTURA {letraComprobante(facturaOriginal?.cbte_tipo)}{" "}
+                            {numeroComprobante(facturaOriginal?.pto_vta, facturaOriginal?.cbte_nro)}
+                          </b>
+                          . Podés acreditar una parte o anular el total disponible.
+                        </>
+                      )}
+                    </div>
+                    <div className="ncv-arca-notice__meta">
+                      <span>Comprobante asociado</span>
+                      <strong>
+                        FACTURA {letraComprobante(facturaOriginal?.cbte_tipo)}{" "}
+                        {numeroComprobante(facturaOriginal?.pto_vta, facturaOriginal?.cbte_nro)}
+                      </strong>
+                      <span>CAE</span>
+                      <strong>{safeStr(facturaOriginal?.cae) || "—"}</strong>
+                    </div>
+                  </div>
+                )}
 
-            {!esAjusteSinStock && <>
-              <div className="modal-nc-section-title">Productos de la venta</div>
-              <div className="modal-nc-table-wrap"><table className="modal-nc-table"><thead><tr><th>Producto</th><th>Disponible</th><th>Devuelve / acredita</th><th>Reingresa stock</th><th>Importe</th></tr></thead><tbody>
-                {items.map((it, idx) => {
-                  const sel = itemsSeleccionados.find((x) => x.id_item_origen === it.id_item_origen);
-                  return <tr key={it.id_item_origen}><td>{it.descripcion}</td><td>{it.disponible}</td><td><input type="number" min="0" max={it.disponible} step="0.01" value={it.cantidad} disabled={loading} onChange={(e) => setItems((prev) => prev.map((x,j) => j === idx ? {...x, cantidad: e.target.value} : x))}/></td><td><input type="checkbox" checked={it.afecta_stock} disabled={loading || !numberValue(it.cantidad)} onChange={(e) => setItems((prev) => prev.map((x,j) => j === idx ? {...x, afecta_stock: e.target.checked} : x))}/></td><td>{money(sel?.total || 0)}</td></tr>;
-                })}
-              </tbody></table></div>
-            </>}
+                {esEliminacionTotal && (
+                  <div className="ncv-detail-grid">
+                    <section className="gm-section">
+                      <div className="gm-section-head">
+                        <div className="gm-section-dot" />
+                        <span>Factura original</span>
+                      </div>
+                      <div className="gm-section-body ncv-detail-list">
+                        <div className="ncv-detail-row">
+                          <span>Tipo</span>
+                          <strong>FACTURA {letraComprobante(facturaOriginal?.cbte_tipo) || "—"}</strong>
+                        </div>
+                        <div className="ncv-detail-row">
+                          <span>Comprobante</span>
+                          <strong>{numeroComprobante(facturaOriginal?.pto_vta, facturaOriginal?.cbte_nro)}</strong>
+                        </div>
+                        <div className="ncv-detail-row">
+                          <span>CAE</span>
+                          <strong>{safeStr(facturaOriginal?.cae) || "—"}</strong>
+                        </div>
+                      </div>
+                    </section>
 
-            {esAjusteSinStock && <>
-              <div className="modal-nc-section-title">Descuento o ajuste sin stock</div>
-              <div className="modal-nc-form-grid modal-nc-form-grid--three">
-                <label className="modal-nc-field"><span>Descripción</span><input value={descripcionAjuste} onChange={(e) => setDescripcionAjuste(e.target.value.toUpperCase())} disabled={loading}/></label>
-                <label className="modal-nc-field"><span>Importe total</span><input type="number" min="0" step="0.01" value={importeAjuste} onChange={(e) => setImporteAjuste(e.target.value)} disabled={loading}/></label>
-                <label className="modal-nc-field"><span>IVA % incluido</span><select value={String(ivaAjuste)} onChange={(e) => setIvaAjuste(e.target.value)} disabled={loading}>{IVA_OPTIONS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select></label>
-              </div>
-            </>}
-            {excede && <div className="modal-nc-error">La nota supera el importe todavía disponible.</div>}
-            {!!contexto.notas_credito?.length && <div className="modal-nc-history"><b>Notas anteriores:</b> {contexto.notas_credito.map((n) => `${n.comprobante_numero || `#${n.id_movimiento_nc}`} (${money(n.total)})`).join(" · ")}</div>}
-          </>}
-        </>}
+                    <section className="gm-section">
+                      <div className="gm-section-head">
+                        <div className="gm-section-dot" />
+                        <span>Cliente fiscal</span>
+                      </div>
+                      <div className="gm-section-body ncv-detail-list">
+                        <div className="ncv-detail-row">
+                          <span>Razón social</span>
+                          <strong>
+                            {contexto?.cliente_facturacion?.razon_social
+                              || contexto?.movimiento?.cliente_nombre
+                              || "—"}
+                          </strong>
+                        </div>
+                        <div className="ncv-detail-row">
+                          <span>CUIT / Documento</span>
+                          <strong>
+                            {safeStr(
+                              contexto?.cliente_facturacion?.doc_nro
+                              || contexto?.cliente_facturacion?.cuit
+                            ) || "—"}
+                          </strong>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                )}
+
+                <div
+                  className={`ncv-summary-grid${esEliminacionTotal ? " ncv-summary-grid--three" : ""}`}
+                  aria-label="Resumen de importes"
+                >
+                  <article className="ncv-summary-card ncv-summary-card--blue">
+                    <div className="ncv-summary-card__icon" aria-hidden="true">
+                      <FontAwesomeIcon icon={faMoneyBillTrendUp} />
+                    </div>
+                    <div className="ncv-summary-card__body">
+                      <span className="ncv-summary-card__label">Total original</span>
+                      <b className="ncv-summary-card__value">{money(contexto.total_original)}</b>
+                      <span className="ncv-summary-card__detail">Importe de la venta</span>
+                    </div>
+                  </article>
+
+                  <article className="ncv-summary-card ncv-summary-card--pink">
+                    <div className="ncv-summary-card__icon" aria-hidden="true">
+                      <FontAwesomeIcon icon={faCreditCard} />
+                    </div>
+                    <div className="ncv-summary-card__body">
+                      <span className="ncv-summary-card__label">Ya acreditado</span>
+                      <b className="ncv-summary-card__value">{money(contexto.total_acreditado)}</b>
+                      <span className="ncv-summary-card__detail">Notas anteriores</span>
+                    </div>
+                  </article>
+
+                  {!esEliminacionTotal && (
+                    <article className="ncv-summary-card ncv-summary-card--yellow">
+                      <div className="ncv-summary-card__icon" aria-hidden="true">
+                        <FontAwesomeIcon icon={faWallet} />
+                      </div>
+                      <div className="ncv-summary-card__body">
+                        <span className="ncv-summary-card__label">Disponible</span>
+                        <b className="ncv-summary-card__value">{money(totalDisponible)}</b>
+                        <span className="ncv-summary-card__detail">Saldo por acreditar</span>
+                      </div>
+                    </article>
+                  )}
+
+                  <article className="ncv-summary-card ncv-summary-card--green">
+                    <div className="ncv-summary-card__icon" aria-hidden="true">
+                      <FontAwesomeIcon icon={faArrowDown} />
+                    </div>
+                    <div className="ncv-summary-card__body">
+                      <span className="ncv-summary-card__label">
+                        {esEliminacionTotal ? "Nota a emitir" : "Esta nota"}
+                      </span>
+                      <b className="ncv-summary-card__value">{money(totalSeleccionado)}</b>
+                      <span className="ncv-summary-card__detail">Importe seleccionado</span>
+                    </div>
+                  </article>
+                </div>
+
+                <div className="ncv-form-grid">
+                  {esEliminacionTotal ? (
+                    <div className="gm-field">
+                      <input
+                        className="gm-input"
+                        value="ANULACIÓN TOTAL"
+                        placeholder=" "
+                        disabled
+                        readOnly
+                      />
+                      <label className="gm-label">Motivo</label>
+                    </div>
+                  ) : (
+                    <div className="gm-field">
+                      <select
+                        className="gm-input gm-select"
+                        value={motivo}
+                        onChange={(e) => setMotivo(e.target.value)}
+                        disabled={loading}
+                      >
+                        {MOTIVOS.map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                      <label className="gm-label gm-label--up">Motivo</label>
+                    </div>
+                  )}
+
+                  <div className="gm-field">
+                    <input
+                      className="gm-input"
+                      value={observaciones}
+                      onChange={(e) => setObservaciones(e.target.value.toUpperCase())}
+                      placeholder=" "
+                      disabled={loading}
+                    />
+                    <label className="gm-label">Observaciones</label>
+                  </div>
+                </div>
+
+                {!esEliminacionTotal && !esAjusteSinStock && (
+                  <section className="gm-section">
+                    <div className="gm-section-head">
+                      <div className="gm-section-dot" />
+                      <span>Productos de la venta</span>
+                    </div>
+                    <div className="gm-section-body ncv-products-body">
+                      <div className="gm-table ncv-table" role="table" aria-label="Productos de la venta">
+                        <div className="gm-table-head" role="row">
+                          <div className="gm-table-th" role="columnheader">Producto</div>
+                          <div className="gm-table-th" role="columnheader">Disponible</div>
+                          <div className="gm-table-th" role="columnheader">Devuelve / acredita</div>
+                          <div className="gm-table-th" role="columnheader">Reingresa stock</div>
+                          <div className="gm-table-th" role="columnheader">Importe</div>
+                        </div>
+                        <div className="gm-table-body">
+                          {items.map((item, index) => {
+                            const seleccionado = itemsSeleccionados.find(
+                              (selectedItem) => selectedItem.id_item_origen === item.id_item_origen
+                            );
+                            const stockDisabled = loading || !numberValue(item.cantidad);
+
+                            return (
+                              <div className="gm-table-row" role="row" key={item.id_item_origen}>
+                                <div className="gm-table-cell gm-table-cell--detail" role="cell" title={item.descripcion}>
+                                  <strong className="ncv-product-name">{item.descripcion}</strong>
+                                </div>
+                                <div className="gm-table-cell gm-table-cell--center gm-table-cell--mono" role="cell">
+                                  {item.disponible}
+                                </div>
+                                <div className="gm-table-cell gm-table-cell--center" role="cell">
+                                  <input
+                                    className="gm-input ncv-quantity-input"
+                                    type="number"
+                                    min="0"
+                                    max={item.disponible}
+                                    step="0.01"
+                                    value={item.cantidad}
+                                    disabled={loading}
+                                    aria-label={`Cantidad a acreditar de ${item.descripcion}`}
+                                    onChange={(e) => setItems((currentItems) => currentItems.map(
+                                      (currentItem, currentIndex) => currentIndex === index
+                                        ? { ...currentItem, cantidad: e.target.value }
+                                        : currentItem
+                                    ))}
+                                  />
+                                </div>
+                                <div className="gm-table-cell gm-table-cell--center" role="cell">
+                                  <label className={`gm-inline-check${stockDisabled ? " is-disabled" : ""}`}>
+                                    <input
+                                      type="checkbox"
+                                      checked={item.afecta_stock}
+                                      disabled={stockDisabled}
+                                      aria-label={`Reingresar ${item.descripcion} al stock`}
+                                      onChange={(e) => setItems((currentItems) => currentItems.map(
+                                        (currentItem, currentIndex) => currentIndex === index
+                                          ? { ...currentItem, afecta_stock: e.target.checked }
+                                          : currentItem
+                                      ))}
+                                    />
+                                    <span className="gm-inline-check__box" aria-hidden="true" />
+                                  </label>
+                                </div>
+                                <div className="gm-table-cell gm-table-cell--right gm-table-cell--total" role="cell">
+                                  {money(seleccionado?.total || 0)}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {!esEliminacionTotal && esAjusteSinStock && (
+                  <section className="gm-section">
+                    <div className="gm-section-head">
+                      <div className="gm-section-dot" />
+                      <span>Descuento o ajuste sin stock</span>
+                    </div>
+                    <div className="gm-section-body">
+                      <div className="ncv-form-grid ncv-form-grid--adjustment">
+                        <div className="gm-field">
+                          <input
+                            className="gm-input"
+                            value={descripcionAjuste}
+                            onChange={(e) => setDescripcionAjuste(e.target.value.toUpperCase())}
+                            placeholder=" "
+                            disabled={loading}
+                          />
+                          <label className="gm-label">Descripción</label>
+                        </div>
+                        <div className="gm-field">
+                          <input
+                            className="gm-input"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={importeAjuste}
+                            onChange={(e) => setImporteAjuste(e.target.value)}
+                            placeholder=" "
+                            disabled={loading}
+                          />
+                          <label className="gm-label">Importe total</label>
+                        </div>
+                        <div className="gm-field">
+                          <select
+                            className="gm-input gm-select"
+                            value={String(ivaAjuste)}
+                            onChange={(e) => setIvaAjuste(e.target.value)}
+                            disabled={loading}
+                          >
+                            {IVA_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                          <label className="gm-label gm-label--up">IVA % incluido</label>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {excede && (
+                  <div className="ncv-feedback ncv-feedback--error" role="alert">
+                    La nota supera el importe todavía disponible.
+                  </div>
+                )}
+
+                {notasAnteriores && (
+                  <div className="ncv-history">
+                    <b>Notas anteriores:</b>
+                    <span>{notasAnteriores}</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          <footer className="gm-modal-footer ncv-modal__footer">
+            <button
+              type="button"
+              className="gm-action-btn gm-action-btn--cancel"
+              onClick={onClose}
+              disabled={loading}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="gm-action-btn gm-action-btn--save"
+              onClick={continuar}
+              disabled={loading || !contexto || !puedeContinuar}
+            >
+              {loading
+                ? "Procesando…"
+                : esEliminacionTotal
+                  ? "Emitir nota de crédito"
+                  : modalidad === "ARCA"
+                    ? "Continuar con ARCA"
+                    : "Aplicar nota de crédito"}
+            </button>
+          </footer>
+        </div>
       </div>
-      <div className="mit-actions"><button className="mit-btn mit-btn--ghost" onClick={onClose} disabled={loading}>Cancelar</button><button className="mit-btn mit-btn--solid" onClick={continuar} disabled={loading || !contexto || !puedeContinuar}>{loading ? "Procesando…" : esEliminacionTotal ? "Emitir nota de crédito" : modalidad === "ARCA" ? "Continuar con ARCA" : "Aplicar nota de crédito"}</button></div>
-    </div></div>
-    {openResumen && resumenData && <ModalFacturaBaltoResumen open={openResumen} onClose={() => setOpenResumen(false)} onBack={() => setOpenResumen(false)} onCloseAll={() => setOpenResumen(false)} apiBase={`${BASE_URL}/api.php`} action="movimientos" data={resumenData} docTipo={Number(resumenData?.cliente_facturacion?.doc_tipo || 80)} docNro={safeStr(resumenData?.cliente_facturacion?.doc_nro || resumenData?.cliente_facturacion?.cuit)} cbteTipo={Number(resumenData.cbte_tipo || 13)} ptoVta={String(resumenData.pto_vta || 2)} onDone={handleEmitida} forceTestAmount={false} testAmount={null} skipMovimientoAutocreacion={true} pdfMode="nota_credito" configsFacturacionInicial={contexto?.config_facturacion ? [contexto.config_facturacion] : []}/>} 
-  </>, document.body);
+
+      {openResumen && resumenData && (
+        <ModalFacturaBaltoResumen
+          open={openResumen}
+          onClose={() => setOpenResumen(false)}
+          onBack={() => setOpenResumen(false)}
+          onCloseAll={() => setOpenResumen(false)}
+          apiBase={`${BASE_URL}/api.php`}
+          action="movimientos"
+          data={resumenData}
+          docTipo={Number(resumenData?.cliente_facturacion?.doc_tipo || 80)}
+          docNro={safeStr(
+            resumenData?.cliente_facturacion?.doc_nro
+            || resumenData?.cliente_facturacion?.cuit
+          )}
+          cbteTipo={Number(resumenData.cbte_tipo || 13)}
+          ptoVta={String(resumenData.pto_vta || 2)}
+          onDone={handleEmitida}
+          forceTestAmount={false}
+          testAmount={null}
+          skipMovimientoAutocreacion={true}
+          pdfMode="nota_credito"
+          configsFacturacionInicial={contexto?.config_facturacion ? [contexto.config_facturacion] : []}
+        />
+      )}
+    </>,
+    document.body
+  );
 }

@@ -2759,3 +2759,15 @@ html[data-theme="oscuro"] .arca-alert--error {
   border-color: rgba(239, 68, 68, .24);
   color: rgba(255, 210, 210, .92);
 }
+
+html[data-theme="oscuro"] .gm-action-btn--invoice:hover:not(:disabled) {
+
+  color: #ffffff;
+
+}
+
+
+html[data-theme="oscuro"] .gm-action-btn--secondary:hover:not(:disabled) {
+
+  color: #ffffff;
+}

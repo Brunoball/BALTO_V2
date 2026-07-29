@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCheck, faPen, faTrashCan } from "@fortawesome/free-solid-svg-icons";
 import BASE_URL from "../../../../config/config";
 import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
 import ModalEliminar from "../../../Global/Modales/ModalEliminar.jsx";
@@ -447,22 +449,54 @@ export default function ModalModelosPresupuesto({ open, lists, onClose, onToast,
                   <article className="presupuesto-modelo-card" key={modelo.id_modelo}>
                     <div className="presupuesto-modelo-card__top">
                       <div className="presupuesto-modelo-card__eyebrow">
-                        <span className="presupuesto-modelo-card__icon" aria-hidden="true">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path d="M6.75 3.75h7.8l3.7 3.7v12.8H6.75V3.75Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-                            <path d="M14.55 3.75v3.7h3.7M9.75 11h5.5M9.75 14.5h5.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </span>
-                        <span className="presupuesto-modelo-card__badge">
-                          {Number(modelo.es_personalizado ?? 1) === 1 ? "PERSONALIZADO" : "CON STOCK"}
-                        </span>
+                        <div className="presupuesto-modelo-card__identity">
+                          <span className="presupuesto-modelo-card__icon" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                              <path d="M6.75 3.75h7.8l3.7 3.7v12.8H6.75V3.75Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                              <path d="M14.55 3.75v3.7h3.7M9.75 11h5.5M9.75 14.5h5.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </span>
+                          <span className="presupuesto-modelo-card__badge">
+                            {Number(modelo.es_personalizado ?? 1) === 1 ? "PERSONALIZADO" : "CON STOCK"}
+                          </span>
+                        </div>
+                        <div className="presupuesto-modelo-card__actions" aria-label="Acciones del modelo">
+                          <button
+                            type="button"
+                            className="gm-action-btn gm-action-btn--save presupuesto-modelo-card__button presupuesto-modelo-card__button--use"
+                            onClick={() => onUseModel?.(modelo)}
+                            title="Usar modelo"
+                            aria-label={`Usar modelo ${upperStr(modelo.nombre) || "sin nombre"}`}
+                          >
+                            <FontAwesomeIcon icon={faCheck} aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            className="gm-action-btn gm-action-btn--secondary presupuesto-modelo-card__button"
+                            onClick={() => openEdit(modelo)}
+                            title="Editar modelo"
+                            aria-label={`Editar modelo ${upperStr(modelo.nombre) || "sin nombre"}`}
+                          >
+                            <FontAwesomeIcon icon={faPen} aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            className="gm-action-btn gm-action-btn--danger presupuesto-modelo-card__button"
+                            disabled={Boolean(deletingId)}
+                            onClick={() => setModeloEliminar(modelo)}
+                            title="Eliminar modelo"
+                            aria-label={`Eliminar modelo ${upperStr(modelo.nombre) || "sin nombre"}`}
+                          >
+                            <FontAwesomeIcon icon={faTrashCan} aria-hidden="true" />
+                          </button>
+                        </div>
                       </div>
                       <strong>{upperStr(modelo.nombre) || "MODELO SIN NOMBRE"}</strong>
                       <p>{upperStr(modelo.descripcion) || "SIN DESCRIPCIÓN"}</p>
                     </div>
                     <div className="presupuesto-modelo-card__items">
                       <div className="presupuesto-modelo-card__section-title">Elementos incluidos</div>
-                      {(Array.isArray(modelo.items) ? modelo.items : []).slice(0, 5).map((item, idx) => (
+                      {(Array.isArray(modelo.items) ? modelo.items : []).slice(0, 3).map((item, idx) => (
                         <div key={`${modelo.id_modelo}-${idx}`}>
                           <span>{safeNumber(item.cantidad)}×</span>
                           <b>{upperStr(item.descripcion || item.nombre)}</b>
@@ -471,7 +505,7 @@ export default function ModalModelosPresupuesto({ open, lists, onClose, onToast,
                       {(!Array.isArray(modelo.items) || modelo.items.length === 0) && (
                         <small className="presupuesto-modelo-card__empty-items">Sin elementos cargados</small>
                       )}
-                      {Number(modelo.cantidad_items || 0) > 5 && <small>+ {Number(modelo.cantidad_items) - 5} elementos más</small>}
+                      {Number(modelo.cantidad_items || 0) > 3 && <small>+ {Number(modelo.cantidad_items) - 3} elementos más</small>}
                     </div>
                     <div className="presupuesto-modelo-card__summary">
                       <div className="presupuesto-modelo-card__metric">
@@ -482,30 +516,6 @@ export default function ModalModelosPresupuesto({ open, lists, onClose, onToast,
                         <span>Total base</span>
                         <b>{moneyARS(modelo.total_modelo || 0)}</b>
                       </div>
-                    </div>
-                    <div className="presupuesto-modelo-card__actions">
-                      <button
-                        type="button"
-                        className="gm-action-btn gm-action-btn--save presupuesto-modelo-card__button"
-                        onClick={() => onUseModel?.(modelo)}
-                      >
-                        Usar modelo
-                      </button>
-                      <button
-                        type="button"
-                        className="gm-action-btn gm-action-btn--secondary presupuesto-modelo-card__button"
-                        onClick={() => openEdit(modelo)}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        className="gm-action-btn gm-action-btn--danger presupuesto-modelo-card__button"
-                        disabled={Boolean(deletingId)}
-                        onClick={() => setModeloEliminar(modelo)}
-                      >
-                        Eliminar
-                      </button>
                     </div>
                   </article>
                 ))}
