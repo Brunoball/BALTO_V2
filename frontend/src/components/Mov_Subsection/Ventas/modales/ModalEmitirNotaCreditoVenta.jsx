@@ -46,6 +46,19 @@ function numberValue(v) {
   const n = Number(String(v ?? "").replace(",", "."));
   return Number.isFinite(n) ? n : 0;
 }
+function boundedNumberValue(value, maximum) {
+  const raw = String(value ?? "");
+  if (raw === "") return "";
+
+  const parsed = Number(raw.replace(",", "."));
+  const max = Math.max(0, Number(maximum) || 0);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > max + 0.000001) return null;
+  return raw;
+}
+
+function preventInvalidNumberKeys(event) {
+  if (["e", "E", "+", "-"].includes(event.key)) event.preventDefault();
+}
 function makeIdempotencyKey(id) {
   const uuid = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `nc-venta-${id || 0}-${uuid}`.slice(0, 100);
@@ -386,9 +399,8 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
         id_comprobante_fiscal_original: Number(contexto?.factura_original?.id_comprobante_fiscal || 0),
         factura_original: resumenData.factura_original,
         cbtes_asoc: resumenData.cbtes_asoc,
-        importe_fiscal: Number(fiscal.imp_total || totalSeleccionado),
-        comprobante_tipo: String(fiscal.cbte_tipo || resumenData.cbte_tipo), comprobante_punto_venta: Number(fiscal.pto_vta || resumenData.pto_vta),
-        comprobante_numero: String(fiscal.cbte_nro || ""), comprobante_fecha: fiscal.fecha_cbte || todayISO(), comprobante_cae: fiscal.cae };
+        importe_fiscal: Number(fiscal.imp_total || totalSeleccionado)
+      };
       const res = await fetch(`${API}?action=ventas_nota_credito_aplicar`, { method: "POST", headers: headers(true), body: JSON.stringify(body) });
       const data = await parseJsonOrThrow(res);
       if (!esEliminacionTotal) {
@@ -693,11 +705,16 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
                                     value={item.cantidad}
                                     disabled={loading}
                                     aria-label={`Cantidad a acreditar de ${item.descripcion}`}
-                                    onChange={(e) => setItems((currentItems) => currentItems.map(
-                                      (currentItem, currentIndex) => currentIndex === index
-                                        ? { ...currentItem, cantidad: e.target.value }
-                                        : currentItem
-                                    ))}
+                                    onKeyDown={preventInvalidNumberKeys}
+                                    onChange={(e) => {
+                                      const value = boundedNumberValue(e.target.value, item.disponible);
+                                      if (value === null) return;
+                                      setItems((currentItems) => currentItems.map(
+                                        (currentItem, currentIndex) => currentIndex === index
+                                          ? { ...currentItem, cantidad: value }
+                                          : currentItem
+                                      ));
+                                    }}
                                   />
                                 </div>
                                 <div className="gm-table-cell gm-table-cell--center" role="cell">
@@ -751,9 +768,14 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
                             className="gm-input"
                             type="number"
                             min="0"
+                            max={totalDisponible}
                             step="0.01"
                             value={importeAjuste}
-                            onChange={(e) => setImporteAjuste(e.target.value)}
+                            onKeyDown={preventInvalidNumberKeys}
+                            onChange={(e) => {
+                              const value = boundedNumberValue(e.target.value, totalDisponible);
+                              if (value !== null) setImporteAjuste(value);
+                            }}
                             placeholder=" "
                             disabled={loading}
                           />

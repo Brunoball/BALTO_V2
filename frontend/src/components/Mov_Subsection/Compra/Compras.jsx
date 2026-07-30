@@ -307,12 +307,68 @@ function getComprobanteId(r) {
 
 function getComprobanteMime(r) {
   return String(
-    r?.factura_comprobante_tipo ??
+    r?.factura_comprobante_mime ??
       r?.archivo_mime ??
       r?.comprobante_mime ??
       r?.mime ??
-      ""
-  ).trim();
+      "application/pdf"
+  ).trim() || "application/pdf";
+}
+
+function normalizeCompraComprobanteDocs(row) {
+  const docs = Array.isArray(row?.comprobantes_detalle) ? row.comprobantes_detalle : [];
+  const normalized = docs
+    .map((doc) => {
+      const id = Number(doc?.id_comprobante ?? doc?.id_archivo ?? doc?.id ?? 0);
+      if (!Number.isFinite(id) || id <= 0) return null;
+      const tipo = String(doc?.tipo ?? doc?.comprobante_tipo ?? "").trim().toUpperCase();
+      const esNotaCredito = ["NOTA_CREDITO_PROVEEDOR", "NOTA_CREDITO", "NOTA_CREDITO_INTERNA"].includes(tipo)
+        || String(doc?.key ?? "").toLowerCase().includes("nota_credito");
+      const label = String(
+        doc?.label ??
+        doc?.title ??
+        (esNotaCredito ? "Nota de crédito del proveedor" : "Comprobante de compra")
+      ).trim();
+      return {
+        ...doc,
+        id_comprobante: id,
+        id_archivo: id,
+        tipo,
+        key: String(doc?.key ?? (esNotaCredito ? "nota_credito_proveedor" : "factura")).trim(),
+        label,
+        title: String(doc?.title ?? label).trim() || label,
+        mime: String(doc?.mime ?? doc?.archivo_mime ?? "application/pdf").trim() || "application/pdf",
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      const rank = (doc) => {
+        const tipo = String(doc?.tipo ?? "").toUpperCase();
+        const key = String(doc?.key ?? "").toLowerCase();
+        return ["NOTA_CREDITO_PROVEEDOR", "NOTA_CREDITO", "NOTA_CREDITO_INTERNA"].includes(tipo)
+          || key.includes("nota_credito")
+          ? 2
+          : 1;
+      };
+      const rankA = rank(a);
+      const rankB = rank(b);
+      if (rankA !== rankB) return rankA - rankB;
+      return Number(a.id_comprobante || 0) - Number(b.id_comprobante || 0);
+    });
+
+  if (normalized.length) return normalized;
+
+  const id = getComprobanteId(row);
+  if (!id) return [];
+  return [{
+    id_comprobante: id,
+    id_archivo: id,
+    tipo: String(row?.factura_comprobante_tipo ?? row?.comprobante_tipo ?? "COMPRA").trim().toUpperCase(),
+    key: "factura",
+    label: "Comprobante de compra",
+    title: "Comprobante de compra",
+    mime: getComprobanteMime(row),
+  }];
 }
 
 function getComprobanteUrl(r) {
@@ -493,6 +549,7 @@ export default function Compras() {
   const [openMediosPago, setOpenMediosPago] = useState(false);
   const [compUrl, setCompUrl] = useState("");
   const [compMime, setCompMime] = useState("");
+  const [compDocs, setCompDocs] = useState([]);
 
   const [selectedRow, setSelectedRow] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
@@ -708,7 +765,7 @@ export default function Compras() {
       const cacheKey = `${fromAPI}|${toAPI}|${qKey}`;
 
       if (!append && offset === 0 && !cacheRef.current.has(cacheKey)) {
-        const persisted = readMovPerfCache("compras:listar:cc-medios-v4", cacheKey);
+        const persisted = readMovPerfCache("compras:listar:cc-medios-v5", cacheKey);
         if (persisted?.rows) cacheRef.current.set(cacheKey, persisted);
       }
 
@@ -823,7 +880,7 @@ export default function Compras() {
             nextOffset: newNextOffset,
           };
           cacheRef.current.set(cacheKey, cachePayload);
-          writeMovPerfCache("compras:listar:cc-medios-v4", cacheKey, cachePayload);
+          writeMovPerfCache("compras:listar:cc-medios-v5", cacheKey, cachePayload);
         }
 
         setHasMore(newHasMore);
@@ -912,7 +969,7 @@ export default function Compras() {
       if (!newRange?.from && !newRange?.to) return;
       setDateRange(newRange);
       cacheRef.current.clear();
-      clearMovPerfCache("compras:listar:cc-medios-v4");
+      clearMovPerfCache("compras:listar:cc-medios-v5");
       signedUrlCacheRef.current.clear();
       skipSearchRef.current = true;
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
@@ -1169,7 +1226,7 @@ export default function Compras() {
 
       // Evita volver a abrir el modal con una versión vieja persistida en localStorage.
       cacheRef.current.clear();
-      clearMovPerfCache("compras:listar:cc-medios-v4");
+      clearMovPerfCache("compras:listar:cc-medios-v5");
     } catch (e) {
       console.warn("No se pudo refrescar el detalle de medios de pago de la compra:", e);
     }
@@ -1182,38 +1239,45 @@ export default function Compras() {
   }, []);
 
   const handlePrewarmComprobante = useCallback(
-    async (r) => {
-      const idComp = getComprobanteId(r);
-      if (!idComp) return;
-
-      try {
-        const signedUrl = await getComprobanteSignedUrl(idComp);
-        if (!signedUrl) return;
-        prewarmComprobanteUrl(signedUrl, getComprobanteMime(r));
-      } catch {
-        // silencioso
-      }
+    (r) => {
+      normalizeCompraComprobanteDocs(r).forEach((doc) => {
+        getComprobanteSignedUrl(doc.id_comprobante)
+          .then((signedUrl) => {
+            if (signedUrl) prewarmComprobanteUrl(signedUrl, doc.mime);
+          })
+          .catch(() => {});
+      });
     },
     [getComprobanteSignedUrl]
   );
 
   const openComprobanteModal = useCallback(
     async (r) => {
-      const idComp = getComprobanteId(r);
-      if (!idComp) return;
+      const candidates = normalizeCompraComprobanteDocs(r);
+      if (!candidates.length) {
+        showToast("error", "No se encontraron comprobantes para esta compra.", 3000);
+        return;
+      }
 
       try {
-        const signedUrl = await getComprobanteSignedUrl(idComp);
-        if (!signedUrl) {
-          showToast("error", "No se pudo obtener el comprobante.", 3000);
+        const documents = (
+          await Promise.all(candidates.map(async (doc) => ({
+            ...doc,
+            url: await getComprobanteSignedUrl(doc.id_comprobante),
+          })))
+        ).filter((doc) => String(doc.url || "").trim());
+
+        if (!documents.length) {
+          showToast("error", "No se pudieron obtener los comprobantes.", 3000);
           return;
         }
 
-        setCompUrl(signedUrl);
-        setCompMime(getComprobanteMime(r));
+        setCompDocs(documents);
+        setCompUrl(documents[0]?.url || "");
+        setCompMime(documents[0]?.mime || "application/pdf");
         setOpenVerComp(true);
       } catch (e) {
-        showToast("error", e?.message || "No se pudo abrir el comprobante.", 3200);
+        showToast("error", e?.message || "No se pudieron abrir los comprobantes.", 3200);
       }
     },
     [getComprobanteSignedUrl, showToast]
@@ -1223,6 +1287,7 @@ export default function Compras() {
     setOpenVerComp(false);
     setCompUrl("");
     setCompMime("");
+    setCompDocs([]);
   };
 
   const refreshAfterSave = useCallback(async () => {
@@ -1230,7 +1295,7 @@ export default function Compras() {
     setOpenEdit(false);
     setSelectedRow(null);
     cacheRef.current.clear();
-    clearMovPerfCache("compras:listar:cc-medios-v4");
+    clearMovPerfCache("compras:listar:cc-medios-v5");
     signedUrlCacheRef.current.clear();
     await loadRows({ dateRange, q: "", offset: 0, append: false });
     await refreshPeriodos();
@@ -1274,7 +1339,7 @@ export default function Compras() {
       setOpenDel(false);
       setSelectedRow(null);
       cacheRef.current.clear();
-      clearMovPerfCache("compras:listar:cc-medios-v4");
+      clearMovPerfCache("compras:listar:cc-medios-v5");
       signedUrlCacheRef.current.clear();
 
       await loadRows({ dateRange, q, offset: 0, append: false });
@@ -1587,8 +1652,8 @@ export default function Compras() {
               <>
                 {filteredRows.map((r) => {
                   const rowId = getRowId(r) ?? `row-${Math.random()}`;
-                  const idComp = getComprobanteId(r);
-                  const canSee = !!idComp;
+                  const canSee = normalizeCompraComprobanteDocs(r).length > 0;
+                  const saldoNotaCreditoDisponible = Number(r?.monto_total ?? r?.total ?? 0) > 0.004;
                   const isDeleting =
                     deletingId !== null && String(deletingId) === String(rowId);
                   return (
@@ -1638,9 +1703,11 @@ export default function Compras() {
                                 <button
                                   type="button"
                                   className="mov-iconBtn"
-                                  title="Registrar nota de crédito del proveedor"
+                                  title={saldoNotaCreditoDisponible
+                                    ? "Aplicar nota de crédito recibida del proveedor"
+                                    : "Compra totalmente acreditada"}
                                   onClick={() => { setSelectedRow(r); setOpenNotaCredito(true); }}
-                                  disabled={isAnyLoading || loadingListsCtx}
+                                  disabled={isAnyLoading || loadingListsCtx || !saldoNotaCreditoDisponible}
                                 >
                                   <FontAwesomeIcon icon={faFileInvoiceDollar} />
                                 </button>
@@ -1778,10 +1845,12 @@ export default function Compras() {
           setSelectedRow(null);
         }}
         onToast={showToast}
-        onDone={async () => {
+        onDone={async (result) => {
           setOpenNotaCredito(false);
           await refreshAfterSave();
-          showToast("exito", "Nota de crédito del proveedor aplicada.", 3600);
+          if (!result?.archivo_no_adjuntado) {
+            showToast("exito", "Nota de crédito aplicada. La compra quedó actualizada.", 3600);
+          }
         }}
       />
 
@@ -1798,8 +1867,9 @@ export default function Compras() {
         open={openVerComp}
         url={compUrl}
         mime={compMime}
+        documents={compDocs}
         onClose={closeComprobanteModal}
-        title="Comprobante de compra"
+        title="Comprobantes de compra"
       />
 
       <ModalEliminarMovimientos
