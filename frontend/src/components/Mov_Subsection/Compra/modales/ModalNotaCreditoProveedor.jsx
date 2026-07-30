@@ -1,10 +1,26 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faArrowDown,
+  faCreditCard,
+  faMoneyBillTrendUp,
+  faWallet,
+} from "@fortawesome/free-solid-svg-icons";
 import BASE_URL from "../../../../config/config.jsx";
 import "../../../Global/Global_css/roots.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
-import "../../Ventas/modales/ModalNuevaVenta.css";
-import { DEMO_BLOCK_MESSAGE, isBaltoDemoMode } from "../../../../utils/demoMode";
+import "./ModalNotaCreditoProveedor.css";
+import {
+  DEMO_BLOCK_MESSAGE,
+  isBaltoDemoMode,
+} from "../../../../utils/demoMode";
 
 const MOTIVOS = [
   ["DEVOLUCION_MERCADERIA", "Devolución de mercadería al proveedor"],
@@ -38,7 +54,8 @@ function boundedNumberValue(value, maximum) {
 
   const parsed = Number(raw.replace(",", "."));
   const max = Math.max(0, Number(maximum) || 0);
-  if (!Number.isFinite(parsed) || parsed < 0 || parsed > max + 0.000001) return null;
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > max + 0.000001)
+    return null;
   return raw;
 }
 
@@ -61,7 +78,8 @@ function quantity(value) {
 }
 
 function makeKey(id) {
-  const uuid = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+  const uuid =
+    window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
   return `nc-compra-${id || 0}-${uuid}`.slice(0, 100);
 }
 
@@ -76,9 +94,14 @@ function auth() {
   let idUsuario = 0;
   try {
     const user = JSON.parse(localStorage.getItem("usuario") || "null");
-    idUsuario = Number(
-      user?.idUsuarioMaster ?? user?.idUsuario ?? user?.id_usuario ?? user?.id ?? 0
-    ) || 0;
+    idUsuario =
+      Number(
+        user?.idUsuarioMaster ??
+          user?.idUsuario ??
+          user?.id_usuario ??
+          user?.id ??
+          0,
+      ) || 0;
   } catch {
     // El backend admite id_usuario nulo.
   }
@@ -109,10 +132,19 @@ async function parse(response) {
 
 function allowedFile(file) {
   if (!file) return false;
-  return file.type === "application/pdf" || String(file.type || "").startsWith("image/");
+  return (
+    file.type === "application/pdf" ||
+    String(file.type || "").startsWith("image/")
+  );
 }
 
-export default function ModalNotaCreditoProveedor({ open, row, onClose, onToast, onDone }) {
+export default function ModalNotaCreditoProveedor({
+  open,
+  row,
+  onClose,
+  onToast,
+  onDone,
+}) {
   const API = `${BASE_URL}/api.php`;
   const [ctx, setCtx] = useState(null);
   const [items, setItems] = useState([]);
@@ -123,14 +155,16 @@ export default function ModalNotaCreditoProveedor({ open, row, onClose, onToast,
   const [fecha, setFecha] = useState(todayISO());
   const [ajuste, setAjuste] = useState("");
   const [ivaAjuste, setIvaAjuste] = useState("0");
-  const [descripcionAjuste, setDescripcionAjuste] = useState("DESCUENTO / BONIFICACIÓN");
+  const [descripcionAjuste, setDescripcionAjuste] = useState(
+    "DESCUENTO / BONIFICACIÓN",
+  );
   const [archivo, setArchivo] = useState(null);
   const fileRef = useRef(null);
   const keyRef = useRef("");
 
   const toast = useCallback(
     (type, message, duration = 3200) => onToast?.(type, message, duration),
-    [onToast]
+    [onToast],
   );
 
   const idOrigen = Number(row?.id_movimiento ?? row?.id_compra ?? row?.id ?? 0);
@@ -144,22 +178,26 @@ export default function ModalNotaCreditoProveedor({ open, row, onClose, onToast,
     try {
       const response = await fetch(
         `${API}?action=compras_nota_credito_contexto&id_movimiento=${idOrigen}`,
-        { headers: headers() }
+        { headers: headers() },
       );
       const data = await parse(response);
       const context = data.contexto || data.data?.contexto;
       setCtx(context);
-      setItems((context?.items || []).map((item) => ({
-        id_item_origen: Number(item.id_item),
-        descripcion: item.descripcion_resuelta || item.descripcion || "Ítem",
-        disponible: Number(item.cantidad_disponible || 0),
-        cantidadOriginal: Number(item.cantidad_original || item.cantidad || 0),
-        subtotalOriginal: Number(item.subtotal || 0),
-        ivaOriginal: Number(item.iva_monto || 0),
-        totalOriginal: Number(item.total || 0),
-        iva_pct: Number(item.iva_pct || 0),
-        cantidad: "",
-      })));
+      setItems(
+        (context?.items || []).map((item) => ({
+          id_item_origen: Number(item.id_item),
+          descripcion: item.descripcion_resuelta || item.descripcion || "Ítem",
+          disponible: Number(item.cantidad_disponible || 0),
+          cantidadOriginal: Number(
+            item.cantidad_original || item.cantidad || 0,
+          ),
+          subtotalOriginal: Number(item.subtotal || 0),
+          ivaOriginal: Number(item.iva_monto || 0),
+          totalOriginal: Number(item.total || 0),
+          iva_pct: Number(item.iva_pct || 0),
+          cantidad: "",
+        })),
+      );
     } catch (loadError) {
       setError(loadError.message || "No se pudo cargar la compra.");
     } finally {
@@ -200,16 +238,20 @@ export default function ModalNotaCreditoProveedor({ open, row, onClose, onToast,
 
   useEffect(() => {
     if (esAnulacionTotal) {
-      setItems((previous) => previous.map((item) => ({
-        ...item,
-        cantidad: item.disponible > 0 ? String(item.disponible) : "",
-      })));
+      setItems((previous) =>
+        previous.map((item) => ({
+          ...item,
+          cantidad: item.disponible > 0 ? String(item.disponible) : "",
+        })),
+      );
       setAjuste("");
       return;
     }
 
     if (esAjusteSinStock) {
-      setItems((previous) => previous.map((item) => ({ ...item, cantidad: "" })));
+      setItems((previous) =>
+        previous.map((item) => ({ ...item, cantidad: "" })),
+      );
       const descriptions = {
         DESCUENTO: "DESCUENTO DEL PROVEEDOR",
         BONIFICACION: "BONIFICACIÓN DEL PROVEEDOR",
@@ -224,42 +266,62 @@ export default function ModalNotaCreditoProveedor({ open, row, onClose, onToast,
   }, [esAjusteSinStock, esAnulacionTotal, motivo]);
 
   const selected = useMemo(
-    () => items
-      .filter((item) => num(item.cantidad) > 0)
-      .map((item) => {
-        const selectedQuantity = num(item.cantidad);
-        const baseQuantity = Math.max(0.000001, item.cantidadOriginal);
-        return {
-          ...item,
-          cantidad: selectedQuantity,
-          subtotal: Number(((item.subtotalOriginal / baseQuantity) * selectedQuantity).toFixed(2)),
-          iva_monto: Number(((item.ivaOriginal / baseQuantity) * selectedQuantity).toFixed(2)),
-          total: Number(((item.totalOriginal / baseQuantity) * selectedQuantity).toFixed(2)),
-        };
-      }),
-    [items]
+    () =>
+      items
+        .filter((item) => num(item.cantidad) > 0)
+        .map((item) => {
+          const selectedQuantity = num(item.cantidad);
+          const baseQuantity = Math.max(0.000001, item.cantidadOriginal);
+          return {
+            ...item,
+            cantidad: selectedQuantity,
+            subtotal: Number(
+              (
+                (item.subtotalOriginal / baseQuantity) *
+                selectedQuantity
+              ).toFixed(2),
+            ),
+            iva_monto: Number(
+              ((item.ivaOriginal / baseQuantity) * selectedQuantity).toFixed(2),
+            ),
+            total: Number(
+              ((item.totalOriginal / baseQuantity) * selectedQuantity).toFixed(
+                2,
+              ),
+            ),
+          };
+        }),
+    [items],
   );
 
   const ajusteN = esAjusteSinStock ? Math.max(0, num(ajuste)) : 0;
   const disponible = Number(ctx?.total_disponible || 0);
   const totalCalculado = useMemo(
-    () => Number((selected.reduce((sum, item) => sum + item.total, 0) + ajusteN).toFixed(2)),
-    [selected, ajusteN]
+    () =>
+      Number(
+        (selected.reduce((sum, item) => sum + item.total, 0) + ajusteN).toFixed(
+          2,
+        ),
+      ),
+    [selected, ajusteN],
   );
   const total = esAnulacionTotal ? disponible : totalCalculado;
   const totalCompraLuego = Math.max(0, Number((disponible - total).toFixed(2)));
   const excede = !esAnulacionTotal && total - disponible > 0.05;
   const cantidadesValidas = selected.every(
-    (item) => item.cantidad <= item.disponible + 0.0001
+    (item) => item.cantidad <= item.disponible + 0.0001,
   );
   const contenidoValido = esAnulacionTotal
     ? disponible > 0
-    : (esAjusteSinStock ? ajusteN > 0 : selected.length > 0);
-  const valid = Boolean(fecha)
-    && total > 0
-    && !excede
-    && cantidadesValidas
-    && contenidoValido;
+    : esAjusteSinStock
+      ? ajusteN > 0
+      : selected.length > 0;
+  const valid =
+    Boolean(fecha) &&
+    total > 0 &&
+    !excede &&
+    cantidadesValidas &&
+    contenidoValido;
 
   const submit = async () => {
     if (isBaltoDemoMode()) {
@@ -271,7 +333,7 @@ export default function ModalNotaCreditoProveedor({ open, row, onClose, onToast,
       setError(
         esAjusteSinStock
           ? "Ingresá un importe válido para la nota de crédito."
-          : "Seleccioná las cantidades que devuelve la compra."
+          : "Seleccioná las cantidades que devuelve la compra.",
       );
       return;
     }
@@ -305,7 +367,9 @@ export default function ModalNotaCreditoProveedor({ open, row, onClose, onToast,
       });
       const data = await parse(response);
       const idNc = Number(
-        data.id_movimiento_nota_credito || data.data?.id_movimiento_nota_credito || 0
+        data.id_movimiento_nota_credito ||
+          data.data?.id_movimiento_nota_credito ||
+          0,
       );
       let archivoNoAdjuntado = false;
 
@@ -318,7 +382,7 @@ export default function ModalNotaCreditoProveedor({ open, row, onClose, onToast,
           formData.append("ids_movimiento", JSON.stringify([idNc]));
           const uploadResponse = await fetch(
             `${API}?action=compras_comprobantes_vincular_movimientos_lote_upload`,
-            { method: "POST", headers: headers(), body: formData }
+            { method: "POST", headers: headers(), body: formData },
           );
           await parse(uploadResponse);
         } catch (uploadError) {
@@ -326,7 +390,7 @@ export default function ModalNotaCreditoProveedor({ open, row, onClose, onToast,
           toast(
             "advertencia",
             `La nota quedó aplicada, pero no se pudo adjuntar el archivo: ${uploadError.message || "error de carga"}.`,
-            6200
+            6200,
           );
         }
       }
@@ -334,7 +398,8 @@ export default function ModalNotaCreditoProveedor({ open, row, onClose, onToast,
       onDone?.({ ...data, archivo_no_adjuntado: archivoNoAdjuntado });
       onClose?.();
     } catch (submitError) {
-      const message = submitError.message || "No se pudo aplicar la nota de crédito.";
+      const message =
+        submitError.message || "No se pudo aplicar la nota de crédito.";
       setError(message);
       toast("error", message, 4600);
     } finally {
@@ -347,62 +412,157 @@ export default function ModalNotaCreditoProveedor({ open, row, onClose, onToast,
   return createPortal(
     <div className="gm-modal-overlay">
       <div
-        className="gm-modal-container gm-modal-v2 modal-nc-container"
+        className="gm-modal-container gm-modal-v2 ncp-modal"
         role="dialog"
         aria-modal="true"
+        aria-labelledby="ncp-modal-title"
       >
-        <div className="gm-modal-header">
+        <header className="gm-modal-header">
+          <div
+            className="gm-modal-head-icon ncp-modal__head-icon"
+            aria-hidden="true"
+          >
+            ↩
+          </div>
           <div className="gm-modal-head-left">
-            <h2 className="gm-modal-title">Aplicar nota de crédito del proveedor</h2>
+            <h2 className="gm-modal-title" id="ncp-modal-title">
+              Aplicar nota de crédito del proveedor
+            </h2>
             <p className="gm-modal-subtitle">
-              Compra #{idOrigen || "—"} · La compra quedará actualizada con el importe y las cantidades netas.
+              Compra #{idOrigen || "—"} · Comprobante emitido por el proveedor
             </p>
           </div>
-          <button className="gm-modal-close" onClick={onClose} disabled={loading}>✕</button>
-        </div>
+          <button
+            type="button"
+            className="gm-modal-close"
+            onClick={onClose}
+            disabled={loading}
+            aria-label="Cerrar modal"
+          >
+            ✕
+          </button>
+        </header>
 
-        <div className="gm-modal-content modal-nc-body">
-          {loading && !ctx && <div className="modal-nc-loading">Cargando compra…</div>}
-          {error && <div className="modal-nc-error">{error}</div>}
+        <div className="gm-modal-content ncp-modal__body">
+          {loading && !ctx && (
+            <div className="ncp-feedback ncp-feedback--loading" role="status">
+              <span className="ncp-feedback__dot" aria-hidden="true" />
+              Cargando compra…
+            </div>
+          )}
+
+          {error && (
+            <div className="ncp-feedback ncp-feedback--error" role="alert">
+              {error}
+            </div>
+          )}
 
           {ctx && (
             <>
-              <div className="modal-nc-grid modal-nc-grid--totals">
-                <div className="modal-nc-card">
-                  <span>Total original</span>
-                  <strong>{money(ctx.total_original)}</strong>
+              <div
+                className="ncp-summary-grid"
+                aria-label="Resumen de importes"
+              >
+                <article className="ncp-summary-card ncp-summary-card--blue">
+                  <div className="ncp-summary-card__icon" aria-hidden="true">
+                    <FontAwesomeIcon icon={faMoneyBillTrendUp} />
+                  </div>
+                  <div className="ncp-summary-card__body">
+                    <span className="ncp-summary-card__label">
+                      Total original
+                    </span>
+                    <b className="ncp-summary-card__value">
+                      {money(ctx.total_original)}
+                    </b>
+                    <span className="ncp-summary-card__detail">
+                      Importe de la compra
+                    </span>
+                  </div>
+                </article>
+
+                <article className="ncp-summary-card ncp-summary-card--pink">
+                  <div className="ncp-summary-card__icon" aria-hidden="true">
+                    <FontAwesomeIcon icon={faCreditCard} />
+                  </div>
+                  <div className="ncp-summary-card__body">
+                    <span className="ncp-summary-card__label">
+                      Ya acreditado
+                    </span>
+                    <b className="ncp-summary-card__value">
+                      {money(ctx.total_acreditado)}
+                    </b>
+                    <span className="ncp-summary-card__detail">
+                      Notas anteriores
+                    </span>
+                  </div>
+                </article>
+
+                <article className="ncp-summary-card ncp-summary-card--yellow">
+                  <div className="ncp-summary-card__icon" aria-hidden="true">
+                    <FontAwesomeIcon icon={faArrowDown} />
+                  </div>
+                  <div className="ncp-summary-card__body">
+                    <span className="ncp-summary-card__label">Esta nota</span>
+                    <b className="ncp-summary-card__value">{money(total)}</b>
+                    <span className="ncp-summary-card__detail">
+                      Importe seleccionado
+                    </span>
+                  </div>
+                </article>
+
+                <article className="ncp-summary-card ncp-summary-card--green">
+                  <div className="ncp-summary-card__icon" aria-hidden="true">
+                    <FontAwesomeIcon icon={faWallet} />
+                  </div>
+                  <div className="ncp-summary-card__body">
+                    <span className="ncp-summary-card__label">
+                      Compra quedará en
+                    </span>
+                    <b className="ncp-summary-card__value">
+                      {money(totalCompraLuego)}
+                    </b>
+                    <span className="ncp-summary-card__detail">
+                      Importe neto actualizado
+                    </span>
+                  </div>
+                </article>
+              </div>
+
+              <div className="gm-info-box ncp-provider-notice">
+                <div className="ncp-provider-notice__title">
+                  Comprobante del proveedor
                 </div>
-                <div className="modal-nc-card">
-                  <span>Ya acreditado</span>
-                  <strong>{money(ctx.total_acreditado)}</strong>
-                </div>
-                <div className="modal-nc-card">
-                  <span>Esta nota</span>
-                  <strong>{money(total)}</strong>
-                </div>
-                <div className="modal-nc-card modal-nc-card--accent">
-                  <span>Compra quedará en</span>
-                  <strong>{money(totalCompraLuego)}</strong>
+                <div className="ncp-provider-notice__text">
+                  La nota la emite el proveedor. En Balto sólo la aplicás sobre
+                  esta compra y, si la tenés, adjuntás su imagen o PDF. No se
+                  solicita CAE, punto de venta ni número de comprobante.
                 </div>
               </div>
 
-              <div className="modal-nc-history">
-                La nota la emite el proveedor. En Balto sólo la aplicás sobre esta compra y, si la tenés,
-                adjuntás su imagen o PDF. No se solicita CAE, punto de venta ni número de comprobante.
-              </div>
-
-              <div className="modal-nc-form-grid">
-                <label className="modal-nc-field">
-                  <span>Fecha de la nota</span>
-                  <input type="date" value={fecha} onChange={(event) => setFecha(event.target.value)} />
-                </label>
-
-                <label className="modal-nc-field">
-                  <span>Imagen o PDF de la nota (opcional)</span>
+              <div className="ncp-form-grid">
+                <div className="gm-field">
                   <input
+                    className="gm-input"
+                    type="date"
+                    value={fecha}
+                    onChange={(event) => setFecha(event.target.value)}
+                    onClick={(event) => event.currentTarget.showPicker?.()}
+                    disabled={loading}
+                  />
+                  <label className="gm-label gm-label--up">
+                    Fecha de la nota
+                  </label>
+                </div>
+
+                <div
+                  className={`gm-field ncp-file-field${archivo ? " has-file" : ""}`}
+                >
+                  <input
+                    className="gm-input ncp-file-input"
                     ref={fileRef}
                     type="file"
                     accept="application/pdf,image/*"
+                    disabled={loading}
                     onChange={(event) => {
                       const file = event.target.files?.[0] || null;
                       if (file && !allowedFile(file)) {
@@ -415,161 +575,269 @@ export default function ModalNotaCreditoProveedor({ open, row, onClose, onToast,
                       setArchivo(file);
                     }}
                   />
-                  {archivo && <small>{archivo.name}</small>}
-                </label>
+                  <label className="gm-label gm-label--up">
+                    Imagen o PDF (opcional)
+                  </label>
+                  {archivo && (
+                    <small className="ncp-file-name" title={archivo.name}>
+                      {archivo.name}
+                    </small>
+                  )}
+                </div>
 
-                <label className="modal-nc-field">
-                  <span>Motivo</span>
-                  <select value={motivo} onChange={(event) => setMotivo(event.target.value)}>
+                <div className="gm-field">
+                  <select
+                    className="gm-input gm-select"
+                    value={motivo}
+                    onChange={(event) => setMotivo(event.target.value)}
+                    disabled={loading}
+                  >
                     {MOTIVOS.map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
                     ))}
                   </select>
-                </label>
+                  <label className="gm-label gm-label--up">Motivo</label>
+                </div>
 
-                <label className="modal-nc-field">
-                  <span>Observaciones</span>
+                <div className="gm-field">
                   <input
+                    className="gm-input"
                     value={observaciones}
-                    onChange={(event) => setObservaciones(event.target.value.toUpperCase())}
-                    placeholder="DETALLE OPCIONAL"
+                    onChange={(event) =>
+                      setObservaciones(event.target.value.toUpperCase())
+                    }
+                    placeholder=" "
+                    disabled={loading}
                   />
-                </label>
+                  <label className="gm-label">Observaciones</label>
+                </div>
               </div>
 
               {!esAjusteSinStock && (
-                <>
-                  <div className="modal-nc-section-title">
-                    {esAnulacionTotal
-                      ? "Productos que se devuelven por la anulación total"
-                      : "Productos devueltos al proveedor"}
+                <section className="gm-section">
+                  <div className="gm-section-head">
+                    <div className="gm-section-dot" />
+                    <span>
+                      {esAnulacionTotal
+                        ? "Productos devueltos por la anulación total"
+                        : "Productos devueltos al proveedor"}
+                    </span>
                   </div>
-
-                  <div className="modal-nc-table-wrap">
-                    <table className="modal-nc-table">
-                      <thead>
-                        <tr>
-                          <th>Producto</th>
-                          <th>Comprado</th>
-                          <th>Ya devuelto</th>
-                          <th>Disponible</th>
-                          <th>Devolver ahora</th>
-                          <th>Importe</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                  <div className="gm-section-body ncp-products-body">
+                    <div
+                      className="gm-table ncp-table"
+                      role="table"
+                      aria-label="Productos de la compra"
+                    >
+                      <div className="gm-table-head" role="row">
+                        <div className="gm-table-th" role="columnheader">
+                          Producto
+                        </div>
+                        <div className="gm-table-th" role="columnheader">
+                          Comprado
+                        </div>
+                        <div className="gm-table-th" role="columnheader">
+                          Ya devuelto
+                        </div>
+                        <div className="gm-table-th" role="columnheader">
+                          Disponible
+                        </div>
+                        <div className="gm-table-th" role="columnheader">
+                          Devolver ahora
+                        </div>
+                        <div className="gm-table-th" role="columnheader">
+                          Importe
+                        </div>
+                      </div>
+                      <div className="gm-table-body">
                         {items.length === 0 ? (
-                          <tr>
-                            <td colSpan="6">La compra no tiene productos disponibles para acreditar.</td>
-                          </tr>
-                        ) : items.map((item, index) => {
-                          const selectedItem = selected.find(
-                            (current) => current.id_item_origen === item.id_item_origen
-                          );
-                          const alreadyReturned = Math.max(
-                            0,
-                            item.cantidadOriginal - item.disponible
-                          );
-                          return (
-                            <tr key={item.id_item_origen}>
-                              <td>{item.descripcion}</td>
-                              <td>{quantity(item.cantidadOriginal)}</td>
-                              <td>{quantity(alreadyReturned)}</td>
-                              <td>{quantity(item.disponible)}</td>
-                              <td>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={item.disponible}
-                                  step="0.001"
-                                  value={item.cantidad}
-                                  disabled={esAnulacionTotal || item.disponible <= 0}
-                                  onKeyDown={preventInvalidNumberKeys}
-                                  onChange={(event) => {
-                                    const value = boundedNumberValue(
-                                      event.target.value,
-                                      item.disponible
-                                    );
-                                    if (value === null) return;
-                                    setItems((previous) => previous.map((current, currentIndex) => (
-                                      currentIndex === index ? { ...current, cantidad: value } : current
-                                    )));
-                                  }}
-                                />
-                              </td>
-                              <td>{money(selectedItem?.total || 0)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                          <div className="ncp-table-empty" role="row">
+                            La compra no tiene productos disponibles para
+                            acreditar.
+                          </div>
+                        ) : (
+                          items.map((item, index) => {
+                            const selectedItem = selected.find(
+                              (current) =>
+                                current.id_item_origen === item.id_item_origen,
+                            );
+                            const alreadyReturned = Math.max(
+                              0,
+                              item.cantidadOriginal - item.disponible,
+                            );
+                            return (
+                              <div
+                                className="gm-table-row"
+                                role="row"
+                                key={item.id_item_origen}
+                              >
+                                <div
+                                  className="gm-table-cell gm-table-cell--detail"
+                                  role="cell"
+                                  title={item.descripcion}
+                                >
+                                  <strong className="ncp-product-name">
+                                    {item.descripcion}
+                                  </strong>
+                                </div>
+                                <div
+                                  className="gm-table-cell gm-table-cell--center gm-table-cell--mono"
+                                  role="cell"
+                                >
+                                  {quantity(item.cantidadOriginal)}
+                                </div>
+                                <div
+                                  className="gm-table-cell gm-table-cell--center gm-table-cell--mono"
+                                  role="cell"
+                                >
+                                  {quantity(alreadyReturned)}
+                                </div>
+                                <div
+                                  className="gm-table-cell gm-table-cell--center gm-table-cell--mono"
+                                  role="cell"
+                                >
+                                  {quantity(item.disponible)}
+                                </div>
+                                <div
+                                  className="gm-table-cell gm-table-cell--center"
+                                  role="cell"
+                                >
+                                  <input
+                                    className="gm-input ncp-quantity-input"
+                                    type="number"
+                                    min="0"
+                                    max={item.disponible}
+                                    step="0.001"
+                                    value={item.cantidad}
+                                    disabled={
+                                      esAnulacionTotal || item.disponible <= 0
+                                    }
+                                    onKeyDown={preventInvalidNumberKeys}
+                                    onChange={(event) => {
+                                      const value = boundedNumberValue(
+                                        event.target.value,
+                                        item.disponible,
+                                      );
+                                      if (value === null) return;
+                                      setItems((previous) =>
+                                        previous.map((current, currentIndex) =>
+                                          currentIndex === index
+                                            ? { ...current, cantidad: value }
+                                            : current,
+                                        ),
+                                      );
+                                    }}
+                                  />
+                                </div>
+                                <div
+                                  className="gm-table-cell gm-table-cell--right gm-table-cell--total"
+                                  role="cell"
+                                >
+                                  {money(selectedItem?.total || 0)}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </>
+                </section>
               )}
 
               {esAjusteSinStock && (
-                <>
-                  <div className="modal-nc-section-title">Importe acreditado sin devolución de stock</div>
-                  <div className="modal-nc-form-grid modal-nc-form-grid--three">
-                    <label className="modal-nc-field">
-                      <span>Descripción</span>
-                      <input
-                        value={descripcionAjuste}
-                        onChange={(event) => setDescripcionAjuste(event.target.value.toUpperCase())}
-                      />
-                    </label>
-                    <label className="modal-nc-field">
-                      <span>Importe final</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max={disponible}
-                        step="0.01"
-                        value={ajuste}
-                        onKeyDown={preventInvalidNumberKeys}
-                        onChange={(event) => {
-                          const value = boundedNumberValue(event.target.value, disponible);
-                          if (value !== null) setAjuste(value);
-                        }}
-                      />
-                    </label>
-                    <label className="modal-nc-field">
-                      <span>IVA % incluido</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={ivaAjuste}
-                        onChange={(event) => setIvaAjuste(event.target.value)}
-                      />
-                    </label>
+                <section className="gm-section">
+                  <div className="gm-section-head">
+                    <div className="gm-section-dot" />
+                    <span>Importe acreditado sin devolución de stock</span>
                   </div>
-                </>
+                  <div className="gm-section-body">
+                    <div className="ncp-form-grid ncp-form-grid--adjustment">
+                      <div className="gm-field">
+                        <input
+                          className="gm-input"
+                          value={descripcionAjuste}
+                          onChange={(event) =>
+                            setDescripcionAjuste(
+                              event.target.value.toUpperCase(),
+                            )
+                          }
+                          placeholder=" "
+                          disabled={loading}
+                        />
+                        <label className="gm-label">Descripción</label>
+                      </div>
+                      <div className="gm-field">
+                        <input
+                          className="gm-input"
+                          type="number"
+                          min="0"
+                          max={disponible}
+                          step="0.01"
+                          value={ajuste}
+                          onKeyDown={preventInvalidNumberKeys}
+                          onChange={(event) => {
+                            const value = boundedNumberValue(
+                              event.target.value,
+                              disponible,
+                            );
+                            if (value !== null) setAjuste(value);
+                          }}
+                          placeholder=" "
+                          disabled={loading}
+                        />
+                        <label className="gm-label">Importe final</label>
+                      </div>
+                      <div className="gm-field">
+                        <input
+                          className="gm-input"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={ivaAjuste}
+                          onChange={(event) => setIvaAjuste(event.target.value)}
+                          placeholder=" "
+                          disabled={loading}
+                        />
+                        <label className="gm-label">IVA % incluido</label>
+                      </div>
+                    </div>
+                  </div>
+                </section>
               )}
 
               {excede && (
-                <div className="modal-nc-error">
-                  La nota supera el importe que todavía queda disponible en la compra.
+                <div className="ncp-feedback ncp-feedback--error" role="alert">
+                  La nota supera el importe que todavía queda disponible en la
+                  compra.
                 </div>
               )}
             </>
           )}
         </div>
 
-        <div className="mit-actions">
-          <button className="mit-btn mit-btn--ghost" onClick={onClose} disabled={loading}>
+        <footer className="gm-modal-footer ncp-modal__footer">
+          <button
+            type="button"
+            className="gm-action-btn gm-action-btn--cancel"
+            onClick={onClose}
+            disabled={loading}
+          >
             Cancelar
           </button>
           <button
-            className="mit-btn mit-btn--solid"
+            type="button"
+            className="gm-action-btn gm-action-btn--save"
             onClick={submit}
             disabled={loading || !ctx || !valid}
           >
             {loading ? "Aplicando…" : "Aplicar nota de crédito"}
           </button>
-        </div>
+        </footer>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
