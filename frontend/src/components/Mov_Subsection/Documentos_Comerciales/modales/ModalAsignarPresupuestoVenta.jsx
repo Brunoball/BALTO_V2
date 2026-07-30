@@ -1433,13 +1433,9 @@ export default function ModalAsignarPresupuestoVenta({
 
   if (!open) return null;
 
-  const handleBackdrop = (event) => {
-    if (event.target === event.currentTarget && !saving && !openResumenFactura) onClose?.();
-  };
-
   const modal = (
     <>
-      <div className="gm-modal-overlay dc-asignar-overlay" onMouseDown={handleBackdrop}>
+      <div className="gm-modal-overlay dc-asignar-overlay" onMouseDown={(event) => event.stopPropagation()}>
         <div
           className="gm-modal-container gm-modal-container--movement gm-modal-v2 dc-asignar-modal"
           role="dialog"
@@ -1747,6 +1743,7 @@ export default function ModalAsignarPresupuestoVenta({
         ptoVta={String(resumenFacturaData?.pto_vta || 2)}
         onDone={finalizarFacturacionYGuardarVenta}
         skipMovimientoAutocreacion
+        closeOnBackdrop={false}
       />
     </>
   );

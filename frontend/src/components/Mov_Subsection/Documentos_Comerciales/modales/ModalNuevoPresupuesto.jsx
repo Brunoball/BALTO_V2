@@ -1521,9 +1521,7 @@ export default function ModalNuevoPresupuesto({ open, lists, initialModel = null
     <div
       className="gm-modal-overlay presupuesto-overlay"
       role="presentation"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) requestClose();
-      }}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       <div
         className="gm-modal-container gm-modal-container--movement gm-modal-v2 presupuesto-modal"

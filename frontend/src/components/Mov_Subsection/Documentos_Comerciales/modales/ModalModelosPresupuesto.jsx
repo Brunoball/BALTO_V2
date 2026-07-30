@@ -364,13 +364,36 @@ export default function ModalModelosPresupuesto({ open, lists, onClose, onToast,
     }
   }, [API, modeloEliminar]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key !== "Escape" && event.key !== "Esc") return;
+
+      // El modal de confirmación es la capa superior y administra su propio Escape.
+      if (modeloEliminar || saving) return;
+
+      event.preventDefault();
+
+      if (editorOpen) {
+        setEditorOpen(false);
+        return;
+      }
+
+      onClose?.();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [editorOpen, modeloEliminar, onClose, open, saving]);
+
   if (!open) return null;
 
   return createPortal(
     <div
       className="gm-modal-overlay presupuesto-modelos-overlay"
       role="presentation"
-      onMouseDown={(e) => e.target === e.currentTarget && !saving && onClose?.()}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       <div
         className={`gm-modal-container gm-modal-v2 presupuesto-modelos-modal ${
