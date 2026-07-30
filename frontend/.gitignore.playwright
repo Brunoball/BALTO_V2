@@ -1,0 +1,6 @@
+# Agregar estas líneas al .gitignore principal
+.env.playwright
+tests/.auth/
+test-results/
+playwright-report/
+playwright-report-cross-browser/
