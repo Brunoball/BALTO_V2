@@ -185,16 +185,27 @@ html[data-theme="oscuro"] .mdm-section-title {
 .mdm-table-wrap {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .mdm-table {
-  min-width: 820px;
+  width: 100%;
+  min-width: 0;
 }
 
 .mdm-table__row {
   display: grid;
-  grid-template-columns: 2.6fr 72px 1fr 80px 1fr 1fr;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns:
+    minmax(0, 2.6fr)
+    minmax(0, .7fr)
+    minmax(0, 1.15fr)
+    minmax(0, .65fr)
+    minmax(0, 1fr)
+    minmax(0, 1.3fr);
   align-items: center;
   min-height: calc(42px + 12px);
   border-bottom: 1px solid var(--mi-border);
