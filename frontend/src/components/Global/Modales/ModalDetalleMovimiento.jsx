@@ -355,6 +355,8 @@ export default function ModalDetalleMovimiento({
   hideTerceroYTipo = false,
   hideMediosPago = false,
   showCreditTrace = false,
+  unifiedItemsScroll = false,
+  creditTraceEntity = "venta",
 }) {
   const [creditTraceExpanded, setCreditTraceExpanded] = useState(false);
 
@@ -551,6 +553,8 @@ export default function ModalDetalleMovimiento({
 
   const tercero = getTercero(row);
   const estado = getEstado(row);
+  const creditTraceEntityLabel = String(creditTraceEntity || "venta").trim().toLowerCase();
+  const creditTraceEntityTitle = `${creditTraceEntityLabel.charAt(0).toUpperCase()}${creditTraceEntityLabel.slice(1)}`;
 
   return createPortal(
     <div className="mi-modal__overlay" role="presentation">
@@ -602,14 +606,21 @@ export default function ModalDetalleMovimiento({
             ) : null}
           </aside>
 
-          <section className="mdm-section mdm-section--items">
+          <section
+            className={[
+              "mdm-section",
+              "mdm-section--items",
+              unifiedItemsScroll ? "is-unified-scroll" : "",
+            ].filter(Boolean).join(" ")}
+          >
             <SectionTitle
               icon={faShoppingCart}
               title={hasCreditTrace ? "Productos / detalle original" : "Productos / detalle"}
               subtitle={hasCreditTrace ? "La operación original se conserva; abajo se informa el valor vigente." : ""}
             />
 
-            {hasCreditTrace ? (
+            <div className={unifiedItemsScroll ? "mdm-items-scroll" : "mdm-items-content"}>
+              {hasCreditTrace ? (
               <div
                 className={[
                   "mdm-credit-trace",
@@ -632,10 +643,10 @@ export default function ModalDetalleMovimiento({
                 <div className="mdm-credit-trace__body">
                   <div className="mdm-credit-trace__heading">
                     <div>
-                      <strong>Venta ajustada por nota de crédito</strong>
+                      <strong>{creditTraceEntityTitle} ajustada por nota de crédito</strong>
                       {creditTraceExpanded ? (
                         <span>
-                          Se mantiene el importe y detalle original para trazabilidad. El valor actual de la venta es el neto luego de las notas aplicadas.
+                          Se mantiene el importe y detalle original para trazabilidad. El valor actual de la {creditTraceEntityLabel} es el neto luego de las notas aplicadas.
                         </span>
                       ) : null}
                     </div>
@@ -729,43 +740,44 @@ export default function ModalDetalleMovimiento({
                   ) : null}
                 </div>
               </div>
-            ) : null}
+              ) : null}
 
-            {items.length === 0 ? (
-              <div className="mdm-empty">
-                <FontAwesomeIcon icon={faBoxOpen} />
-                <span>Este movimiento no tiene productos o detalles cargados.</span>
-              </div>
-            ) : (
-              <div className="mdm-table-wrap">
-                <div className="mdm-table mdm-table--items">
-                  <div className="mdm-table__row mdm-table__row--head">
-                    <span>Producto / detalle</span>
-                    <span>Cant.</span>
-                    <span>Precio</span>
-                    <span>IVA %</span>
-                    <span>IVA</span>
-                    <span>Total</span>
-                  </div>
-
-                  {items.map((item, index) => (
-                    <div
-                      className="mdm-table__row"
-                      key={item?.id_item || `${getItemName(item)}-${index}`}
-                    >
-                      <span className="mdm-product-cell" title={getItemName(item)}>
-                        <span className="mdm-product-name">{getItemName(item)}</span>
-                      </span>
-                      <span>{formatNumber(item?.cantidad)}</span>
-                      <span>{moneyARS(item?.precio)}</span>
-                      <span>{formatNumber(item?.iva_pct)}%</span>
-                      <span>{moneyARS(item?.iva_monto)}</span>
-                      <span className="is-strong">{moneyARS(item?.total)}</span>
-                    </div>
-                  ))}
+              {items.length === 0 ? (
+                <div className="mdm-empty">
+                  <FontAwesomeIcon icon={faBoxOpen} />
+                  <span>Este movimiento no tiene productos o detalles cargados.</span>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="mdm-table-wrap">
+                  <div className="mdm-table mdm-table--items">
+                    <div className="mdm-table__row mdm-table__row--head">
+                      <span>Producto / detalle</span>
+                      <span>Cant.</span>
+                      <span>Precio</span>
+                      <span>IVA %</span>
+                      <span>IVA</span>
+                      <span>Total</span>
+                    </div>
+
+                    {items.map((item, index) => (
+                      <div
+                        className="mdm-table__row"
+                        key={item?.id_item || `${getItemName(item)}-${index}`}
+                      >
+                        <span className="mdm-product-cell" title={getItemName(item)}>
+                          <span className="mdm-product-name">{getItemName(item)}</span>
+                        </span>
+                        <span>{formatNumber(item?.cantidad)}</span>
+                        <span>{moneyARS(item?.precio)}</span>
+                        <span>{formatNumber(item?.iva_pct)}%</span>
+                        <span>{moneyARS(item?.iva_monto)}</span>
+                        <span className="is-strong">{moneyARS(item?.total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {items.length > 0 ? (
               <div
@@ -877,13 +889,22 @@ export function ModalDetalleMovimientoVenta(props) {
     <ModalDetalleMovimiento
       {...props}
       showCreditTrace
+      unifiedItemsScroll
       title={props.title || "Detalle de venta"}
     />
   );
 }
 
 export function ModalDetalleMovimientoCompra(props) {
-  return <ModalDetalleMovimiento {...props} title={props.title || "Detalle de compra"} />;
+  return (
+    <ModalDetalleMovimiento
+      {...props}
+      showCreditTrace
+      unifiedItemsScroll
+      creditTraceEntity="compra"
+      title={props.title || "Detalle de compra"}
+    />
+  );
 }
 
 export function ModalDetalleMovimientoIngreso(props) {
