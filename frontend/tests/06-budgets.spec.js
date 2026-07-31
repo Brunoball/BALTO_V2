@@ -1,16 +1,44 @@
 import { test, expect } from '@playwright/test';
 import { uniqueName, uniqueSku } from './support/data.js';
+import { ENV } from './support/env.js';
 import { installDiagnostics, assertNoCriticalErrors } from './support/diagnostics.js';
-import { requireMutations, searchRow } from './support/ui.js';
+import {
+  closeDialog,
+  requireMutations,
+  searchRow,
+  selectOptionValues,
+} from './support/ui.js';
 import {
   createStockProduct,
   createBudget,
+  prepareBudget,
   convertBudgetToSale,
   deleteBudget,
   prepareBudgetConversion,
   deleteSale,
   deleteUnusedStockProduct,
 } from './support/flows.js';
+
+const IVA_VALUES = ['0', '10.5', '21', '27'];
+
+async function authenticatedApiGet(page, actionAndQuery) {
+  const apiBase = ENV.apiURL.replace(/\/$/, '');
+  return page.evaluate(async ({ url }) => {
+    const sessionKey =
+      localStorage.getItem('session_key') ||
+      localStorage.getItem('sessionKey') ||
+      localStorage.getItem('X-Session') ||
+      '';
+    const token = localStorage.getItem('token') || '';
+    const headers = {};
+    if (sessionKey) headers['X-Session'] = sessionKey;
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const response = await fetch(url, { headers });
+    const body = await response.json().catch(() => ({}));
+    return { status: response.status, body };
+  }, { url: `${apiBase}/api.php?${actionAndQuery}` });
+}
 
 test('@crud @critical presupuesto: crear, eliminar y convertir sin doble impacto', async ({ page }, testInfo) => {
   await requireMutations(test, page);
@@ -33,10 +61,10 @@ test('@crud @critical presupuesto: crear, eliminar y convertir sin doble impacto
     price: 140,
   });
 
-  await createBudget(page, { productName: disposableName, quantity: 1, price: 140 });
+  await createBudget(page, { productName: disposableName, quantity: 1, price: 140, ivaPct: 10.5 });
   await deleteBudget(page, disposableName);
 
-  await createBudget(page, { productName, quantity: 1, price: 180 });
+  await createBudget(page, { productName, quantity: 1, price: 180, ivaPct: 21 });
   await convertBudgetToSale(page, productName);
 
   // Segundo intento: el botón debe quedar marcado como ya convertido y no crear otra venta.
@@ -59,7 +87,6 @@ test('@crud @critical presupuesto: crear, eliminar y convertir sin doble impacto
   await assertNoCriticalErrors(diagnostics, testInfo, { allowConsole: [/Tienda Nube/i, /PDF/i, /imagen/i] });
 });
 
-
 test('@crud @critical presupuesto: dos pestañas no pueden convertirlo dos veces', async ({ page, context }, testInfo) => {
   await requireMutations(test, page);
   const diagnostics = installDiagnostics(page);
@@ -72,23 +99,45 @@ test('@crud @critical presupuesto: dos pestañas no pueden convertirlo dos veces
     cost: 100,
     price: 180,
   });
-  await createBudget(page, { productName, quantity: 1, price: 180 });
+  await createBudget(page, { productName, quantity: 1, price: 180, ivaPct: 21 });
 
   const secondPage = await context.newPage();
   const first = await prepareBudgetConversion(page, productName);
   await secondPage.goto('/panel/presupuesto');
   const second = await prepareBudgetConversion(secondPage, productName);
 
-  await Promise.allSettled([first.action.click(), second.action.click()]);
-  await page.waitForTimeout(4_000);
+  const isConversionResponse = (response) =>
+    response.url().includes('action=presupuestos_convertir_venta') &&
+    response.request().method() === 'POST';
+
+  const firstResponsePromise = page.waitForResponse(isConversionResponse, { timeout: 60_000 });
+  const secondResponsePromise = secondPage.waitForResponse(isConversionResponse, { timeout: 60_000 });
+
+  await Promise.all([first.action.click(), second.action.click()]);
+  const [firstResponse, secondResponse] = await Promise.all([
+    firstResponsePromise,
+    secondResponsePromise,
+  ]);
+
+  expect(firstResponse.status()).toBeLessThan(500);
+  expect(secondResponse.status()).toBeLessThan(500);
+
+  const [firstBody, secondBody] = await Promise.all([
+    firstResponse.json().catch(() => ({})),
+    secondResponse.json().catch(() => ({})),
+  ]);
+  const firstSaleId = Number(firstBody?.id_venta ?? firstBody?.data?.id_venta ?? firstBody?.id_movimiento ?? 0);
+  const secondSaleId = Number(secondBody?.id_venta ?? secondBody?.data?.id_venta ?? secondBody?.id_movimiento ?? 0);
+
+  expect(firstSaleId, 'La primera conversión debe devolver una venta').toBeGreaterThan(0);
+  expect(secondSaleId, 'El reintento concurrente debe recuperar la misma venta').toBeGreaterThan(0);
+  expect(secondSaleId, 'Ambas pestañas deben recibir exactamente el mismo id de venta').toBe(firstSaleId);
 
   const verifier = await context.newPage();
   await verifier.goto('/panel/ventas');
-  const search = verifier.getByPlaceholder(/Buscar por descripción, cliente/i);
-  await search.fill(productName);
-  await search.press('Enter');
-  const sales = verifier.locator('.mov-gridTable--row').filter({ hasText: productName });
-  await expect(sales, 'El presupuesto debe originar exactamente una venta').toHaveCount(1, { timeout: 30_000 });
+  await searchRow(verifier, productName, /Buscar por descripción, cliente/i);
+  const sales = verifier.locator('.mov-gridTable--row:visible:not(.mov-row--skeleton)');
+  await expect(sales, 'La búsqueda debe devolver exactamente una venta').toHaveCount(1, { timeout: 30_000 });
 
   await verifier.goto('/panel/stock');
   const stockRow = await searchRow(verifier, productName, /Buscar por nombre, SKU o variante/i);
@@ -105,4 +154,135 @@ test('@crud @critical presupuesto: dos pestañas no pueden convertirlo dos veces
   await secondPage.close();
   await verifier.close();
   await assertNoCriticalErrors(diagnostics, testInfo, { allowConsole: [/ya fue convertido/i, /Tienda Nube/i, /PDF/i, /imagen/i] });
+});
+
+test('@crud @critical presupuesto: selector IVA, recálculo backend y rechazo de IVA manipulado', async ({ page }, testInfo) => {
+  await requireMutations(test, page);
+  const diagnostics = installDiagnostics(page);
+  const productName = uniqueName('PRESUPUESTO-BACKEND');
+
+  await createStockProduct(page, {
+    name: productName,
+    sku: uniqueSku('PRESUBACK'),
+    stock: 5,
+    cost: 100,
+    price: 200,
+  });
+
+  let totalsWereTampered = false;
+  await page.route('**/api.php?action=presupuestos_crear**', async (route) => {
+    const request = route.request();
+    if (request.method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+
+    const payload = request.postDataJSON();
+    payload.subtotal = 1;
+    payload.iva_monto = 0;
+    payload.total = 1;
+    payload.monto_total = 1;
+    payload.items = (payload.items || []).map((item) => ({
+      ...item,
+      subtotal: 0.01,
+      iva_monto: 0,
+      total: 0.01,
+    }));
+    totalsWereTampered = true;
+    await route.continue({ postData: JSON.stringify(payload) });
+  });
+
+  const createResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes('action=presupuestos_crear') &&
+      response.request().method() === 'POST',
+  );
+  await createBudget(page, {
+    productName,
+    quantity: 1,
+    price: 200,
+    ivaPct: 21,
+  });
+  const createResponse = await createResponsePromise;
+  const createBody = await createResponse.json();
+  const budgetId = Number(createBody?.id_movimiento ?? createBody?.data?.id_movimiento ?? 0);
+
+  expect(totalsWereTampered, 'La prueba debe haber falseado los totales del navegador').toBe(true);
+  expect(createResponse.status()).toBe(201);
+  expect(budgetId).toBeGreaterThan(0);
+
+  const detailResponse = await authenticatedApiGet(
+    page,
+    `action=presupuestos_obtener&id_movimiento=${encodeURIComponent(budgetId)}`,
+  );
+  expect(detailResponse.status).toBe(200);
+
+  const detail = detailResponse.body?.data || detailResponse.body;
+  const item = (detail?.items || [])[0] || {};
+  const budget = detail?.presupuesto || {};
+
+  expect(Number(item.subtotal)).toBeCloseTo(200, 2);
+  expect(Number(item.iva_monto)).toBeCloseTo(42, 2);
+  expect(Number(item.total)).toBeCloseTo(242, 2);
+  expect(Number(budget.monto_total ?? budget.total)).toBeCloseTo(242, 2);
+
+  await page.unroute('**/api.php?action=presupuestos_crear**');
+  await page.goto('/panel/presupuesto');
+  await deleteBudget(page, productName);
+
+  let ivaWasTampered = false;
+  await page.route('**/api.php?action=presupuestos_crear**', async (route) => {
+    const request = route.request();
+    if (request.method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+
+    const payload = request.postDataJSON();
+    payload.items = (payload.items || []).map((item) => ({
+      ...item,
+      iva_pct: 15,
+      ivaPct: 15,
+      iva: 15,
+    }));
+    ivaWasTampered = true;
+    await route.continue({ postData: JSON.stringify(payload) });
+  });
+
+  const { dialog, ivaSelect } = await prepareBudget(page, {
+    productName,
+    quantity: 1,
+    price: 200,
+    ivaPct: 21,
+  });
+  await expect(await selectOptionValues(ivaSelect)).toEqual(IVA_VALUES);
+
+  const invalidResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes('action=presupuestos_crear') &&
+      response.request().method() === 'POST',
+  );
+  await dialog.getByRole('button', { name: /^Guardar$/i }).last().click();
+  const invalidResponse = await invalidResponsePromise;
+  const invalidBody = await invalidResponse.json().catch(() => ({}));
+
+  expect(ivaWasTampered, 'La prueba debe haber falseado el IVA del navegador').toBe(true);
+  expect(invalidResponse.status()).toBe(422);
+  expect(String(invalidBody?.mensaje || invalidBody?.message || '')).toMatch(/IVA|10,5|21|27/i);
+  await expect(dialog).toBeVisible();
+  await closeDialog(dialog);
+
+  await page.unroute('**/api.php?action=presupuestos_crear**');
+  await page.goto('/panel/stock');
+  await deleteUnusedStockProduct(page, productName);
+
+  await assertNoCriticalErrors(diagnostics, testInfo, {
+    allowConsole: [
+      /Tienda Nube/i,
+      /PDF/i,
+      /imagen/i,
+      // Esta respuesta 422 confirma que el backend rechazó el IVA adulterado.
+      /Failed to load resource: the server responded with a status of 422/i,
+    ],
+  });
 });

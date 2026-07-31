@@ -47,6 +47,16 @@ export async function closeDialog(dialog) {
   }
 }
 
+
+export async function selectOptionValues(select) {
+  await expect(select).toBeVisible();
+  return select.locator('option').evaluateAll((nodes) =>
+    nodes
+      .filter((node) => node.value !== '')
+      .map((node) => String(node.value))
+  );
+}
+
 export async function selectFirstNonEmpty(select, preferredPattern) {
   await expect(select).toBeVisible();
   const options = await select.locator('option').evaluateAll((nodes) =>

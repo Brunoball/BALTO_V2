@@ -244,6 +244,50 @@ function getAuthInfo() {
   return { token, sessionKey, idUsuario };
 }
 
+function nuevaVentaArcaStorageKey() {
+  const { idUsuario } = getAuthInfo();
+  return `balto:arca:nueva-venta:${Number(idUsuario || 0)}`;
+}
+
+function makeNuevaVentaArcaOperationKey() {
+  const { idUsuario } = getAuthInfo();
+  const randomPart =
+    window.crypto?.randomUUID?.() ||
+    `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  return `factura-venta-${Number(idUsuario || 0)}-${randomPart}`.slice(0, 100);
+}
+
+function getOrCreateNuevaVentaArcaKey() {
+  try {
+    const storageKey = nuevaVentaArcaStorageKey();
+    const existing = safeStr(localStorage.getItem(storageKey));
+    if (existing) return existing;
+
+    const created = makeNuevaVentaArcaOperationKey();
+    localStorage.setItem(storageKey, created);
+    return created;
+  } catch {
+    // La persistencia es una protección adicional. Si el navegador la bloquea,
+    // la emisión sigue usando una clave estable durante la vida del modal.
+    return makeNuevaVentaArcaOperationKey();
+  }
+}
+
+function clearNuevaVentaArcaKey(expectedKey = "") {
+  try {
+    const storageKey = nuevaVentaArcaStorageKey();
+    const current = safeStr(localStorage.getItem(storageKey));
+    const expected = safeStr(expectedKey);
+
+    // Evita borrar por accidente una clave más nueva creada en otra instancia.
+    if (expected && current && current !== expected) return;
+    localStorage.removeItem(storageKey);
+  } catch {
+    // El fallo al limpiar almacenamiento no debe afectar una venta ya guardada.
+  }
+}
+
 function normalizeRolVenta(value, idRol = null) {
   const id = Number(idRol);
   const v = String(value ?? "")
@@ -1401,6 +1445,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
   const [configsFacturacion, setConfigsFacturacion] = useState([]);
   const [openResumenFactura, setOpenResumenFactura] = useState(false);
   const [resumenFacturaData, setResumenFacturaData] = useState(null);
+  const [arcaOperationKey, setArcaOperationKey] = useState("");
 
   const closeBtnRef = useRef(null);
   const prevOpenRef = useRef(false);
@@ -1450,6 +1495,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
       setConfigFacturacion(null);
       setOpenResumenFactura(false);
       setResumenFacturaData(null);
+      setArcaOperationKey(getOrCreateNuevaVentaArcaKey());
       setTimeout(() => closeBtnRef.current?.focus(), 0);
     }
   }, [open]);
@@ -2222,7 +2268,6 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
       const items = rowsCalc
         .filter((r) => Number.isFinite(Number(r.id_detalle)) && Number(r.id_detalle) > 0 && Number(r.total || 0) > 0)
         .map((r, i) => ({
-          id: r.id,
           codigo: String(i + 1),
           descripcion: safeStr(r.detalleText),
           cantidad: Number(r.cantidad || 0),
@@ -2276,11 +2321,14 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
         total_ars: Number(resumen.total || 0),
         monto: Number(resumen.total || 0),
         importe: Number(resumen.total || 0),
+        operacion_key: arcaOperationKey || getOrCreateNuevaVentaArcaKey(),
+        operacion_contexto: "FACTURA_VENTA",
+        operacion_id_origen: null,
         observaciones: "",
         emisor: emisorPdf.emisor,
       };
     },
-    [rowsCalc, mediosFilas, mediosPagoList, selectedClienteNombre, selectedClienteId, filters.id_tipo_venta, fecha, isContado, resumen.total]
+    [rowsCalc, mediosFilas, mediosPagoList, selectedClienteNombre, selectedClienteId, filters.id_tipo_venta, fecha, isContado, resumen.total, arcaOperationKey]
   );
 
   const buildVentaNoFacturadaPayload = useCallback(
@@ -2535,6 +2583,18 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
         tipo: "FACTURA",
         estado: emitidoEnArca ? "emitida" : "solo_pdf",
         emitido_en_arca: emitidoEnArca ? 1 : 0,
+        operacion_key: safeStr(
+          facturaMeta?.operacion_arca?.key ||
+            facturaMeta?.operacion_key ||
+            resumenFacturaData?.operacion_key ||
+            arcaOperationKey
+        ) || null,
+        operacion_contexto: safeStr(
+          facturaMeta?.operacion_arca?.contexto ||
+            facturaMeta?.operacion_contexto ||
+            resumenFacturaData?.operacion_contexto ||
+            "FACTURA_VENTA"
+        ),
         id_pago: facturaMeta?.id_pago ?? null,
         id_sistema: facturaMeta?.id_sistema ?? null,
         anio: Number(facturaMeta?.anio || 0),
@@ -2585,7 +2645,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
       if (!j?.exito) throw new Error(j?.mensaje || "No se pudo subir el comprobante.");
       return j;
     },
-    [API_VINCULAR_COMPROBANTE, resumen.total, resumenFacturaData]
+    [API_VINCULAR_COMPROBANTE, resumen.total, resumenFacturaData, arcaOperationKey]
   );
 
   const subirVentaNoFacturadaPdfYVincular = useCallback(
@@ -3013,6 +3073,15 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
         const chequeWarnings = await subirArchivosChequesCreados(info);
         const warnings = [...remitoWarnings, ...chequeWarnings];
 
+        const completedOperationKey = safeStr(
+          factEmitida?.operacion_arca?.key ||
+            factEmitida?.operacion_key ||
+            resumenFacturaData?.operacion_key ||
+            arcaOperationKey
+        );
+        clearNuevaVentaArcaKey(completedOperationKey);
+        setArcaOperationKey("");
+
         showToast("exito", "Venta agregada correctamente.", 3000);
         if (warnings.length) showToast("advertencia", warnings.join(" "), 6200);
 
@@ -3039,6 +3108,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
       vincularComprobanteAMovimientosLote,
       generarYVincularRemitoPdf,
       subirArchivosChequesCreados,
+      arcaOperationKey,
     ]
   );
 

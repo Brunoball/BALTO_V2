@@ -33,6 +33,13 @@ const MOTIVOS = [
   ["OTRO", "OTRO AJUSTE"],
 ];
 
+const IVA_OPTIONS = [
+  { label: "0 %", value: 0 },
+  { label: "10,5 %", value: 10.5 },
+  { label: "21 %", value: 21 },
+  { label: "27 %", value: 27 },
+];
+
 const MOTIVOS_AJUSTE_SIN_STOCK = new Set([
   "DESCUENTO",
   "BONIFICACION",
@@ -197,22 +204,24 @@ export default function ModalNotaCreditoProveedor({
       );
       const data = await parse(response);
       const context = data.contexto || data.data?.contexto;
+      const contextItems = (context?.items || []).map((item) => ({
+        id_item_origen: Number(item.id_item),
+        descripcion: item.descripcion_resuelta || item.descripcion || "Ítem",
+        disponible: Number(item.cantidad_disponible || 0),
+        cantidadOriginal: Number(
+          item.cantidad_original || item.cantidad || 0,
+        ),
+        subtotalOriginal: Number(item.subtotal || 0),
+        ivaOriginal: Number(item.iva_monto || 0),
+        totalOriginal: Number(item.total || 0),
+        iva_pct: Number(item.iva_pct || 0),
+        cantidad: "",
+      }));
       setCtx(context);
-      setItems(
-        (context?.items || []).map((item) => ({
-          id_item_origen: Number(item.id_item),
-          descripcion: item.descripcion_resuelta || item.descripcion || "Ítem",
-          disponible: Number(item.cantidad_disponible || 0),
-          cantidadOriginal: Number(
-            item.cantidad_original || item.cantidad || 0,
-          ),
-          subtotalOriginal: Number(item.subtotal || 0),
-          ivaOriginal: Number(item.iva_monto || 0),
-          totalOriginal: Number(item.total || 0),
-          iva_pct: Number(item.iva_pct || 0),
-          cantidad: "",
-        })),
-      );
+      setItems(contextItems);
+      const ivaCompra =
+        contextItems.find((item) => Number.isFinite(item.iva_pct))?.iva_pct ?? 0;
+      setIvaAjuste(String(ivaCompra));
     } catch (loadError) {
       setError(loadError.message || "No se pudo cargar la compra.");
     } finally {
@@ -823,17 +832,19 @@ export default function ModalNotaCreditoProveedor({
                         <label className="gm-label">Importe final</label>
                       </div>
                       <div className="gm-field">
-                        <input
-                          className="gm-input"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={ivaAjuste}
+                        <select
+                          className="gm-input gm-select"
+                          value={String(ivaAjuste)}
                           onChange={(event) => setIvaAjuste(event.target.value)}
-                          placeholder=" "
                           disabled={loading}
-                        />
-                        <label className="gm-label">IVA % incluido</label>
+                        >
+                          {IVA_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="gm-label gm-label--up">IVA % incluido</label>
                       </div>
                     </div>
                   </div>

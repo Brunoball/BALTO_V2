@@ -59,9 +59,44 @@ function boundedNumberValue(value, maximum) {
 function preventInvalidNumberKeys(event) {
   if (["e", "E", "+", "-"].includes(event.key)) event.preventDefault();
 }
-function makeIdempotencyKey(id) {
+function notaCreditoStorageScope() {
+  try {
+    return Number(getAuthInfo()?.idUsuario || 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+function makeIdempotencyKey(id, modo = "NORMAL") {
   const uuid = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  return `nc-venta-${id || 0}-${uuid}`.slice(0, 100);
+  const suffix = safeStr(modo).toLowerCase().replace(/[^a-z0-9_-]+/g, "-") || "normal";
+  return `nc-venta-${notaCreditoStorageScope()}-${id || 0}-${suffix}-${uuid}`.slice(0, 100);
+}
+function notaCreditoStorageKey(id, modo = "NORMAL") {
+  const suffix = safeStr(modo).toLowerCase().replace(/[^a-z0-9_-]+/g, "-") || "normal";
+  return `balto:arca:nota-credito-venta:${notaCreditoStorageScope()}:${Number(id || 0)}:${suffix}`;
+}
+function getOrCreateNotaCreditoKey(id, modo = "NORMAL") {
+  const idMovimiento = Number(id || 0);
+  if (!idMovimiento) return "";
+  const storageKey = notaCreditoStorageKey(idMovimiento, modo);
+  try {
+    const existing = safeStr(window.localStorage?.getItem(storageKey));
+    if (existing) return existing;
+    const created = makeIdempotencyKey(idMovimiento, modo);
+    window.localStorage?.setItem(storageKey, created);
+    return created;
+  } catch {
+    return makeIdempotencyKey(idMovimiento, modo);
+  }
+}
+function clearNotaCreditoKey(id, modo = "NORMAL") {
+  const idMovimiento = Number(id || 0);
+  if (!idMovimiento) return;
+  try {
+    window.localStorage?.removeItem(notaCreditoStorageKey(idMovimiento, modo));
+  } catch {
+    // La recuperación local no debe impedir que finalice la nota de crédito.
+  }
 }
 function ymd8FromAny(v) {
   const s = safeStr(v);
@@ -198,11 +233,11 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
 
   useEffect(() => {
     if (!open) return;
-    idempotencyRef.current = makeIdempotencyKey(row?.id_movimiento);
+    idempotencyRef.current = getOrCreateNotaCreditoKey(row?.id_movimiento, modo);
     setContexto(null); setItems([]); setMotivo(esEliminacionTotal ? "ANULACION_TOTAL" : "DEVOLUCION_MERCADERIA"); setObservaciones("");
     setImporteAjuste(""); setIvaAjuste("0"); setDescripcionAjuste("DESCUENTO / BONIFICACIÓN");
     setError(""); setOpenResumen(false); cargarContexto();
-  }, [open, row?.id_movimiento, cargarContexto, esEliminacionTotal]);
+  }, [open, row?.id_movimiento, cargarContexto, esEliminacionTotal, modo]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -325,6 +360,9 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
       emisor_nombre: safeStr(cfg.razon_social || cfg.nombre_fantasia || cfg.emisor_nombre), emisor_domicilio: safeStr(cfg.domicilio_comercial),
       cuit_emisor: safeStr(cfg.cuit), cond_iva_emisor: safeStr(cfg.condicion_iva), ingresos_brutos_emisor: safeStr(cfg.ingresos_brutos),
       fecha_inicio_actividades_emisor: safeStr(cfg.fecha_inicio_actividades), logo_url: safeStr(cfg.logo_url), modalidad,
+      operacion_key: idempotencyRef.current,
+      operacion_contexto: "NOTA_CREDITO_VENTA",
+      operacion_id_origen: Number(row?.id_movimiento || 0) || null,
     };
   }, [contexto, row, itemsFactura, totalSeleccionado, observaciones, motivo, modalidad]);
 
@@ -347,10 +385,12 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
           if (pdf?.pdfBlob) await uploadPdf(idNcMov, pdf.pdfBlob, pdf.pdfFilename || `nota_credito_interna_${idNcMov}.pdf`, "NOTA_CREDITO_INTERNA", { tipo: "NOTA_CREDITO_INTERNA", id_movimiento_origen: row.id_movimiento, motivo, observaciones });
         } catch (pdfError) { showToast("advertencia", `La nota quedó aplicada, pero no se pudo guardar el PDF: ${pdfError.message}`, 5200); }
       }
+      clearNotaCreditoKey(row?.id_movimiento, modo);
+      idempotencyRef.current = "";
       showToast("exito", "Nota de crédito interna aplicada correctamente."); await onDone?.(data);
     } catch (e) { setError(e.message || "No se pudo aplicar la nota de crédito."); showToast("error", e.message || "No se pudo aplicar la nota de crédito.", 4400); }
     finally { setLoading(false); }
-  }, [API, payloadBase, resumenData, itemsFactura, uploadPdf, row, motivo, observaciones, showToast, onDone]);
+  }, [API, payloadBase, resumenData, itemsFactura, uploadPdf, row, motivo, observaciones, showToast, onDone, modo]);
 
   const handleEmitida = useCallback(async (factEmitida) => {
     setLoading(true); setError("");
@@ -406,11 +446,13 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
       if (!esEliminacionTotal) {
         showToast("exito", "Nota de crédito ARCA autorizada y aplicada correctamente.", 4200);
       }
+      clearNotaCreditoKey(row?.id_movimiento, modo);
+      idempotencyRef.current = "";
       setOpenResumen(false);
       await onDone?.(data);
     } catch (e) { setError(e.message || "No se pudo registrar la nota de crédito."); showToast("error", e.message || "No se pudo registrar la nota de crédito.", 4800); }
     finally { setLoading(false); }
-  }, [API, row, contexto, resumenData, itemsFactura, totalSeleccionado, uploadPdf, motivo, observaciones, payloadBase, showToast, onDone, esEliminacionTotal]);
+  }, [API, row, contexto, resumenData, itemsFactura, totalSeleccionado, uploadPdf, motivo, observaciones, payloadBase, showToast, onDone, esEliminacionTotal, modo]);
 
   const continuar = () => {
     if (isBaltoDemoMode()) return showToast("advertencia", DEMO_BLOCK_MESSAGE, 5200);

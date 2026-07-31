@@ -2321,10 +2321,14 @@ const Stock = () => {
     const id = Number(productoId || 0);
     if (!id) return;
 
+    // Una alta o edición reciente conserva durante unos segundos una copia
+    // optimista del producto. Al cambiar su estado hay que descartarla para que
+    // una recarga no vuelva a insertar en "activos" el snapshot anterior a la baja.
+    limpiarProductoOptimista(id);
     setProductosRaw((prev) => prev.filter((p) => getProductoId(p) !== id));
     limpiarImagenTemporalProducto(id);
     invalidarMiniaturaProducto(id, Date.now());
-  }, [invalidarMiniaturaProducto, limpiarImagenTemporalProducto]);
+  }, [invalidarMiniaturaProducto, limpiarImagenTemporalProducto, limpiarProductoOptimista]);
 
   const handleCerrarBajaProducto = () => {
     if (eliminando) return;

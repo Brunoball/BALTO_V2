@@ -1321,6 +1321,18 @@ useEffect(() => {
           config_facturacion: configSeleccionada || dataFacturacion?.config_facturacion || null,
           emisor: emisorInfo?.emisor || null,
 
+          // Clave persistente para recuperar una autorización si el navegador
+          // pierde la respuesta después de que ARCA ya otorgó el CAE.
+          operacion_key: safeText(
+            dataFacturacion?.operacion_key || dataFacturacion?.operation_key
+          ) || null,
+          operacion_contexto: safeText(
+            dataFacturacion?.operacion_contexto || dataFacturacion?.operation_context
+          ) || null,
+          operacion_id_origen: Number(
+            dataFacturacion?.operacion_id_origen || dataFacturacion?.operation_origin_id || 0
+          ) || null,
+
           cbtes_asoc: normalizeCbtesAsocFrontend(dataFacturacion?.cbtes_asoc || [], dataFacturacion?.factura_original || null),
 
           emisor_nombre: emisorNombre || null,

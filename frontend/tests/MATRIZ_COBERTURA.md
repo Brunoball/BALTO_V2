@@ -7,10 +7,10 @@
 | Movimientos | Navegación y estabilidad del listado global |
 | Stock | Alta, edición, búsqueda, stock exacto, eliminación permanente |
 | Compras | Alta, edición de cantidad, detalle, eliminación y reversión de stock |
-| NC compras | Aplicación parcial y resta exacta de stock; la compra queda por trazabilidad |
+| NC compras | Aplicación parcial, resta exacta de stock, seis motivos, ajuste sin stock, selector IVA 0/10,5/21/27 y rechazo backend de IVA manipulado |
 | Ventas | Alta, detalle, eliminación y reversión de stock |
-| NC ventas | Aplicación interna parcial y reingreso exacto de stock |
-| Presupuestos | Alta, eliminación, conversión a venta y bloqueo visual de reconversión |
+| NC ventas | Aplicación interna parcial, reingreso exacto, seis motivos, ajuste sin stock e idempotencia ante petición repetida |
+| Presupuestos | Alta, eliminación, conversión, concurrencia, selector IVA, recálculo backend de totales y rechazo de IVA manipulado |
 | Otros ingresos | Nueva descripción, alta, edición y eliminación |
 | Otros egresos | Nueva descripción, clasificación, alta, edición y eliminación |
 | Recibos | Generación de cobro completo sobre deuda real |
@@ -27,7 +27,7 @@
 
 ## No automatizado de forma destructiva
 
-- Emisión fiscal real en ARCA.
+- Emisión fiscal real en ARCA y recuperación ante corte después de un CAE real. Debe validarse controladamente en staging.
 - Conexión/desconexión de una tienda de Tienda Nube.
 - Depósito o reactivación de cheques reales sin un cheque de prueba preconfigurado.
 - Eliminación o modificación de usuarios administrativos reales.

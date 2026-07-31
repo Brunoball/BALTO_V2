@@ -49,19 +49,29 @@ export async function editStockProduct(page, productName, updates) {
 }
 
 export async function deleteUnusedStockProduct(page, productName) {
+  // Recargar Stock evita reutilizar una fila vieja cuando se eliminan dos productos
+  // seguidos durante la limpieza de una misma prueba.
+  await page.goto('/panel/stock');
+  await waitForBusyToFinish(page);
+
   const row = await searchRow(page, productName, /Buscar por nombre, SKU o variante/i);
-  await row.getByTitle('Eliminar producto definitivamente').click();
+  const deleteButton = row.getByTitle('Eliminar producto definitivamente');
+  await expect(deleteButton, `Debe existir la acción de eliminar para ${productName}`).toBeVisible({ timeout: 20_000 });
+  await deleteButton.click();
+
   const first = await waitDialog(page, 'Eliminar producto definitivamente');
   await expect(first.getByRole('button', { name: /Eliminar/i }).last()).toBeEnabled({ timeout: 20_000 });
   await first.getByRole('button', { name: /Eliminar/i }).last().click();
 
   const finalDialog = await waitDialog(page, 'Confirmación final');
   await clickSaveAndWait(finalDialog, /Sí, eliminar para siempre/i, { timeout: 90_000 });
+  await waitForBusyToFinish(page);
 
   const search = page.getByPlaceholder(/Buscar por nombre, SKU o variante/i);
   await search.fill(productName);
   await search.press('Enter');
-  await expect(page.locator('.mov-gridTable--row').filter({ hasText: productName })).toHaveCount(0);
+  await waitForBusyToFinish(page);
+  await expect(page.locator('.mov-gridTable--row:visible').filter({ hasText: productName })).toHaveCount(0);
 }
 
 export async function createPurchase(page, data) {
@@ -95,13 +105,53 @@ export async function editPurchaseQuantity(page, productName, quantity) {
   return searchRow(page, productName, /Buscar por descripción, proveedor/i);
 }
 
-export async function applyPurchaseCreditNote(page, productName, quantity = 1) {
+export async function openPurchaseCreditNote(page, productName) {
   const row = await searchRow(page, productName, /Buscar por descripción, proveedor/i);
   await row.getByTitle(/Aplicar nota de crédito/i).click();
   const dialog = await waitDialog(page, 'Aplicar nota de crédito del proveedor');
-  const qty = dialog.locator('table tbody input[type="number"]').first();
-  await expect(qty).toBeVisible();
-  await qty.fill(String(quantity));
+  return { row, dialog };
+}
+
+export async function configurePurchaseCreditNote(dialog, options = {}) {
+  const normalized = typeof options === 'number' ? { quantity: options } : options;
+  const motive = normalized.motive || 'DEVOLUCION_MERCADERIA';
+
+  const motiveSelect = dialog
+    .locator('.gm-field')
+    .filter({ hasText: /Motivo/i })
+    .locator('select')
+    .first();
+  await expect(motiveSelect).toBeVisible();
+  await motiveSelect.selectOption(motive);
+
+  if (['DESCUENTO', 'BONIFICACION', 'DIFERENCIA_PRECIO', 'OTRO'].includes(motive)) {
+    const amount = dialog
+      .locator('.gm-field')
+      .filter({ hasText: /Importe final/i })
+      .locator('input[type="number"]')
+      .first();
+    await expect(amount).toBeVisible();
+    await amount.fill(String(normalized.amount ?? 10));
+
+    const ivaSelect = dialog
+      .locator('.gm-field')
+      .filter({ hasText: /IVA % incluido/i })
+      .locator('select')
+      .first();
+    await expect(ivaSelect).toBeVisible();
+    await ivaSelect.selectOption(String(normalized.ivaPct ?? 21));
+  } else if (motive !== 'ANULACION_TOTAL') {
+    const qty = dialog.locator('.ncp-quantity-input, table tbody input[type="number"]').first();
+    await expect(qty).toBeVisible();
+    await qty.fill(String(normalized.quantity ?? 1));
+  }
+
+  return { motiveSelect };
+}
+
+export async function applyPurchaseCreditNote(page, productName, options = 1) {
+  const { dialog } = await openPurchaseCreditNote(page, productName);
+  await configurePurchaseCreditNote(dialog, options);
   await clickSaveAndWait(dialog, /Aplicar nota de crédito/i, { timeout: 60_000 });
   return searchRow(page, productName, /Buscar por descripción, proveedor/i);
 }
@@ -128,15 +178,57 @@ export async function createSale(page, data) {
   return searchRow(page, data.productName, /Buscar por descripción, cliente/i);
 }
 
-export async function applySaleCreditNote(page, productName, quantity = 1) {
+export async function openSaleCreditNote(page, productName) {
   const row = await searchRow(page, productName, /Buscar por descripción, cliente/i);
   await row.getByTitle('Emitir nota de crédito').click();
   const dialog = await waitDialog(page, 'Nota de crédito');
-  const qty = dialog.locator('input[aria-label^="Cantidad a acreditar"]').first();
-  await expect(qty).toBeVisible({ timeout: 20_000 });
-  await qty.fill(String(quantity));
-  const stockCheck = dialog.locator('input[aria-label^="Reingresar"]').first();
-  if (!(await stockCheck.isChecked())) await stockCheck.check();
+  return { row, dialog };
+}
+
+export async function configureSaleCreditNote(dialog, options = {}) {
+  const normalized = typeof options === 'number' ? { quantity: options } : options;
+  const motive = normalized.motive || 'DEVOLUCION_MERCADERIA';
+
+  const motiveSelect = dialog
+    .locator('.gm-field')
+    .filter({ hasText: /Motivo/i })
+    .locator('select')
+    .first();
+  await expect(motiveSelect).toBeVisible();
+  await motiveSelect.selectOption(motive);
+
+  if (['DESCUENTO', 'BONIFICACION', 'DIFERENCIA_PRECIO', 'OTRO'].includes(motive)) {
+    const amount = dialog
+      .locator('.gm-field')
+      .filter({ hasText: /Importe total/i })
+      .locator('input[type="number"]')
+      .first();
+    await expect(amount).toBeVisible();
+    await amount.fill(String(normalized.amount ?? 10));
+
+    const ivaSelect = dialog
+      .locator('.gm-field')
+      .filter({ hasText: /IVA % incluido/i })
+      .locator('select')
+      .first();
+    await expect(ivaSelect).toBeVisible();
+    await ivaSelect.selectOption(String(normalized.ivaPct ?? 21));
+  } else if (motive !== 'ANULACION_TOTAL') {
+    const qty = dialog.locator('input[aria-label^="Cantidad a acreditar"]').first();
+    await expect(qty).toBeVisible({ timeout: 20_000 });
+    await qty.fill(String(normalized.quantity ?? 1));
+    const stockCheck = dialog.locator('input[aria-label^="Reingresar"]').first();
+    if (await stockCheck.isVisible().catch(() => false)) {
+      if (!(await stockCheck.isChecked())) await stockCheck.check();
+    }
+  }
+
+  return { motiveSelect };
+}
+
+export async function applySaleCreditNote(page, productName, options = 1) {
+  const { dialog } = await openSaleCreditNote(page, productName);
+  await configureSaleCreditNote(dialog, options);
   await clickSaveAndWait(dialog, /Aplicar nota de crédito/i, { timeout: 60_000 });
   return searchRow(page, productName, /Buscar por descripción, cliente/i);
 }
@@ -172,18 +264,28 @@ export async function openMovementDetail(page, productName, kind) {
   return dialog;
 }
 
-export async function createBudget(page, data) {
+export async function prepareBudget(page, data) {
   await page.goto('/panel/presupuesto');
   await waitForBusyToFinish(page);
   await page.getByTitle('Crear nuevo presupuesto').click();
   const dialog = await waitDialog(page, 'Nuevo presupuesto');
 
-  await fillMovementRow(dialog, {
+  const itemRow = await fillMovementRow(dialog, {
     productName: data.productName,
     quantity: data.quantity ?? 1,
     price: data.price ?? 150,
   });
+
+  const ivaSelect = itemRow.locator('select.gm-cell-input--select').first();
+  await expect(ivaSelect).toBeVisible();
+  await ivaSelect.selectOption(String(data.ivaPct ?? 0));
+
   data.clientName = await selectFirstAutocomplete(dialog, 'Cliente');
+  return { dialog, itemRow, ivaSelect };
+}
+
+export async function createBudget(page, data) {
+  const { dialog } = await prepareBudget(page, data);
   await clickSaveAndWait(dialog, /^Guardar$/i, { timeout: 60_000 });
   return searchRow(page, data.productName, /Buscar por descripción/i);
 }

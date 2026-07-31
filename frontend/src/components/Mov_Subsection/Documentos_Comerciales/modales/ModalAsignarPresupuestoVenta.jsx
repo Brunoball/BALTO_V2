@@ -61,6 +61,49 @@ function safeText(v) {
   return s || "—";
 }
 
+function arcaStorageScope() {
+  try {
+    const auth = getAuthInfo();
+    return Number(auth?.idUsuarioMaster || auth?.idUsuario || 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function makeArcaOperationKey(prefix, id) {
+  const uuid = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${arcaStorageScope()}-${Number(id || 0)}-${uuid}`.slice(0, 100);
+}
+
+function presupuestoArcaStorageKey(idPresupuesto) {
+  return `balto:arca:presupuesto:${arcaStorageScope()}:${Number(idPresupuesto || 0)}`;
+}
+
+function getOrCreatePresupuestoArcaKey(idPresupuesto) {
+  const id = Number(idPresupuesto || 0);
+  if (!id) return "";
+  const storageKey = presupuestoArcaStorageKey(id);
+  try {
+    const existing = safeStr(window.localStorage?.getItem(storageKey));
+    if (existing) return existing;
+    const created = makeArcaOperationKey("presupuesto-venta", id);
+    window.localStorage?.setItem(storageKey, created);
+    return created;
+  } catch {
+    return makeArcaOperationKey("presupuesto-venta", id);
+  }
+}
+
+function clearPresupuestoArcaKey(idPresupuesto) {
+  const id = Number(idPresupuesto || 0);
+  if (!id) return;
+  try {
+    window.localStorage?.removeItem(presupuestoArcaStorageKey(id));
+  } catch {
+    // El almacenamiento local es una ayuda de recuperación, no debe bloquear la venta.
+  }
+}
+
 function onlyDigits(v) {
   return String(v ?? "").replace(/\D+/g, "");
 }
@@ -744,6 +787,7 @@ export default function ModalAsignarPresupuestoVenta({
   const [resumenFacturaData, setResumenFacturaData] = useState(null);
   const [fiscalParaFacturar, setFiscalParaFacturar] = useState(null);
   const [mostrarCuitFiscal, setMostrarCuitFiscal] = useState(false);
+  const [arcaOperationKey, setArcaOperationKey] = useState("");
   const abortRef = useRef(null);
 
   const convertido = Number(row?.convertido_a_venta ?? row?.convertido ?? 0) === 1;
@@ -956,9 +1000,12 @@ export default function ModalAsignarPresupuestoVenta({
     setIdTipoVenta("");
     setMediosFilas(convertido ? [] : [buildEmptyMedioPago(0)]);
     setFecha(todayISO());
+    setArcaOperationKey(
+      !convertido && idPresupuesto ? getOrCreatePresupuestoArcaKey(idPresupuesto) : ""
+    );
     fetchDetalle();
     return () => abortRef.current?.abort?.();
-  }, [open, row, fetchDetalle, convertido]);
+  }, [open, row, fetchDetalle, convertido, idPresupuesto]);
 
   useEffect(() => {
     if (!open || !isContado || convertido) return;
@@ -1110,11 +1157,14 @@ export default function ModalAsignarPresupuestoVenta({
       importe: total,
       ids_movimiento: idVenta ? [Number(idVenta)] : [],
       id_presupuesto_origen: idPresupuesto,
+      operacion_key: arcaOperationKey || getOrCreatePresupuestoArcaKey(idPresupuesto),
+      operacion_contexto: "PRESUPUESTO_VENTA",
+      operacion_id_origen: idPresupuesto,
       observaciones: extra.observaciones || "",
       emisor: emisorPdf.emisor,
       ...extra,
     };
-  }, [mediosPayload, tipoVentaSelected, isContado, clienteBase, idTipoVenta, fecha, items, total, idPresupuesto, fiscalPdfParaInterno]);
+  }, [mediosPayload, tipoVentaSelected, isContado, clienteBase, idTipoVenta, fecha, items, total, idPresupuesto, fiscalPdfParaInterno, arcaOperationKey]);
 
   const subirPdfDocumento = useCallback(async ({ tipo, idMovimiento, blob, filename, meta, emitidoEnArca = false, factura = null }) => {
     if (!idMovimiento || !blob) throw new Error(`No se pudo generar o subir ${String(tipo || "comprobante").toLowerCase()}.`);
@@ -1308,13 +1358,15 @@ export default function ModalAsignarPresupuestoVenta({
       });
 
       await subirArchivosChequesCreados(data);
+      clearPresupuestoArcaKey(idPresupuesto);
+      setArcaOperationKey("");
       await afterSaved(data, "Presupuesto guardado como venta. Se generaron la factura no emitida y el remito.");
     } catch (e) {
       showToast("error", e?.message || "No se pudo guardar como venta.", 6500);
     } finally {
       setSaving(false);
     }
-  }, [validate, showToast, fetchConfigFacturacion, fiscalPdfParaInterno, guardarConversion, buildComprobantePayload, subirPdfDocumento, subirArchivosChequesCreados, afterSaved]);
+  }, [validate, showToast, fetchConfigFacturacion, fiscalPdfParaInterno, guardarConversion, buildComprobantePayload, subirPdfDocumento, subirArchivosChequesCreados, afterSaved, idPresupuesto]);
 
   const abrirFacturacion = useCallback(async () => {
     if (isBaltoDemoMode()) {
@@ -1422,6 +1474,8 @@ export default function ModalAsignarPresupuestoVenta({
       });
 
       await subirArchivosChequesCreados(data);
+      clearPresupuestoArcaKey(idPresupuesto);
+      setArcaOperationKey("");
       setOpenResumenFactura(false);
       await afterSaved(data, "Presupuesto facturado correctamente. Se guardaron la factura emitida y el remito.");
     } catch (e) {
@@ -1429,7 +1483,7 @@ export default function ModalAsignarPresupuestoVenta({
     } finally {
       setSaving(false);
     }
-  }, [guardarConversion, fiscalParaFacturar, resumenFacturaData, subirPdfDocumento, subirArchivosChequesCreados, afterSaved, showToast]);
+  }, [guardarConversion, fiscalParaFacturar, resumenFacturaData, subirPdfDocumento, subirArchivosChequesCreados, afterSaved, showToast, idPresupuesto]);
 
   if (!open) return null;
 
