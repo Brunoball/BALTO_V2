@@ -1639,6 +1639,7 @@ export default function ModalPagarRecibos({
                             checked ? "is-checked" : ""
                           } ${pagado ? "is-paid" : ""}`}
                           role="row"
+                          data-movement-id={id || undefined}
                           onClick={() => id && toggleOne(id, r)}
                           title={
                             pagado

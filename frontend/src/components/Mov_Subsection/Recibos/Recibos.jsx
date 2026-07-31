@@ -948,9 +948,21 @@ export default function Recibos() {
       try {
         setLoadingClienteDeudas(true);
         const deudas = await fetchRecibosCliente(r);
-        const deudasCompletas = Array.isArray(deudas)
+        const deudasCompletasBase = Array.isArray(deudas)
           ? deudas.map((d) => enriquecerDeudaConRowCompleta(d, r))
           : [];
+
+        // Algunas respuestas del endpoint por cliente pueden venir paginadas o
+        // desactualizadas respecto de la fila que el usuario acaba de abrir.
+        // La deuda seleccionada siempre debe estar disponible dentro del modal.
+        const idSeleccionado = Number(r?.id_movimiento || 0);
+        const yaIncluida = idSeleccionado > 0 && deudasCompletasBase.some(
+          (d) => Number(d?.id_movimiento || 0) === idSeleccionado
+        );
+        const deudasCompletas = idSeleccionado > 0 && !yaIncluida
+          ? [enriquecerDeudaConRowCompleta(r, r), ...deudasCompletasBase]
+          : deudasCompletasBase;
+
         setPagarCliente(r);
         setPagarDeudas(deudasCompletas);
         setOpenPagar(true);
@@ -1366,7 +1378,13 @@ export default function Recibos() {
                   const key = getRowKey(r);
 
                   return (
-                    <div key={key} className="mov-gridTable mov-gridTable--row" style={{ gridTemplateColumns: gridCols }} role="row">
+                    <div
+                      key={key}
+                      className="mov-gridTable mov-gridTable--row"
+                      style={{ gridTemplateColumns: gridCols }}
+                      role="row"
+                      data-movement-id={Number(r?.id_movimiento || 0) || undefined}
+                    >
                       {columns.map((c) => {
                         if (c.key === "acciones") {
                           return (

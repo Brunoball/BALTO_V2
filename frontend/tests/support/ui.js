@@ -226,13 +226,18 @@ export async function searchRow(page, query, placeholderPattern = /Buscar/i) {
   await expect(search).toBeVisible();
   await search.fill(query);
   await search.press('Enter');
+
+  // Stock y algunos listados disparan la consulta con debounce. Si se busca el
+  // loader inmediatamente, todavía no existe y Playwright puede devolver una fila
+  // skeleton (sin texto) como si fuera el resultado real.
+  await page.waitForTimeout(450);
   await waitForBusyToFinish(page);
 
   // Algunos listados permiten buscar por datos internos del detalle (por ejemplo,
   // el nombre de un producto), aunque la grilla solo muestre "1 PRODUCTO".
   // Primero intentamos encontrar una fila que exponga el texto buscado y, si no
   // aparece visualmente, usamos la primera fila devuelta por el filtro del backend.
-  const rows = page.locator('.mov-gridTable--row:visible');
+  const rows = page.locator('.mov-gridTable--row:visible:not(.mov-row--skeleton)');
   const rowWithVisibleText = rows.filter({ hasText: query }).first();
 
   if (await rowWithVisibleText.isVisible({ timeout: 2_000 }).catch(() => false)) {

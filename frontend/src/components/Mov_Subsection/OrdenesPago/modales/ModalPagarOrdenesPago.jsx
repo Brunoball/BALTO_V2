@@ -1299,6 +1299,7 @@ export default function ModalPagarOrdenesPago({
                           key={id || `${r?.fecha}-${idx}`}
                           className={`gm-order-row gm-table-row ${checked ? "is-checked" : ""} ${pagado ? "is-paid" : ""}`}
                           role="row"
+                          data-movement-id={id || undefined}
                           onClick={() => id && toggleOne(id, r)}
                           title={pagado ? "Este registro ya está PAGADO" : undefined}
                         >

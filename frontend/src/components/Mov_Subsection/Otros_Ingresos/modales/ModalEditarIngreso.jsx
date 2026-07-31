@@ -1228,9 +1228,10 @@ export default function ModalEditarIngreso({
           body: JSON.stringify({ nombre, idUsuario, idUsuarioMaster: idUsuario }),
         });
         const data = await parseJsonOrThrow(res);
-        if (!data?.exito || !data?.detalle)
+        const detalleCreado = data?.detalle || data?.item;
+        if (!data?.exito || !detalleCreado)
           throw new Error(data?.mensaje || "No se pudo crear la descripción.");
-        const item = data.detalle;
+        const item = detalleCreado;
         const precio = safeNumber(item?.precio || 0);
         updateItem(currentRowIdForNewDesc, {
           id_detalle: String(item.id_detalle || item.id || ""),

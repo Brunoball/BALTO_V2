@@ -1204,6 +1204,7 @@ const Stock = () => {
 
   const prepararProductosParaMostrar = useCallback(
     (items = []) => {
+      const activoEsperado = mostrarDadosDeBaja ? 0 : 1;
       const normalizados = normalizeProductosCollection(items)
         .map((item) => aplicarProductoOptimista(item))
         .map((item) => {
@@ -1224,7 +1225,12 @@ const Stock = () => {
             variantes: [],
           });
         })
-        .filter(Boolean);
+        .filter(Boolean)
+        // La pestaña visible siempre manda. Una respuesta vieja que terminó después
+        // de una baja/alta no puede volver a insertar el producto en la lista opuesta.
+        // El backend ya filtra por `activo`, pero esta segunda barrera evita mezclar
+        // ambos estados cuando se cruzan dos lecturas durante una mutación.
+        .filter((item) => Number(item?.activo ?? 1) === activoEsperado);
 
       // En la primera página se conserva también un alta local que todavía no
       // apareció en una lectura intermedia. Respeta los filtros visibles para
@@ -1237,7 +1243,6 @@ const Stock = () => {
           const id = getProductoId(producto);
           if (!id || idsPresentes.has(id)) return;
 
-          const activoEsperado = mostrarDadosDeBaja ? 0 : 1;
           if (Number(producto?.activo ?? 1) !== activoEsperado) return;
           if (categoriaFiltro && !productoTieneCategoria(producto, categoriaFiltro)) return;
 
@@ -2320,6 +2325,10 @@ const Stock = () => {
   const limpiarEstadoVisualProducto = useCallback((productoId) => {
     const id = Number(productoId || 0);
     if (!id) return;
+
+    // Invalida cualquier listado iniciado antes de la baja/eliminación. Sin esto,
+    // una respuesta anterior podía llegar después del DELETE y reponer la fila.
+    productosRequestRef.current += 1;
 
     // Una alta o edición reciente conserva durante unos segundos una copia
     // optimista del producto. Al cambiar su estado hay que descartarla para que

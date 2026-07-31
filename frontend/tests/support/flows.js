@@ -48,30 +48,109 @@ export async function editStockProduct(page, productName, updates) {
   return searchRow(page, updates.name || productName, /Buscar por nombre, SKU o variante/i);
 }
 
+function requestAction(request) {
+  const actionFromUrl = new URL(request.url()).searchParams.get('action');
+  if (actionFromUrl) return actionFromUrl;
+
+  try {
+    const body = request.postDataJSON();
+    if (body && typeof body.action === 'string') return body.action;
+  } catch {
+    // Puede ser application/x-www-form-urlencoded o multipart/form-data.
+  }
+
+  const rawBody = request.postData() || '';
+  const match = rawBody.match(/(?:^|[&\r\n])action(?:=|%3D)([^&\r\n]+)/i);
+  return match ? decodeURIComponent(match[1].replace(/\+/g, ' ')) : '';
+}
+
 export async function deleteUnusedStockProduct(page, productName) {
-  // Recargar Stock evita reutilizar una fila vieja cuando se eliminan dos productos
-  // seguidos durante la limpieza de una misma prueba.
+  // Cada prueba crea un producto temporal y lo elimina al final. El modal de
+  // confirmación se cierra apenas comienza el request, no cuando termina el
+  // DELETE en la base. Esperar solo el cierre del modal generaba una carrera:
+  // la prueba buscaba el producto mientras la eliminación todavía seguía en curso.
   await page.goto('/panel/stock');
   await waitForBusyToFinish(page);
 
   const row = await searchRow(page, productName, /Buscar por nombre, SKU o variante/i);
+  const productId = Number(await row.getAttribute('data-stock-product-id'));
+  expect(productId, `La fila de ${productName} debe exponer su ID real`).toBeGreaterThan(0);
+
   const deleteButton = row.getByTitle('Eliminar producto definitivamente');
   await expect(deleteButton, `Debe existir la acción de eliminar para ${productName}`).toBeVisible({ timeout: 20_000 });
   await deleteButton.click();
 
   const first = await waitDialog(page, 'Eliminar producto definitivamente');
-  await expect(first.getByRole('button', { name: /Eliminar/i }).last()).toBeEnabled({ timeout: 20_000 });
-  await first.getByRole('button', { name: /Eliminar/i }).last().click();
+  const continueButton = first.getByRole('button', { name: /Eliminar/i }).last();
+  await expect(continueButton).toBeEnabled({ timeout: 20_000 });
+  await continueButton.click();
 
   const finalDialog = await waitDialog(page, 'Confirmación final');
-  await clickSaveAndWait(finalDialog, /Sí, eliminar para siempre/i, { timeout: 90_000 });
+  const confirmButton = finalDialog.getByRole('button', { name: /Sí, eliminar para siempre/i }).last();
+  await expect(confirmButton).toBeEnabled({ timeout: 20_000 });
+
+  const deleteResponsePromise = page.waitForResponse(
+    (response) => {
+      const request = response.request();
+      if (request.method() !== 'POST') return false;
+      return [
+        'stock_producto_eliminar_permanente',
+        'stock_productos_eliminar_permanente',
+      ].includes(requestAction(request));
+    },
+    { timeout: 120_000 },
+  );
+
+  await confirmButton.click();
+  await expect(finalDialog).toBeHidden({ timeout: 20_000 });
+
+  const deleteResponse = await deleteResponsePromise;
+  expect(
+    deleteResponse.ok(),
+    `La eliminación definitiva de ${productName} respondió HTTP ${deleteResponse.status()}`,
+  ).toBeTruthy();
+
+  const deletePayload = await deleteResponse.json().catch(() => null);
+  expect(
+    deletePayload?.exito === true || deletePayload?.success === true,
+    deletePayload?.mensaje || `El backend no confirmó la eliminación definitiva de ${productName}`,
+  ).toBeTruthy();
+
+  const deleteData = deletePayload?.data || deletePayload || {};
+  const deletedProductId = Number(
+    deletePayload?.id_stock_producto ?? deleteData?.id_stock_producto ?? 0,
+  );
+  expect(
+    deletedProductId,
+    `El backend debe confirmar el ID eliminado de ${productName}`,
+  ).toBe(productId);
+  expect(
+    deletePayload?.eliminado_permanente === true || deleteData?.eliminado_permanente === true,
+    `El backend respondió, pero no confirmó la eliminación permanente de ${productName}`,
+  ).toBeTruthy();
+
+  const deleteDb = deletePayload?.db || deleteData?.db || {};
+  expect(
+    Number(deleteDb?.producto_eliminado ?? 0),
+    `La transacción no informó la eliminación física de ${productName}`,
+  ).toBe(1);
+
+  // La respuesta anterior confirma que la transacción terminó. Una recarga evita
+  // validar contra la fila React que estaba renderizada antes del COMMIT.
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await waitForBusyToFinish(page);
 
-  const search = page.getByPlaceholder(/Buscar por nombre, SKU o variante/i);
+  const search = page.getByPlaceholder(/Buscar por nombre, SKU o variante/i).first();
+  await expect(search).toBeVisible({ timeout: 20_000 });
   await search.fill(productName);
   await search.press('Enter');
+  await page.waitForTimeout(450);
   await waitForBusyToFinish(page);
-  await expect(page.locator('.mov-gridTable--row:visible').filter({ hasText: productName })).toHaveCount(0);
+
+  await expect(
+    page.locator(`.mov-gridTable--row:visible:not(.mov-row--skeleton)[data-stock-product-id="${productId}"]`),
+    `El producto ${productName} no debe seguir visible después de la eliminación confirmada por el backend`,
+  ).toHaveCount(0, { timeout: 30_000 });
 }
 
 export async function createPurchase(page, data) {
@@ -394,13 +473,16 @@ export async function payReceivable(page, productName) {
   await page.goto('/panel/recibos');
   await waitForBusyToFinish(page);
   const row = await searchRow(page, productName, /Buscar por descripción, cliente/i);
+  const movementId = await row.getAttribute('data-movement-id');
+  if (!movementId) throw new Error('La fila del recibo no expone data-movement-id.');
+
   await row.getByTitle('Cobrar').click();
   const dialog = await waitDialog(page, 'Pagar recibo');
 
-  const debtRow = dialog.locator('.gm-receipt-row').filter({ hasText: productName }).first();
-  await expect(debtRow).toBeVisible();
+  const debtRow = dialog.locator(`.gm-receipt-row[data-movement-id="${movementId}"]`).first();
+  await expect(debtRow).toBeVisible({ timeout: 20_000 });
   const checkbox = debtRow.locator('input[type="checkbox"]');
-  if (!(await checkbox.isChecked())) await checkbox.check();
+  if (!(await checkbox.isChecked())) await checkbox.check({ force: true });
   await fillPayment(dialog);
 
   const confirm = dialog.getByRole('button', { name: /Confirmar cobro/i });
@@ -417,13 +499,16 @@ export async function payPayable(page, productName) {
   await page.goto('/panel/OrdenesPago');
   await waitForBusyToFinish(page);
   const row = await searchRow(page, productName, /Buscar por descripción, proveedor/i);
+  const movementId = await row.getAttribute('data-movement-id');
+  if (!movementId) throw new Error('La fila de la orden no expone data-movement-id.');
+
   await row.getByTitle('Pagar').click();
   const dialog = await waitDialog(page, 'Pagar orden');
 
-  const debtRow = dialog.locator('.gm-order-row').filter({ hasText: productName }).first();
-  await expect(debtRow).toBeVisible();
+  const debtRow = dialog.locator(`.gm-order-row[data-movement-id="${movementId}"]`).first();
+  await expect(debtRow).toBeVisible({ timeout: 20_000 });
   const checkbox = debtRow.locator('input[type="checkbox"]');
-  if (!(await checkbox.isChecked())) await checkbox.check();
+  if (!(await checkbox.isChecked())) await checkbox.check({ force: true });
   await fillPayment(dialog);
 
   const confirm = dialog.getByRole('button', { name: /Confirmar pago/i });

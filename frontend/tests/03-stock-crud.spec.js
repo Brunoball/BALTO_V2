@@ -23,7 +23,8 @@ test('@crud @critical stock: alta, edición y eliminación definitiva', async ({
     stock: 9,
     price: 210,
   });
-  const stockCell = editedRow.locator('[role="cell"]').nth(2);
+  const stockCell = editedRow.locator('[role="cell"][data-label="STOCK"]');
+  await expect(stockCell).toBeVisible();
   await expect(stockCell).toContainText('9');
 
   await deleteUnusedStockProduct(page, editedName);

@@ -1006,11 +1006,12 @@ export default function ModalNuevoEgreso({
           body: JSON.stringify({ nombre: nombreDescripcion, idUsuario }),
         });
         const data = await parseJsonOrThrow(response);
-        if (data.exito && data.detalle) {
-          const precio = safeNumber(data.detalle?.precio || 0);
+        const detalleCreado = data?.detalle || data?.item;
+        if (data.exito && detalleCreado) {
+          const precio = safeNumber(detalleCreado?.precio || 0);
           updateRow(currentRowIdForNewDesc, {
-            id_detalle: String(data.detalle.id_detalle || data.detalle.id || ""),
-            detalle: data.detalle.nombre || nombreDescripcion,
+            id_detalle: String(detalleCreado.id_detalle || detalleCreado.id || ""),
+            detalle: detalleCreado.nombre || nombreDescripcion,
             precio,
             stock_disponible: null,
             sinStock: false,
@@ -1362,7 +1363,7 @@ export default function ModalNuevoEgreso({
                             }}
                             placeholder="Escribí o buscá una descripción…"
                             disabled={saving}
-                            showAllOnFocus={false}
+                            showAllOnFocus={true}
                             maxItems={18}
                             inputClassName="gm-cell-input"
                           />

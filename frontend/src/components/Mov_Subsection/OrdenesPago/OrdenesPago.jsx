@@ -1395,7 +1395,13 @@ export default function OrdenesPago() {
             ) : (
               <>
                 {filteredRows.map((r) => (
-                  <div key={r.id_movimiento} className="mov-gridTable mov-gridTable--row" style={{ gridTemplateColumns: gridCols }} role="row">
+                  <div
+                    key={r.id_movimiento}
+                    className="mov-gridTable mov-gridTable--row"
+                    style={{ gridTemplateColumns: gridCols }}
+                    role="row"
+                    data-movement-id={Number(r?.id_movimiento || 0) || undefined}
+                  >
                     {columns.map((c) => {
                       if (c.key === "acciones") {
                         return (
