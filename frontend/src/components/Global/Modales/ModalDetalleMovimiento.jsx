@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import "../Global_css/Global_Modals.css";
 import "../Global_css/Global_responsive.css";
@@ -356,6 +356,8 @@ export default function ModalDetalleMovimiento({
   hideMediosPago = false,
   showCreditTrace = false,
 }) {
+  const [creditTraceExpanded, setCreditTraceExpanded] = useState(false);
+
   const currentItems = useMemo(() => {
     const arr = toArray(row?.items_detalle || row?.items);
     if (arr.length) return arr;
@@ -508,6 +510,10 @@ export default function ModalDetalleMovimiento({
     };
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (open) setCreditTraceExpanded(false);
+  }, [open, row?.id_movimiento]);
+
   if (!open) return null;
 
   const totalMovimiento = hasCreditTrace
@@ -604,38 +610,90 @@ export default function ModalDetalleMovimiento({
             />
 
             {hasCreditTrace ? (
-              <div className="mdm-credit-trace" role="note" aria-label="Trazabilidad de notas de crédito">
-                <div className="mdm-credit-trace__icon" aria-hidden="true">
-                  <FontAwesomeIcon icon={faFileInvoiceDollar} />
-                </div>
+              <div
+                className={[
+                  "mdm-credit-trace",
+                  creditTraceExpanded ? "is-expanded" : "is-collapsed",
+                ].join(" ")}
+                role="note"
+                aria-label="Trazabilidad de notas de crédito"
+              >
+                <button
+                  type="button"
+                  className="mdm-credit-trace__toggle"
+                  onClick={() => setCreditTraceExpanded((expanded) => !expanded)}
+                  aria-expanded={creditTraceExpanded}
+                  aria-controls="mdm-credit-trace-details"
+                  title={creditTraceExpanded ? "Ocultar detalle de la nota de crédito" : "Ver detalle de la nota de crédito"}
+                >
+                  <FontAwesomeIcon icon={faFileInvoiceDollar} aria-hidden="true" />
+                </button>
 
                 <div className="mdm-credit-trace__body">
                   <div className="mdm-credit-trace__heading">
                     <div>
                       <strong>Venta ajustada por nota de crédito</strong>
-                      <span>
-                        Se mantiene el importe y detalle original para trazabilidad. El valor actual de la venta es el neto luego de las notas aplicadas.
+                      {creditTraceExpanded ? (
+                        <span>
+                          Se mantiene el importe y detalle original para trazabilidad. El valor actual de la venta es el neto luego de las notas aplicadas.
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mdm-credit-trace__heading-actions">
+                      {!creditTraceExpanded ? (
+                        <div className="mi-cr-totals mdm-credit-trace__collapsed-totals">
+                          <div className="mi-cr-totalLine mdm-total-chip--original">
+                            <span>Total original</span>
+                            <b>{moneyARS(originalTotal || totalItems)}</b>
+                          </div>
+                          <div className="mi-cr-totalLine mdm-total-chip--credit">
+                            <span>Nota de crédito</span>
+                            <b>- {moneyARS(creditedTotal)}</b>
+                          </div>
+                        </div>
+                      ) : null}
+                      <span className="mdm-credit-trace__count">
+                        {creditNotesForDisplay.length} {creditNotesForDisplay.length === 1 ? "nota" : "notas"}
                       </span>
                     </div>
-                    <span className="mdm-credit-trace__count">
-                      {creditNotesForDisplay.length} {creditNotesForDisplay.length === 1 ? "nota" : "notas"}
-                    </span>
                   </div>
 
-                  <div className="mdm-credit-trace__totals">
+                  {creditTraceExpanded ? (
+                    <div className="mdm-credit-trace__details" id="mdm-credit-trace-details">
+                      <div className="mdm-credit-trace__totals">
                     <div className="mdm-credit-amount mdm-credit-amount--original">
-                      <span>Importe original</span>
-                      <b>{moneyARS(originalTotal || totalItems)}</b>
+                      <span className="mdm-credit-amount__icon" aria-hidden="true">
+                        <FontAwesomeIcon icon={faShoppingCart} />
+                      </span>
+                      <span className="mdm-credit-amount__body">
+                        <span className="mdm-credit-amount__label">Importe original</span>
+                        <b className="mdm-credit-amount__value">
+                          {moneyARS(originalTotal || totalItems)}
+                        </b>
+                        <span className="mdm-credit-amount__detail">Total antes del ajuste</span>
+                      </span>
                     </div>
                     <FontAwesomeIcon className="mdm-credit-trace__arrow" icon={faArrowRightLong} />
                     <div className="mdm-credit-amount mdm-credit-amount--credit">
-                      <span>Notas de crédito</span>
-                      <b>- {moneyARS(creditedTotal)}</b>
+                      <span className="mdm-credit-amount__icon" aria-hidden="true">
+                        <FontAwesomeIcon icon={faFileInvoiceDollar} />
+                      </span>
+                      <span className="mdm-credit-amount__body">
+                        <span className="mdm-credit-amount__label">Notas de crédito</span>
+                        <b className="mdm-credit-amount__value">- {moneyARS(creditedTotal)}</b>
+                        <span className="mdm-credit-amount__detail">Total acreditado</span>
+                      </span>
                     </div>
                     <FontAwesomeIcon className="mdm-credit-trace__arrow" icon={faArrowRightLong} />
                     <div className="mdm-credit-amount mdm-credit-amount--current">
-                      <span>Valor vigente</span>
-                      <b>{moneyARS(currentTotal)}</b>
+                      <span className="mdm-credit-amount__icon" aria-hidden="true">
+                        <FontAwesomeIcon icon={faCreditCard} />
+                      </span>
+                      <span className="mdm-credit-amount__body">
+                        <span className="mdm-credit-amount__label">Valor vigente</span>
+                        <b className="mdm-credit-amount__value">{moneyARS(currentTotal)}</b>
+                        <span className="mdm-credit-amount__detail">Total luego del ajuste</span>
+                      </span>
                     </div>
                   </div>
 
@@ -666,7 +724,9 @@ export default function ModalDetalleMovimiento({
                         </div>
                       );
                     })}
-                  </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -708,7 +768,13 @@ export default function ModalDetalleMovimiento({
             )}
 
             {items.length > 0 ? (
-              <div className="mi-cr-table__foot mdm-table__foot">
+              <div
+                className={[
+                  "mi-cr-table__foot",
+                  "mdm-table__foot",
+                  hasCreditTrace ? "is-credit-summary" : "",
+                ].filter(Boolean).join(" ")}
+              >
                 <div className="mi-cr-foot-actions mdm-foot-actions" />
                 <div className="mi-cr-totals mdm-foot-totals">
                   <div className="mi-cr-totalLine mi-cr-totalLine--sub">
@@ -720,20 +786,10 @@ export default function ModalDetalleMovimiento({
                     <b>{moneyARS(resumenItems.iva)}</b>
                   </div>
                   {hasCreditTrace ? (
-                    <>
-                      <div className="mi-cr-totalLine mdm-total-chip--original">
-                        <span>Total original</span>
-                        <b>{moneyARS(originalTotal || totalItems)}</b>
-                      </div>
-                      <div className="mi-cr-totalLine mdm-total-chip--credit">
-                        <span>Nota de crédito</span>
-                        <b>- {moneyARS(creditedTotal)}</b>
-                      </div>
-                      <div className="mi-cr-totalLine mi-cr-totalLine--total mdm-total-chip--current">
-                        <span>Total vigente</span>
-                        <b>{moneyARS(totalMovimiento)}</b>
-                      </div>
-                    </>
+                    <div className="mi-cr-totalLine mi-cr-totalLine--total mdm-total-chip--current">
+                      <span>Total vigente</span>
+                      <b>{moneyARS(totalMovimiento)}</b>
+                    </div>
                   ) : (
                     <div className="mi-cr-totalLine mi-cr-totalLine--total">
                       <span>Total</span>
@@ -770,7 +826,7 @@ export default function ModalDetalleMovimiento({
                           {safeText(medio?.medio_pago_nombre || medio?.medio_pago || medio?.nombre)}
                         </span>
 
-                        <span className="mdm-medio-card__meta" style={{justifyContent:"space-between"}}>
+                        <span className="mdm-medio-card__meta">
                           <span className="mdm-medio-card__sub">
                             {medio?.id_cheque
                               ? `${safeText(medio?.cheque_tipo)} · cheque #${safeText(
