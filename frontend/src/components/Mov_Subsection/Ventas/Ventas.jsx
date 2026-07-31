@@ -48,7 +48,7 @@ const SKELETON_ROWS = 10;
 const LIVE_POLL_MS = 5000;
 const PREWARM_BATCH_SIZE = 8;
 const PREWARM_DELAY_MS = 60;
-const VENTAS_LIST_CACHE_KEY = "ventas:listar:cc-medios-r2-v11-tn-label-clean";
+const VENTAS_LIST_CACHE_KEY = "ventas:listar:cc-medios-r2-v12-nc-trazabilidad";
 
 function moneyARS(v) { const n = Number(v || 0); try { return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" }); } catch { return `$${n.toFixed(2)}`; } }
 function safeText(v) { const s = String(v ?? "").trim(); return s ? s : "—"; }

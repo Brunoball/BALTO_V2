@@ -11,6 +11,8 @@ import {
   faShoppingCart,
   faCreditCard,
   faBoxOpen,
+  faFileInvoiceDollar,
+  faArrowRightLong,
 } from "@fortawesome/free-solid-svg-icons";
 
 function moneyARS(value) {
@@ -204,6 +206,41 @@ function toFiniteNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function firstFiniteNumber(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return 0;
+}
+
+function humanizeCreditValue(value, fallback = "Nota de crédito") {
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+
+  return raw
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getCreditNoteAmount(note) {
+  return firstFiniteNumber(note?.total_nota, note?.total, note?.monto, note?.importe);
+}
+
+function buildCreditDocumentNumber(note) {
+  const puntoVenta = Number(note?.comprobante_punto_venta ?? 0);
+  const numero = Number(note?.comprobante_numero ?? 0);
+  if (!Number.isFinite(puntoVenta) || puntoVenta <= 0 || !Number.isFinite(numero) || numero <= 0) {
+    return "";
+  }
+
+  return `${String(Math.trunc(puntoVenta)).padStart(5, "0")}-${String(Math.trunc(numero)).padStart(8, "0")}`;
+}
+
 function getChequeNumero(medio) {
   return firstText(
     medio?.cheque_numero,
@@ -317,8 +354,9 @@ export default function ModalDetalleMovimiento({
   title = "Detalle del movimiento",
   hideTerceroYTipo = false,
   hideMediosPago = false,
+  showCreditTrace = false,
 }) {
-  const items = useMemo(() => {
+  const currentItems = useMemo(() => {
     const arr = toArray(row?.items_detalle || row?.items);
     if (arr.length) return arr;
     if (!row) return [];
@@ -357,6 +395,61 @@ export default function ModalDetalleMovimiento({
       },
     ];
   }, [row]);
+
+  const originalItems = useMemo(
+    () => toArray(row?.items_detalle_original || row?.items_originales),
+    [row]
+  );
+
+  const creditNotes = useMemo(
+    () => toArray(row?.notas_credito_detalle || row?.notas_credito),
+    [row]
+  );
+
+  const originalTotal = firstFiniteNumber(
+    row?.monto_total_original,
+    row?.total_movimiento_original,
+    row?.total_original,
+    originalItems.reduce((acc, item) => acc + toFiniteNumber(item?.total), 0)
+  );
+
+  const currentTotal = firstFiniteNumber(
+    row?.monto_total_actual,
+    row?.monto_total_vigente,
+    row?.total_actual,
+    row?.total_vigente,
+    row?.monto_total_movimiento,
+    row?.monto_total,
+    row?.total,
+    row?.total_general,
+    currentItems.reduce((acc, item) => acc + toFiniteNumber(item?.total), 0)
+  );
+
+  const creditedTotal = Math.max(
+    0,
+    toFiniteNumber(row?.monto_acreditado),
+    toFiniteNumber(row?.monto_nota_credito),
+    toFiniteNumber(row?.diferencia_nota_credito),
+    creditNotes.reduce((acc, note) => acc + getCreditNoteAmount(note), 0),
+    originalTotal - currentTotal
+  );
+
+  const hasCreditTrace = Boolean(
+    showCreditTrace &&
+      (
+        Number(row?.tiene_nota_credito || 0) === 1 ||
+        Number(row?.factura_tiene_nota_credito || 0) === 1 ||
+        Number(row?.nota_credito_cantidad || 0) > 0 ||
+        creditNotes.length > 0 ||
+        creditedTotal > 0.004 ||
+        (originalTotal > 0 && currentTotal >= 0 && originalTotal - currentTotal > 0.004)
+      )
+  );
+
+  // En ventas con nota de crédito se conserva visible el detalle original.
+  // El valor vigente se informa por separado para no mezclar el comprobante
+  // histórico con el saldo económico actual.
+  const items = hasCreditTrace && originalItems.length ? originalItems : currentItems;
 
   const medios = useMemo(() => {
     const arr = toArray(row?.medios_pago_detalle);
@@ -417,9 +510,26 @@ export default function ModalDetalleMovimiento({
 
   if (!open) return null;
 
-  const totalMovimiento = Number(
-    row?.monto_total_movimiento ?? row?.monto_total ?? row?.total ?? row?.total_general ?? totalItems ?? 0
-  );
+  const totalMovimiento = hasCreditTrace
+    ? currentTotal
+    : Number(
+        row?.monto_total_movimiento ?? row?.monto_total ?? row?.total ?? row?.total_general ?? totalItems ?? 0
+      );
+
+  const creditNotesForDisplay = creditNotes.length
+    ? creditNotes
+    : hasCreditTrace
+      ? [
+          {
+            id_nota_credito: null,
+            motivo: row?.nota_credito_ultimo_motivo || "NOTA_CREDITO",
+            modalidad: Number(row?.tiene_nota_credito_fiscal || 0) === 1 ? "ARCA" : "INTERNA",
+            fecha: row?.nota_credito_ultima_fecha || row?.fecha,
+            total: creditedTotal,
+            observaciones: "",
+          },
+        ]
+      : [];
 
   const descripcionItems = getItemsDescription(items);
 
@@ -480,10 +590,86 @@ export default function ModalDetalleMovimiento({
             ) : null}
 
             {estado ? <InfoPill label="Estado" value={estado} /> : null}
+
+            {hasCreditTrace ? (
+              <InfoPill label="Estado documental" value="Ajustada por nota de crédito" strong />
+            ) : null}
           </aside>
 
           <section className="mdm-section mdm-section--items">
-            <SectionTitle icon={faShoppingCart} title="Productos / detalle" />
+            <SectionTitle
+              icon={faShoppingCart}
+              title={hasCreditTrace ? "Productos / detalle original" : "Productos / detalle"}
+              subtitle={hasCreditTrace ? "La operación original se conserva; abajo se informa el valor vigente." : ""}
+            />
+
+            {hasCreditTrace ? (
+              <div className="mdm-credit-trace" role="note" aria-label="Trazabilidad de notas de crédito">
+                <div className="mdm-credit-trace__icon" aria-hidden="true">
+                  <FontAwesomeIcon icon={faFileInvoiceDollar} />
+                </div>
+
+                <div className="mdm-credit-trace__body">
+                  <div className="mdm-credit-trace__heading">
+                    <div>
+                      <strong>Venta ajustada por nota de crédito</strong>
+                      <span>
+                        Se mantiene el importe y detalle original para trazabilidad. El valor actual de la venta es el neto luego de las notas aplicadas.
+                      </span>
+                    </div>
+                    <span className="mdm-credit-trace__count">
+                      {creditNotesForDisplay.length} {creditNotesForDisplay.length === 1 ? "nota" : "notas"}
+                    </span>
+                  </div>
+
+                  <div className="mdm-credit-trace__totals">
+                    <div className="mdm-credit-amount mdm-credit-amount--original">
+                      <span>Importe original</span>
+                      <b>{moneyARS(originalTotal || totalItems)}</b>
+                    </div>
+                    <FontAwesomeIcon className="mdm-credit-trace__arrow" icon={faArrowRightLong} />
+                    <div className="mdm-credit-amount mdm-credit-amount--credit">
+                      <span>Notas de crédito</span>
+                      <b>- {moneyARS(creditedTotal)}</b>
+                    </div>
+                    <FontAwesomeIcon className="mdm-credit-trace__arrow" icon={faArrowRightLong} />
+                    <div className="mdm-credit-amount mdm-credit-amount--current">
+                      <span>Valor vigente</span>
+                      <b>{moneyARS(currentTotal)}</b>
+                    </div>
+                  </div>
+
+                  <div className="mdm-credit-notes">
+                    {creditNotesForDisplay.map((note, index) => {
+                      const noteAmount = getCreditNoteAmount(note) || creditedTotal;
+                      const documentNumber = buildCreditDocumentNumber(note);
+                      const noteId = Number(note?.id_nota_credito || 0);
+                      const modalidad = humanizeCreditValue(note?.modalidad, "Interna");
+                      const motivo = humanizeCreditValue(note?.motivo, "Nota de crédito");
+                      const observaciones = String(note?.observaciones || "").trim();
+
+                      return (
+                        <div className="mdm-credit-note" key={noteId > 0 ? noteId : `credit-${index}`}>
+                          <div className="mdm-credit-note__main">
+                            <span className="mdm-credit-note__title">
+                              {noteId > 0 ? `Nota de crédito #${noteId}` : "Nota de crédito aplicada"}
+                            </span>
+                            <span className="mdm-credit-note__meta">
+                              {formatFechaDMY(note?.fecha || note?.created_at)} · {motivo} · {modalidad}
+                              {documentNumber ? ` · ${documentNumber}` : ""}
+                            </span>
+                            {observaciones ? (
+                              <span className="mdm-credit-note__observation">{observaciones}</span>
+                            ) : null}
+                          </div>
+                          <strong className="mdm-credit-note__amount">- {moneyARS(noteAmount)}</strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {items.length === 0 ? (
               <div className="mdm-empty">
@@ -526,17 +712,34 @@ export default function ModalDetalleMovimiento({
                 <div className="mi-cr-foot-actions mdm-foot-actions" />
                 <div className="mi-cr-totals mdm-foot-totals">
                   <div className="mi-cr-totalLine mi-cr-totalLine--sub">
-                    <span>Subtotal</span>
+                    <span>{hasCreditTrace ? "Subtotal original" : "Subtotal"}</span>
                     <b>{moneyARS(resumenItems.subtotal)}</b>
                   </div>
                   <div className="mi-cr-totalLine mi-cr-totalLine--iva">
-                    <span>IVA</span>
+                    <span>{hasCreditTrace ? "IVA original" : "IVA"}</span>
                     <b>{moneyARS(resumenItems.iva)}</b>
                   </div>
-                  <div className="mi-cr-totalLine mi-cr-totalLine--total">
-                    <span>Total</span>
-                    <b>{moneyARS(totalItems || totalMovimiento)}</b>
-                  </div>
+                  {hasCreditTrace ? (
+                    <>
+                      <div className="mi-cr-totalLine mdm-total-chip--original">
+                        <span>Total original</span>
+                        <b>{moneyARS(originalTotal || totalItems)}</b>
+                      </div>
+                      <div className="mi-cr-totalLine mdm-total-chip--credit">
+                        <span>Nota de crédito</span>
+                        <b>- {moneyARS(creditedTotal)}</b>
+                      </div>
+                      <div className="mi-cr-totalLine mi-cr-totalLine--total mdm-total-chip--current">
+                        <span>Total vigente</span>
+                        <b>{moneyARS(totalMovimiento)}</b>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mi-cr-totalLine mi-cr-totalLine--total">
+                      <span>Total</span>
+                      <b>{moneyARS(totalItems || totalMovimiento)}</b>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : null}
@@ -614,7 +817,13 @@ export default function ModalDetalleMovimiento({
 }
 
 export function ModalDetalleMovimientoVenta(props) {
-  return <ModalDetalleMovimiento {...props} title={props.title || "Detalle de venta"} />;
+  return (
+    <ModalDetalleMovimiento
+      {...props}
+      showCreditTrace
+      title={props.title || "Detalle de venta"}
+    />
+  );
 }
 
 export function ModalDetalleMovimientoCompra(props) {

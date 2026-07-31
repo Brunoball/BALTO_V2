@@ -317,53 +317,59 @@ function getComprobanteMime(r) {
 
 function normalizeCompraComprobanteDocs(row) {
   const docs = Array.isArray(row?.comprobantes_detalle) ? row.comprobantes_detalle : [];
+  const esNotaCreditoDoc = (doc) => {
+    const tipo = String(doc?.tipo ?? doc?.comprobante_tipo ?? "").trim().toUpperCase();
+    const key = String(doc?.key ?? "").trim().toLowerCase();
+    return ["NOTA_CREDITO_PROVEEDOR", "NOTA_CREDITO", "NOTA_CREDITO_INTERNA"].includes(tipo)
+      || key.includes("nota_credito");
+  };
+
   const normalized = docs
+    .filter((doc) => !esNotaCreditoDoc(doc))
     .map((doc) => {
       const id = Number(doc?.id_comprobante ?? doc?.id_archivo ?? doc?.id ?? 0);
       if (!Number.isFinite(id) || id <= 0) return null;
       const tipo = String(doc?.tipo ?? doc?.comprobante_tipo ?? "").trim().toUpperCase();
-      const esNotaCredito = ["NOTA_CREDITO_PROVEEDOR", "NOTA_CREDITO", "NOTA_CREDITO_INTERNA"].includes(tipo)
-        || String(doc?.key ?? "").toLowerCase().includes("nota_credito");
       const label = String(
         doc?.label ??
         doc?.title ??
-        (esNotaCredito ? "Nota de crédito del proveedor" : "Comprobante de compra")
+        "Comprobante de compra"
       ).trim();
       return {
         ...doc,
         id_comprobante: id,
         id_archivo: id,
         tipo,
-        key: String(doc?.key ?? (esNotaCredito ? "nota_credito_proveedor" : "factura")).trim(),
+        key: String(doc?.key ?? "factura").trim(),
         label,
         title: String(doc?.title ?? label).trim() || label,
         mime: String(doc?.mime ?? doc?.archivo_mime ?? "application/pdf").trim() || "application/pdf",
       };
     })
     .filter(Boolean)
-    .sort((a, b) => {
-      const rank = (doc) => {
-        const tipo = String(doc?.tipo ?? "").toUpperCase();
-        const key = String(doc?.key ?? "").toLowerCase();
-        return ["NOTA_CREDITO_PROVEEDOR", "NOTA_CREDITO", "NOTA_CREDITO_INTERNA"].includes(tipo)
-          || key.includes("nota_credito")
-          ? 2
-          : 1;
-      };
-      const rankA = rank(a);
-      const rankB = rank(b);
-      if (rankA !== rankB) return rankA - rankB;
-      return Number(a.id_comprobante || 0) - Number(b.id_comprobante || 0);
-    });
+    .sort((a, b) => Number(a.id_comprobante || 0) - Number(b.id_comprobante || 0));
 
   if (normalized.length) return normalized;
 
+  // Si el backend devolvió el detalle y solo contiene archivos de notas de
+  // crédito, la compra original no tiene comprobante propio. No usamos los
+  // campos planos como fallback porque podrían corresponder a aquella nota.
+  if (docs.length > 0) return [];
+
   const id = getComprobanteId(row);
   if (!id) return [];
+
+  const fallbackTipo = String(
+    row?.factura_comprobante_tipo ?? row?.comprobante_tipo ?? "COMPRA"
+  ).trim().toUpperCase();
+  if (["NOTA_CREDITO_PROVEEDOR", "NOTA_CREDITO", "NOTA_CREDITO_INTERNA"].includes(fallbackTipo)) {
+    return [];
+  }
+
   return [{
     id_comprobante: id,
     id_archivo: id,
-    tipo: String(row?.factura_comprobante_tipo ?? row?.comprobante_tipo ?? "COMPRA").trim().toUpperCase(),
+    tipo: fallbackTipo,
     key: "factura",
     label: "Comprobante de compra",
     title: "Comprobante de compra",
@@ -1449,6 +1455,54 @@ export default function Compras() {
   const canShowEmpty = ready && !loadingRows && !loadingListsCtx && filteredRows.length === 0;
   const isAnyLoading = loadingRows || loadingMore;
 
+  const tieneNotasCreditoSeleccionadas = Boolean(
+    Number(selectedRow?.nota_credito_cantidad ?? 0) > 0
+      || Number(selectedRow?.monto_acreditado ?? 0) > 0
+      || Number(selectedRow?.total_acreditado ?? 0) > 0
+      || selectedRow?.compra_tiene_nota_credito === true
+      || Number(selectedRow?.compra_tiene_nota_credito ?? 0) === 1
+      || selectedRow?.tiene_nota_credito === true
+      || Number(selectedRow?.tiene_nota_credito ?? 0) === 1
+  );
+
+  const cantidadNotasCreditoSeleccionadas = Math.max(
+    tieneNotasCreditoSeleccionadas ? 1 : 0,
+    Number(selectedRow?.nota_credito_cantidad ?? 0) || 0,
+  );
+
+  const deleteModalDetails = useMemo(() => {
+    const id = getRowId(selectedRow);
+    const proveedor = String(
+      selectedRow?.proveedor_nombre
+        ?? selectedRow?.proveedor
+        ?? selectedRow?.razon_social
+        ?? "—"
+    ).trim() || "—";
+    const concepto = String(
+      selectedRow?.detalle ?? selectedRow?.concepto ?? selectedRow?.descripcion ?? "—"
+    ).trim() || "—";
+    const monto = selectedRow?.monto_total
+      ?? selectedRow?.total
+      ?? selectedRow?.monto
+      ?? 0;
+
+    const details = [
+      { label: "ID Movimiento", value: id ? `#${id}` : "—" },
+      { label: "Proveedor", value: proveedor },
+      { label: "Concepto", value: concepto },
+      { label: "Monto actual", value: moneyARS(monto) },
+    ];
+
+    if (tieneNotasCreditoSeleccionadas) {
+      details.push({
+        label: "Notas de crédito asociadas",
+        value: String(cantidadNotasCreditoSeleccionadas),
+      });
+    }
+
+    return details;
+  }, [selectedRow, tieneNotasCreditoSeleccionadas, cantidadNotasCreditoSeleccionadas]);
+
   return (
     <div className="mov-page mov-page--compras">
       {toast && (
@@ -1882,13 +1936,30 @@ export default function Compras() {
         }}
         onConfirm={confirmDelete}
         onToast={showToast}
-        title="Eliminar compra"
-        message="¿Seguro que querés eliminar esta compra definitivamente?"
-        warning="Esta acción no se puede deshacer."
-        loadingMessage="Eliminando compra..."
-        successMessage="Compra eliminada correctamente."
+        title={tieneNotasCreditoSeleccionadas ? "Eliminar compra y notas de crédito" : "Eliminar compra"}
+        message={
+          tieneNotasCreditoSeleccionadas
+            ? "¿Seguro que querés eliminar esta compra y todas sus notas de crédito?"
+            : "¿Seguro que querés eliminar esta compra definitivamente?"
+        }
+        warning={
+          tieneNotasCreditoSeleccionadas
+            ? "Se perderán definitivamente la compra, las notas de crédito, sus archivos y toda la trazabilidad asociada. Los impactos de stock serán revertidos."
+            : "Esta acción no se puede deshacer."
+        }
+        loadingMessage={
+          tieneNotasCreditoSeleccionadas
+            ? "Eliminando compra y notas de crédito..."
+            : "Eliminando compra..."
+        }
+        successMessage={
+          tieneNotasCreditoSeleccionadas
+            ? "Compra y notas de crédito eliminadas correctamente."
+            : "Compra eliminada correctamente."
+        }
         errorMessage="No se pudo eliminar la compra."
-        confirmLabel="Eliminar"
+        confirmLabel={tieneNotasCreditoSeleccionadas ? "Eliminar todo" : "Eliminar"}
+        details={deleteModalDetails}
       />
     </div>
   );

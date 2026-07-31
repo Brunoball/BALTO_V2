@@ -278,7 +278,7 @@
   position: absolute;
   z-index: 2;
   top: 50%;
-  right: 12px;
+  right: 50px;
   left: 146px;
   overflow: hidden;
   color: var(--gm-text);
@@ -289,6 +289,35 @@
   white-space: nowrap;
   transform: translateY(-50%);
   pointer-events: none;
+}
+
+.ncp-file-preview-btn {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  right: 10px;
+  width: 31px;
+  height: 31px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--gm-accent-border);
+  border-radius: 8px;
+  background: var(--gm-accent-soft);
+  color: var(--gm-accent-dark);
+  transform: translateY(-50%);
+  cursor: pointer;
+  transition: transform 0.16s ease, background-color 0.16s ease;
+}
+
+.ncp-file-preview-btn:hover:not(:disabled) {
+  background: var(--gm-accent-soft-strong, var(--gm-accent-soft));
+  transform: translateY(-50%) scale(1.04);
+}
+
+.ncp-file-preview-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .ncp-products-body {

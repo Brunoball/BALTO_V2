@@ -10,10 +10,12 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faArrowDown,
   faCreditCard,
+  faEye,
   faMoneyBillTrendUp,
   faWallet,
 } from "@fortawesome/free-solid-svg-icons";
 import BASE_URL from "../../../../config/config.jsx";
+import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import "../../../Global/Global_css/roots.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "./ModalNotaCreditoProveedor.css";
@@ -23,12 +25,12 @@ import {
 } from "../../../../utils/demoMode";
 
 const MOTIVOS = [
-  ["DEVOLUCION_MERCADERIA", "Devolución de mercadería al proveedor"],
-  ["ANULACION_TOTAL", "Anulación total de la compra"],
-  ["DESCUENTO", "Descuento del proveedor"],
-  ["BONIFICACION", "Bonificación del proveedor"],
-  ["DIFERENCIA_PRECIO", "Diferencia de precio"],
-  ["OTRO", "Otro ajuste"],
+  ["DEVOLUCION_MERCADERIA", "DEVOLUCIÓN DE MERCADERÍA AL PROVEEDOR"],
+  ["ANULACION_TOTAL", "ANULACIÓN TOTAL DE LA COMPRA"],
+  ["DESCUENTO", "DESCUENTO DEL PROVEEDOR"],
+  ["BONIFICACION", "BONIFICACIÓN DEL PROVEEDOR"],
+  ["DIFERENCIA_PRECIO", "DIFERENCIA DE PRECIO"],
+  ["OTRO", "OTRO AJUSTE"],
 ];
 
 const MOTIVOS_AJUSTE_SIN_STOCK = new Set([
@@ -159,8 +161,21 @@ export default function ModalNotaCreditoProveedor({
     "DESCUENTO / BONIFICACIÓN",
   );
   const [archivo, setArchivo] = useState(null);
+  const [openPreview, setOpenPreview] = useState(false);
   const fileRef = useRef(null);
   const keyRef = useRef("");
+
+  const archivoPreviewUrl = useMemo(
+    () => (archivo ? URL.createObjectURL(archivo) : ""),
+    [archivo],
+  );
+
+  useEffect(
+    () => () => {
+      if (archivoPreviewUrl) URL.revokeObjectURL(archivoPreviewUrl);
+    },
+    [archivoPreviewUrl],
+  );
 
   const toast = useCallback(
     (type, message, duration = 3200) => onToast?.(type, message, duration),
@@ -218,6 +233,7 @@ export default function ModalNotaCreditoProveedor({
     setIvaAjuste("0");
     setDescripcionAjuste("DESCUENTO / BONIFICACIÓN");
     setArchivo(null);
+    setOpenPreview(false);
     if (fileRef.current) fileRef.current.value = "";
     load();
   }, [open, idOrigen, load]);
@@ -227,14 +243,14 @@ export default function ModalNotaCreditoProveedor({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const handleKeyDown = (event) => {
-      if (event.key === "Escape" && !loading) onClose?.();
+      if (event.key === "Escape" && !loading && !openPreview) onClose?.();
     };
     document.addEventListener("keydown", handleKeyDown, true);
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [open, loading, onClose]);
+  }, [open, loading, onClose, openPreview]);
 
   useEffect(() => {
     if (esAnulacionTotal) {
@@ -409,8 +425,10 @@ export default function ModalNotaCreditoProveedor({
 
   if (!open) return null;
 
-  return createPortal(
-    <div className="gm-modal-overlay">
+  return (
+    <>
+      {createPortal(
+        <div className="gm-modal-overlay">
       <div
         className="gm-modal-container gm-modal-v2 ncp-modal"
         role="dialog"
@@ -568,10 +586,12 @@ export default function ModalNotaCreditoProveedor({
                       if (file && !allowedFile(file)) {
                         setError("Solo se permiten imágenes o archivos PDF.");
                         event.target.value = "";
+                        setOpenPreview(false);
                         setArchivo(null);
                         return;
                       }
                       setError("");
+                      setOpenPreview(false);
                       setArchivo(file);
                     }}
                   />
@@ -579,9 +599,21 @@ export default function ModalNotaCreditoProveedor({
                     Imagen o PDF (opcional)
                   </label>
                   {archivo && (
-                    <small className="ncp-file-name" title={archivo.name}>
-                      {archivo.name}
-                    </small>
+                    <>
+                      <small className="ncp-file-name" title={archivo.name}>
+                        {archivo.name}
+                      </small>
+                      <button
+                        type="button"
+                        className="ncp-file-preview-btn"
+                        onClick={() => setOpenPreview(true)}
+                        disabled={loading}
+                        title="Ver archivo seleccionado"
+                        aria-label="Ver archivo seleccionado"
+                      >
+                        <FontAwesomeIcon icon={faEye} />
+                      </button>
+                    </>
                   )}
                 </div>
 
@@ -837,7 +869,18 @@ export default function ModalNotaCreditoProveedor({
           </button>
         </footer>
       </div>
-    </div>,
-    document.body,
+        </div>,
+        document.body,
+      )}
+
+      <ModalVerComprobante
+        open={openPreview && Boolean(archivoPreviewUrl)}
+        url={archivoPreviewUrl}
+        mime={archivo?.type || "application/octet-stream"}
+        fileName={archivo?.name || ""}
+        onClose={() => setOpenPreview(false)}
+        title="Vista previa de la nota de crédito"
+      />
+    </>
   );
 }
