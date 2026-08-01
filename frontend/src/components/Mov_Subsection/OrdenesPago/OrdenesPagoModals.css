@@ -7,7 +7,7 @@
 ========================================================= */
 
 .gm-order-pay-modal {
-  --gm-order-table-cols: 44px 100px minmax(0, 1fr) 110px 130px 54px;
+  --gm-order-table-cols: 44px 100px minmax(0, 1fr) 140px 130px 54px;
 }
 
 .gm-order-table { min-height: 0; }

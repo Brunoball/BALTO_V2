@@ -1150,7 +1150,7 @@ export default function ProveedoresCC() {
         onToast={showToast}
       />
 
-      <div className="mov-card__head">
+      <div className={`mov-card__head cc-accountHeader ${isDetailMode ? "is-detail" : ""}`}>
         <div className="mov-card__headLeft">
           <div className="title-mov">
             <div className="mov-card__title">
