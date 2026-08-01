@@ -325,22 +325,22 @@ function normalizeCompraComprobanteDocs(row) {
   };
 
   const normalized = docs
-    .filter((doc) => !esNotaCreditoDoc(doc))
     .map((doc) => {
       const id = Number(doc?.id_comprobante ?? doc?.id_archivo ?? doc?.id ?? 0);
       if (!Number.isFinite(id) || id <= 0) return null;
       const tipo = String(doc?.tipo ?? doc?.comprobante_tipo ?? "").trim().toUpperCase();
+      const esNotaCredito = esNotaCreditoDoc(doc);
       const label = String(
         doc?.label ??
         doc?.title ??
-        "Comprobante de compra"
+        (esNotaCredito ? "Nota de crédito del proveedor" : "Comprobante de compra")
       ).trim();
       return {
         ...doc,
         id_comprobante: id,
         id_archivo: id,
         tipo,
-        key: String(doc?.key ?? "factura").trim(),
+        key: String(doc?.key ?? (esNotaCredito ? "nota_credito_proveedor" : "factura")).trim(),
         label,
         title: String(doc?.title ?? label).trim() || label,
         mime: String(doc?.mime ?? doc?.archivo_mime ?? "application/pdf").trim() || "application/pdf",
@@ -351,9 +351,9 @@ function normalizeCompraComprobanteDocs(row) {
 
   if (normalized.length) return normalized;
 
-  // Si el backend devolvió el detalle y solo contiene archivos de notas de
-  // crédito, la compra original no tiene comprobante propio. No usamos los
-  // campos planos como fallback porque podrían corresponder a aquella nota.
+  // Si el backend devolvió detalle, esa lista es la fuente autoritativa. Puede
+  // contener sólo archivos de notas de crédito cuando la compra original no
+  // tenía comprobante; en ese caso el ojo igualmente debe permitir ver la NC.
   if (docs.length > 0) return [];
 
   const id = getComprobanteId(row);

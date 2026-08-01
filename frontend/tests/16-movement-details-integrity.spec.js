@@ -13,6 +13,7 @@ import {
   waitForBusyToFinish,
 } from './support/ui.js';
 import {
+  applyPurchaseCreditNoteAndCapture,
   applySaleCreditNoteAndCapture,
   createBudget,
   createOtherExpense,
@@ -437,4 +438,68 @@ test('@crud @critical Movimientos: unifica venta y NC parcial con total y pago v
     'Total vigente incorrecto en el modal abierto desde Ventas',
   );
   await closeDialog(saleDetail);
+});
+
+test('@crud @critical Compras: el modal muestra los productos de la NC parcial', async ({ page }) => {
+  await requireMutations(test, page);
+  test.setTimeout(4 * 60_000);
+
+  const productName = uniqueName('COMPRA-NC-DETALLE');
+  const quantity = 2;
+  const price = 300;
+  const returnedQuantity = 1;
+  const originalTotal = quantity * price;
+  const creditTotal = returnedQuantity * price;
+  const currentTotal = originalTotal - creditTotal;
+
+  await createStockProduct(page, {
+    name: productName,
+    sku: uniqueSku('COMPNCDET'),
+    stock: 3,
+    cost: price,
+    price: 450,
+  });
+  await createPurchase(page, { productName, quantity, price });
+
+  await applyPurchaseCreditNoteAndCapture(page, productName, {
+    motive: 'DEVOLUCION_MERCADERIA',
+    quantity: returnedQuantity,
+  });
+
+  await page.goto('/panel/compras');
+  await waitForBusyToFinish(page);
+  const purchaseRow = await searchRow(page, productName, /Buscar por descripción, proveedor/i);
+  await purchaseRow.getByTitle(/Ver información completa del movimiento/i).click();
+
+  const purchaseDetail = page.getByRole('dialog').last();
+  await expect(purchaseDetail).toBeVisible({ timeout: 30_000 });
+  await expect(purchaseDetail.getByLabel('Trazabilidad de notas de crédito')).toBeVisible();
+  await purchaseDetail.getByTitle('Ver detalle de la nota de crédito').click();
+
+  const creditedItem = purchaseDetail
+    .getByLabel('Productos acreditados')
+    .locator('.mdm-credit-note__item')
+    .filter({ hasText: productName })
+    .first();
+  await expect(
+    creditedItem,
+    'El modal abierto desde Compras debe identificar el producto devuelto',
+  ).toBeVisible();
+  await expect(creditedItem).toContainText(`Cant. ${returnedQuantity}`);
+  await expectMoney(
+    creditedItem.locator('.mdm-credit-note__item-total'),
+    creditTotal,
+    'Importe incorrecto del producto devuelto en el modal de Compras',
+  );
+  await expectMoney(
+    purchaseDetail.locator('.mdm-credit-amount--original .mdm-credit-amount__value'),
+    originalTotal,
+    'Importe original incorrecto en el modal abierto desde Compras',
+  );
+  await expectMoney(
+    purchaseDetail.locator('.mdm-total-chip--current b'),
+    currentTotal,
+    'Total vigente incorrecto en el modal abierto desde Compras',
+  );
+  await closeDialog(purchaseDetail);
 });

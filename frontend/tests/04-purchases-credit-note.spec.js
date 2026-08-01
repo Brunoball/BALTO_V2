@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { Buffer } from 'node:buffer';
 import { uniqueName, uniqueSku } from './support/data.js';
 import { installDiagnostics, assertNoCriticalErrors } from './support/diagnostics.js';
 import {
@@ -90,6 +91,120 @@ test('@crud @critical compra: ingresa stock, edita cantidad y NC de proveedor re
   await page.goto('/panel/stock');
   stockRow = await searchRow(page, productName, /Buscar por nombre, SKU o variante/i);
   await expect(stockRow.locator('[role="cell"]').nth(2)).toContainText('13');
+
+  await assertNoCriticalErrors(diagnostics, testInfo, { allowConsole: [/Tienda Nube/i, /imagen/i] });
+});
+
+test('@crud @critical NC compra: adjunta archivo y lo abre desde el ojo de la compra', async ({ page }, testInfo) => {
+  await requireMutations(test, page);
+  test.setTimeout(4 * 60_000);
+  const diagnostics = installDiagnostics(page);
+  const productName = uniqueName('COMPRA-NC-ARCHIVO');
+  const fileName = `nota-credito-proveedor-${Date.now()}.png`;
+
+  await createStockProduct(page, {
+    name: productName,
+    sku: uniqueSku('COMPRANCARCH'),
+    stock: 5,
+    cost: 100,
+    price: 160,
+  });
+
+  const purchaseRow = await createPurchase(page, { productName, quantity: 2, price: 100 });
+  const eyeWithoutDocument = purchaseRow.getByTitle('Sin comprobante');
+  await expect(
+    eyeWithoutDocument,
+    'La compra de control debe comenzar sin comprobante propio',
+  ).toBeDisabled();
+
+  const { dialog } = await openPurchaseCreditNote(page, productName);
+  await configurePurchaseCreditNote(dialog, {
+    motive: 'DESCUENTO',
+    amount: 10,
+    ivaPct: 21,
+  });
+
+  const fileInput = dialog.locator('input[type="file"][accept*="image"]').first();
+  await expect(fileInput).toBeAttached();
+  await fileInput.setInputFiles({
+    name: fileName,
+    mimeType: 'image/png',
+    // PNG válido de 1 x 1 para probar la carga y el visor sin depender de fixtures.
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  });
+  await expect(dialog.getByTitle(fileName)).toBeVisible();
+
+  const createResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).searchParams.get('action') === 'compras_nota_credito_crear',
+    { timeout: 90_000 },
+  );
+  const uploadResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).searchParams.get('action') ===
+        'compras_comprobantes_vincular_movimientos_lote_upload',
+    { timeout: 90_000 },
+  );
+
+  await dialog.getByRole('button', { name: /Aplicar nota de crédito/i }).last().click();
+  const [createResponse, uploadResponse] = await Promise.all([
+    createResponsePromise,
+    uploadResponsePromise,
+  ]);
+  const createBody = await createResponse.json().catch(() => ({}));
+  const uploadBody = await uploadResponse.json().catch(() => ({}));
+
+  expect(createResponse.status(), JSON.stringify(createBody)).toBeLessThan(400);
+  expect(
+    createBody?.exito !== false && createBody?.success !== false,
+    createBody?.mensaje || createBody?.message,
+  ).toBeTruthy();
+  expect(uploadResponse.status(), JSON.stringify(uploadBody)).toBeLessThan(400);
+  expect(
+    uploadBody?.exito !== false && uploadBody?.success !== false,
+    uploadBody?.mensaje || uploadBody?.message,
+  ).toBeTruthy();
+  await expect(dialog).toBeHidden({ timeout: 90_000 });
+
+  // La recarga es indispensable: obliga a reconstruir la fila con
+  // comprobantes_detalle devuelto por el backend, que era donde aparecía la regresión.
+  await page.goto('/panel/compras');
+  const reloadedRow = await searchRow(page, productName, /Buscar por descripción, proveedor/i);
+  const eyeWithCreditNote = reloadedRow.getByTitle('Ver comprobante');
+  await expect(
+    eyeWithCreditNote,
+    'El archivo de la NC debe habilitar el ojo aunque la compra no tenga comprobante propio',
+  ).toBeEnabled();
+
+  const downloadResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'GET' &&
+      new URL(response.url()).searchParams.get('action') === 'compras_comprobantes_descargar',
+    { timeout: 60_000 },
+  );
+  await eyeWithCreditNote.click();
+  const downloadResponse = await downloadResponsePromise;
+  const downloadBody = await downloadResponse.json().catch(() => ({}));
+  expect(downloadResponse.status(), JSON.stringify(downloadBody)).toBeLessThan(400);
+  expect(downloadBody?.exito, downloadBody?.mensaje || 'El backend debe entregar la URL del archivo').toBe(true);
+  expect(String(downloadBody?.url || ''), 'El archivo vinculado debe tener una URL de visualización').not.toBe('');
+
+  const viewer = page.getByRole('dialog', { name: /Comprobantes de Compra/i });
+  await expect(viewer).toBeVisible({ timeout: 30_000 });
+  await expect(
+    viewer.locator('[aria-label="Vista previa imagen"]'),
+    'El visor debe renderizar la imagen adjuntada a la nota de crédito',
+  ).toBeVisible({ timeout: 30_000 });
+  await closeDialog(viewer);
+
+  await deletePurchase(page, productName);
+  await page.goto('/panel/stock');
+  await deleteUnusedStockProduct(page, productName);
 
   await assertNoCriticalErrors(diagnostics, testInfo, { allowConsole: [/Tienda Nube/i, /imagen/i] });
 });
