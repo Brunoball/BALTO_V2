@@ -71,7 +71,31 @@ export async function editStockProduct(page, productName, updates) {
     await dialog.locator('input[name="precio"]').blur();
   }
 
+  const updateResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).searchParams.get('action') === 'stock_productos_actualizar',
+    { timeout: 120_000 },
+  );
   await clickSaveAndWait(dialog, /Guardar cambios/i, { timeout: 90_000 });
+
+  const updateResponse = await updateResponsePromise;
+  const updateBody = await updateResponse.json().catch(() => ({}));
+  expect(
+    updateResponse.status(),
+    `La edición de ${productName} respondió HTTP ${updateResponse.status()}: ${JSON.stringify(updateBody)}`,
+  ).toBeLessThan(400);
+  expect(
+    updateBody?.exito !== false && updateBody?.success !== false,
+    updateBody?.mensaje || updateBody?.message || `No se pudo editar ${productName}`,
+  ).toBeTruthy();
+
+  // La búsqueda inmediata puede competir con el refresco automático que dispara
+  // el modal de Stock y dejar la grilla mostrando skeletons pese a que la API ya
+  // devolvió el producto editado. Recargar después de confirmar la respuesta
+  // elimina esa carrera y verifica el estado persistido, no el estado optimista.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitForBusyToFinish(page);
   return searchRow(page, updates.name || productName, /Buscar por nombre, SKU o variante/i);
 }
 
@@ -573,14 +597,49 @@ export async function deleteBudget(page, productName) {
 }
 
 export async function createCatalogDescription(dialog, description) {
-  const row = dialog.locator('.gm-table-body .gm-table-row').first();
-  const input = row.locator('input[placeholder*="descripción" i]').first();
-  await input.click();
-  const add = dialog.page().locator('#ga-portal-list .ga-item').filter({ hasText: /Agregar nueva descripción/i }).first();
+  const page = dialog.page();
+  let activeDialog = dialog;
+  let row;
+  let input;
+
+  // En una suite larga el servidor de desarrollo puede recargar la SPA justo
+  // después de abrir el modal. El input que Playwright ya había resuelto queda
+  // detached y el modal desaparece, aunque Balto y su API sigan funcionando.
+  // Reabrimos una sola vez únicamente cuando comprobamos esa navegación; los
+  // errores normales del formulario continúan fallando sin ser ocultados.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    row = activeDialog.locator('.gm-table-body .gm-table-row').first();
+    input = row.locator('input[placeholder*="descripción" i]').first();
+
+    try {
+      await expect(input).toBeVisible({ timeout: 15_000 });
+      await input.click({ timeout: 15_000 });
+      break;
+    } catch (error) {
+      const path = new URL(page.url()).pathname.toLowerCase();
+      const isIncome = path.includes('/otrosingresos');
+      const isExpense = path.includes('/otrosegresos');
+      const modalDisappeared = !(await activeDialog.isVisible().catch(() => false));
+
+      if (attempt > 0 || !modalDisappeared || (!isIncome && !isExpense)) {
+        throw error;
+      }
+
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await waitForBusyToFinish(page);
+
+      const trigger = page.getByTitle(isIncome ? 'Crear nuevo ingreso' : 'Crear nuevo egreso');
+      await expect(trigger).toBeVisible({ timeout: 20_000 });
+      await trigger.click();
+      activeDialog = await waitDialog(page, isIncome ? 'Nuevo Ingreso' : 'Nuevo Egreso');
+    }
+  }
+
+  const add = page.locator('#ga-portal-list .ga-item').filter({ hasText: /Agregar nueva descripción/i }).first();
   await expect(add).toBeVisible();
   await add.click();
 
-  const mini = await waitDialog(dialog.page(), 'Nueva descripción');
+  const mini = await waitDialog(page, 'Nueva descripción');
   await mini.locator('#nueva-descripcion-input').fill(description);
   await clickSaveAndWait(mini, /^Guardar$/i, { timeout: 30_000 });
   await expect(input).toHaveValue(new RegExp(description, 'i'));
@@ -656,7 +715,13 @@ export async function payReceivable(page, productName) {
   const debtRow = dialog.locator(`.gm-receipt-row[data-movement-id="${movementId}"]`).first();
   await expect(debtRow).toBeVisible({ timeout: 20_000 });
   const checkbox = debtRow.locator('input[type="checkbox"]');
-  if (!(await checkbox.isChecked())) await checkbox.check({ force: true });
+  if (!(await checkbox.isChecked())) {
+    // En Recibos la fila completa es el control de selección. Usar check() sobre
+    // el input también propaga el click a la fila y React puede alternarlo dos
+    // veces, dejándolo desmarcado. Un click en la fila reproduce el uso real.
+    await debtRow.click();
+  }
+  await expect(checkbox).toBeChecked({ timeout: 10_000 });
   await fillPayment(dialog);
 
   const confirm = dialog.getByRole('button', { name: /Confirmar cobro/i });
