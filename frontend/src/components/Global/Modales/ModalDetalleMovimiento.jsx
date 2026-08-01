@@ -716,6 +716,7 @@ export default function ModalDetalleMovimiento({
                       const modalidad = humanizeCreditValue(note?.modalidad, "Interna");
                       const motivo = humanizeCreditValue(note?.motivo, "Nota de crédito");
                       const observaciones = String(note?.observaciones || "").trim();
+                      const noteItems = toArray(note?.items_detalle || note?.items || note?.productos);
 
                       return (
                         <div className="mdm-credit-note" key={noteId > 0 ? noteId : `credit-${index}`}>
@@ -729,6 +730,27 @@ export default function ModalDetalleMovimiento({
                             </span>
                             {observaciones ? (
                               <span className="mdm-credit-note__observation">{observaciones}</span>
+                            ) : null}
+                            {noteItems.length ? (
+                              <div className="mdm-credit-note__items" aria-label="Productos acreditados">
+                                {noteItems.map((item, itemIndex) => (
+                                  <div
+                                    className="mdm-credit-note__item"
+                                    key={item?.id_item || `${getItemName(item)}-${itemIndex}`}
+                                  >
+                                    <span className="mdm-credit-note__item-name" title={getItemName(item)}>
+                                      {getItemName(item)}
+                                    </span>
+                                    <span className="mdm-credit-note__item-data">
+                                      <span>Cant. {formatNumber(item?.cantidad_acreditada ?? item?.cantidad)}</span>
+                                      <span aria-hidden="true">·</span>
+                                      <span>{moneyARS(item?.precio)} c/u</span>
+                                      <span aria-hidden="true">·</span>
+                                      <strong className="mdm-credit-note__item-total">{moneyARS(item?.total)}</strong>
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
                             ) : null}
                           </div>
                           <strong className="mdm-credit-note__amount">- {moneyARS(noteAmount)}</strong>

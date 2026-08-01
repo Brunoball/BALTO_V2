@@ -1530,6 +1530,14 @@ export default function Movimientos() {
       <ModalDetalleMovimiento
         open={openInfo}
         row={selectedRow}
+        showCreditTrace
+        unifiedItemsScroll
+        creditTraceEntity={
+          String(selectedRow?.nota_credito_origen || "").toUpperCase() === "COMPRA" ||
+          Number(selectedRow?.compra_tiene_nota_credito || 0) === 1
+            ? "compra"
+            : "venta"
+        }
         onClose={() => {
           setOpenInfo(false);
           setSelectedRow(null);

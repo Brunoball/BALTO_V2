@@ -1,7 +1,19 @@
 import { test, expect } from '@playwright/test';
 import { uniqueName, uniqueSku } from './support/data.js';
-import { closeDialog, requireMutations, searchRow, waitForBusyToFinish } from './support/ui.js';
 import {
+  clickSaveAndWait,
+  closeDialog,
+  fillMovementRow,
+  fillPayment,
+  requireMutations,
+  searchRow,
+  selectFirstAutocomplete,
+  selectMovementMode,
+  waitDialog,
+  waitForBusyToFinish,
+} from './support/ui.js';
+import {
+  applySaleCreditNoteAndCapture,
   createBudget,
   createOtherExpense,
   createOtherIncome,
@@ -9,6 +21,19 @@ import {
   createSale,
   createStockProduct,
 } from './support/flows.js';
+
+function movementContainsDescription(movement, description) {
+  const expected = String(description || '').trim().toUpperCase();
+  const items = [
+    ...(Array.isArray(movement?.items_detalle) ? movement.items_detalle : []),
+    ...(Array.isArray(movement?.items_detalle_original) ? movement.items_detalle_original : []),
+  ];
+
+  return items.some((item) =>
+    [item?.descripcion, item?.detalle, item?.nombre, item?.producto_nombre, item?.stock_producto_nombre]
+      .some((value) => String(value || '').trim().toUpperCase().includes(expected)),
+  );
+}
 
 function parseDisplayedNumber(value) {
   let normalized = String(value || '').replace(/[^0-9,.-]/g, '');
@@ -91,6 +116,27 @@ async function assertGlobalDetail(page, query, expected) {
   await expect(rows.first()).toBeVisible({ timeout: 30_000 });
   const row = rows.first();
   await openModuleDetail(row, expected, /Ver información completa del movimiento/i);
+}
+
+async function createCashSale(page, data) {
+  await page.goto('/panel/ventas');
+  await waitForBusyToFinish(page);
+  await page.getByRole('button', { name: /Nueva Venta/i }).click();
+  const dialog = await waitDialog(page, 'Nueva Venta');
+
+  await fillMovementRow(dialog, {
+    productName: data.productName,
+    quantity: data.quantity,
+    price: data.price,
+  });
+  data.clientName = await selectFirstAutocomplete(dialog, 'Cliente');
+
+  const mode = await selectMovementMode(dialog, 'Forma de venta', /CONTADO/i);
+  expect(mode.text, 'La venta de esta prueba debe registrarse de contado').toMatch(/CONTADO/i);
+  await fillPayment(dialog);
+
+  await clickSaveAndWait(dialog, /Guardar venta/i, { timeout: 60_000 });
+  return searchRow(page, data.productName, /Buscar por descripción, cliente/i);
 }
 
 test('@crud @critical modales: cada módulo y Movimientos muestran los datos exactos guardados', async ({ page }) => {
@@ -199,4 +245,196 @@ test('@crud @critical modales: cada módulo y Movimientos muestran los datos exa
   await assertGlobalDetail(page, incomeDescription, incomeExpected);
   await assertGlobalDetail(page, expenseDescription, expenseExpected);
   await assertGlobalDetail(page, budgetProduct, budgetExpected);
+});
+
+test('@crud @critical Movimientos: unifica venta y NC parcial con total y pago vigentes', async ({ page }) => {
+  await requireMutations(test, page);
+  test.setTimeout(5 * 60_000);
+
+  const productName = uniqueName('MOVIMIENTO-NC-UNIFICADA');
+  const quantity = 2;
+  const price = 300;
+  const originalTotal = 600;
+  const returnedQuantity = 1;
+  const creditTotal = 300;
+  const currentTotal = 300;
+
+  await createStockProduct(page, {
+    name: productName,
+    sku: uniqueSku('MOVNCUNI'),
+    stock: 10,
+    cost: 150,
+    price,
+  });
+  await createCashSale(page, { productName, quantity, price });
+
+  const creditResult = await applySaleCreditNoteAndCapture(page, productName, {
+    motive: 'DEVOLUCION_MERCADERIA',
+    quantity: returnedQuantity,
+  });
+  const creditMovementId = Number(
+    creditResult.body?.id_movimiento_nc ??
+      creditResult.body?.data?.id_movimiento_nc ??
+      creditResult.body?.id_movimiento_nota_credito ??
+      creditResult.body?.data?.id_movimiento_nota_credito ??
+      0,
+  );
+
+  await page.goto('/panel/movimientos');
+  await waitForBusyToFinish(page);
+  const search = page.getByPlaceholder(
+    /Buscar por descripción, cliente, proveedor, medio de pago/i,
+  ).first();
+  await expect(search).toBeVisible();
+
+  const responsePromise = page.waitForResponse(
+    (response) => {
+      if (response.request().method() !== 'GET') return false;
+      const url = new URL(response.url());
+      return url.searchParams.get('action') === 'movimientos_listar' && url.searchParams.get('q') === productName;
+    },
+    { timeout: 45_000 },
+  );
+  await search.fill(productName);
+  await search.press('Enter');
+
+  const response = await responsePromise;
+  const body = await response.json().catch(() => ({}));
+  expect(response.status(), JSON.stringify(body)).toBeLessThan(400);
+
+  const returned = Array.isArray(body?.movimientos) ? body.movimientos : [];
+  const matching = returned.filter((movement) => movementContainsDescription(movement, productName));
+  expect(matching, 'Movimientos debe devolver una única fila para la venta y su NC').toHaveLength(1);
+
+  const movement = matching[0];
+  expect(Number(movement?.tiene_nota_credito || 0)).toBe(1);
+  expect(Number(movement?.monto_total_original)).toBeCloseTo(originalTotal, 2);
+  expect(Number(movement?.monto_acreditado)).toBeCloseTo(creditTotal, 2);
+  expect(Number(movement?.monto_total)).toBeCloseTo(currentTotal, 2);
+  expect(movement?.notas_credito_detalle).toHaveLength(1);
+  const creditNote = movement.notas_credito_detalle[0];
+  expect(Number(creditNote?.total)).toBeCloseTo(creditTotal, 2);
+  expect(creditNote?.items_detalle, 'La NC debe informar los productos acreditados').toHaveLength(1);
+  expect(
+    String(creditNote.items_detalle[0]?.nombre || creditNote.items_detalle[0]?.descripcion || ''),
+  ).toContain(productName);
+  expect(Number(creditNote.items_detalle[0]?.cantidad)).toBeCloseTo(returnedQuantity, 3);
+  expect(Number(creditNote.items_detalle[0]?.total)).toBeCloseTo(creditTotal, 2);
+  const hiddenCreditMovementId = creditMovementId || Number(
+    creditNote?.id_movimiento_nc || 0,
+  );
+  expect(hiddenCreditMovementId, 'La respuesta debe identificar el movimiento contable de la NC').toBeGreaterThan(0);
+  expect(
+    returned.some((row) => Number(row?.id_movimiento) === hiddenCreditMovementId),
+    'El movimiento contable de la NC no debe mostrarse como una segunda fila',
+  ).toBe(false);
+
+  const payments = Array.isArray(movement?.medios_pago_detalle)
+    ? movement.medios_pago_detalle
+    : [];
+  expect(payments.length, 'La venta de contado debe conservar su medio de pago').toBeGreaterThan(0);
+  const paidTotal = payments.reduce(
+    (sum, payment) => sum + Number(payment?.monto_aplicado ?? payment?.monto ?? 0),
+    0,
+  );
+  expect(paidTotal, 'El medio de pago debe quedar limitado al total vigente').toBeCloseTo(currentTotal, 2);
+
+  await waitForBusyToFinish(page);
+  const rows = page.locator('.mov-gridTable--row:visible:not(.mov-row--skeleton)');
+  await expect(rows, 'La búsqueda no debe mostrar una fila separada para la NC').toHaveCount(1);
+  const row = rows.first();
+  await expectMoney(row.locator('[role="cell"]').nth(4), currentTotal, 'Monto vigente incorrecto en la tabla');
+
+  await row.getByTitle(/Ver información completa del movimiento/i).click();
+  const detail = page.getByRole('dialog').last();
+  await expect(detail).toBeVisible({ timeout: 30_000 });
+  await expect(detail.getByLabel('Trazabilidad de notas de crédito')).toBeVisible();
+  await expect(detail).toContainText('Venta ajustada por nota de crédito');
+  await expectMoney(
+    detail.locator('.mdm-total-chip--original b'),
+    originalTotal,
+    'Importe original incorrecto en el resumen de la NC',
+  );
+  await expectMoney(
+    detail.locator('.mdm-total-chip--credit b'),
+    -creditTotal,
+    'Importe acreditado incorrecto en el resumen de la NC',
+  );
+  await expectMoney(
+    detail.locator('.mdm-total-chip--current b'),
+    currentTotal,
+    'Total vigente incorrecto en el modal',
+  );
+
+  await detail.getByTitle('Ver detalle de la nota de crédito').click();
+  await expect(detail).toContainText(/Devolucion Mercaderia/i);
+  await expect(detail).toContainText(/Interna/i);
+  const creditedItem = detail
+    .getByLabel('Productos acreditados')
+    .locator('.mdm-credit-note__item')
+    .filter({ hasText: productName })
+    .first();
+  await expect(creditedItem, 'El modal debe identificar el producto devuelto').toBeVisible();
+  await expect(creditedItem).toContainText(`Cant. ${returnedQuantity}`);
+  await expectMoney(
+    creditedItem.locator('.mdm-credit-note__item-total'),
+    creditTotal,
+    'Importe incorrecto del producto devuelto',
+  );
+  await expectMoney(
+    detail.locator('.mdm-medio-card__amount').first(),
+    currentTotal,
+    'Monto vigente incorrecto en el medio de pago',
+  );
+  await expectMoney(
+    detail.locator('.mdm-total-paid-chip b'),
+    currentTotal,
+    'Total pagado incorrecto después de la NC',
+  );
+
+  const originalItem = detail
+    .locator('.mdm-table--items .mdm-table__row:not(.mdm-table__row--head)')
+    .filter({ hasText: productName })
+    .first();
+  await expect(originalItem).toBeVisible();
+  await expectMoney(
+    originalItem.locator(':scope > span').nth(5),
+    originalTotal,
+    'El detalle original de la venta debe conservarse',
+  );
+  await closeDialog(detail);
+
+  // Ventas reutiliza el modal global, pero obtiene los datos desde su propio
+  // endpoint. Debe exponer el mismo producto acreditado que Movimientos.
+  await page.goto('/panel/ventas');
+  await waitForBusyToFinish(page);
+  const saleRow = await searchRow(page, productName, /Buscar por descripción, cliente/i);
+  await saleRow.getByTitle(/Ver información completa del movimiento/i).click();
+
+  const saleDetail = page.getByRole('dialog').last();
+  await expect(saleDetail).toBeVisible({ timeout: 30_000 });
+  await expect(saleDetail.getByLabel('Trazabilidad de notas de crédito')).toBeVisible();
+  await saleDetail.getByTitle('Ver detalle de la nota de crédito').click();
+
+  const saleCreditedItem = saleDetail
+    .getByLabel('Productos acreditados')
+    .locator('.mdm-credit-note__item')
+    .filter({ hasText: productName })
+    .first();
+  await expect(
+    saleCreditedItem,
+    'El modal abierto desde Ventas debe identificar el producto devuelto',
+  ).toBeVisible();
+  await expect(saleCreditedItem).toContainText(`Cant. ${returnedQuantity}`);
+  await expectMoney(
+    saleCreditedItem.locator('.mdm-credit-note__item-total'),
+    creditTotal,
+    'Importe incorrecto del producto devuelto en el modal de Ventas',
+  );
+  await expectMoney(
+    saleDetail.locator('.mdm-total-chip--current b'),
+    currentTotal,
+    'Total vigente incorrecto en el modal abierto desde Ventas',
+  );
+  await closeDialog(saleDetail);
 });
