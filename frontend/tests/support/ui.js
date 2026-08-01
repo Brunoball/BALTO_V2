@@ -185,6 +185,52 @@ export async function selectProduct(scope, productName, options = {}) {
   return productInput;
 }
 
+function parseDisplayedDecimal(value) {
+  const clean = String(value ?? '')
+    .replace(/\s/g, '')
+    .replace(/\$/g, '');
+
+  if (!clean) return 0;
+
+  // Los inputs monetarios de Balto muestran formato argentino al perder foco
+  // (1.234,56), pero durante la edición también pueden exponer 1234.56.
+  const normalized = clean.includes(',')
+    ? clean.replace(/\./g, '').replace(',', '.')
+    : clean;
+  return Number(normalized);
+}
+
+async function fillControlledDecimal(input, value) {
+  const expected = Number(value);
+  expect(Number.isFinite(expected), `El valor decimal ${value} debe ser numérico`).toBe(true);
+
+  await expect(input).toBeVisible();
+  await input.click();
+  await expect(input).toBeFocused();
+
+  // Los componentes monetarios cambian de `monto` formateado a `montoDraft`
+  // dentro de onFocus. Si Playwright escribe antes de que React confirme ese
+  // cambio, el valor anterior puede reaparecer o concatenarse (p. ej. 100100).
+  // Dos frames esperan el commit y el repintado sin introducir un sleep fijo.
+  await input.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
+
+  await input.fill(String(value));
+  await expect(input).toHaveValue(String(value));
+  await input.blur();
+
+  await expect
+    .poll(
+      async () => parseDisplayedDecimal(await input.inputValue()),
+      {
+        message: `El input debe conservar el importe ${value} después del recálculo de React`,
+        timeout: 10_000,
+      },
+    )
+    .toBeCloseTo(expected, 2);
+}
+
 export async function fillMovementRow(dialog, data) {
   const row = dialog.locator('.gm-table-body .gm-table-row').first();
   await expect(row).toBeVisible();
@@ -207,8 +253,7 @@ export async function fillMovementRow(dialog, data) {
   if (data.price !== undefined) {
     const price = row.locator('input[inputmode="decimal"]').first();
     if (await price.isVisible().catch(() => false)) {
-      await price.fill(String(data.price));
-      await price.blur();
+      await fillControlledDecimal(price, data.price);
     }
   }
 

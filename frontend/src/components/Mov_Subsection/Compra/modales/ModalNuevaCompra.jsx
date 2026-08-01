@@ -421,9 +421,24 @@ function MedioPagoInlineCompraRow({
     (idChequeStr) => {
       const current = getChequeIdsArray(row.id_cheque);
       const next = current.includes(idChequeStr) ? current.filter((x) => x !== idChequeStr) : [...current, idChequeStr];
-      onUpdate(row.id, { id_cheque: next });
+      // El importe debe quedar en el mismo cambio de estado que la selección.
+      // Si se actualiza recién en el useEffect inferior, existe un render donde
+      // la tarjeta ya figura seleccionada pero `row.monto` todavía vale cero.
+      // Un guardado rápido en ese intervalo (por teclado o automatización) queda
+      // rechazado por la validación aunque visualmente el cheque esté elegido.
+      const montoCheques = next.reduce((acc, id) => {
+        const cheque = row.chequesDisponibles.find((item) => String(item?.id_cheque) === String(id));
+        return acc + safeNumber(cheque?.importe);
+      }, 0);
+
+      onUpdate(row.id, {
+        id_cheque: next,
+        monto: montoCheques,
+        montoDraft: "",
+        montoFocused: false,
+      });
     },
-    [row.id, row.id_cheque, onUpdate]
+    [row.id, row.id_cheque, row.chequesDisponibles, onUpdate]
   );
 
   useEffect(() => {

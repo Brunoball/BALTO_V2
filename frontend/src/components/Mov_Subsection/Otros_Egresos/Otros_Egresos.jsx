@@ -348,6 +348,9 @@ function cantidadDetallesMovimiento(row) {
 }
 
 function productosLabel(row) {
+  const depositoLabel = getDepositoChequeLabel(row);
+  if (depositoLabel) return depositoLabel;
+
   const n = cantidadDetallesMovimiento(row);
   return n === 1 ? "1 DETALLE" : `${n} DETALLES`;
 }

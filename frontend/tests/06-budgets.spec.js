@@ -41,6 +41,10 @@ async function authenticatedApiGet(page, actionAndQuery) {
 }
 
 test('@crud @critical presupuesto: crear, eliminar y convertir sin doble impacto', async ({ page }, testInfo) => {
+  // Este recorrido hace dos altas de stock, dos presupuestos, conversión,
+  // validaciones de detalle y limpieza transaccional. En una suite completa el
+  // límite general de 90 s puede vencer únicamente durante esa limpieza.
+  test.setTimeout(4 * 60_000);
   await requireMutations(test, page);
   const diagnostics = installDiagnostics(page);
   const productName = uniqueName('PRESUPUESTO-CONVERTIR');
@@ -64,12 +68,49 @@ test('@crud @critical presupuesto: crear, eliminar y convertir sin doble impacto
   await createBudget(page, { productName: disposableName, quantity: 1, price: 140, ivaPct: 10.5 });
   await deleteBudget(page, disposableName);
 
-  await createBudget(page, { productName, quantity: 1, price: 180, ivaPct: 21 });
+  const budgetData = { productName, quantity: 1, price: 180, ivaPct: 21 };
+  await createBudget(page, budgetData);
+
+  // El presupuesto debe quedar realmente persistido en el historial. Se recarga
+  // la pantalla para no validar sólo el estado React que acaba de crearlo.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const historyRow = await searchRow(page, productName, /Buscar por descripción/i);
+  await historyRow.getByTitle(/Ver información completa del presupuesto/i).click();
+  const budgetDetail = page.getByRole('dialog').last();
+  await expect(budgetDetail).toContainText(productName);
+  await expect(budgetDetail).toContainText(String(budgetData.clientName).split('\n')[0]);
+  const budgetItem = budgetDetail
+    .locator('.mdm-table--items .mdm-table__row:not(.mdm-table__row--head)')
+    .filter({ hasText: productName })
+    .first();
+  await expect(budgetItem).toBeVisible();
+  await expect(budgetItem.locator(':scope > span').nth(1)).toHaveText(/^1(?:[,.]0+)?$/);
+  await expect(budgetItem.locator(':scope > span').nth(2)).toContainText(/180[,.]00/);
+  await expect(budgetItem.locator(':scope > span').nth(5)).toContainText(/217[,.]80/);
+  await closeDialog(budgetDetail);
+
   await convertBudgetToSale(page, productName);
 
   // Segundo intento: el botón debe quedar marcado como ya convertido y no crear otra venta.
   const convertedRow = await searchRow(page, productName, /Buscar por descripción/i);
   await expect(convertedRow.getByTitle(/Presupuesto ya asignado como venta/i)).toBeVisible();
+
+  // La venta generada desde el historial debe conservar cliente, producto,
+  // cantidad e importe del presupuesto, y existir una sola vez.
+  await page.goto('/panel/ventas');
+  const convertedSale = await searchRow(page, productName, /Buscar por descripción, cliente/i);
+  await convertedSale.getByTitle(/Ver información completa del movimiento/i).click();
+  const saleDetail = page.getByRole('dialog').last();
+  await expect(saleDetail).toContainText(productName);
+  await expect(saleDetail).toContainText(String(budgetData.clientName).split('\n')[0]);
+  const convertedItem = saleDetail
+    .locator('.mdm-table--items .mdm-table__row:not(.mdm-table__row--head)')
+    .filter({ hasText: productName })
+    .first();
+  await expect(convertedItem.locator(':scope > span').nth(1)).toHaveText(/^1(?:[,.]0+)?$/);
+  await expect(convertedItem.locator(':scope > span').nth(2)).toContainText(/180[,.]00/);
+  await expect(convertedItem.locator(':scope > span').nth(5)).toContainText(/217[,.]80/);
+  await closeDialog(saleDetail);
 
   await page.goto('/panel/stock');
   const stockRow = await searchRow(page, productName, /Buscar por nombre, SKU o variante/i);
@@ -88,6 +129,10 @@ test('@crud @critical presupuesto: crear, eliminar y convertir sin doble impacto
 });
 
 test('@crud @critical presupuesto: dos pestañas no pueden convertirlo dos veces', async ({ page, context }, testInfo) => {
+  // Incluye dos respuestas concurrentes, una tercera página verificadora y la
+  // limpieza final. Conservamos timeouts cortos en cada espera, pero permitimos
+  // que el recorrido completo soporte la latencia acumulada del backend.
+  test.setTimeout(4 * 60_000);
   await requireMutations(test, page);
   const diagnostics = installDiagnostics(page);
   const productName = uniqueName('PRESUPUESTO-CONCURRENCIA');

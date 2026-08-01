@@ -11,6 +11,7 @@ import {
   createStockProduct,
   createSale,
   applySaleCreditNote,
+  applySaleCreditNoteAndCapture,
   openSaleCreditNote,
   configureSaleCreditNote,
   deleteSale,
@@ -28,7 +29,22 @@ const CREDIT_NOTE_MOTIVES = [
 
 const IVA_VALUES = ['0', '10.5', '21', '27'];
 
+function creditNoteId(body) {
+  return Number(
+    body?.id_nota_credito ??
+      body?.data?.id_nota_credito ??
+      body?.id_movimiento_nota_credito ??
+      body?.data?.id_movimiento_nota_credito ??
+      0,
+  );
+}
+
 test('@crud @critical venta: descuenta stock y NC interna reingresa stock', async ({ page }, testInfo) => {
+  // En la corrida completa el backend compartido puede tardar bastante más que
+  // cuando se ejecuta este archivo solo. El flujo incluye alta, venta, dos NC,
+  // reversión y eliminación física del producto; 90 s cortaba durante la
+  // verificación final aunque todas las mutaciones principales ya habían pasado.
+  test.setTimeout(4 * 60_000);
   await requireMutations(test, page);
   const diagnostics = installDiagnostics(page);
   const productName = uniqueName('VENTA-NC');
@@ -165,6 +181,73 @@ test('@crud @critical NC venta: repetir la misma petición no duplica nota ni st
   await deleteSale(page, productName);
   await page.goto('/panel/stock');
   await deleteUnusedStockProduct(page, productName);
+
+  await assertNoCriticalErrors(diagnostics, testInfo, { allowConsole: [/Tienda Nube/i, /imagen/i] });
+});
+
+test('@crud @critical NC venta: ejecuta realmente los seis motivos y valida su impacto de stock', async ({ page }, testInfo) => {
+  await requireMutations(test, page);
+  test.setTimeout(9 * 60_000);
+  const diagnostics = installDiagnostics(page);
+  const productName = uniqueName('VENTA-NC-SEIS-MOTIVOS');
+  const totalProductName = uniqueName('VENTA-NC-ANULACION-TOTAL');
+
+  await createStockProduct(page, {
+    name: productName,
+    sku: uniqueSku('VENTANC6'),
+    stock: 12,
+    cost: 100,
+    price: 200,
+  });
+  await createStockProduct(page, {
+    name: totalProductName,
+    sku: uniqueSku('VENTANCTOTAL'),
+    stock: 4,
+    cost: 100,
+    price: 200,
+  });
+  await createSale(page, { productName, quantity: 6, price: 100 });
+  await createSale(page, { productName: totalProductName, quantity: 2, price: 100 });
+
+  const applied = [];
+  const apply = async (targetProduct, options) => {
+    await page.goto('/panel/ventas');
+    const result = await applySaleCreditNoteAndCapture(page, targetProduct, options);
+    expect(creditNoteId(result.body), `El motivo ${options.motive} debe crear una nota identificable`).toBeGreaterThan(0);
+    applied.push(options.motive);
+  };
+
+  await apply(productName, { motive: 'DEVOLUCION_MERCADERIA', quantity: 1 });
+  for (const motive of ['DESCUENTO', 'BONIFICACION', 'DIFERENCIA_PRECIO', 'OTRO']) {
+    await apply(productName, { motive, amount: 5, ivaPct: 21 });
+  }
+
+  await page.goto('/panel/stock');
+  let stockRow = await searchRow(page, productName, /Buscar por nombre, SKU o variante/i);
+  await expect(
+    stockRow.locator('[role="cell"]').nth(2),
+    'Sólo DEVOLUCION_MERCADERIA debe reingresar stock; los cuatro ajustes económicos no deben tocarlo',
+  ).toContainText('7');
+
+  // La anulación total usa una venta independiente para no mezclarla con los
+  // ajustes económicos previos. En la misma venta esos ajustes reducen el saldo
+  // disponible, aunque la selección total de unidades conserve su valor bruto.
+  await apply(totalProductName, { motive: 'ANULACION_TOTAL' });
+  expect([...applied].sort()).toEqual([...CREDIT_NOTE_MOTIVES].sort());
+
+  await page.goto('/panel/stock');
+  stockRow = await searchRow(page, totalProductName, /Buscar por nombre, SKU o variante/i);
+  await expect(
+    stockRow.locator('[role="cell"]').nth(2),
+    'La anulación total debe reingresar toda la venta independiente y dejar su stock original',
+  ).toContainText('4');
+
+  await page.goto('/panel/ventas');
+  await deleteSale(page, productName);
+  await deleteSale(page, totalProductName);
+  await page.goto('/panel/stock');
+  await deleteUnusedStockProduct(page, productName);
+  await deleteUnusedStockProduct(page, totalProductName);
 
   await assertNoCriticalErrors(diagnostics, testInfo, { allowConsole: [/Tienda Nube/i, /imagen/i] });
 });

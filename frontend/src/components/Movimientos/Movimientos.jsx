@@ -546,6 +546,7 @@ export default function Movimientos() {
   const moreReqIdRef = useRef(0);
   const searchTimerRef = useRef(null);
   const skipSearchRef = useRef(false);
+  const qRef = useRef("");
 
   const liveTimerRef = useRef(null);
   const liveBusyRef = useRef(false);
@@ -561,6 +562,10 @@ export default function Movimientos() {
     },
     []
   );
+
+  useEffect(() => {
+    qRef.current = q;
+  }, [q]);
 
   const rangeLabel = useMemo(() => {
     const { from, to } = dateRange;
@@ -617,7 +622,7 @@ export default function Movimientos() {
   const fetchLiveToken = useCallback(
     async (rangeParam, qParam) => {
       const range = rangeParam ?? dateRange;
-      const qLocal = typeof qParam === "string" ? qParam : q;
+      const qLocal = typeof qParam === "string" ? qParam : qRef.current;
 
       if (!range?.from) return null;
 
@@ -634,13 +639,13 @@ export default function Movimientos() {
       if (!data?.exito) throw new Error(data?.mensaje || "No se pudo obtener el token en vivo.");
       return String(data.live_token || "");
     },
-    [API, apiGet, dateRange, q]
+    [API, apiGet, dateRange]
   );
 
   const loadRows = useCallback(
     async (opts = {}) => {
       const range = opts.dateRange ?? dateRange;
-      const qLocal = typeof opts.q === "string" ? opts.q : q;
+      const qLocal = typeof opts.q === "string" ? opts.q : qRef.current;
       const append = !!opts.append;
       const offset = Number.isFinite(Number(opts.offset)) ? Number(opts.offset) : 0;
 
@@ -792,7 +797,7 @@ export default function Movimientos() {
         });
       }
     },
-    [API, apiGet, dateRange, q]
+    [API, apiGet, dateRange]
   );
 
   useEffect(() => {

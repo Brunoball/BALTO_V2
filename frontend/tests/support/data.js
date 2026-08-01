@@ -17,6 +17,12 @@ export function uniqueSku(kind = 'SKU') {
   return uniqueName(kind, 32).replace(/-/g, '').slice(-24);
 }
 
+export function uniqueChequeNumber() {
+  const millis = String(Date.now());
+  const random = String(Math.floor(Math.random() * 100_000)).padStart(5, '0');
+  return `${millis}${random}`;
+}
+
 export const RUN_PREFIX = runPrefix;
 
 export function todayISO() {

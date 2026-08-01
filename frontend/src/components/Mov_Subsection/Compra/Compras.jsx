@@ -1716,6 +1716,7 @@ export default function Compras() {
                       className="mov-gridTable mov-gridTable--row"
                       style={{ gridTemplateColumns: gridCols }}
                       role="row"
+                      data-movement-id={Number(rowId) || undefined}
                     >
                       {columns.map((c) => {
                         if (c.key === "acciones") {

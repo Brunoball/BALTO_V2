@@ -26,8 +26,35 @@ export async function createStockProduct(page, product) {
   await dialog.locator('input[name="precio"]').fill(String(product.price ?? 150));
   await dialog.locator('input[name="precio"]').blur();
 
-  await clickSaveAndWait(dialog, /Guardar producto/i, { timeout: 90_000 });
-  const row = await searchRow(page, product.name, /Buscar por nombre, SKU o variante/i);
+  // El modal puede cerrarse mientras la grilla todavía está terminando su
+  // refresco optimista. Esperamos la confirmación real del alta y volvemos a
+  // cargar Stock antes de buscar por SKU (más corto y estrictamente único).
+  const createResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).searchParams.get('action') === 'stock_productos_crear',
+    { timeout: 120_000 },
+  );
+  const saveButton = dialog.getByRole('button', { name: /Guardar producto/i }).last();
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+
+  const createResponse = await createResponsePromise;
+  const createBody = await createResponse.json().catch(() => ({}));
+  expect(
+    createResponse.status(),
+    `El alta de ${product.name} respondió HTTP ${createResponse.status()}: ${JSON.stringify(createBody)}`,
+  ).toBeLessThan(400);
+  expect(
+    createBody?.exito !== false && createBody?.success !== false,
+    createBody?.mensaje || createBody?.message || `No se pudo crear ${product.name}`,
+  ).toBeTruthy();
+  await expect(dialog).toBeHidden({ timeout: 120_000 });
+
+  await page.goto('/panel/stock');
+  await waitForBusyToFinish(page);
+  const row = await searchRow(page, product.sku, /Buscar por nombre, SKU o variante/i);
+  await expect(row).toContainText(product.name);
   await expect(row).toContainText(product.sku);
   return row;
 }
@@ -235,6 +262,24 @@ export async function applyPurchaseCreditNote(page, productName, options = 1) {
   return searchRow(page, productName, /Buscar por descripción, proveedor/i);
 }
 
+export async function applyPurchaseCreditNoteAndCapture(page, productName, options = {}) {
+  const { dialog } = await openPurchaseCreditNote(page, productName);
+  await configurePurchaseCreditNote(dialog, options);
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).searchParams.get('action') === 'compras_nota_credito_crear',
+    { timeout: 90_000 },
+  );
+  await dialog.getByRole('button', { name: /Aplicar nota de crédito/i }).last().click();
+  const response = await responsePromise;
+  const body = await response.json().catch(() => ({}));
+  expect(response.status(), JSON.stringify(body)).toBeLessThan(400);
+  expect(body?.exito !== false && body?.success !== false, body?.mensaje || body?.message).toBeTruthy();
+  await expect(dialog).toBeHidden({ timeout: 90_000 });
+  return { response, body };
+}
+
 export async function createSale(page, data) {
   await page.goto('/panel/ventas');
   await waitForBusyToFinish(page);
@@ -312,12 +357,141 @@ export async function applySaleCreditNote(page, productName, options = 1) {
   return searchRow(page, productName, /Buscar por descripción, cliente/i);
 }
 
+export async function applySaleCreditNoteAndCapture(page, productName, options = {}) {
+  const { dialog } = await openSaleCreditNote(page, productName);
+  await configureSaleCreditNote(dialog, options);
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).searchParams.get('action') === 'ventas_nota_credito_crear',
+    { timeout: 90_000 },
+  );
+  await dialog.getByRole('button', { name: /Aplicar nota de crédito/i }).last().click();
+  const response = await responsePromise;
+  const body = await response.json().catch(() => ({}));
+  expect(response.status(), JSON.stringify(body)).toBeLessThan(400);
+  expect(body?.exito !== false && body?.success !== false, body?.mensaje || body?.message).toBeTruthy();
+  await expect(dialog).toBeHidden({ timeout: 90_000 });
+  return { response, body };
+}
+
+function purchaseContainsProduct(row, productName) {
+  const expected = String(productName || '').trim().toUpperCase();
+  if (!expected) return false;
+
+  const originalItems = Array.isArray(row?.items_detalle_original) ? row.items_detalle_original : [];
+  const currentItems = Array.isArray(row?.items_detalle) ? row.items_detalle : [];
+  const values = [
+    row?.detalle,
+    row?.descripcion,
+    ...originalItems.flatMap((item) => [
+      item?.nombre,
+      item?.descripcion,
+      item?.detalle,
+      item?.producto_nombre,
+      item?.stock_producto_nombre,
+    ]),
+    ...currentItems.flatMap((item) => [
+      item?.nombre,
+      item?.descripcion,
+      item?.detalle,
+      item?.producto_nombre,
+      item?.stock_producto_nombre,
+    ]),
+  ];
+
+  return values.some((value) => String(value ?? '').trim().toUpperCase().includes(expected));
+}
+
+async function searchPurchaseRowStrict(page, productName) {
+  // La grilla resume los ítems como "1 PRODUCTO", por lo que buscar una fila
+  // sólo por su texto visible puede devolver la primera respuesta anterior. Se
+  // fuerza una consulta nueva y se cruza el resultado con el ID real del backend.
+  await page.goto('/panel/compras');
+  await waitForBusyToFinish(page);
+
+  await page.evaluate(() => {
+    const keys = [];
+    for (let index = 0; index < sessionStorage.length; index += 1) {
+      const key = sessionStorage.key(index);
+      if (key && key.includes(':compras:listar:cc-medios-v5:')) keys.push(key);
+    }
+    keys.forEach((key) => sessionStorage.removeItem(key));
+  });
+
+  const search = page.getByPlaceholder(/Buscar por descripción, proveedor/i).first();
+  await expect(search).toBeVisible({ timeout: 20_000 });
+
+  const listResponsePromise = page.waitForResponse(
+    (response) => {
+      if (response.request().method() !== 'GET') return false;
+      const url = new URL(response.url());
+      return url.searchParams.get('action') === 'compras_listar'
+        && url.searchParams.get('q') === productName;
+    },
+    { timeout: 60_000 },
+  );
+
+  await search.fill(productName);
+  await search.press('Enter');
+
+  const listResponse = await listResponsePromise;
+  const listBody = await listResponse.json().catch(() => ({}));
+  expect(
+    listResponse.status(),
+    `La búsqueda de la compra ${productName} respondió HTTP ${listResponse.status()}: ${JSON.stringify(listBody)}`,
+  ).toBeLessThan(400);
+  expect(
+    listBody?.exito !== false && listBody?.success !== false,
+    listBody?.mensaje || listBody?.message || `No se pudo buscar la compra ${productName}`,
+  ).toBeTruthy();
+
+  const purchases = Array.isArray(listBody?.compras)
+    ? listBody.compras
+    : Array.isArray(listBody?.data?.compras)
+      ? listBody.data.compras
+      : [];
+  const purchase = purchases.find((row) => purchaseContainsProduct(row, productName));
+  expect(
+    purchase,
+    `El backend no devolvió la compra exacta del producto ${productName}`,
+  ).toBeTruthy();
+
+  const movementId = Number(purchase?.id_movimiento ?? purchase?.id_compra ?? purchase?.id ?? 0);
+  expect(movementId, `La compra de ${productName} debe exponer su ID real`).toBeGreaterThan(0);
+
+  await waitForBusyToFinish(page);
+  const row = page.locator(
+    `.mov-gridTable--row:visible:not(.mov-row--skeleton)[data-movement-id="${movementId}"]`,
+  );
+  await expect(
+    row,
+    `La interfaz debe renderizar la compra #${movementId} correspondiente a ${productName}`,
+  ).toBeVisible({ timeout: 30_000 });
+  return row;
+}
+
 
 export async function deletePurchase(page, productName) {
-  const row = await searchRow(page, productName, /Buscar por descripción, proveedor/i);
+  const row = await searchPurchaseRowStrict(page, productName);
   await row.getByTitle('Eliminar').click();
-  const dialog = await waitDialog(page, 'Eliminar compra');
-  await clickSaveAndWait(dialog, /^Eliminar$/i, { timeout: 60_000 });
+  const dialog = await waitDialog(page, /Eliminar compra(?: y notas de crédito)?/i);
+  const deleteResponsePromise = page.waitForResponse(
+    (response) => response.request().method() === 'POST'
+      && new URL(response.url()).searchParams.get('action') === 'compras_eliminar',
+    { timeout: 90_000 },
+  );
+  await clickSaveAndWait(dialog, /Eliminar todo|^Eliminar$/i, { timeout: 90_000 });
+  const deleteResponse = await deleteResponsePromise;
+  const deleteBody = await deleteResponse.json().catch(() => ({}));
+  expect(
+    deleteResponse.status(),
+    `La eliminación de la compra ${productName} respondió HTTP ${deleteResponse.status()}: ${JSON.stringify(deleteBody)}`,
+  ).toBeLessThan(400);
+  expect(
+    deleteBody?.exito !== false && deleteBody?.success !== false,
+    deleteBody?.mensaje || deleteBody?.message || `No se pudo eliminar la compra ${productName}`,
+  ).toBeTruthy();
 }
 
 export async function deleteSale(page, productName) {
