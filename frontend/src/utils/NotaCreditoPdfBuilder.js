@@ -303,27 +303,63 @@ export async function buildNotaCreditoPdf(data = {}) {
   /* =========================
      RECEPTOR
   ========================= */
-  const receptorH = 22;
+  const receptorPaddingX = 3;
+  const receptorColGap = 6;
+  const receptorAvailableW =
+    contentW - receptorPaddingX * 2 - receptorColGap;
+  const receptorLeftW = receptorAvailableW * 0.58;
+  const receptorRightW = receptorAvailableW - receptorLeftW;
+  const receptorLeftX = margin + receptorPaddingX;
+  const receptorRightX = receptorLeftX + receptorLeftW + receptorColGap;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+
+  const receptorLineH = doc.getLineHeight() / doc.internal.scaleFactor;
+  const razonSocialLines = doc.splitTextToSize(
+    `Razón social: ${receptor.razonSocial}`,
+    receptorLeftW
+  );
+  const domicilioLines = doc.splitTextToSize(
+    `Domicilio: ${safeStr(receptor.domicilio)}`,
+    receptorRightW
+  );
+
+  const receptorTextY = y + 9;
+  const receptorMetaY =
+    receptorTextY + razonSocialLines.length * receptorLineH + 0.6;
+  const receptorDomicilioY = receptorTextY + 4;
+  const receptorLeftBottom = receptorMetaY + 4 + 3;
+  const receptorRightBottom =
+    receptorDomicilioY +
+    Math.max(0, domicilioLines.length - 1) * receptorLineH +
+    3;
+  const receptorH = Math.max(
+    22,
+    receptorLeftBottom - y,
+    receptorRightBottom - y
+  );
+
   doc.setFillColor(...accent);
   doc.roundedRect(margin, y, contentW, receptorH, 2, 2, "FD");
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
   doc.setTextColor(...primary);
-  doc.text("RECEPTOR", margin + 3, y + 5);
+  doc.text("RECEPTOR", receptorLeftX, y + 5);
 
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...dark);
   doc.setFontSize(7.5);
-  doc.text(`Razón social: ${receptor.razonSocial}`, margin + 3, y + 9);
-  doc.text(`Doc: ${receptor.docTipo} / ${receptor.docNro}`, margin + 3, y + 13);
-  doc.text(`CUIT: ${receptor.cuit}`, margin + 3, y + 17);
-  doc.text(`IVA: ${receptor.iva}`, margin + 95, y + 9);
+  doc.text(razonSocialLines, receptorLeftX, receptorTextY);
   doc.text(
-    `Domicilio: ${safeStr(receptor.domicilio).slice(0, 48)}`,
-    margin + 95,
-    y + 13
+    `Doc: ${receptor.docTipo} / ${receptor.docNro}`,
+    receptorLeftX,
+    receptorMetaY
   );
+  doc.text(`CUIT: ${receptor.cuit}`, receptorLeftX, receptorMetaY + 4);
+  doc.text(`IVA: ${receptor.iva}`, receptorRightX, receptorTextY);
+  doc.text(domicilioLines, receptorRightX, receptorDomicilioY);
 
   y += receptorH + 4;
 

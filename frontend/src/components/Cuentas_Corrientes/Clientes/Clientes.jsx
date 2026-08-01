@@ -1174,8 +1174,31 @@ export default function ClientesCC() {
       <div className={`mov-card__head cc-accountHeader ${isDetailMode ? "is-detail" : ""}`}>
         <div className="mov-card__headLeft">
           <div className="title-mov">
-            <div className="mov-card__title">
-              {isDetailMode ? `${selectedCliente.nombre}` : "Cuentas Corrientes"}
+            <div className="cc-accountHeader__nameRow">
+              <div className="mov-card__title cc-accountHeader__entityName">
+                {isDetailMode ? `${selectedCliente.nombre}` : "Cuentas Corrientes"}
+              </div>
+
+              {isDetailMode && (
+                <div className="cc-accountHeader__nameInfo">
+                  <button
+                    type="button"
+                    className="cc-accountHeader__nameInfoButton"
+                    aria-label="Mostrar nombre completo del cliente"
+                    aria-describedby="cc-cliente-name-tooltip"
+                  >
+                    <FontAwesomeIcon icon={faInfoCircle} />
+                  </button>
+
+                  <span
+                    id="cc-cliente-name-tooltip"
+                    className="cc-accountHeader__nameTooltip"
+                    role="tooltip"
+                  >
+                    {selectedCliente.nombre}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="mov-card__hint">

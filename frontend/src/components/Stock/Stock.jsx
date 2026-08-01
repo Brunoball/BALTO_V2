@@ -3192,7 +3192,7 @@ const Stock = () => {
 
   return (
     <>
-      <div className="mov-page">
+      <div className="mov-page stock-page">
         {error && (
           <div className="mov-alert" role="alert">
             {error}

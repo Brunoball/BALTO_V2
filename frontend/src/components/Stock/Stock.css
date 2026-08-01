@@ -1420,6 +1420,40 @@ html[data-theme="oscuro"] .prod-variantExtraPrices small {
   font-size: 12px;
 }
 
+/* Header de Stock: el buscador puede ceder ancho cuando la barra lateral
+   reduce el espacio disponible. El titulo conserva una base legible y los
+   filtros se adaptan sin superponerse. */
+@media (min-width: 901px) {
+  .stock-page .mov-card__headLeft {
+    align-items: flex-end;
+  }
+
+  .stock-page .title-mov {
+    flex: 0 1 205px;
+    min-width: 150px;
+  }
+
+  .stock-page .mov-headFilters {
+    flex: 1 1 auto;
+  }
+
+  .stock-page .mov-headFilters .cc-filter--search {
+    width: auto;
+    min-width: 160px;
+    flex: 1 1 320px;
+  }
+
+  .stock-page .mov-headFilters > .cc-filter:not(.cc-filter--search) {
+    min-width: 170px;
+    flex: 0 1 226px;
+  }
+
+  .stock-page .stock-catFilter {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 @media (min-width: 1501px) {
   .stock-tableWrap--with-pagination {
     min-height: calc(100vh - 300px) !important;

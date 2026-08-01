@@ -1153,8 +1153,31 @@ export default function ProveedoresCC() {
       <div className={`mov-card__head cc-accountHeader ${isDetailMode ? "is-detail" : ""}`}>
         <div className="mov-card__headLeft">
           <div className="title-mov">
-            <div className="mov-card__title">
-              {isDetailMode ? `${selectedProveedor.nombre}` : "Cuentas Corrientes"}
+            <div className="cc-accountHeader__nameRow">
+              <div className="mov-card__title cc-accountHeader__entityName">
+                {isDetailMode ? `${selectedProveedor.nombre}` : "Cuentas Corrientes"}
+              </div>
+
+              {isDetailMode && (
+                <div className="cc-accountHeader__nameInfo">
+                  <button
+                    type="button"
+                    className="cc-accountHeader__nameInfoButton"
+                    aria-label="Mostrar nombre completo del proveedor"
+                    aria-describedby="cc-proveedor-name-tooltip"
+                  >
+                    <FontAwesomeIcon icon={faInfoCircle} />
+                  </button>
+
+                  <span
+                    id="cc-proveedor-name-tooltip"
+                    className="cc-accountHeader__nameTooltip"
+                    role="tooltip"
+                  >
+                    {selectedProveedor.nombre}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="mov-card__hint">
