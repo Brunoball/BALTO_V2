@@ -1141,7 +1141,14 @@ export default function ClientesCC() {
         open={detalleMovimientoState.open}
         row={detalleMovimientoState.row}
         onClose={closeDetalleMovimiento}
-        title="Detalle del movimiento"
+        showCreditTrace
+        unifiedItemsScroll
+        creditTraceEntity="venta"
+        title={
+          detalleMovimientoState.row?.tipo_registro === "nota_credito"
+            ? "Detalle de la nota de crédito"
+            : "Detalle del movimiento"
+        }
       />
 
       <ModalEliminarMovimientos
@@ -1388,6 +1395,8 @@ export default function ClientesCC() {
                 const puedeEliminar = !isHistorialTab && canDeleteCobro(r);
                 const isNotaCredito = !isHistorialTab && r?.tipo_registro === "nota_credito";
                 const isCobro = !isHistorialTab && !isNotaCredito && Number(r.credito || 0) > 0;
+                const puedeVerDetalle =
+                  isHistorialTab || isNotaCredito || (!isCobro && Number(r.debito || 0) > 0);
 
                 return (
                   <div
@@ -1444,11 +1453,11 @@ export default function ClientesCC() {
                           <FontAwesomeIcon icon={faEye} />
                         </button>
 
-                        {isHistorialTab ? (
+                        {puedeVerDetalle ? (
                           <button
                             type="button"
                             onClick={() => openDetalleMovimiento(r)}
-                            title="Ver detalle completo del movimiento"
+                            title={isNotaCredito ? "Ver detalle completo de la nota de crédito" : "Ver detalle completo del movimiento"}
                             className="mov-iconBtn"
                           >
                             <FontAwesomeIcon icon={faInfoCircle} />

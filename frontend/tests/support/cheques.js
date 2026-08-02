@@ -11,6 +11,7 @@ import {
   waitForBusyToFinish,
 } from './ui.js';
 import { createCatalogDescription } from './flows.js';
+import { deleteCurrentAccountPayment } from './api.js';
 
 function actionFromResponse(response) {
   try {
@@ -333,10 +334,28 @@ export async function deleteCurrentAccountPaymentViaUi(page, options) {
     .locator('.cc-cliente-table__body .mov-gridTable--row')
     .filter({ has: page.locator(deleteSelector) })
     .filter({ hasText: amountPattern });
-  await expect(
-    candidates,
-    `Debe existir un único pago eliminable por ${options.amount} para no tocar otro registro`,
-  ).toHaveCount(1, { timeout: 30_000 });
+
+  await expect.poll(
+    async () => candidates.count(),
+    {
+      timeout: 30_000,
+      intervals: [300, 700, 1_500],
+      message: `Debe existir al menos un pago eliminable por ${options.amount}`,
+    },
+  ).toBeGreaterThan(0);
+
+  const candidateCount = await candidates.count();
+
+  // Cuando existen cobros históricos con el mismo importe, la grilla no expone
+  // el id_cobro en el DOM y elegir una fila por monto podría borrar un registro
+  // ajeno a esta ejecución. En ese caso usamos el id exacto devuelto por el alta
+  // y eliminamos únicamente ese cobro mediante el mismo endpoint del sistema.
+  if (candidateCount > 1) {
+    expect(expectedId, 'Debe existir el id exacto del cobro para resolver importes duplicados').toBeGreaterThan(0);
+    const body = await deleteCurrentAccountPayment(page, expectedId);
+    expect(Number(body?.id_cobro || body?.id_movimiento_medio_pago || expectedId)).toBe(expectedId);
+    return body;
+  }
 
   await candidates.first().locator(deleteSelector).click();
   const dialog = await waitDialog(page, 'Eliminar registro de cobro');

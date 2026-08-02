@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ENV, assertSafeMutationConfiguration } from './support/env.js';
+import { ENV, assertExpectedTenant, assertSafeMutationConfiguration } from './support/env.js';
 import { assertFrontendUsesConfiguredBackend } from './support/ui.js';
 
 test('@smoke preflight: entorno, sesión y seguridad', async ({ page }) => {
@@ -17,6 +17,7 @@ test('@smoke preflight: entorno, sesión y seguridad', async ({ page }) => {
   expect(auth.usuario, 'Debe existir el usuario autenticado').toBeTruthy();
   expect(String(auth.usuario?.usuario || auth.usuario?.username || auth.usuario?.nombre || '')).not.toBe('');
 
+  await assertExpectedTenant(page);
   await assertFrontendUsesConfiguredBackend(page);
 });
 

@@ -215,7 +215,8 @@ export async function createPurchase(page, data) {
     quantity: data.quantity ?? 2,
     price: data.price ?? 100,
   });
-  data.providerName = await selectFirstAutocomplete(dialog, 'Proveedor');
+  const requestedProvider = String(data.providerName || data.providerSearch || '').trim();
+  data.providerName = await selectFirstAutocomplete(dialog, 'Proveedor', requestedProvider);
   const mode = await selectMovementMode(dialog, 'Forma de compra', /CUENTA\s*CORRIENTE/i);
   if (/CONTADO/i.test(mode.text)) await fillPayment(dialog);
 
@@ -315,7 +316,8 @@ export async function createSale(page, data) {
     quantity: data.quantity ?? 2,
     price: data.price ?? 150,
   });
-  data.clientName = await selectFirstAutocomplete(dialog, 'Cliente');
+  const requestedClient = String(data.clientName || data.clientSearch || '').trim();
+  data.clientName = await selectFirstAutocomplete(dialog, 'Cliente', requestedClient);
 
   const typeField = dialog.locator('.gm-field').filter({ hasText: 'Forma de venta' }).first();
   const typeSelect = typeField.locator('select');
@@ -557,7 +559,8 @@ export async function prepareBudget(page, data) {
   await expect(ivaSelect).toBeVisible();
   await ivaSelect.selectOption(String(data.ivaPct ?? 0));
 
-  data.clientName = await selectFirstAutocomplete(dialog, 'Cliente');
+  const requestedClient = String(data.clientName || data.clientSearch || '').trim();
+  data.clientName = await selectFirstAutocomplete(dialog, 'Cliente', requestedClient);
   return { dialog, itemRow, ivaSelect };
 }
 
@@ -756,6 +759,21 @@ export async function payPayable(page, productName) {
 
   const finalizar = page.getByRole('button', { name: /^Finalizar$/i }).last();
   await expect(finalizar).toBeVisible({ timeout: 45_000 });
-  await finalizar.click();
-  await expect(finalizar).toBeHidden({ timeout: 45_000 });
+  await expect(finalizar).toBeEnabled({ timeout: 45_000 });
+
+  // React puede reemplazar el botón mientras recalcula el pago. Volvemos a
+  // localizarlo en cada intento para evitar fallas por un nodo desmontado.
+  await expect(async () => {
+    const botonActual = page.getByRole('button', { name: /^Finalizar$/i }).last();
+    await expect(botonActual).toBeVisible({ timeout: 5_000 });
+    await expect(botonActual).toBeEnabled({ timeout: 5_000 });
+    await botonActual.click({ timeout: 5_000 });
+  }).toPass({
+    timeout: 45_000,
+    intervals: [500, 1_000, 2_000],
+  });
+
+  await expect(
+    page.getByRole('button', { name: /^Finalizar$/i }).last(),
+  ).toBeHidden({ timeout: 45_000 });
 }

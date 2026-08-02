@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { ENV, assertSafeMutationConfiguration } from './env.js';
+import { ENV, assertExpectedTenant, assertSafeMutationConfiguration } from './env.js';
 
 export async function gotoAndWait(page, path, expected) {
   await page.goto(path, { waitUntil: 'domcontentloaded' });
@@ -114,7 +114,11 @@ export async function fillPayment(scope) {
   await completeRemainingAmount(scope);
 }
 
-export async function selectFirstAutocomplete(scope, labelText) {
+function escapeRegExp(value) {
+  return String(value ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export async function selectFirstAutocomplete(scope, labelText, preferredText = '') {
   const candidates = scope.locator('.ga-wrap');
   const count = await candidates.count();
   let wrap = null;
@@ -133,19 +137,37 @@ export async function selectFirstAutocomplete(scope, labelText) {
   const input = wrap.locator('input').first();
   await expect(input).toBeVisible();
   await input.click();
-  const options = scope.page().locator('#ga-portal-list .ga-item:not(.is-empty)');
-  await expect(options.first()).toBeVisible({ timeout: 10_000 });
 
-  const countOptions = await options.count();
+  const requested = String(preferredText || '').trim();
+  if (requested) await input.fill(requested);
+
+  const options = scope.page().locator('#ga-portal-list .ga-item:not(.is-empty)');
+  await expect(options.first()).toBeVisible({ timeout: 12_000 });
+
   let option = null;
   let text = '';
-  for (let index = 0; index < countOptions; index += 1) {
-    const current = options.nth(index);
-    const currentText = (await current.innerText()).trim();
-    if (!/agregar/i.test(currentText)) {
-      option = current;
-      text = currentText;
-      break;
+
+  if (requested) {
+    const matching = options
+      .filter({ hasText: new RegExp(escapeRegExp(requested), 'i') })
+      .filter({ hasNotText: /agregar/i })
+      .first();
+    await expect(
+      matching,
+      `Debe existir ${labelText} "${requested}" en el autocompletado`,
+    ).toBeVisible({ timeout: 15_000 });
+    option = matching;
+    text = (await matching.innerText()).trim();
+  } else {
+    const countOptions = await options.count();
+    for (let index = 0; index < countOptions; index += 1) {
+      const current = options.nth(index);
+      const currentText = (await current.innerText()).trim();
+      if (!/agregar/i.test(currentText)) {
+        option = current;
+        text = currentText;
+        break;
+      }
     }
   }
 
@@ -316,6 +338,7 @@ export async function clickSaveAndWait(dialog, buttonName, options = {}) {
 export async function requireMutations(test, page) {
   test.skip(!ENV.allowMutations, 'PW_ALLOW_MUTATIONS no está habilitado.');
   assertSafeMutationConfiguration();
+  await assertExpectedTenant(page);
 
   // Por defecto los E2E modifican datos reales de Balto, pero NO crean jobs ni
   // cambios remotos en Tienda Nube. El backend ya reconoce este parámetro en
