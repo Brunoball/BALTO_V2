@@ -2668,6 +2668,7 @@ export default function ModalNuevoIngreso({
                               onClick={() => inputFileRef.current?.click()}
                               disabled={saving}
                             >
+                              <FontAwesomeIcon icon={faUpload} />{" "}
                               {archivoAdjunto ? "Reemplazar archivo" : "Seleccionar archivo"}
                             </button>
                           </div>

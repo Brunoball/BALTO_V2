@@ -8,6 +8,7 @@ import {
   faEye,
   faTrashCan,
   faPlus,
+  faUpload,
   faMoneyCheckDollar,
 } from "@fortawesome/free-solid-svg-icons";
 import BASE_URL from "../../../../config/config.jsx";
@@ -1875,6 +1876,7 @@ export default function ModalEditarIngreso({
                                     onClick={() => inputFileRef.current?.click()}
                                     disabled={saving}
                                   >
+                                    <FontAwesomeIcon icon={faUpload} />{" "}
                                     {archivoNuevo || mostrarArchivoActual
                                       ? "Reemplazar archivo"
                                       : "Seleccionar archivo"}
