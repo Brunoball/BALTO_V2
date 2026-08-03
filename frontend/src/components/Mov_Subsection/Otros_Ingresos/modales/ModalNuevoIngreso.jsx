@@ -4,10 +4,13 @@ import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faFileInvoiceDollar, faEye, faTrash, faUpload, faMoneyCheckDollar, faCheck } from "@fortawesome/free-solid-svg-icons";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
+import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
 import BASE_URL from "../../../../config/config";
 import ModalNuevoCheque from "../../../Global/Modales/ModalNuevoCheque.jsx";
+import ModalClienteFiscalArca from "../../../Global/Modales/ModalClienteFiscalArca.jsx";
 import ModalNuevaDescripcion from "./ModalNuevaDescripcion.jsx";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
+import ModalFacturaBaltoResumen from "../../Facturacion/ModalFacturaBaltoResumen.jsx";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
@@ -16,6 +19,7 @@ import "./ModalIngreso.css";
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const NULL_OPTION = "";
 const NOMBRE_COMPROBANTE_GENERICO = "Comprobante adjunto";
+const ADD_CLIENTE_OPTION = { __action: "add_cliente", id: "__add_cliente__", nombre: "➕ Agregar cliente" };
 const IVA_OPTIONS = [
   { label: "0 %", value: 0 },
   { label: "10,5 %", value: 10.5 },
@@ -34,6 +38,15 @@ function safeNumber(v) {
 }
 function safeStr(v) {
   return String(v ?? "").trim();
+}
+function onlyDigits(v) {
+  return String(v ?? "").replace(/\D/g, "");
+}
+function plusDaysISOFrom(base, days) {
+  const raw = safeStr(base).slice(0, 10);
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T12:00:00`) : new Date();
+  d.setDate(d.getDate() + Number(days || 0));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 function uid() {
   return window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -110,6 +123,150 @@ function getDetalleId(d) {
   const n = Number(c);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
+function getClienteId(c) {
+  const cand = c?.id ?? c?.id_cliente ?? c?.idCliente ?? c?.cliente_id ?? c?.idcliente ?? null;
+  const n = Number(cand);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+function isAddClienteOption(option) {
+  return option?.__action === "add_cliente";
+}
+function normalizeClienteSimple(data) {
+  const s = data && typeof data === "object" ? data : {};
+  const id = getClienteId(s) || null;
+  return {
+    id_cliente: id,
+    id,
+    nombre: safeStr(s.nombre || s.razon_social || s.label || ""),
+    activo: Number(s.activo ?? 1) === 0 ? 0 : 1,
+  };
+}
+function resolveClienteByInput(clientes, inputValue) {
+  const q = normalizeText(inputValue);
+  if (!q) return null;
+  const matches = (Array.isArray(clientes) ? clientes : [])
+    .map((cliente) => ({ cliente, id: getClienteId(cliente), nombre: normalizeText(cliente?.nombre) }))
+    .filter((item) => item.id && item.nombre);
+  const exact = matches.find((item) => item.nombre === q);
+  if (exact) return exact.cliente;
+  const starts = matches.filter((item) => item.nombre.startsWith(q));
+  if (starts.length === 1) return starts[0].cliente;
+  const contains = matches.filter((item) => item.nombre.includes(q));
+  return contains.length === 1 ? contains[0].cliente : null;
+}
+function normalizeArcaSummary(summary) {
+  const s = summary && typeof summary === "object" ? summary : {};
+  return {
+    cuit: safeStr(s.cuit),
+    razon_social: safeStr(s.razon_social),
+    condicion_iva: safeStr(s.iva || s.condicion_iva || s.cond_iva),
+    domicilio: safeStr(s.domicilio),
+    doc_tipo: 80,
+    doc_nro: safeStr(s.cuit),
+    origen: "arca_cuit",
+  };
+}
+function normalizeClienteFiscalDb(data) {
+  const s = data && typeof data === "object" ? data : {};
+  return {
+    id_cliente_fiscal: Number(s.id_cliente_fiscal || 0) || null,
+    id_cliente: Number(s.id_cliente || 0) || null,
+    doc_tipo: Number(s.doc_tipo || 80) || 80,
+    doc_nro: safeStr(s.doc_nro || s.cuit),
+    cuit: safeStr(s.cuit || s.doc_nro),
+    razon_social: safeStr(s.razon_social),
+    condicion_iva: safeStr(s.condicion_iva || s.cond_iva),
+    domicilio: safeStr(s.domicilio),
+    origen: safeStr(s.origen || "manual"),
+  };
+}
+function normalizeConfigFacturacionPdf(config) {
+  const c = config && typeof config === "object" ? config : {};
+  const razonSocial = safeStr(c.razon_social || c.nombre_fantasia || c.nombre || "BALTO");
+  const domicilio = safeStr(c.domicilio_comercial || c.domicilio || c.domicilio_fiscal);
+  const condicionIva = safeStr(c.condicion_iva || c.cond_iva);
+  const inicioActividades = safeStr(c.fecha_inicio_actividades || c.inicio_actividades);
+  return {
+    emisor_nombre: razonSocial,
+    emisor_domicilio: domicilio,
+    cuit_emisor: safeStr(c.cuit),
+    cond_iva_emisor: condicionIva,
+    ingresos_brutos_emisor: safeStr(c.ingresos_brutos),
+    fecha_inicio_actividades_emisor: inicioActividades,
+    logo_url: safeStr(c.logo_url),
+    emisor: {
+      ...c,
+      razon_social: razonSocial,
+      domicilio_comercial: domicilio,
+      domicilio,
+      condicion_iva: condicionIva,
+      cond_iva: condicionIva,
+      fecha_inicio_actividades: inicioActividades,
+      inicio_actividades: inicioActividades,
+    },
+  };
+}
+function configFacturacionKey(config) {
+  const c = config && typeof config === "object" ? config : {};
+  const id = Number(c.id_config_facturacion || c.idConfigFacturacion || 0) || 0;
+  const cuit = onlyDigits(c.cuit || c.cuit_emisor);
+  return id > 0 ? `id:${id}` : cuit ? `cuit:${cuit}` : JSON.stringify(c);
+}
+function extractConfigsFacturacionResponse(data) {
+  for (const value of [
+    data?.configs,
+    data?.data?.configs,
+    data?.cuentas_fiscales,
+    data?.data?.cuentas_fiscales,
+    data?.cuentas,
+    data?.data?.cuentas,
+    data?.configuraciones,
+    data?.data?.configuraciones,
+  ]) {
+    if (Array.isArray(value)) return value;
+  }
+  return [];
+}
+function mergeConfigsFacturacionList(...lists) {
+  const out = [];
+  const seen = new Set();
+  lists.flat().forEach((config) => {
+    if (!config || typeof config !== "object" || Number(config.activo ?? 1) === 0) return;
+    const key = configFacturacionKey(config);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(config);
+  });
+  return out;
+}
+function getStockProductoId(d) {
+  const c = d?.id_stock_producto ?? d?.idStockProducto ?? d?.stock_producto_id ?? d?.id_producto ?? d?.idProducto ?? null;
+  const n = Number(c);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+function getStockVarianteId(d) {
+  const c = d?.id_stock_variante ?? d?.idStockVariante ?? d?.stock_variante_id ?? d?.id_variante ?? d?.idVariante ?? null;
+  const n = Number(c);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+function getStockDisponible(d) {
+  const c = d?.stock ?? d?.stock_disponible ?? d?.stockDisponible ?? d?.cantidad_stock ?? null;
+  if (c === null || c === undefined || c === "") return null;
+  const n = Number(c);
+  return Number.isFinite(n) ? n : null;
+}
+function getProductoNombre(d) {
+  return safeStr(d?.nombre ?? d?.producto_nombre ?? d?.stock_producto_nombre ?? d?.descripcion ?? d?.label ?? "");
+}
+function getPrecioVenta(d) {
+  const precios = Array.isArray(d?.precios) ? d.precios : [];
+  const venta = precios.find((p) => {
+    const nombre = normalizeText(p?.tipo_precio ?? p?.nombre ?? "");
+    return nombre === "precio de venta" || nombre === "precio venta" || nombre === "venta";
+  }) || precios.find((p) => Number(p?.id_tipo_precio_stock || 0) === 2) || precios[0];
+  const n = Number(venta?.monto ?? venta?.precio ?? d?.precio_venta ?? d?.precio ?? d?.precio_promocional ?? 0);
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
 function getMedioPagoId(c) {
   const cand = c?.id ?? c?.id_medio_pago ?? c?.idMedioPago ?? c?.medio_pago_id ?? null;
   const n = Number(cand);
@@ -136,6 +293,61 @@ function getSavedMovimientoIdFromResponse(data, init = null) {
   }
   return null;
 }
+
+function buildIngresoFacturaDraft(payload, operationKey, context = {}) {
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const itemsFacturacion = items.map((item, index) => ({
+    codigo: String(
+      item?.id_stock_variante ||
+        item?.id_stock_producto ||
+        item?.id_detalle ||
+        index + 1
+    ),
+    descripcion: safeStr(item?.descripcion ?? item?.detalle ?? item?.concepto),
+    cantidad: safeNumber(item?.cantidad),
+    precio: safeNumber(item?.precio),
+    precio_unitario: safeNumber(item?.precio),
+    iva_pct: safeNumber(item?.iva_pct),
+    subtotal: safeNumber(item?.subtotal),
+    iva_monto: safeNumber(item?.iva_monto),
+    total: safeNumber(item?.total),
+  }));
+  const total = safeNumber(payload?.monto_total ?? payload?.total);
+  const cliente = normalizeClienteSimple(context?.cliente || {});
+  const clienteFiscal = normalizeClienteFiscalDb(context?.clienteFiscal || {});
+  const configFacturacion = context?.configFacturacion || {};
+  const emisorPdf = normalizeConfigFacturacionPdf(configFacturacion);
+  const puntoVenta = Number(onlyDigits(configFacturacion?.punto_venta || "2")) || 2;
+  const codigoComprobante = Number(onlyDigits(configFacturacion?.codigo_comprobante || "11")) || 11;
+
+  return {
+    id_movimiento: null,
+    operacion_key: operationKey,
+    operacion_contexto: "OTRO_INGRESO_FACTURA",
+    operacion_id_origen: null,
+    id_cliente: cliente.id_cliente || null,
+    labelCliente: cliente.nombre || clienteFiscal.razon_social || "Cliente",
+    labelSistema: "Nuevo otro ingreso",
+    fecha_cbte_iso: safeStr(payload?.fecha).slice(0, 10) || todayISO(),
+    vto_pago_iso: plusDaysISOFrom(payload?.fecha, 10),
+    cbte_tipo: codigoComprobante,
+    pto_vta: puntoVenta,
+    cliente_facturacion: {
+      ...clienteFiscal,
+      cond_iva: clienteFiscal.condicion_iva,
+    },
+    config_facturacion: configFacturacion,
+    ...emisorPdf,
+    items_facturacion: itemsFacturacion,
+    total_ars: total,
+    monto: total,
+    importe: total,
+    observaciones: `Comprobante correspondiente a otro ingreso: ${safeStr(
+      payload?.detalle ?? payload?.descripcion
+    )}`,
+    emisor: emisorPdf.emisor,
+  };
+}
 function getAuthInfo() {
   const sessionKey =
     localStorage.getItem("session_key") || localStorage.getItem("sessionKey") ||
@@ -148,6 +360,42 @@ function getAuthInfo() {
     if (Number.isFinite(Number(c))) idUsuario = Number(c);
   } catch {}
   return { sessionKey, token, idUsuario, idUsuarioMaster: idUsuario };
+}
+
+function nuevoIngresoArcaStorageKey() {
+  const { idUsuario } = getAuthInfo();
+  return `balto:arca:nuevo-otro-ingreso:${Number(idUsuario || 0)}`;
+}
+
+function makeNuevoIngresoArcaOperationKey() {
+  const { idUsuario } = getAuthInfo();
+  const randomPart =
+    window.crypto?.randomUUID?.() ||
+    `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `factura-otro-ingreso-${Number(idUsuario || 0)}-${randomPart}`.slice(0, 100);
+}
+
+function getOrCreateNuevoIngresoArcaKey() {
+  try {
+    const storageKey = nuevoIngresoArcaStorageKey();
+    const existing = safeStr(localStorage.getItem(storageKey));
+    if (existing) return existing;
+    const created = makeNuevoIngresoArcaOperationKey();
+    localStorage.setItem(storageKey, created);
+    return created;
+  } catch {
+    return makeNuevoIngresoArcaOperationKey();
+  }
+}
+
+function clearNuevoIngresoArcaKey(expectedKey = "") {
+  try {
+    const storageKey = nuevoIngresoArcaStorageKey();
+    const current = safeStr(localStorage.getItem(storageKey));
+    const expected = safeStr(expectedKey);
+    if (expected && current && current !== expected) return;
+    localStorage.removeItem(storageKey);
+  } catch {}
 }
 function buildAuthHeaders(isJson = true) {
   const { sessionKey, token } = getAuthInfo();
@@ -174,6 +422,19 @@ async function apiPostForm(url, fd) {
     method: "POST",
     headers: buildAuthHeaders(false),
     body: fd,
+  }));
+}
+async function apiGetJson(url) {
+  return await parseJsonOrThrow(await fetch(url, {
+    method: "GET",
+    headers: buildAuthHeaders(false),
+  }));
+}
+async function apiPostJson(url, payload) {
+  return await parseJsonOrThrow(await fetch(url, {
+    method: "POST",
+    headers: buildAuthHeaders(true),
+    body: JSON.stringify(payload ?? {}),
   }));
 }
 
@@ -207,7 +468,12 @@ function normalizeLists(lists) {
     "detallesIngreso",
   ]);
 
-  return { medios_pago, detalles };
+  const productos =
+    pick("detalles").length ? pick("detalles") :
+    pick("stock_productos").length ? pick("stock_productos") :
+    pick("productos_stock").length ? pick("productos_stock") : [];
+
+  return { clientes: pick("clientes"), medios_pago, detalles, productos };
 }
 
 // ─── Detección de cheque desde medio de pago ───────────────────────────────────
@@ -220,10 +486,13 @@ function detectChequeTipo(nombre) {
 }
 
 // ─── Builders de filas vacías ──────────────────────────────────────────────────
-function buildEmptyRow() {
+function buildEmptyRow(tipoItem = "servicio") {
   return {
     id: uid(),
+    tipo_item: tipoItem,
     id_detalle: NULL_OPTION,
+    id_stock_producto: NULL_OPTION,
+    id_stock_variante: NULL_OPTION,
     detalle: "",
     cantidad: 1,
     precio: 0,
@@ -233,6 +502,72 @@ function buildEmptyRow() {
     stock_disponible: null,
     sinStock: false,
   };
+}
+
+function buildRowsFromInitialData(data) {
+  const src = data && typeof data === "object" ? data : {};
+  const rawItems =
+    (Array.isArray(src.items_detalle) && src.items_detalle.length && src.items_detalle) ||
+    (Array.isArray(src.items) && src.items.length && src.items) ||
+    (Array.isArray(src.detalles) && src.detalles.length && src.detalles) ||
+    [];
+
+  const source = rawItems.length ? rawItems : [src];
+  const rows = source.map((it) => {
+    const idStockProducto = getStockProductoId(it);
+    const idStockVariante = getStockVarianteId(it);
+    const esProducto = Boolean(idStockProducto || idStockVariante);
+    const cantidad = Number(it?.cantidad ?? 1) || 1;
+    const precio = Number(it?.precio ?? it?.importe ?? 0) || 0;
+    const ivaPct = Number(it?.iva_pct ?? it?.ivaPct ?? 0) || 0;
+    const producto = safeStr(it?.stock_producto_nombre ?? it?.producto_nombre ?? "");
+    const variante = safeStr(it?.stock_variante_nombre ?? it?.variante_nombre ?? "");
+    const descripcion = safeStr(
+      it?.descripcion ?? it?.detalle ?? it?.concepto ?? it?.detalle_nombre ??
+      [producto, variante].filter(Boolean).join(" - ")
+    );
+    return {
+      ...buildEmptyRow(esProducto ? "producto" : "servicio"),
+      id_detalle: Number(it?.id_detalle || 0) > 0 ? String(Number(it.id_detalle)) : NULL_OPTION,
+      id_stock_producto: idStockProducto ? String(idStockProducto) : NULL_OPTION,
+      id_stock_variante: idStockVariante ? String(idStockVariante) : NULL_OPTION,
+      detalle: descripcion || [producto, variante].filter(Boolean).join(" - "),
+      cantidad,
+      precio,
+      ivaPct,
+      stock_disponible: getStockDisponible(it),
+      sinStock: false,
+    };
+  }).filter((r) => safeStr(r.detalle) || Number(r.id_detalle) > 0 || Number(r.id_stock_producto) > 0 || r.precio > 0);
+
+  return rows.length ? rows : [buildEmptyRow("servicio")];
+}
+
+function buildMediosFromInitialData(data) {
+  const src = data && typeof data === "object" ? data : {};
+  const medios = Array.isArray(src.medios_pago_detalle) ? src.medios_pago_detalle : [];
+  if (!medios.length) {
+    const idMedio = Number(src?.id_medio_pago || 0);
+    if (!idMedio) return [buildEmptyMedioPago()];
+    return [{ ...buildEmptyMedioPago(), id_medio_pago: String(idMedio), monto: Number(src?.monto_total ?? src?.total ?? 0) || 0 }];
+  }
+  return medios.map((mp) => ({
+    ...buildEmptyMedioPago(),
+    id_medio_pago: Number(mp?.id_medio_pago || 0) > 0 ? String(Number(mp.id_medio_pago)) : NULL_OPTION,
+    monto: Number(mp?.monto ?? mp?.cheque_importe ?? 0) || 0,
+    id_movimiento_medio_pago: Number(mp?.id_movimiento_medio_pago || 0) || null,
+    id_cheque: Number(mp?.id_cheque || 0) || null,
+    cheque: Number(mp?.id_cheque || 0) > 0 ? {
+      id_cheque: Number(mp.id_cheque),
+      tipo: safeStr(mp?.cheque_tipo || detectChequeTipo(mp?.medio_pago_nombre) || "cheque"),
+      tipo_cheque: safeStr(mp?.cheque_tipo || detectChequeTipo(mp?.medio_pago_nombre) || "cheque"),
+      emisor: safeStr(mp?.emisor),
+      numero_cheque: safeStr(mp?.numero_cheque),
+      fecha_emision: safeStr(mp?.fecha_emision),
+      fecha_pago: safeStr(mp?.fecha_pago),
+      importe: Number(mp?.cheque_importe ?? mp?.monto ?? 0) || 0,
+    } : null,
+  }));
 }
 function buildEmptyMedioPago() {
   return {
@@ -654,9 +989,14 @@ export default function ModalNuevoIngreso({
   onSaved,
 }) {
   const API_UPLOAD = `${BASE_URL}/api.php?action=otros_ingresos_comprobantes_vincular_movimiento_upload`;
+  const API_VINCULAR_FACTURA = `${BASE_URL}/api.php?action=otros_ingresos_comprobantes_vincular_movimiento`;
   const API_CHEQUES_ACTUALIZAR = `${BASE_URL}/api.php?action=mov_global_cheques_actualizar`;
   const API_DETALLES_CREAR = `${BASE_URL}/api.php?action=otros_ingresos_detalles_crear`;
   const API_CHECK_NUMERO = `${BASE_URL}/api.php?action=mov_global_cheques_obtener&modo=verificar_numero`;
+  const API_GET_CLIENTE_FISCAL = `${BASE_URL}/api.php?action=cliente_fiscal_get`;
+  const API_SAVE_CLIENTE_DESDE_ARCA = `${BASE_URL}/api.php?action=cliente_fiscal_crear_desde_arca`;
+  const API_PADRON_CUIT = `${BASE_URL}/api.php?action=padron_cuit&op=padron_cuit`;
+  const API_CONFIG_FACTURACION = `${BASE_URL}/api.php?action=config_facturacion_get`;
 
   const showToast = useCallback(
     (tipo, mensaje) => onToast?.(tipo, mensaje),
@@ -665,6 +1005,7 @@ export default function ModalNuevoIngreso({
 
   const [dark, setDark] = useState(isTemaOscuro);
   const [saving, setSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState(null);
   const [fecha, setFecha] = useState(todayISO);
   const [rows, setRows] = useState(() => [buildEmptyRow()]);
   const [mediosFilas, setMediosFilas] = useState(() => [buildEmptyMedioPago()]);
@@ -673,6 +1014,24 @@ export default function ModalNuevoIngreso({
   const [viewerData, setViewerData] = useState({ url: "", mime: "", title: NOMBRE_COMPROBANTE_GENERICO });
   const [openNuevaDescripcionModal, setOpenNuevaDescripcionModal] = useState(false);
   const [currentRowIdForNewDesc, setCurrentRowIdForNewDesc] = useState(null);
+  const [openFactura, setOpenFactura] = useState(false);
+  const [facturaDraft, setFacturaDraft] = useState(null);
+  const [cliInput, setCliInput] = useState("");
+  const [selectedClienteId, setSelectedClienteId] = useState(null);
+  const [clienteFiscalDb, setClienteFiscalDb] = useState(null);
+  const [fiscalPanelOpen, setFiscalPanelOpen] = useState(false);
+  const [fiscalCuitInput, setFiscalCuitInput] = useState("");
+  const [fiscalArcaData, setFiscalArcaData] = useState(null);
+  const [fiscalError, setFiscalError] = useState("");
+  const [fiscalLoading, setFiscalLoading] = useState(false);
+  const [fiscalLookupLoading, setFiscalLookupLoading] = useState(false);
+  const [addClienteOpen, setAddClienteOpen] = useState(false);
+  const [addClienteCuit, setAddClienteCuit] = useState("");
+  const [addClienteFiscalData, setAddClienteFiscalData] = useState(null);
+  const [addClienteError, setAddClienteError] = useState("");
+  const [addClienteLoading, setAddClienteLoading] = useState(false);
+  const [configFacturacion, setConfigFacturacion] = useState(null);
+  const [configsFacturacion, setConfigsFacturacion] = useState([]);
 
   const rowsContainerRef = useRef(null);
   const [hasScroll, setHasScroll] = useState(false);
@@ -680,8 +1039,11 @@ export default function ModalNuevoIngreso({
   const prevOpenRef = useRef(false);
   const inputFileRef = useRef(null);
   const fechaRef = useRef(null);
+  const facturaOperationKeyRef = useRef("");
+  const facturaPendingSaveRef = useRef(null);
 
-  const localLists = useMemo(() => normalizeLists(lists), [lists]);
+  const [localLists, setLocalLists] = useState(() => normalizeLists(lists));
+  useEffect(() => setLocalLists(normalizeLists(lists)), [lists]);
   const mediosPagoList = useMemo(
     () => filtrarMediosPagoPorPlan(Array.isArray(localLists.medios_pago) ? localLists.medios_pago : []),
     [localLists.medios_pago]
@@ -690,6 +1052,30 @@ export default function ModalNuevoIngreso({
     () => (Array.isArray(localLists.detalles) ? localLists.detalles : []),
     [localLists.detalles]
   );
+  const productosList = useMemo(
+    () => (Array.isArray(localLists.productos) ? localLists.productos : []),
+    [localLists.productos]
+  );
+  const clientesList = useMemo(
+    () => (Array.isArray(localLists.clientes) ? localLists.clientes : []),
+    [localLists.clientes]
+  );
+  const clientesOptions = useMemo(() => [ADD_CLIENTE_OPTION, ...clientesList], [clientesList]);
+  const selectedCliente = useMemo(
+    () =>
+      clientesList.find((cliente) => Number(getClienteId(cliente)) === Number(selectedClienteId)) ||
+      resolveClienteByInput(clientesList, cliInput),
+    [clientesList, selectedClienteId, cliInput]
+  );
+  const selectedClienteNombre = useMemo(
+    () => safeStr(selectedCliente?.nombre || cliInput),
+    [selectedCliente, cliInput]
+  );
+  useEffect(() => {
+    if (Number(selectedClienteId) > 0) return;
+    const resolvedId = getClienteId(selectedCliente);
+    if (resolvedId) setSelectedClienteId(resolvedId);
+  }, [selectedClienteId, selectedCliente]);
   const enhancedDetallesList = useMemo(
     () => [
       { id: "new_option", __isNewOption: true, nombre: "+ Agregar nueva descripción" },
@@ -728,7 +1114,7 @@ export default function ModalNuevoIngreso({
         return;
       }
 
-      if (openViewer || openNuevaDescripcionModal) return;
+      if (openViewer || openNuevaDescripcionModal || openFactura || fiscalPanelOpen || addClienteOpen) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -738,7 +1124,7 @@ export default function ModalNuevoIngreso({
     };
     document.addEventListener("keydown", h, true);
     return () => document.removeEventListener("keydown", h, true);
-  }, [open, onClose, saving, openViewer, openNuevaDescripcionModal]);
+  }, [open, onClose, saving, openViewer, openNuevaDescripcionModal, openFactura, fiscalPanelOpen, addClienteOpen]);
 
   // Reset al abrir
   useEffect(() => {
@@ -747,15 +1133,42 @@ export default function ModalNuevoIngreso({
     if (!open) return;
     if (!wasOpen && open) {
       setFecha(safeStr(initialData?.fecha).slice(0, 10) || todayISO());
-      setRows([buildEmptyRow()]);
-      setMediosFilas([buildEmptyMedioPago()]);
+      const initialRows = mode === "edit" ? buildRowsFromInitialData(initialData) : [buildEmptyRow()];
+      setRows(initialRows);
+      setMediosFilas(mode === "edit" ? buildMediosFromInitialData(initialData) : [buildEmptyMedioPago()]);
       setArchivoAdjunto(null);
       setOpenViewer(false);
       setViewerData({ url: "", mime: "", title: NOMBRE_COMPROBANTE_GENERICO });
       setSaving(false);
+      setSavingAction(null);
+      setOpenFactura(false);
+      setFacturaDraft(null);
+      const initialClienteId = Number(initialData?.id_cliente || 0) || null;
+      const initialCliente = normalizeClienteSimple({
+        id_cliente: initialClienteId,
+        nombre: initialData?.cliente || initialData?.cliente_nombre || "",
+      });
+      setSelectedClienteId(initialCliente.id_cliente);
+      setCliInput(initialCliente.nombre);
+      setClienteFiscalDb(null);
+      setFiscalPanelOpen(false);
+      setFiscalCuitInput("");
+      setFiscalArcaData(null);
+      setFiscalError("");
+      setFiscalLoading(false);
+      setFiscalLookupLoading(false);
+      setAddClienteOpen(false);
+      setAddClienteCuit("");
+      setAddClienteFiscalData(null);
+      setAddClienteError("");
+      setAddClienteLoading(false);
+      setConfigFacturacion(null);
+      setConfigsFacturacion([]);
+      facturaPendingSaveRef.current = null;
+      facturaOperationKeyRef.current = getOrCreateNuevoIngresoArcaKey();
       setTimeout(() => closeBtnRef.current?.focus(), 0);
     }
-  }, [open, initialData]);
+  }, [open, initialData, mode]);
 
   // Scroll detection
   useEffect(() => {
@@ -769,19 +1182,221 @@ export default function ModalNuevoIngreso({
     return () => { ro.disconnect(); window.removeEventListener("resize", check); };
   }, [open, rows]);
 
+  // ─── Cliente y datos fiscales (mismo circuito de Nueva Venta) ───────────────
+  const registrarClienteLocal = useCallback((clienteRaw, fiscalRaw = null) => {
+    const cliente = normalizeClienteSimple(clienteRaw);
+    if (!cliente.id_cliente) return cliente;
+
+    setLocalLists((prev) => {
+      const clientes = Array.isArray(prev.clientes) ? [...prev.clientes] : [];
+      const index = clientes.findIndex((item) => Number(getClienteId(item)) === Number(cliente.id_cliente));
+      const next = { id: cliente.id_cliente, id_cliente: cliente.id_cliente, nombre: cliente.nombre, activo: cliente.activo };
+      if (index >= 0) clientes[index] = { ...clientes[index], ...next };
+      else clientes.push(next);
+      return { ...prev, clientes };
+    });
+
+    setSelectedClienteId(cliente.id_cliente);
+    setCliInput(cliente.nombre);
+    if (fiscalRaw) {
+      const fiscal = normalizeClienteFiscalDb(fiscalRaw);
+      setClienteFiscalDb(fiscal);
+      setFiscalArcaData(fiscal);
+      setFiscalCuitInput(fiscal.cuit || fiscal.doc_nro);
+    }
+    return cliente;
+  }, []);
+
+  const handleClienteInputChange = useCallback((value) => {
+    setCliInput(value);
+    setSelectedClienteId(null);
+    setClienteFiscalDb(null);
+    setFiscalArcaData(null);
+    setFiscalCuitInput("");
+    setFiscalError("");
+  }, []);
+
+  const handleSelectCliente = useCallback((cliente) => {
+    if (isAddClienteOption(cliente)) {
+      setAddClienteOpen(true);
+      setAddClienteCuit("");
+      setAddClienteFiscalData(null);
+      setAddClienteError("");
+      return;
+    }
+    const normalizado = normalizeClienteSimple(cliente);
+    setSelectedClienteId(normalizado.id_cliente);
+    setCliInput(normalizado.nombre);
+    setClienteFiscalDb(null);
+    setFiscalArcaData(null);
+    setFiscalCuitInput("");
+    setFiscalError("");
+  }, []);
+
+  const consultarCuitArca = useCallback(async (cuitRaw) => {
+    const cuit = onlyDigits(cuitRaw);
+    if (cuit.length !== 11) throw new Error("Ingresá un CUIT válido de 11 dígitos.");
+    const data = await apiGetJson(`${API_PADRON_CUIT}&cuit=${cuit}`);
+    const summary = data?.data?.summary ?? data?.summary ?? null;
+    if (!summary) throw new Error("ARCA no devolvió datos para ese CUIT.");
+    const fiscal = normalizeArcaSummary(summary);
+    if (!fiscal.cuit || !fiscal.razon_social) throw new Error("ARCA devolvió datos incompletos.");
+    return fiscal;
+  }, [API_PADRON_CUIT]);
+
+  const fetchClienteFiscal = useCallback(async (idCliente) => {
+    const id = Number(idCliente);
+    if (!(id > 0)) return null;
+    setFiscalLoading(true);
+    setFiscalError("");
+    try {
+      const data = await apiGetJson(`${API_GET_CLIENTE_FISCAL}&id_cliente=${id}`);
+      if (data?.existe && data?.cliente_fiscal) {
+        const fiscal = normalizeClienteFiscalDb(data.cliente_fiscal);
+        setClienteFiscalDb(fiscal);
+        setFiscalCuitInput(fiscal.cuit || fiscal.doc_nro);
+        return fiscal;
+      }
+      setClienteFiscalDb(null);
+      return null;
+    } catch (error) {
+      setFiscalError(error?.message || "No se pudieron consultar los datos fiscales del cliente.");
+      return null;
+    } finally {
+      setFiscalLoading(false);
+    }
+  }, [API_GET_CLIENTE_FISCAL]);
+
+  const fetchConfigFacturacion = useCallback(async () => {
+    const data = await apiGetJson(API_CONFIG_FACTURACION);
+    const configDefault = data?.config || data?.data?.config || data?.data || data || null;
+    const cuentas = mergeConfigsFacturacionList(
+      extractConfigsFacturacionResponse(data),
+      configDefault ? [configDefault] : [],
+      configFacturacion ? [configFacturacion] : []
+    );
+    const config = configDefault || cuentas[0] || null;
+    if (!config) throw new Error("No se pudo obtener la configuración de facturación.");
+    const configCompleta = { ...config, _configs_facturacion: cuentas.length ? cuentas : [config] };
+    setConfigFacturacion(configCompleta);
+    setConfigsFacturacion(cuentas.length ? cuentas : [config]);
+    return configCompleta;
+  }, [API_CONFIG_FACTURACION, configFacturacion]);
+
+  const guardarClienteFiscalDesdeArca = useCallback(async (fiscalSource, idCliente = null) => {
+    const fiscal = normalizeClienteFiscalDb(fiscalSource || {});
+    if (!fiscal.cuit || !fiscal.razon_social) throw new Error("Primero consultá un CUIT válido en ARCA.");
+    const { idUsuario } = getAuthInfo();
+    const saved = await apiPostJson(API_SAVE_CLIENTE_DESDE_ARCA, {
+      idUsuario,
+      id_cliente: Number(idCliente || 0) || null,
+      doc_tipo: Number(fiscal.doc_tipo || 80),
+      doc_nro: fiscal.doc_nro || fiscal.cuit,
+      cuit: fiscal.cuit,
+      razon_social: fiscal.razon_social,
+      condicion_iva: fiscal.condicion_iva,
+      domicilio: fiscal.domicilio,
+      origen: fiscal.origen || "arca_cuit",
+      actualizar_nombre_cliente: 1,
+      activo: 1,
+    });
+    if (!saved?.exito || !saved?.cliente || !saved?.cliente_fiscal) {
+      throw new Error(saved?.mensaje || "No se pudo guardar el cliente fiscal.");
+    }
+    const fiscalGuardado = normalizeClienteFiscalDb(saved.cliente_fiscal);
+    const clienteGuardado = registrarClienteLocal(saved.cliente, fiscalGuardado);
+    return { cliente: clienteGuardado, cliente_fiscal: fiscalGuardado, ya_existia: !!saved?.ya_existia };
+  }, [API_SAVE_CLIENTE_DESDE_ARCA, registrarClienteLocal]);
+
+  const consultarFiscalPanel = useCallback(async () => {
+    setFiscalLookupLoading(true);
+    setFiscalError("");
+    setFiscalArcaData(null);
+    try {
+      const fiscal = await consultarCuitArca(fiscalCuitInput);
+      setFiscalArcaData(fiscal);
+      return fiscal;
+    } catch (error) {
+      setFiscalError(error?.message || "No se pudo consultar ARCA.");
+      return null;
+    } finally {
+      setFiscalLookupLoading(false);
+    }
+  }, [consultarCuitArca, fiscalCuitInput]);
+
+  const consultarNuevoCliente = useCallback(async () => {
+    setAddClienteLoading(true);
+    setAddClienteError("");
+    setAddClienteFiscalData(null);
+    try {
+      const fiscal = await consultarCuitArca(addClienteCuit);
+      setAddClienteFiscalData(fiscal);
+      return fiscal;
+    } catch (error) {
+      setAddClienteError(error?.message || "No se pudo consultar ARCA.");
+      return null;
+    } finally {
+      setAddClienteLoading(false);
+    }
+  }, [consultarCuitArca, addClienteCuit]);
+
+  const confirmarNuevoCliente = useCallback(async () => {
+    setAddClienteLoading(true);
+    setAddClienteError("");
+    try {
+      let fiscal = addClienteFiscalData;
+      if (!fiscal || onlyDigits(fiscal.cuit) !== onlyDigits(addClienteCuit)) {
+        fiscal = await consultarCuitArca(addClienteCuit);
+      }
+      const result = await guardarClienteFiscalDesdeArca(fiscal, null);
+      setAddClienteOpen(false);
+      setAddClienteCuit("");
+      setAddClienteFiscalData(null);
+      showToast("exito", result.ya_existia ? "El cliente ya existía y quedó seleccionado." : "Cliente fiscal creado y seleccionado.");
+    } catch (error) {
+      setAddClienteError(error?.message || "No se pudo crear el cliente.");
+    } finally {
+      setAddClienteLoading(false);
+    }
+  }, [addClienteFiscalData, addClienteCuit, consultarCuitArca, guardarClienteFiscalDesdeArca, showToast]);
+
   // ─── Handlers de filas de ítems ──────────────────────────────────────────────
   const updateRow = useCallback(
     (id, patch) => setRows((p) => p.map((r) => (r.id === id ? { ...r, ...patch } : r))),
     []
   );
-  const addRow = useCallback(() => setRows((p) => [...p, buildEmptyRow()]), []);
+  const addRow = useCallback(
+    (tipoItem = "servicio") =>
+      setRows((p) => [...p, buildEmptyRow(tipoItem === "producto" ? "producto" : "servicio")]),
+    []
+  );
   const removeRow = useCallback(
     (id) =>
       setRows((p) => {
         const n = p.filter((r) => r.id !== id);
-        return n.length ? n : [buildEmptyRow()];
+        return n.length ? n : [buildEmptyRow("servicio")];
       }),
     []
+  );
+
+  const handleTipoItemChange = useCallback(
+    (id, tipoItem) => {
+      const tipo = tipoItem === "producto" ? "producto" : "servicio";
+      updateRow(id, {
+        tipo_item: tipo,
+        id_detalle: NULL_OPTION,
+        id_stock_producto: NULL_OPTION,
+        id_stock_variante: NULL_OPTION,
+        detalle: "",
+        cantidad: 1,
+        precio: 0,
+        precioDraft: "",
+        precioFocused: false,
+        stock_disponible: null,
+        sinStock: false,
+      });
+    },
+    [updateRow]
   );
 
   // ─── Handlers de medios de pago ──────────────────────────────────────────────
@@ -822,7 +1437,10 @@ export default function ModalNuevoIngreso({
         if (data.exito && detalleCreado) {
           const precio = safeNumber(detalleCreado?.precio || 0);
           updateRow(currentRowIdForNewDesc, {
+            tipo_item: "servicio",
             id_detalle: String(detalleCreado.id_detalle || detalleCreado.id || ""),
+            id_stock_producto: NULL_OPTION,
+            id_stock_variante: NULL_OPTION,
             detalle: detalleCreado.nombre || nombreDescripcion,
             precio,
             stock_disponible: null,
@@ -849,7 +1467,10 @@ export default function ModalNuevoIngreso({
       }
       const precio = safeNumber(item?.precio || 0);
       updateRow(rowId, {
+        tipo_item: "servicio",
         id_detalle: String(getDetalleId(item) ?? ""),
+        id_stock_producto: NULL_OPTION,
+        id_stock_variante: NULL_OPTION,
         detalle: optionLabel(item),
         precio,
         stock_disponible: null,
@@ -860,12 +1481,44 @@ export default function ModalNuevoIngreso({
     [updateRow, showToast, handleCrearNuevaDescripcion]
   );
 
+  const handleSelectProducto = useCallback((producto, rowId) => {
+    // Las listas globales exponen el producto base como `id`; una selección de
+    // variante ya trae `id_stock_producto`. Se acepta el alias sólo dentro del
+    // selector de stock para no confundirlo con el id de un detalle/servicio.
+    const idStockProducto = getStockProductoId(producto) || (
+      Number(producto?.id || 0) > 0 ? Number(producto.id) : null
+    );
+    const idStockVariante = getStockVarianteId(producto);
+    const stockDisponible = getStockDisponible(producto);
+    const nombre = getProductoNombre(producto);
+    updateRow(rowId, {
+      tipo_item: "producto",
+      id_detalle: NULL_OPTION,
+      id_stock_producto: idStockProducto ? String(idStockProducto) : NULL_OPTION,
+      id_stock_variante: idStockVariante ? String(idStockVariante) : NULL_OPTION,
+      detalle: nombre,
+      precio: getPrecioVenta(producto),
+      stock_disponible: stockDisponible,
+      sinStock: stockDisponible !== null && stockDisponible <= 0,
+      cantidad: stockDisponible !== null && stockDisponible <= 0 ? "" : 1,
+    });
+  }, [updateRow]);
+
   const handleCantidadChange = useCallback(
     (rowId, newCantidad) => {
       const row = rows.find((r) => r.id === rowId);
       if (!row) return;
       let cantidadFinal = newCantidad === "" ? "" : Number(newCantidad);
       if (typeof cantidadFinal === "number" && cantidadFinal < 0) cantidadFinal = 0;
+      if (
+        row.tipo_item === "producto" &&
+        cantidadFinal !== "" &&
+        row.stock_disponible !== null &&
+        Number(cantidadFinal) > Number(row.stock_disponible)
+      ) {
+        showToast("advertencia", `Stock disponible: ${row.stock_disponible}.`);
+        cantidadFinal = Number(row.stock_disponible);
+      }
       updateRow(rowId, { cantidad: cantidadFinal });
     },
     [rows, updateRow, showToast]
@@ -964,6 +1617,9 @@ export default function ModalNuevoIngreso({
   // ─── Validación ──────────────────────────────────────────────────────────────
   const validate = useCallback(() => {
     if (!safeStr(fecha)) return { ok: false, msg: "Falta la fecha." };
+    if (!(Number(selectedClienteId) > 0)) {
+      return { ok: false, msg: "Falta seleccionar un Cliente (obligatorio)." };
+    }
     
     // ⭐ VALIDACIÓN DE FECHA FUTURA ⭐
     if (fecha > todayISO()) {
@@ -1015,12 +1671,24 @@ export default function ModalNuevoIngreso({
       const touched =
         safeStr(r.detalle) !== "" ||
         String(r.id_detalle || "").trim() !== "" ||
+        String(r.id_stock_producto || "").trim() !== "" ||
+        String(r.id_stock_variante || "").trim() !== "" ||
         safeNumber(r.cantidad) !== 0 ||
         safeNumber(r.precio) !== 0;
       if (!touched) return;
       const issues = [];
       if (!safeStr(r.detalle)) issues.push("falta la descripción");
+      if (r.tipo_item === "producto" && !(Number(r.id_stock_producto || 0) > 0)) {
+        issues.push("falta seleccionar un producto");
+      }
       if (!(safeNumber(r.cantidad) > 0)) issues.push("la cantidad debe ser > 0");
+      if (
+        r.tipo_item === "producto" &&
+        r.stock_disponible !== null &&
+        safeNumber(r.cantidad) > Number(r.stock_disponible) + 0.0001
+      ) {
+        issues.push(`la cantidad supera el stock disponible (${r.stock_disponible})`);
+      }
       if (!(safeNumber(r.precio) > 0)) issues.push("el importe debe ser > 0");
       if (!(safeNumber(r.total) > 0)) issues.push("el total queda en 0");
       if (issues.length) problems.push(`Fila ${i + 1}: ${issues.join(", ")}.`);
@@ -1028,7 +1696,7 @@ export default function ModalNuevoIngreso({
     const usable = rowsCalc.filter(
       (r) =>
         safeStr(r.detalle) !== "" &&
-        Number(r.id_detalle || 0) > 0 &&
+        (r.tipo_item !== "producto" || Number(r.id_stock_producto || 0) > 0) &&
         safeNumber(r.cantidad) > 0 &&
         safeNumber(r.precio) > 0 &&
         safeNumber(r.total) > 0
@@ -1038,7 +1706,7 @@ export default function ModalNuevoIngreso({
         ok: false,
         msg: problems.length
           ? `No hay filas válidas. ${problems.slice(0, 2).join(" ")}${problems.length > 2 ? ` (y ${problems.length - 2} más)` : ""}`
-          : "Cargá al menos 1 fila válida (Descripción + Cantidad + Importe).",
+          : "Cargá al menos 1 fila válida (detalle o producto + cantidad + importe).",
       };
     if (problems.length) {
       return {
@@ -1047,14 +1715,14 @@ export default function ModalNuevoIngreso({
       };
     }
     return { ok: true, usable };
-  }, [fecha, mediosFilas, mediosPagoList, sumaMediosPago, resumen.total, rowsCalc]);
+  }, [fecha, selectedClienteId, mediosFilas, mediosPagoList, sumaMediosPago, resumen.total, rowsCalc]);
 
   // ─── Build payload ────────────────────────────────────────────────────────────
   const buildPayload = useCallback(() => {
     const usableRows = rowsCalc.filter(
       (r) =>
         safeStr(r.detalle) !== "" &&
-        Number(r.id_detalle || 0) > 0 &&
+        (r.tipo_item !== "producto" || Number(r.id_stock_producto || 0) > 0) &&
         safeNumber(r.cantidad) > 0 &&
         safeNumber(r.precio) > 0 &&
         safeNumber(r.total) > 0
@@ -1094,6 +1762,8 @@ export default function ModalNuevoIngreso({
       });
     return {
       fecha: safeStr(fecha).slice(0, 10),
+      id_cliente: Number(selectedClienteId) || null,
+      cliente_nombre: selectedClienteNombre || null,
       id_medio_pago: mediosPayload[0]?.id_medio_pago || null,
       medio_pago_nombre: optionLabel(
         mediosPagoList.find(
@@ -1114,7 +1784,11 @@ export default function ModalNuevoIngreso({
       total_general: safeNumber(totalFinal),
       items: usableRows.map((x, idx) => ({
         orden: idx + 1,
-        id_detalle: Number(x.id_detalle || 0) || null,
+        tipo_item: x.tipo_item === "producto" ? "producto" : "servicio",
+        mueve_stock: x.tipo_item === "producto" ? 1 : 0,
+        id_detalle: x.tipo_item === "producto" ? null : (Number(x.id_detalle || 0) || null),
+        id_stock_producto: x.tipo_item === "producto" ? (Number(x.id_stock_producto || 0) || null) : null,
+        id_stock_variante: x.tipo_item === "producto" ? (Number(x.id_stock_variante || 0) || null) : null,
         detalle: safeStr(x.detalle),
         descripcion: safeStr(x.detalle),
         concepto: safeStr(x.detalle),
@@ -1126,7 +1800,102 @@ export default function ModalNuevoIngreso({
         total: safeNumber(x.total),
       })),
     };
-  }, [rowsCalc, fecha, mediosFilas, mediosPagoList]);
+  }, [rowsCalc, fecha, selectedClienteId, selectedClienteNombre, mediosFilas, mediosPagoList]);
+
+  const abrirResumenFactura = useCallback(async (clienteFiscalSource, clienteSource = null) => {
+    const fiscal = normalizeClienteFiscalDb(clienteFiscalSource || {});
+    const cliente = normalizeClienteSimple(clienteSource || selectedCliente || {
+      id_cliente: selectedClienteId,
+      nombre: selectedClienteNombre,
+    });
+    if (!cliente.id_cliente) throw new Error("Seleccioná un cliente antes de facturar.");
+    if (!fiscal.cuit || !fiscal.razon_social) throw new Error("El cliente no tiene datos fiscales válidos.");
+
+    const payload = buildPayload();
+    if (!facturaOperationKeyRef.current) {
+      facturaOperationKeyRef.current = getOrCreateNuevoIngresoArcaKey();
+    }
+    const config = configFacturacion || (await fetchConfigFacturacion());
+    const cuentas = Array.isArray(config?._configs_facturacion) && config._configs_facturacion.length
+      ? config._configs_facturacion
+      : configsFacturacion.length
+        ? configsFacturacion
+        : [config];
+    setConfigsFacturacion(cuentas);
+    setFacturaDraft({
+      payload,
+      data: {
+        ...buildIngresoFacturaDraft(payload, facturaOperationKeyRef.current, {
+          cliente,
+          clienteFiscal: fiscal,
+          configFacturacion: config,
+        }),
+        configs_facturacion: cuentas,
+      },
+    });
+    setOpenFactura(true);
+  }, [selectedCliente, selectedClienteId, selectedClienteNombre, buildPayload, configFacturacion, fetchConfigFacturacion, configsFacturacion]);
+
+  const confirmarFiscalPanelYFacturar = useCallback(async () => {
+    const cuit = onlyDigits(fiscalCuitInput);
+    if (cuit.length !== 11) {
+      setFiscalError("Ingresá un CUIT válido de 11 dígitos.");
+      return;
+    }
+    setSaving(true);
+    setSavingAction("facturar");
+    try {
+      let fiscal = fiscalArcaData;
+      if (!fiscal || onlyDigits(fiscal.cuit) !== cuit) fiscal = await consultarCuitArca(cuit);
+      const result = await guardarClienteFiscalDesdeArca(fiscal, selectedClienteId);
+      setFiscalPanelOpen(false);
+      showToast("exito", result.ya_existia
+        ? "El CUIT ya estaba cargado. Se usaron los datos fiscales existentes."
+        : "Datos fiscales obtenidos y guardados correctamente.");
+      await abrirResumenFactura(result.cliente_fiscal, result.cliente);
+    } catch (error) {
+      setFiscalError(error?.message || "No se pudo resolver el cliente fiscal.");
+      showToast("error", error?.message || "No se pudo resolver el cliente fiscal.");
+    } finally {
+      setSaving(false);
+      setSavingAction(null);
+    }
+  }, [fiscalCuitInput, fiscalArcaData, consultarCuitArca, guardarClienteFiscalDesdeArca, selectedClienteId, abrirResumenFactura, showToast]);
+
+  const onClickFacturar = useCallback(async () => {
+    if (saving) return;
+    const validation = validate();
+    if (!validation.ok) {
+      showToast("advertencia", validation.msg || "Faltan datos.");
+      return;
+    }
+    if (!(Number(selectedClienteId) > 0)) {
+      showToast("advertencia", "Seleccioná un cliente antes de facturar.");
+      return;
+    }
+
+    setSaving(true);
+    setSavingAction("facturar");
+    setFiscalError("");
+    try {
+      const fiscal =
+        clienteFiscalDb && Number(clienteFiscalDb.id_cliente) === Number(selectedClienteId)
+          ? clienteFiscalDb
+          : await fetchClienteFiscal(selectedClienteId);
+      if (fiscal?.cuit) {
+        await abrirResumenFactura(fiscal, selectedCliente);
+        return;
+      }
+      setFiscalCuitInput("");
+      setFiscalArcaData(null);
+      setFiscalPanelOpen(true);
+    } catch (error) {
+      showToast("error", error?.message || "No se pudo iniciar la facturación.");
+    } finally {
+      setSaving(false);
+      setSavingAction(null);
+    }
+  }, [saving, validate, showToast, selectedClienteId, clienteFiscalDb, fetchClienteFiscal, abrirResumenFactura, selectedCliente]);
 
   // ─── Side effects de guardado ─────────────────────────────────────────────────
   const subirArchivo = useCallback(
@@ -1184,36 +1953,138 @@ export default function ModalNuevoIngreso({
     [mediosFilas, actualizarChequeConArchivo]
   );
 
-  // ─── Submit ───────────────────────────────────────────────────────────────────
-  const submit = useCallback(async () => {
-    if (saving) return;
-    if (typeof onSubmit !== "function") {
-      showToast("error", "Falta la función de guardado del modal.");
-      return;
-    }
-    const v = validate();
-    if (!v.ok) { showToast("advertencia", v.msg || "Faltan datos."); return; }
+  const subirFacturaYVincularIngreso = useCallback(
+    async ({ idMovimiento, facturaMeta, draftData }) => {
+      if (!(Number(idMovimiento) > 0) || !(facturaMeta?.pdf_blob instanceof Blob)) {
+        throw new Error("Faltan datos para guardar y vincular la factura emitida.");
+      }
 
-    if (archivoAdjunto && !isAllowedComprobanteFile(archivoAdjunto)) {
-      showToast("advertencia", "Archivo inválido. Solo se permiten imágenes o archivos PDF.");
-      return;
-    }
+      const resumenFactura =
+        facturaMeta?.resumen_facturacion && typeof facturaMeta.resumen_facturacion === "object"
+          ? facturaMeta.resumen_facturacion
+          : draftData || {};
+      const clienteFiscal =
+        facturaMeta?.cliente_facturacion || resumenFactura?.cliente_facturacion || {};
+      const configFacturacion =
+        facturaMeta?.config_facturacion || resumenFactura?.config_facturacion || {};
+      const emitidoEnArca = Number(facturaMeta?.emitido_en_arca || 0) === 1;
 
-    setSaving(true);
-    try {
-      const payload = buildPayload();
+      const fd = new FormData();
+      fd.append("tipo", "FACTURA");
+      fd.append("id_movimiento", String(idMovimiento));
+      fd.append(
+        "pdf",
+        facturaMeta.pdf_blob,
+        facturaMeta?.pdf_filename || "factura.pdf"
+      );
+      fd.append(
+        "meta",
+        JSON.stringify({
+          tipo: "FACTURA",
+          estado: emitidoEnArca ? "emitida" : "solo_pdf",
+          emitido_en_arca: emitidoEnArca ? 1 : 0,
+          operacion_key:
+            safeStr(
+              facturaMeta?.operacion_arca?.key ||
+                facturaMeta?.operacion_key ||
+                resumenFactura?.operacion_key ||
+                draftData?.operacion_key
+            ) || null,
+          operacion_contexto:
+            safeStr(
+              facturaMeta?.operacion_arca?.contexto ||
+                facturaMeta?.operacion_contexto ||
+                resumenFactura?.operacion_contexto ||
+                "OTRO_INGRESO_FACTURA"
+            ) || "OTRO_INGRESO_FACTURA",
+          operacion_id_origen: Number(idMovimiento),
+          id_pago: facturaMeta?.id_pago ?? null,
+          id_sistema: facturaMeta?.id_sistema ?? null,
+          anio: Number(facturaMeta?.anio || 0) || null,
+          id_mes: Number(facturaMeta?.id_mes || 0) || null,
+          monto_ars: safeNumber(
+            facturaMeta?.imp_total ?? facturaMeta?.importe ?? resumenFactura?.total_ars
+          ),
+          doc_tipo: Number(
+            facturaMeta?.doc_tipo ?? clienteFiscal?.doc_tipo ?? 80
+          ),
+          doc_nro: safeStr(
+            facturaMeta?.doc_nro ?? clienteFiscal?.doc_nro ?? clienteFiscal?.cuit
+          ),
+          cbte_tipo: Number(
+            facturaMeta?.cbte_tipo ?? resumenFactura?.cbte_tipo ?? 11
+          ),
+          pto_vta: Number(
+            facturaMeta?.pto_vta ?? resumenFactura?.pto_vta ?? 2
+          ),
+          cbte_nro: facturaMeta?.cbte_nro ?? null,
+          razon_social: clienteFiscal?.razon_social || null,
+          cond_iva:
+            clienteFiscal?.cond_iva || clienteFiscal?.condicion_iva || null,
+          domicilio: clienteFiscal?.domicilio || null,
+          cliente_facturacion: clienteFiscal,
+          config_facturacion: configFacturacion,
+          id_config_facturacion:
+            facturaMeta?.id_config_facturacion ??
+            resumenFactura?.id_config_facturacion ??
+            null,
+          emisor: resumenFactura?.emisor || null,
+          cae: emitidoEnArca ? facturaMeta?.cae ?? null : null,
+          cae_vto: emitidoEnArca ? facturaMeta?.cae_vto ?? null : null,
+          fecha_cbte:
+            facturaMeta?.fecha_cbte ?? resumenFactura?.fecha_cbte_iso ?? null,
+          resultado: facturaMeta?.resultado ?? (emitidoEnArca ? null : "P"),
+          qr_url: emitidoEnArca ? facturaMeta?.qr_url ?? null : null,
+          qr_base64: emitidoEnArca ? facturaMeta?.qr_base64 ?? null : null,
+          qr_payload: emitidoEnArca ? facturaMeta?.qr_payload ?? null : null,
+          json_arca: emitidoEnArca
+            ? facturaMeta?.json_arca ?? facturaMeta?.raw_min ?? facturaMeta
+            : facturaMeta,
+          resumen_facturacion: {
+            ...(draftData || {}),
+            ...(resumenFactura || {}),
+            cliente_facturacion: clienteFiscal,
+            config_facturacion: configFacturacion,
+            items_facturacion: Array.isArray(resumenFactura?.items_facturacion)
+              ? resumenFactura.items_facturacion
+              : Array.isArray(draftData?.items_facturacion)
+                ? draftData.items_facturacion
+                : [],
+          },
+        })
+      );
+
+      const response = await fetch(API_VINCULAR_FACTURA, {
+        method: "POST",
+        headers: buildAuthHeaders(false),
+        body: fd,
+      });
+      const data = await parseJsonOrThrow(response);
+      if (!data?.exito) {
+        throw new Error(data?.mensaje || "No se pudo vincular la factura al ingreso.");
+      }
+      return data;
+    },
+    [API_VINCULAR_FACTURA]
+  );
+
+  const crearIngresoConAdjuntos = useCallback(
+    async (payload) => {
       const data = await onSubmit(payload, mode === "edit");
       const idMovimientoFinal = getSavedMovimientoIdFromResponse(data, initialData);
-      if (!idMovimientoFinal)
+      if (!idMovimientoFinal) {
         throw new Error("El backend no devolvió un id_movimiento válido.");
+      }
 
       let warningArchivo = "";
       if (archivoAdjunto) {
         try {
-          const r = await subirArchivo(idMovimientoFinal, archivoAdjunto);
-          if (!r?.exito) warningArchivo = r?.mensaje || "No se pudo vincular el archivo.";
-        } catch (e) {
-          warningArchivo = e?.message || "No se pudo vincular el archivo.";
+          const result = await subirArchivo(idMovimientoFinal, archivoAdjunto);
+          if (!result?.exito) {
+            warningArchivo = result?.mensaje || "No se pudo vincular el archivo.";
+          }
+        } catch (error) {
+          warningArchivo = error?.message || "No se pudo vincular el archivo.";
         }
       }
 
@@ -1224,24 +2095,182 @@ export default function ModalNuevoIngreso({
           `Ingreso guardado, pero hubo problemas con archivo/s de cheque: ${warningsCheques.join(" | ")}`
         );
       }
-
-      if (warningArchivo)
+      if (warningArchivo) {
         showToast(
           "advertencia",
-          `Ingreso guardado, pero el archivo no se pudo vincular: ${warningArchivo}`);
+          `Ingreso guardado, pero el archivo no se pudo vincular: ${warningArchivo}`
+        );
+      }
 
-      await onSaved?.({ ...(data || {}), id_movimiento: idMovimientoFinal });
-    } catch (e) {
-      showToast("error", e?.message || "No se pudo guardar el ingreso.");
+      const ingresoBackend = data?.ingreso ?? data?.otro_ingreso ?? {};
+      return {
+        data,
+        idMovimiento: idMovimientoFinal,
+        payload,
+        ingreso: {
+          ...payload,
+          ...(ingresoBackend && typeof ingresoBackend === "object" ? ingresoBackend : {}),
+          id_movimiento: idMovimientoFinal,
+          items_detalle: Array.isArray(ingresoBackend?.items_detalle)
+            ? ingresoBackend.items_detalle
+            : payload.items,
+        },
+      };
+    },
+    [
+      onSubmit,
+      mode,
+      initialData,
+      archivoAdjunto,
+      subirArchivo,
+      subirArchivosChequesCreados,
+      showToast,
+    ]
+  );
+
+  const finalizarFacturacionYGuardarIngreso = useCallback(
+    async (facturaEmitida) => {
+      if (saving) return;
+      if (!facturaDraft?.payload || !facturaDraft?.data) {
+        showToast("error", "No se encontró el borrador del ingreso a facturar.");
+        return;
+      }
+
+      setSavingAction("facturar");
+      setSaving(true);
+      try {
+        let pending = facturaPendingSaveRef.current;
+        if (!pending) {
+          pending = await crearIngresoConAdjuntos(facturaDraft.payload);
+          facturaPendingSaveRef.current = pending;
+        }
+
+        if (!pending.facturaVinculada) {
+          const vinculacion = await subirFacturaYVincularIngreso({
+            idMovimiento: pending.idMovimiento,
+            facturaMeta: facturaEmitida,
+            draftData: facturaDraft.data,
+          });
+          pending = { ...pending, facturaVinculada: vinculacion };
+          facturaPendingSaveRef.current = pending;
+        }
+
+        const resultadoFinal = {
+          ...(pending.data || {}),
+          id_movimiento: pending.idMovimiento,
+          id_comprobante:
+            pending.facturaVinculada?.id_comprobante ??
+            pending.facturaVinculada?.comprobante?.id_comprobante ??
+            null,
+          accion_final: "facturar",
+          ingreso: pending.ingreso,
+          factura_emitida: facturaEmitida,
+        };
+
+        const completedOperationKey = safeStr(
+          facturaEmitida?.operacion_arca?.key ||
+            facturaEmitida?.operacion_key ||
+            facturaDraft.data?.operacion_key ||
+            facturaOperationKeyRef.current
+        );
+        clearNuevoIngresoArcaKey(completedOperationKey);
+        facturaOperationKeyRef.current = "";
+        facturaPendingSaveRef.current = null;
+        setOpenFactura(false);
+        setFacturaDraft(null);
+        await onSaved?.(resultadoFinal);
+      } catch (error) {
+        const yaEmitida = Boolean(facturaEmitida?.cae);
+        showToast(
+          "error",
+          yaEmitida
+            ? `La factura fue emitida, pero no se terminó de vincular el ingreso: ${
+                error?.message || "error desconocido"
+              }. Volvé a presionar Facturar para reintentar sin duplicar el ingreso.`
+            : error?.message || "No se pudo facturar el ingreso."
+        );
+      } finally {
+        setSaving(false);
+        setSavingAction(null);
+      }
+    },
+    [
+      saving,
+      facturaDraft,
+      crearIngresoConAdjuntos,
+      subirFacturaYVincularIngreso,
+      onSaved,
+      showToast,
+    ]
+  );
+
+  // ─── Submit ───────────────────────────────────────────────────────────────────
+  const submit = useCallback(async (accionFinal = "guardar") => {
+    if (saving) return;
+    if (typeof onSubmit !== "function") {
+      showToast("error", "Falta la función de guardado del modal.");
+      return;
+    }
+
+    const accion = mode === "create" && accionFinal === "facturar" ? "facturar" : "guardar";
+    if (accion === "facturar" && facturaPendingSaveRef.current && facturaDraft?.data) {
+      setOpenFactura(true);
+      return;
+    }
+
+    const v = validate();
+    if (!v.ok) {
+      showToast("advertencia", v.msg || "Faltan datos.");
+      return;
+    }
+    if (archivoAdjunto && !isAllowedComprobanteFile(archivoAdjunto)) {
+      showToast("advertencia", "Archivo inválido. Solo se permiten imágenes o archivos PDF.");
+      return;
+    }
+
+    const payload = buildPayload();
+    if (accion === "facturar") {
+      await onClickFacturar();
+      return;
+    }
+
+    setSavingAction("guardar");
+    setSaving(true);
+    try {
+      const guardado = await crearIngresoConAdjuntos(payload);
+      clearNuevoIngresoArcaKey(facturaOperationKeyRef.current);
+      facturaOperationKeyRef.current = "";
+      await onSaved?.({
+        ...(guardado.data || {}),
+        id_movimiento: guardado.idMovimiento,
+        accion_final: "guardar",
+        ingreso: guardado.ingreso,
+      });
+    } catch (error) {
+      showToast("error", error?.message || "No se pudo guardar el ingreso.");
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   }, [
-    saving, onSubmit, validate, buildPayload, mode, onSaved,
-    showToast, initialData, archivoAdjunto, subirArchivo, subirArchivosChequesCreados,
+    saving,
+    onSubmit,
+    showToast,
+    mode,
+    facturaDraft,
+    validate,
+    archivoAdjunto,
+    buildPayload,
+    onClickFacturar,
+    crearIngresoConAdjuntos,
+    onSaved,
   ]);
 
-  const btnLabel = saving ? "Guardando..." : mode === "edit" ? "Guardar cambios" : "Guardar ingreso";
+  const btnLabel = saving && savingAction === "guardar"
+    ? "Guardando..."
+    : mode === "edit"
+      ? "Guardar cambios"
+      : "Guardar ingreso";
 
   if (!open) return null;
 
@@ -1282,7 +2311,9 @@ export default function ModalNuevoIngreso({
               {/* Tabla de ítems */}
               <section className="gm-movement-main gm-table gm-table--movement oi-table">
                 <div className={`gm-table-head${hasScroll ? " gm-table-head--body-scroll" : ""}`}>
-                  <div className="gm-table-th" style={{ paddingLeft: 10 }}>Descripción</div>
+                  <div className="gm-table-th" style={{ paddingLeft: 10 }}>
+                    Tipo / detalle o producto
+                  </div>
                   <div className="gm-table-th">Cant.</div>
                   <div className="gm-table-th right">Importe</div>
                   <div className="gm-table-th">IVA %</div>
@@ -1295,41 +2326,82 @@ export default function ModalNuevoIngreso({
                   ref={rowsContainerRef}
                   className={`gm-table-body${hasScroll ? " has-scroll" : ""}`}
                 >
-                  {rowsCalc.map((r) => {
+                  {rowsCalc.map((r, rowIndex) => {
                     return (
                       <div
                         key={r.id}
                         className="gm-table-row"
                       >
                         <div className="gm-table-cell gm-table-cell--detail">
-                          <GlobalAutocomplete
-                            value={r.detalle}
-                            onChange={(val) =>
-                              updateRow(r.id, {
-                                detalle: val,
-                                id_detalle: NULL_OPTION,
-                                stock_disponible: null,
-                                sinStock: false,
-                              })
-                            }
-                            onSelect={(item) => handleSelectDetalle(item, r.id)}
-                            options={enhancedDetallesList}
-                            getOptionLabel={(d) => optionLabel(d)}
-                            getOptionValue={(d) => String(getDetalleId(d) ?? optionLabel(d))}
-                            placeholder="Escribí o buscá una descripción…"
+                          <select
+                            className="oi-item-kind"
+                            value={r.tipo_item === "producto" ? "producto" : "servicio"}
+                            onChange={(e) => handleTipoItemChange(r.id, e.target.value)}
                             disabled={saving}
-                            showAllOnFocus={true}
-                            maxItems={18}
-                            inputClassName="gm-cell-input"
-                          />
+                            aria-label={`Tipo de ítem fila ${rowIndex + 1}`}
+                          >
+                            <option value="servicio">Detalle / servicio (sin stock)</option>
+                            <option value="producto">Producto (mueve stock)</option>
+                          </select>
+                          {r.tipo_item === "producto" ? (
+                            <ProductStockAutocomplete
+                              value={r.detalle}
+                              onChange={(val) =>
+                                updateRow(r.id, {
+                                  detalle: val,
+                                  id_detalle: NULL_OPTION,
+                                  id_stock_producto: NULL_OPTION,
+                                  id_stock_variante: NULL_OPTION,
+                                  precio: 0,
+                                  stock_disponible: null,
+                                  sinStock: false,
+                                })
+                              }
+                              onSelect={(item) => handleSelectProducto(item, r.id)}
+                              options={productosList}
+                              placeholder="Escribí o buscá un producto…"
+                              disabled={saving}
+                              showAllOnFocus={true}
+                              maxItems={18}
+                              inputClassName="gm-cell-input"
+                              emptyMessage="No hay productos con stock"
+                            />
+                          ) : (
+                            <GlobalAutocomplete
+                              value={r.detalle}
+                              onChange={(val) =>
+                                updateRow(r.id, {
+                                  detalle: val,
+                                  id_detalle: NULL_OPTION,
+                                  id_stock_producto: NULL_OPTION,
+                                  id_stock_variante: NULL_OPTION,
+                                  stock_disponible: null,
+                                  sinStock: false,
+                                })
+                              }
+                              onSelect={(item) => handleSelectDetalle(item, r.id)}
+                              options={enhancedDetallesList}
+                              getOptionLabel={(d) => optionLabel(d)}
+                              getOptionValue={(d) => String(getDetalleId(d) ?? optionLabel(d))}
+                              placeholder="Escribí o buscá una descripción…"
+                              disabled={saving}
+                              showAllOnFocus={true}
+                              maxItems={18}
+                              inputClassName="gm-cell-input"
+                            />
+                          )}
+                          {r.tipo_item === "producto" && r.stock_disponible !== null && (
+                            <small className="oi-stock-hint">Stock disponible: {r.stock_disponible}</small>
+                          )}
                         </div>
 
                         <div className="gm-table-cell gm-table-cell--center">
                           <input
                             className="gm-cell-input gm-cell-input--center"
                             type="number"
-                            min="1"
-                            step="1"
+                            min="0.01"
+                            max={r.tipo_item === "producto" && r.stock_disponible !== null ? r.stock_disponible : undefined}
+                            step="0.01"
                             value={r.cantidad}
                             onChange={(e) =>
                               handleCantidadChange(
@@ -1337,7 +2409,7 @@ export default function ModalNuevoIngreso({
                                 e.target.value === "" ? "" : Number(e.target.value)
                               )
                             }
-                            disabled={saving}
+                            disabled={saving || Boolean(r.tipo_item === "producto" && r.sinStock)}
                             placeholder=""
                             title=""
                             style={{ width: "100%" }}
@@ -1430,13 +2502,21 @@ export default function ModalNuevoIngreso({
 
                 <div className="gm-table-foot">
                   <div className="gm-foot-actions">
-                    <button type="button" className="gm-foot-btn" onClick={addRow} disabled={saving}>
+                    <button type="button" className="gm-foot-btn" onClick={() => addRow("servicio")} disabled={saving}>
                       <span className="gm-foot-btn__icon">
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M5 1.5V8.5M1.5 5H8.5" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
                         </svg>
                       </span>
-                      Agregar fila
+                      Agregar detalle
+                    </button>
+                    <button type="button" className="gm-foot-btn" onClick={() => addRow("producto")} disabled={saving}>
+                      <span className="gm-foot-btn__icon">
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M5 1.5V8.5M1.5 5H8.5" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
+                        </svg>
+                      </span>
+                      Agregar producto
                     </button>
                   </div>
                   <div className="gm-summary-chips">
@@ -1466,6 +2546,38 @@ export default function ModalNuevoIngreso({
                     </div>
 
                     <div className="gm-section-body">
+                      <div className="oi-cliente-wrap">
+                        <GlobalAutocomplete
+                          value={cliInput}
+                          onChange={handleClienteInputChange}
+                          onSelect={handleSelectCliente}
+                          options={clientesOptions}
+                          getOptionLabel={(cliente) =>
+                            isAddClienteOption(cliente)
+                              ? "➕ Agregar cliente"
+                              : safeStr(cliente?.nombre)
+                          }
+                          getOptionValue={(cliente) =>
+                            isAddClienteOption(cliente)
+                              ? "__add_cliente__"
+                              : String(getClienteId(cliente) || cliente?.nombre || "")
+                          }
+                          label="Cliente *"
+                          placeholder=" "
+                          disabled={saving || addClienteOpen || fiscalPanelOpen}
+                          showAllOnFocus={true}
+                          maxItems={25}
+                          inputClassName="gm-input"
+                        />
+                      </div>
+
+                      <div className="gm-info-box oi-stock-mode" style={{ marginBottom: 14 }}>
+                        <b>Podés combinar detalles y productos</b>
+                        <small style={{ display: "block", marginTop: 3 }}>
+                          Elegí el tipo en cada fila. Los detalles no mueven stock; los productos sí lo descuentan.
+                        </small>
+                      </div>
+
                       {/* ⭐ FECHA CON VALIDACIONES ⭐ */}
                       <div className="gm-field" onClick={openDatePicker}>
                         <input
@@ -1574,19 +2686,31 @@ export default function ModalNuevoIngreso({
                   <button
                     type="button"
                     className="gm-action-btn gm-action-btn--save"
-                    onClick={submit}
+                    onClick={() => submit("guardar")}
                     disabled={saving}
                   >
                     {btnLabel}
                   </button>
-                  <button
-                    type="button"
-                    className="gm-action-btn gm-action-btn--cancel"
-                    onClick={() => !saving && onClose?.()}
-                    disabled={saving}
-                  >
-                    Cancelar
-                  </button>
+                  {mode === "create" && (
+                    <button
+                      type="button"
+                      className="gm-action-btn gm-action-btn--invoice"
+                      onClick={() => submit("facturar")}
+                      disabled={saving}
+                    >
+                      {saving && savingAction === "facturar" ? "Procesando..." : "Facturar"}
+                    </button>
+                  )}
+                  {mode === "edit" && (
+                    <button
+                      type="button"
+                      className="gm-action-btn gm-action-btn--cancel"
+                      onClick={() => !saving && onClose?.()}
+                      disabled={saving}
+                    >
+                      Cancelar
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1609,6 +2733,99 @@ export default function ModalNuevoIngreso({
         mime={viewerData.mime}
         title={viewerData.title}
         onClose={cerrarViewer}
+      />
+
+      {mode === "create" && facturaDraft?.data && (
+        <ModalFacturaBaltoResumen
+          open={openFactura}
+          onClose={() => {
+            if (!saving) setOpenFactura(false);
+          }}
+          onBack={() => {
+            if (!saving) setOpenFactura(false);
+          }}
+          onCloseAll={() => {
+            if (!saving) setOpenFactura(false);
+          }}
+          apiBase={`${BASE_URL}/api.php`}
+          action="movimientos"
+          data={facturaDraft.data}
+          docTipo={Number(facturaDraft.data?.cliente_facturacion?.doc_tipo || 80)}
+          docNro={safeStr(
+            facturaDraft.data?.cliente_facturacion?.doc_nro ||
+              facturaDraft.data?.cliente_facturacion?.cuit
+          )}
+          cbteTipo={Number(facturaDraft.data?.cbte_tipo || 11)}
+          ptoVta={String(facturaDraft.data?.pto_vta || 2)}
+          configsFacturacionInicial={
+            facturaDraft.data?.configs_facturacion || configsFacturacion
+          }
+          onDone={finalizarFacturacionYGuardarIngreso}
+          skipMovimientoAutocreacion={true}
+        />
+      )}
+
+      <ModalClienteFiscalArca
+        open={fiscalPanelOpen}
+        dark={dark}
+        title="Datos fiscales para facturar"
+        infoTitle="Factura por CUIT"
+        description={
+          <>
+            Cliente seleccionado: <b>{selectedClienteNombre || "Cliente"}</b>. Si todavía no tiene ficha fiscal,
+            buscá el CUIT en ARCA y confirmá para continuar al resumen completo.
+          </>
+        }
+        cuit={fiscalCuitInput}
+        fiscalData={fiscalArcaData}
+        error={fiscalError}
+        loading={fiscalLookupLoading || fiscalLoading}
+        saving={saving && savingAction === "facturar"}
+        confirmText="Confirmar y facturar"
+        requireFiscalData={false}
+        onCuitChange={(value) => {
+          setFiscalCuitInput(value);
+          setFiscalArcaData(null);
+          setFiscalError("");
+        }}
+        onLookup={consultarFiscalPanel}
+        onClose={() => {
+          if (saving || fiscalLookupLoading) return;
+          setFiscalPanelOpen(false);
+          setFiscalError("");
+        }}
+        onConfirm={confirmarFiscalPanelYFacturar}
+      />
+
+      <ModalClienteFiscalArca
+        open={addClienteOpen}
+        dark={dark}
+        title="Agregar cliente por CUIT"
+        infoTitle="Alta rápida por CUIT"
+        description={
+          <>
+            Ingresá el CUIT: se consulta ARCA, se crea el cliente y queda seleccionado en este ingreso.
+          </>
+        }
+        cuit={addClienteCuit}
+        fiscalData={addClienteFiscalData}
+        error={addClienteError}
+        loading={addClienteLoading}
+        saving={addClienteLoading}
+        confirmText="Confirmar y cargar cliente"
+        requireFiscalData={true}
+        onCuitChange={(value) => {
+          setAddClienteCuit(value);
+          setAddClienteFiscalData(null);
+          setAddClienteError("");
+        }}
+        onLookup={consultarNuevoCliente}
+        onClose={() => {
+          if (addClienteLoading) return;
+          setAddClienteOpen(false);
+          setAddClienteError("");
+        }}
+        onConfirm={confirmarNuevoCliente}
       />
     </>,
     document.body

@@ -17,6 +17,7 @@ import "../../../Global/Global_css/roots.css";
 import "./ModalIngreso.css";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
+import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
 import ModalNuevaDescripcion from "./ModalNuevaDescripcion.jsx";
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
@@ -130,6 +131,38 @@ function getDetalleId(d) {
   const n = Number(cand);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
+function getStockProductoId(d) {
+  const cand = d?.id_stock_producto ?? d?.idStockProducto ?? d?.stock_producto_id ??
+    d?.id_producto ?? d?.idProducto ?? d?.producto_id ?? d?.idProductoStock ??
+    d?.producto_stock_id ?? null;
+  const n = Number(cand);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+function getStockVarianteId(d) {
+  const cand = d?.id_stock_variante ?? d?.idStockVariante ?? d?.stock_variante_id ??
+    d?.id_variante ?? d?.idVariante ?? d?.variante_id ?? d?.idStockProductoVariante ??
+    d?.stock_producto_variante_id ?? null;
+  const n = Number(cand);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+function getStockDisponible(d) {
+  const raw = d?.stock ?? d?.stock_disponible ?? d?.stockDisponible ?? d?.cantidad_stock ?? null;
+  if (raw === null || raw === undefined || raw === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+function getProductoNombre(d) {
+  return safeText(d?.nombre ?? d?.producto_nombre ?? d?.stock_producto_nombre ?? d?.descripcion ?? d?.label ?? "");
+}
+function getPrecioVenta(d) {
+  const precios = Array.isArray(d?.precios) ? d.precios : [];
+  const venta = precios.find((p) => {
+    const nombre = normalizeText(p?.tipo_precio ?? p?.nombre ?? "");
+    return nombre === "precio de venta" || nombre === "precio venta" || nombre === "venta";
+  }) || precios.find((p) => Number(p?.id_tipo_precio_stock || 0) === 2) || precios[0];
+  const n = Number(venta?.monto ?? venta?.precio ?? d?.precio_venta ?? d?.precio ?? d?.precio_promocional ?? 0);
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
 function getMedioPagoId(c) {
   const cand = c?.id ?? c?.id_medio_pago ?? c?.idMedioPago ?? c?.medio_pago_id ?? null;
   const n = Number(cand);
@@ -231,6 +264,14 @@ function normalizeMediosPago(lists) {
     nombre: String(x?.nombre ?? x?.descripcion ?? x?.detalle ?? "").trim(),
   }));
 }
+function normalizeProductos(lists) {
+  const src = lists && typeof lists === "object" ? lists : {};
+  const l = src?.listas && typeof src.listas === "object" ? src.listas : src;
+  if (Array.isArray(l?.detalles)) return l.detalles;
+  if (Array.isArray(l?.stock_productos)) return l.stock_productos;
+  if (Array.isArray(l?.productos_stock)) return l.productos_stock;
+  return [];
+}
 
 // ─── Builders de entidades ─────────────────────────────────────────────────────
 function makeItem(it = {}) {
@@ -238,11 +279,21 @@ function makeItem(it = {}) {
   const precio = Number(it?.precio ?? it?.importe ?? it?.monto ?? it?.total ?? 0) || 0;
   const iva_pct = Number(it?.iva_pct ?? it?.ivaPct ?? 0) || 0;
   const calc = calcItemTotals(cantidad, precio, iva_pct);
+  const idStockProducto = getStockProductoId(it);
+  const idStockVariante = getStockVarianteId(it);
+  const tipoDeclarado = normalizeText(it?.tipo_item ?? it?.tipoItem ?? "");
+  const esProducto = tipoDeclarado === "producto" || Number(it?.mueve_stock ?? it?.mueveStock ?? 0) === 1 || Boolean(idStockProducto || idStockVariante);
+  const producto = safeText(it?.stock_producto_nombre ?? it?.producto_nombre ?? "");
+  const variante = safeText(it?.stock_variante_nombre ?? it?.variante_nombre ?? "");
   return {
     uid: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     id_detalle: String(Number(it?.id_detalle ?? 0) || ""),
+    tipo_item: esProducto ? "producto" : "servicio",
+    id_stock_producto: idStockProducto ? String(idStockProducto) : "",
+    id_stock_variante: idStockVariante ? String(idStockVariante) : "",
     detalle: String(
-      it?.detalle ?? it?.descripcion ?? it?.concepto ?? it?.detalle_nombre ?? ""
+      it?.descripcion ?? it?.detalle ?? it?.concepto ?? it?.detalle_nombre ??
+      [producto, variante].filter(Boolean).join(" - ")
     ).trim(),
     cantidad,
     precio,
@@ -250,7 +301,7 @@ function makeItem(it = {}) {
     subtotal: round2(it?.subtotal ?? calc.subtotal),
     iva_monto: round2(it?.iva_monto ?? calc.iva_monto),
     total: round2(it?.total ?? calc.total),
-    stock_disponible: null,
+    stock_disponible: getStockDisponible(it),
     sinStock: false,
     precioDraft: "",
     precioFocused: false,
@@ -286,7 +337,9 @@ function makeMedioPagoRow(mp = {}) {
 function buildInitialState(data) {
   const src = data && typeof data === "object" ? data : {};
   const rawItems =
-    Array.isArray(src.items) && src.items.length
+    Array.isArray(src.items_detalle) && src.items_detalle.length
+      ? src.items_detalle
+      : Array.isArray(src.items) && src.items.length
       ? src.items
       : Array.isArray(src.detalles) && src.detalles.length
       ? src.detalles
@@ -683,6 +736,7 @@ export default function ModalEditarIngreso({
 
   const dark = typeof darkProp === "boolean" ? darkProp : darkAuto;
   const detalles = useMemo(() => normalizeDetalles(lists), [lists]);
+  const productos = useMemo(() => normalizeProductos(lists), [lists]);
   const mediosPago = useMemo(() => filtrarMediosPagoPorPlan(normalizeMediosPago(lists)), [lists]);
 
   // Bloqueo scroll body
@@ -697,7 +751,8 @@ export default function ModalEditarIngreso({
   useEffect(() => {
     if (!open) return;
     setSaving(false);
-    setForm(buildInitialState(initialData));
+    const initial = buildInitialState(initialData);
+    setForm(initial);
     setArchivoNuevo(null);
     setMarcarEliminarComprobante(false);
     setComprobanteActual(null);
@@ -809,7 +864,10 @@ export default function ModalEditarIngreso({
       }
       const precio = safeNumber(item?.precio || 0);
       updateItem(uid, {
+        tipo_item: "servicio",
         id_detalle: String(getDetalleId(item) ?? ""),
+        id_stock_producto: NULL_OPTION,
+        id_stock_variante: NULL_OPTION,
         detalle: optionLabel(item),
         precio,
         stock_disponible: null,
@@ -820,22 +878,77 @@ export default function ModalEditarIngreso({
     [updateItem, showToast]
   );
 
+  const handleSelectProducto = useCallback((producto, uid) => {
+    // En `detalles` el catálogo global entrega el producto base con la clave
+    // genérica `id`; las variantes sí exponen id_stock_producto explícito.
+    const idStockProducto = getStockProductoId(producto) || (
+      Number(producto?.id || 0) > 0 ? Number(producto.id) : null
+    );
+    const idStockVariante = getStockVarianteId(producto);
+    const stockDisponible = getStockDisponible(producto);
+    updateItem(uid, {
+      tipo_item: "producto",
+      id_detalle: NULL_OPTION,
+      id_stock_producto: idStockProducto ? String(idStockProducto) : NULL_OPTION,
+      id_stock_variante: idStockVariante ? String(idStockVariante) : NULL_OPTION,
+      detalle: getProductoNombre(producto),
+      precio: getPrecioVenta(producto),
+      stock_disponible: stockDisponible,
+      sinStock: stockDisponible !== null && stockDisponible <= 0,
+      cantidad: stockDisponible !== null && stockDisponible <= 0 ? "" : 1,
+    });
+  }, [updateItem]);
+
+  const handleTipoItemChange = useCallback(
+    (uid, tipoItem) => {
+      const tipo = tipoItem === "producto" ? "producto" : "servicio";
+      updateItem(uid, {
+        tipo_item: tipo,
+        id_detalle: NULL_OPTION,
+        id_stock_producto: NULL_OPTION,
+        id_stock_variante: NULL_OPTION,
+        detalle: "",
+        cantidad: 1,
+        precio: 0,
+        precioDraft: "",
+        precioFocused: false,
+        stock_disponible: null,
+        sinStock: false,
+      });
+    },
+    [updateItem]
+  );
+
   const handleCantidadChange = useCallback(
     (uid, newCantidad) => {
       const row = form.items.find((r) => r.uid === uid);
       if (!row) return;
       let cantidadFinal = newCantidad === "" ? "" : Number(newCantidad);
       if (typeof cantidadFinal === "number" && cantidadFinal < 0) cantidadFinal = 0;
+      if (
+        row.tipo_item === "producto" &&
+        cantidadFinal !== "" &&
+        row.stock_disponible !== null &&
+        Number(cantidadFinal) > Number(row.stock_disponible)
+      ) {
+        showToast("advertencia", `Stock disponible: ${row.stock_disponible}.`);
+        cantidadFinal = Number(row.stock_disponible);
+      }
       updateItem(uid, { cantidad: cantidadFinal });
     },
     [form.items, updateItem, showToast]
   );
 
   const addItem = useCallback(
-    () =>
+    (tipoItem = "servicio") =>
       setForm((p) => ({
         ...p,
-        items: [...p.items, makeItem({ cantidad: 1, precio: 0, iva_pct: 0 })],
+        items: [...p.items, makeItem({
+          tipo_item: tipoItem === "producto" ? "producto" : "servicio",
+          cantidad: 1,
+          precio: 0,
+          iva_pct: 0,
+        })],
       })),
     []
   );
@@ -1112,19 +1225,28 @@ export default function ModalEditarIngreso({
       .map((it) => ({
         ...it,
         id_detalle: Number(it.id_detalle || 0),
+        id_stock_producto: Number(it.id_stock_producto || 0),
+        id_stock_variante: Number(it.id_stock_variante || 0),
         cantidad: safeNumber(it.cantidad),
         precio: round2(safeNumber(it.precio)),
         iva_pct: round2(safeNumber(it.iva_pct)),
       }))
       .filter(
         (it) =>
-          it.id_detalle > 0 &&
+          safeText(it.detalle) !== "" &&
+          (it.tipo_item !== "producto" || it.id_stock_producto > 0) &&
           it.cantidad > 0 &&
+          (it.tipo_item !== "producto" || it.stock_disponible === null || it.cantidad <= Number(it.stock_disponible) + 0.0001) &&
           it.precio > 0 &&
           safeNumber(it.total) > 0
       );
 
-    if (!items.length) return { ok: false, msg: "Debés cargar al menos un ítem válido." };
+    if (!items.length) {
+      return {
+        ok: false,
+        msg: "Debés cargar al menos un detalle o producto con cantidad e importe válidos.",
+      };
+    }
     return { ok: true, items };
   }, [form, mediosPago, sumaMediosPago, totalGeneral]);
 
@@ -1144,7 +1266,11 @@ export default function ModalEditarIngreso({
       }
 
       const items = v.items.map((it) => ({
-        id_detalle: it.id_detalle,
+        tipo_item: it.tipo_item === "producto" ? "producto" : "servicio",
+        mueve_stock: it.tipo_item === "producto" ? 1 : 0,
+        id_detalle: it.tipo_item === "producto" ? null : (it.id_detalle || null),
+        id_stock_producto: it.tipo_item === "producto" ? (it.id_stock_producto || null) : null,
+        id_stock_variante: it.tipo_item === "producto" ? (it.id_stock_variante || null) : null,
         detalle: safeText(it.detalle),
         cantidad: safeNumber(it.cantidad),
         precio: round2(safeNumber(it.precio)),
@@ -1234,7 +1360,10 @@ export default function ModalEditarIngreso({
         const item = detalleCreado;
         const precio = safeNumber(item?.precio || 0);
         updateItem(currentRowIdForNewDesc, {
+          tipo_item: "servicio",
           id_detalle: String(item.id_detalle || item.id || ""),
+          id_stock_producto: NULL_OPTION,
+          id_stock_variante: NULL_OPTION,
           detalle: item.nombre || nombre,
           precio,
           stock_disponible: null,
@@ -1308,7 +1437,9 @@ export default function ModalEditarIngreso({
                       gridTemplateColumns: "2.4fr 0.8fr 1.1fr 0.9fr 1fr 1.1fr 0.45fr",
                     }}
                   >
-                    <div className="gm-table-th" style={{ paddingLeft: 10 }}>Descripción</div>
+                    <div className="gm-table-th" style={{ paddingLeft: 10 }}>
+                      Tipo / detalle o producto
+                    </div>
                     <div className="gm-table-th">Cant.</div>
                     <div className="gm-table-th right">Importe</div>
                     <div className="gm-table-th">IVA %</div>
@@ -1318,7 +1449,7 @@ export default function ModalEditarIngreso({
                   </div>
 
                   <div className="gm-table-body">
-                    {(form.items || []).map((it) => {
+                    {(form.items || []).map((it, itemIndex) => {
                       return (
                         <div
                           key={it.uid}
@@ -1330,28 +1461,66 @@ export default function ModalEditarIngreso({
                         >
                           {/* Descripción */}
                           <div className="gm-table-cell gm-table-cell--detail">
-                            <GlobalAutocomplete
-                              value={it.detalle}
-                              onChange={(val) =>
-                                updateItem(it.uid, {
-                                  detalle: val,
-                                  id_detalle: NULL_OPTION,
-                                  stock_disponible: null,
-                                  sinStock: false,
-                                })
-                              }
-                              onSelect={(item) => handleSelectDetalle(item, it.uid)}
-                              options={enhancedDetalles}
-                              getOptionLabel={(d) => optionLabel(d)}
-                              getOptionValue={(d) =>
-                                String(getDetalleId(d) ?? optionLabel(d))
-                              }
-                              placeholder="Escribí o buscá un detalle…"
+                            <select
+                              className="oi-item-kind"
+                              value={it.tipo_item === "producto" ? "producto" : "servicio"}
+                              onChange={(e) => handleTipoItemChange(it.uid, e.target.value)}
                               disabled={saving}
-                              showAllOnFocus={false}
-                              maxItems={18}
-                              inputClassName="gm-cell-input"
-                            />
+                              aria-label={`Tipo de ítem fila ${itemIndex + 1}`}
+                            >
+                              <option value="servicio">Detalle / servicio (sin stock)</option>
+                              <option value="producto">Producto (mueve stock)</option>
+                            </select>
+                            {it.tipo_item === "producto" ? (
+                              <ProductStockAutocomplete
+                                value={it.detalle}
+                                onChange={(val) =>
+                                  updateItem(it.uid, {
+                                    detalle: val,
+                                    id_detalle: NULL_OPTION,
+                                    id_stock_producto: NULL_OPTION,
+                                    id_stock_variante: NULL_OPTION,
+                                    precio: 0,
+                                    stock_disponible: null,
+                                    sinStock: false,
+                                  })
+                                }
+                                onSelect={(item) => handleSelectProducto(item, it.uid)}
+                                options={productos}
+                                placeholder="Escribí o buscá un producto…"
+                                disabled={saving}
+                                showAllOnFocus={true}
+                                maxItems={18}
+                                inputClassName="gm-cell-input"
+                                emptyMessage="No hay productos con stock"
+                              />
+                            ) : (
+                              <GlobalAutocomplete
+                                value={it.detalle}
+                                onChange={(val) =>
+                                  updateItem(it.uid, {
+                                    detalle: val,
+                                    id_detalle: NULL_OPTION,
+                                    id_stock_producto: NULL_OPTION,
+                                    id_stock_variante: NULL_OPTION,
+                                    stock_disponible: null,
+                                    sinStock: false,
+                                  })
+                                }
+                                onSelect={(item) => handleSelectDetalle(item, it.uid)}
+                                options={enhancedDetalles}
+                                getOptionLabel={(d) => optionLabel(d)}
+                                getOptionValue={(d) => String(getDetalleId(d) ?? optionLabel(d))}
+                                placeholder="Escribí o buscá un detalle…"
+                                disabled={saving}
+                                showAllOnFocus={false}
+                                maxItems={18}
+                                inputClassName="gm-cell-input"
+                              />
+                            )}
+                            {it.tipo_item === "producto" && it.stock_disponible !== null && (
+                              <small className="oi-stock-hint">Stock disponible: {it.stock_disponible}</small>
+                            )}
                           </div>
 
                           {/* Cantidad */}
@@ -1359,8 +1528,9 @@ export default function ModalEditarIngreso({
                             <input
                               className="gm-cell-input gm-cell-input--center"
                               type="number"
-                              min="1"
-                              step="1"
+                              min="0.01"
+                              max={it.tipo_item === "producto" && it.stock_disponible !== null ? it.stock_disponible : undefined}
+                              step="0.01"
                               style={{ width: "100%" }}
                               value={it.cantidad}
                               onChange={(e) =>
@@ -1369,7 +1539,7 @@ export default function ModalEditarIngreso({
                                   e.target.value === "" ? "" : Number(e.target.value)
                                 )
                               }
-                              disabled={saving}
+                              disabled={saving || Boolean(it.tipo_item === "producto" && it.sinStock)}
                               placeholder=""
                               title=""
                             />
@@ -1472,13 +1642,24 @@ export default function ModalEditarIngreso({
                       <button
                         type="button"
                         className="gm-foot-btn"
-                        onClick={addItem}
+                        onClick={() => addItem("servicio")}
                         disabled={saving}
                       >
                         <span className="gm-foot-btn__icon">
                           <FontAwesomeIcon icon={faPlus} />
                         </span>
-                        Agregar ítem
+                        Agregar detalle
+                      </button>
+                      <button
+                        type="button"
+                        className="gm-foot-btn"
+                        onClick={() => addItem("producto")}
+                        disabled={saving}
+                      >
+                        <span className="gm-foot-btn__icon">
+                          <FontAwesomeIcon icon={faPlus} />
+                        </span>
+                        Agregar producto
                       </button>
                       <div className="gm-foot-sep" />
                     </div>
@@ -1509,6 +1690,13 @@ export default function ModalEditarIngreso({
                       </div>
 
                       <div className="gm-section-body">
+                        <div className="gm-info-box oi-stock-mode" style={{ marginBottom: 14 }}>
+                          <b>Podés combinar detalles y productos</b>
+                          <small style={{ display: "block", marginTop: 3 }}>
+                            Elegí el tipo en cada fila. Los detalles no mueven stock; los productos sí lo descuentan.
+                          </small>
+                        </div>
+
                         {/* ⭐ FECHA CON VALIDACIONES ⭐ */}
                         <div className="gm-field" onClick={openDatePicker}>
                           <input

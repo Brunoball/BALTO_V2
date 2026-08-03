@@ -66,34 +66,36 @@ function notaCreditoStorageScope() {
     return 0;
   }
 }
-function makeIdempotencyKey(id, modo = "NORMAL") {
+function makeIdempotencyKey(id, modo = "NORMAL", scope = "ventas") {
   const uuid = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const suffix = safeStr(modo).toLowerCase().replace(/[^a-z0-9_-]+/g, "-") || "normal";
-  return `nc-venta-${notaCreditoStorageScope()}-${id || 0}-${suffix}-${uuid}`.slice(0, 100);
+  const scopeKey = safeStr(scope).toLowerCase().replace(/[^a-z0-9_-]+/g, "-") || "ventas";
+  return `nc-${scopeKey}-${notaCreditoStorageScope()}-${id || 0}-${suffix}-${uuid}`.slice(0, 100);
 }
-function notaCreditoStorageKey(id, modo = "NORMAL") {
+function notaCreditoStorageKey(id, modo = "NORMAL", scope = "ventas") {
   const suffix = safeStr(modo).toLowerCase().replace(/[^a-z0-9_-]+/g, "-") || "normal";
-  return `balto:arca:nota-credito-venta:${notaCreditoStorageScope()}:${Number(id || 0)}:${suffix}`;
+  const scopeKey = safeStr(scope).toLowerCase().replace(/[^a-z0-9_-]+/g, "-") || "ventas";
+  return `balto:arca:nota-credito:${scopeKey}:${notaCreditoStorageScope()}:${Number(id || 0)}:${suffix}`;
 }
-function getOrCreateNotaCreditoKey(id, modo = "NORMAL") {
+function getOrCreateNotaCreditoKey(id, modo = "NORMAL", scope = "ventas") {
   const idMovimiento = Number(id || 0);
   if (!idMovimiento) return "";
-  const storageKey = notaCreditoStorageKey(idMovimiento, modo);
+  const storageKey = notaCreditoStorageKey(idMovimiento, modo, scope);
   try {
     const existing = safeStr(window.localStorage?.getItem(storageKey));
     if (existing) return existing;
-    const created = makeIdempotencyKey(idMovimiento, modo);
+    const created = makeIdempotencyKey(idMovimiento, modo, scope);
     window.localStorage?.setItem(storageKey, created);
     return created;
   } catch {
-    return makeIdempotencyKey(idMovimiento, modo);
+    return makeIdempotencyKey(idMovimiento, modo, scope);
   }
 }
-function clearNotaCreditoKey(id, modo = "NORMAL") {
+function clearNotaCreditoKey(id, modo = "NORMAL", scope = "ventas") {
   const idMovimiento = Number(id || 0);
   if (!idMovimiento) return;
   try {
-    window.localStorage?.removeItem(notaCreditoStorageKey(idMovimiento, modo));
+    window.localStorage?.removeItem(notaCreditoStorageKey(idMovimiento, modo, scope));
   } catch {
     // La recuperación local no debe impedir que finalice la nota de crédito.
   }
@@ -184,8 +186,43 @@ function ajustarItemsAlTotal(items, objetivo) {
   });
 }
 
-export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToast, onDone, modo = "NORMAL" }) {
+export default function ModalEmitirNotaCreditoVenta({
+  open,
+  row,
+  onClose,
+  onToast,
+  onDone,
+  modo = "NORMAL",
+  scope = "ventas",
+  entityLabel = "venta",
+  entityTitle = "Venta",
+}) {
   const API = `${BASE_URL}/api.php`;
+  const actionScope = scope === "otros_ingresos" ? "otros_ingresos" : "ventas";
+  const operationContext = actionScope === "otros_ingresos"
+    ? "NOTA_CREDITO_OTRO_INGRESO"
+    : "NOTA_CREDITO_VENTA";
+  const creditActionUrl = useCallback((operation, params = {}) => {
+    const search = new URLSearchParams();
+    if (actionScope === "otros_ingresos") {
+      // Compatibilidad real con api.php desplegados antes de las acciones
+      // `otros_ingresos_nota_credito_*`: esas versiones ya conocen Obtener y
+      // Actualizar, y el subrouter traduce `operacion` al servicio de NC.
+      search.set("action", operation === "contexto" ? "otros_ingresos_obtener" : "otros_ingresos_actualizar");
+      search.set("operacion", `nota_credito_${operation}`);
+    } else {
+      search.set("action", `${actionScope}_nota_credito_${operation}`);
+    }
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== "") search.set(key, String(value));
+    });
+    return `${API}?${search.toString()}`;
+  }, [API, actionScope]);
+  const creditPayload = useCallback((operation, payload) => (
+    actionScope === "otros_ingresos"
+      ? { ...payload, operacion: `nota_credito_${operation}` }
+      : payload
+  ), [actionScope]);
   const esEliminacionTotal = modo === "ELIMINAR_TOTAL";
   const [contexto, setContexto] = useState(null);
   const [items, setItems] = useState([]);
@@ -206,7 +243,7 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
     if (!id) return;
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API}?action=ventas_nota_credito_contexto&id_movimiento=${id}`, { headers: headers() });
+      const res = await fetch(creditActionUrl("contexto", { id_movimiento: id }), { headers: headers() });
       const data = await parseJsonOrThrow(res);
       const ctx = data.contexto || data.data?.contexto || null;
       setContexto(ctx);
@@ -221,23 +258,24 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
         totalOriginal: Number(it.total || 0),
         iva_pct: Number(it.iva_pct || 0),
         cantidad: esEliminacionTotal && Number(it.cantidad_disponible || 0) > 0 ? String(Number(it.cantidad_disponible || 0)) : "",
-        afecta_stock: true,
+        tiene_stock: Number(it.id_stock_producto || 0) > 0 || Number(it.id_stock_variante || 0) > 0,
+        afecta_stock: Number(it.id_stock_producto || 0) > 0 || Number(it.id_stock_variante || 0) > 0,
       }));
       setItems(itemsContexto);
       if (esEliminacionTotal) setMotivo("ANULACION_TOTAL");
       const ivaVenta = itemsContexto.find((it) => Number.isFinite(it.iva_pct))?.iva_pct ?? 0;
       setIvaAjuste(String(ivaVenta));
-    } catch (e) { setError(e.message || "No se pudo cargar la venta."); }
+    } catch (e) { setError(e.message || `No se pudo cargar el ${entityLabel}.`); }
     finally { setLoading(false); }
-  }, [API, row, esEliminacionTotal]);
+  }, [row, esEliminacionTotal, entityLabel, creditActionUrl]);
 
   useEffect(() => {
     if (!open) return;
-    idempotencyRef.current = getOrCreateNotaCreditoKey(row?.id_movimiento, modo);
+    idempotencyRef.current = getOrCreateNotaCreditoKey(row?.id_movimiento, modo, actionScope);
     setContexto(null); setItems([]); setMotivo(esEliminacionTotal ? "ANULACION_TOTAL" : "DEVOLUCION_MERCADERIA"); setObservaciones("");
     setImporteAjuste(""); setIvaAjuste("0"); setDescripcionAjuste("DESCUENTO / BONIFICACIÓN");
     setError(""); setOpenResumen(false); cargarContexto();
-  }, [open, row?.id_movimiento, cargarContexto, esEliminacionTotal, modo]);
+  }, [open, row?.id_movimiento, cargarContexto, esEliminacionTotal, modo, actionScope]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -251,7 +289,11 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
 
   useEffect(() => {
     if (motivo === "ANULACION_TOTAL") {
-      setItems((prev) => prev.map((it) => ({ ...it, cantidad: it.disponible > 0 ? String(it.disponible) : "", afecta_stock: true })));
+      setItems((prev) => prev.map((it) => ({
+        ...it,
+        cantidad: it.disponible > 0 ? String(it.disponible) : "",
+        afecta_stock: Boolean(it.tiene_stock),
+      })));
       setImporteAjuste("");
     } else if (esAjusteSinStock) {
       setItems((prev) => prev.map((it) => ({ ...it, cantidad: "", afecta_stock: false })));
@@ -264,7 +306,7 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
       setDescripcionAjuste(labels[motivo] || "DESCUENTO / BONIFICACIÓN");
     } else {
       setImporteAjuste("");
-      setItems((prev) => prev.map((it) => ({ ...it, afecta_stock: true })));
+      setItems((prev) => prev.map((it) => ({ ...it, afecta_stock: Boolean(it.tiene_stock) })));
     }
   }, [motivo, esAjusteSinStock]);
 
@@ -336,7 +378,7 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
     const cfg = contexto.config_facturacion || {};
     return {
       id_movimiento: Number(row?.id_movimiento || 0), labelCliente: cf.razon_social || mov.cliente_nombre || "Cliente",
-      labelSistema: `Nota de crédito de venta #${row?.id_movimiento || ""}`, cliente_facturacion: cf,
+      labelSistema: `Nota de crédito de ${entityLabel} #${row?.id_movimiento || ""}`, cliente_facturacion: cf,
       id_cliente: mov.id_cliente || null, id_tipo_venta: mov.id_tipo_venta || null,
       fecha_cbte_iso: todayISO(), vto_pago_iso: todayISO(), cbte_tipo: Number(contexto?.nota_credito?.cbte_tipo || 13),
       pto_vta: Number(contexto?.nota_credito?.pto_vta || 2), items_facturacion: itemsFactura,
@@ -361,22 +403,26 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
       cuit_emisor: safeStr(cfg.cuit), cond_iva_emisor: safeStr(cfg.condicion_iva), ingresos_brutos_emisor: safeStr(cfg.ingresos_brutos),
       fecha_inicio_actividades_emisor: safeStr(cfg.fecha_inicio_actividades), logo_url: safeStr(cfg.logo_url), modalidad,
       operacion_key: idempotencyRef.current,
-      operacion_contexto: "NOTA_CREDITO_VENTA",
+      operacion_contexto: operationContext,
       operacion_id_origen: Number(row?.id_movimiento || 0) || null,
     };
-  }, [contexto, row, itemsFactura, totalSeleccionado, observaciones, motivo, modalidad]);
+  }, [contexto, row, itemsFactura, totalSeleccionado, observaciones, motivo, modalidad, entityLabel, operationContext]);
 
   const uploadPdf = useCallback(async (idMovimientoDestino, pdfBlob, filename, tipo, meta) => {
     const fd = new FormData(); fd.append("tipo", tipo); fd.append("id_movimiento", String(idMovimientoDestino));
     fd.append("pdf", pdfBlob, filename); fd.append("meta", JSON.stringify(meta || {}));
-    const res = await fetch(`${API}?action=ventas_comprobantes_vincular_movimiento`, { method: "POST", headers: headers(), body: fd });
+    const res = await fetch(`${API}?action=${actionScope}_comprobantes_vincular_movimiento`, { method: "POST", headers: headers(), body: fd });
     return parseJsonOrThrow(res);
-  }, [API]);
+  }, [API, actionScope]);
 
   const crearInterna = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API}?action=ventas_nota_credito_crear`, { method: "POST", headers: headers(true), body: JSON.stringify(payloadBase()) });
+      const res = await fetch(creditActionUrl("crear"), {
+        method: "POST",
+        headers: headers(true),
+        body: JSON.stringify(creditPayload("crear", payloadBase())),
+      });
       const data = await parseJsonOrThrow(res);
       const idNcMov = Number(data.id_movimiento_nota_credito || data.data?.id_movimiento_nota_credito || 0);
       if (idNcMov) {
@@ -385,12 +431,12 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
           if (pdf?.pdfBlob) await uploadPdf(idNcMov, pdf.pdfBlob, pdf.pdfFilename || `nota_credito_interna_${idNcMov}.pdf`, "NOTA_CREDITO_INTERNA", { tipo: "NOTA_CREDITO_INTERNA", id_movimiento_origen: row.id_movimiento, motivo, observaciones });
         } catch (pdfError) { showToast("advertencia", `La nota quedó aplicada, pero no se pudo guardar el PDF: ${pdfError.message}`, 5200); }
       }
-      clearNotaCreditoKey(row?.id_movimiento, modo);
+      clearNotaCreditoKey(row?.id_movimiento, modo, actionScope);
       idempotencyRef.current = "";
       showToast("exito", "Nota de crédito interna aplicada correctamente."); await onDone?.(data);
     } catch (e) { setError(e.message || "No se pudo aplicar la nota de crédito."); showToast("error", e.message || "No se pudo aplicar la nota de crédito.", 4400); }
     finally { setLoading(false); }
-  }, [API, payloadBase, resumenData, itemsFactura, uploadPdf, row, motivo, observaciones, showToast, onDone, modo]);
+  }, [payloadBase, resumenData, itemsFactura, uploadPdf, row, motivo, observaciones, showToast, onDone, modo, actionScope, creditActionUrl, creditPayload]);
 
   const handleEmitida = useCallback(async (factEmitida) => {
     setLoading(true); setError("");
@@ -441,18 +487,22 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
         cbtes_asoc: resumenData.cbtes_asoc,
         importe_fiscal: Number(fiscal.imp_total || totalSeleccionado)
       };
-      const res = await fetch(`${API}?action=ventas_nota_credito_aplicar`, { method: "POST", headers: headers(true), body: JSON.stringify(body) });
+      const res = await fetch(creditActionUrl("aplicar"), {
+        method: "POST",
+        headers: headers(true),
+        body: JSON.stringify(creditPayload("aplicar", body)),
+      });
       const data = await parseJsonOrThrow(res);
       if (!esEliminacionTotal) {
         showToast("exito", "Nota de crédito ARCA autorizada y aplicada correctamente.", 4200);
       }
-      clearNotaCreditoKey(row?.id_movimiento, modo);
+      clearNotaCreditoKey(row?.id_movimiento, modo, actionScope);
       idempotencyRef.current = "";
       setOpenResumen(false);
       await onDone?.(data);
     } catch (e) { setError(e.message || "No se pudo registrar la nota de crédito."); showToast("error", e.message || "No se pudo registrar la nota de crédito.", 4800); }
     finally { setLoading(false); }
-  }, [API, row, contexto, resumenData, itemsFactura, totalSeleccionado, uploadPdf, motivo, observaciones, payloadBase, showToast, onDone, esEliminacionTotal, modo]);
+  }, [row, contexto, resumenData, itemsFactura, totalSeleccionado, uploadPdf, motivo, observaciones, payloadBase, showToast, onDone, esEliminacionTotal, modo, actionScope, creditActionUrl, creditPayload]);
 
   const continuar = () => {
     if (isBaltoDemoMode()) return showToast("advertencia", DEMO_BLOCK_MESSAGE, 5200);
@@ -460,8 +510,8 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
       return setError("No se pudo identificar correctamente la factura ARCA original. No se emitirá ninguna nota de crédito sin el comprobante asociado.");
     }
     if (!puedeContinuar) {
-      if (esEliminacionTotal && !coincideTotalEliminacion) return setError("No se pudo calcular exactamente el saldo total pendiente de la venta.");
-      return setError(excede ? "El importe supera el saldo disponible." : "Seleccioná productos o ingresá un descuento.");
+      if (esEliminacionTotal && !coincideTotalEliminacion) return setError(`No se pudo calcular exactamente el saldo total pendiente del ${entityLabel}.`);
+      return setError(excede ? "El importe supera el saldo disponible." : "Seleccioná ítems o ingresá un descuento.");
     }
     if (modalidad === "ARCA") setOpenResumen(true); else crearInterna();
   };
@@ -485,10 +535,10 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
             <div className="gm-modal-head-icon ncv-modal__head-icon" aria-hidden="true">↩</div>
             <div className="gm-modal-head-left">
               <h2 className="gm-modal-title" id="ncv-modal-title">
-                {esEliminacionTotal ? "Emitir nota de crédito" : "Nota de crédito de venta"}
+                {esEliminacionTotal ? "Emitir nota de crédito" : `Nota de crédito de ${entityLabel}`}
               </h2>
               <p className="gm-modal-subtitle">
-                Venta #{row?.id_movimiento || "—"} ·{" "}
+                {entityTitle} #{row?.id_movimiento || "—"} ·{" "}
                 {esEliminacionTotal
                   ? "Anulación total"
                   : modalidad === "ARCA"
@@ -511,7 +561,7 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
             {loading && !contexto && (
               <div className="ncv-feedback ncv-feedback--loading" role="status">
                 <span className="ncv-feedback__dot" aria-hidden="true" />
-                Cargando venta…
+                Cargando {entityLabel}…
               </div>
             )}
 
@@ -525,7 +575,7 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
               <>
                 {modalidad === "ARCA" && (
                   <div className="gm-info-box ncv-arca-notice">
-                    <div className="ncv-arca-notice__title">Venta facturada en ARCA</div>
+                    <div className="ncv-arca-notice__title">{entityTitle} facturado en ARCA</div>
                     <div className="ncv-arca-notice__text">
                       {esEliminacionTotal ? (
                         <>
@@ -536,7 +586,7 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
                             FACTURA {letraComprobante(facturaOriginal?.cbte_tipo)}{" "}
                             {numeroComprobante(facturaOriginal?.pto_vta, facturaOriginal?.cbte_nro)}
                           </b>
-                          . Después volverás al modal de eliminación para confirmar si querés borrar la venta.
+                          . Después volverás al modal de eliminación para confirmar si querés borrar el registro.
                         </>
                       ) : (
                         <>
@@ -625,7 +675,7 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
                     <div className="ncv-summary-card__body">
                       <span className="ncv-summary-card__label">Total original</span>
                       <b className="ncv-summary-card__value">{money(contexto.total_original)}</b>
-                      <span className="ncv-summary-card__detail">Importe de la venta</span>
+                      <span className="ncv-summary-card__detail">Importe del {entityLabel}</span>
                     </div>
                   </article>
 
@@ -711,10 +761,10 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
                   <section className="gm-section">
                     <div className="gm-section-head">
                       <div className="gm-section-dot" />
-                      <span>Productos de la venta</span>
+                      <span>Ítems del {entityLabel}</span>
                     </div>
                     <div className="gm-section-body ncv-products-body">
-                      <div className="gm-table ncv-table" role="table" aria-label="Productos de la venta">
+                      <div className="gm-table ncv-table" role="table" aria-label={`Ítems del ${entityLabel}`}>
                         <div className="gm-table-head" role="row">
                           <div className="gm-table-th" role="columnheader">Producto</div>
                           <div className="gm-table-th" role="columnheader">Disponible</div>
@@ -727,7 +777,7 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
                             const seleccionado = itemsSeleccionados.find(
                               (selectedItem) => selectedItem.id_item_origen === item.id_item_origen
                             );
-                            const stockDisabled = loading || !numberValue(item.cantidad);
+                            const stockDisabled = loading || !numberValue(item.cantidad) || !item.tiene_stock;
 
                             return (
                               <div className="gm-table-row" role="row" key={item.id_item_origen}>
@@ -763,12 +813,12 @@ export default function ModalEmitirNotaCreditoVenta({ open, row, onClose, onToas
                                   <label className={`gm-inline-check${stockDisabled ? " is-disabled" : ""}`}>
                                     <input
                                       type="checkbox"
-                                      checked={item.afecta_stock}
+                                      checked={Boolean(item.afecta_stock && item.tiene_stock)}
                                       disabled={stockDisabled}
                                       aria-label={`Reingresar ${item.descripcion} al stock`}
                                       onChange={(e) => setItems((currentItems) => currentItems.map(
                                         (currentItem, currentIndex) => currentIndex === index
-                                          ? { ...currentItem, afecta_stock: e.target.checked }
+                                          ? { ...currentItem, afecta_stock: item.tiene_stock && e.target.checked }
                                           : currentItem
                                       ))}
                                     />

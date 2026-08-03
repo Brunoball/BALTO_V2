@@ -8,9 +8,34 @@ import {
   selectFirstAutocomplete,
   selectFirstNonEmpty,
   selectMovementMode,
+  selectProduct,
   waitDialog,
   waitForBusyToFinish,
 } from './ui.js';
+
+function requestJsonBody(request) {
+  try {
+    const value = request.postDataJSON();
+    return value && typeof value === 'object' ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function isOtherIncomeCreditOperation(request, operation) {
+  const url = new URL(request.url());
+  const action = String(url.searchParams.get('action') || '').toLowerCase();
+  const expectedOperation = `nota_credito_${operation}`;
+  if (action === `otros_ingresos_nota_credito_${operation}`) return true;
+  const aliasAction = operation === 'contexto' ? 'otros_ingresos_obtener' : 'otros_ingresos_actualizar';
+  if (action !== aliasAction) return false;
+  const body = requestJsonBody(request);
+  const declared = String(
+    url.searchParams.get('operacion') ||
+    body.operacion || body.operacion_interna || body.modo_operacion || '',
+  ).toLowerCase();
+  return declared === expectedOperation;
+}
 
 export async function createStockProduct(page, product) {
   await page.goto('/panel/stock');
@@ -654,15 +679,399 @@ export async function createOtherIncome(page, data) {
   await waitForBusyToFinish(page);
   await page.getByTitle('Crear nuevo ingreso').click();
   const dialog = await waitDialog(page, 'Nuevo Ingreso');
-  const row = await createCatalogDescription(dialog, data.description);
+  await expect(dialog.getByRole('button', { name: /^Guardar ingreso$/i })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /^Facturar$/i })).toBeVisible();
+  const requestedClient = String(data.clientName || data.clientSearch || '').trim();
+  data.clientName = await selectFirstAutocomplete(dialog, 'Cliente', requestedClient);
+
+  let row;
+  if (data.freeText) {
+    row = dialog.locator('.gm-table-body .gm-table-row').first();
+    const input = row.locator('input[placeholder*="descripción" i]').first();
+    await expect(input).toBeVisible();
+    await input.fill(data.description);
+  } else {
+    row = await createCatalogDescription(dialog, data.description);
+  }
   const qty = row.locator('input[type="number"]').first();
   await qty.fill(String(data.quantity ?? 1));
   const price = row.locator('input[inputmode="decimal"]').first();
   await price.fill(String(data.amount ?? 100));
   await price.blur();
   await fillPayment(dialog);
+
+  if (data.finalAction === 'facturar') {
+    await dialog.getByRole('button', { name: /^Facturar$/i }).click();
+    const invoiceDialog = page.getByRole('dialog').last();
+    await expect(invoiceDialog).toBeVisible({ timeout: 60_000 });
+    await expect(invoiceDialog).toContainText(/Resumen antes de emitir|Datos fiscales para facturar/i);
+    return { invoiceDialog, incomeDialog: dialog };
+  }
+
   await clickSaveAndWait(dialog, /Guardar ingreso/i, { timeout: 60_000 });
   return searchRow(page, data.description, /Buscar por descripción/i);
+}
+
+async function visibleDialog(page, title) {
+  const dialog = page
+    .getByRole('dialog')
+    .filter({ has: page.getByText(title, { exact: false }) })
+    .last();
+  return (await dialog.isVisible().catch(() => false)) ? dialog : null;
+}
+
+export async function detectOtherIncomeInvoiceStep(page) {
+  await expect
+    .poll(async () => {
+      const fiscal = await visibleDialog(page, /Datos fiscales para facturar/i);
+      const summary = await visibleDialog(page, /Resumen antes de emitir/i);
+      return fiscal ? 'fiscal' : summary ? 'summary' : '';
+    }, {
+      timeout: 60_000,
+      message: 'Facturar debe abrir el modal fiscal por CUIT o el resumen global de facturación.',
+    })
+    .toMatch(/^(fiscal|summary)$/);
+
+  const fiscalDialog = await visibleDialog(page, /Datos fiscales para facturar/i);
+  if (fiscalDialog) return { kind: 'fiscal', dialog: fiscalDialog };
+  return {
+    kind: 'summary',
+    dialog: await waitDialog(page, /Resumen antes de emitir/i),
+  };
+}
+
+export async function expectOtherIncomeInvoiceSummary(dialog, data = {}) {
+  await expect(dialog).toContainText(/Resumen antes de emitir/i);
+  await expect(dialog).toContainText(/Cuenta fiscal emisora/i);
+  await expect(dialog).toContainText(/Datos del cliente/i);
+  await expect(dialog).toContainText(/Datos del emisor/i);
+  await expect(dialog).toContainText(/Detalle/i);
+  await expect(dialog).not.toContainText(/Buscar \/ completar cliente|Paso 1 de 3|Receptor del ingreso/i);
+
+  if (data.clientName) await expect(dialog).toContainText(data.clientName);
+  for (const item of data.items || []) await expect(dialog).toContainText(item);
+}
+
+export async function continueOtherIncomeInvoiceToSummary(page, step, options = {}) {
+  if (step.kind === 'summary') return step.dialog;
+
+  const fiscalDialog = step.dialog;
+  await expect(fiscalDialog).toContainText(/Datos fiscales para facturar/i);
+  await expect(fiscalDialog).toContainText(/Factura por CUIT/i);
+  await expect(fiscalDialog).toContainText(/Consulta ARCA/i);
+  const cuit = String(options.cuit || '').replace(/\D/g, '');
+  expect(cuit, 'PW_ARCA_CLIENT_CUIT debe tener 11 dígitos si el cliente no posee ficha fiscal.').toHaveLength(11);
+
+  const cuitInput = fiscalDialog.locator('input[inputmode="numeric"]').first();
+  await expect(cuitInput).toBeVisible();
+  await cuitInput.fill(cuit);
+
+  const lookupResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'GET' &&
+      new URL(response.url()).searchParams.get('action') === 'padron_cuit',
+    { timeout: 120_000 },
+  );
+  await fiscalDialog.getByRole('button', { name: /Consultar ARCA/i }).click();
+  const lookupResponse = await lookupResponsePromise;
+  expect(lookupResponse.status(), 'La consulta de CUIT en ARCA debe responder correctamente.').toBeLessThan(400);
+  await expect(fiscalDialog).toContainText(/Datos encontrados y listos para confirmar/i, { timeout: 120_000 });
+
+  await fiscalDialog.getByRole('button', { name: /Confirmar y facturar/i }).click();
+  await expect(fiscalDialog).toBeHidden({ timeout: 120_000 });
+  const summary = await waitDialog(page, /Resumen antes de emitir/i);
+  await expectOtherIncomeInvoiceSummary(summary, options);
+  return summary;
+}
+
+function expectSuccessfulJsonResponse(response, body, label) {
+  expect(
+    response.status(),
+    `${label} respondió HTTP ${response.status()}: ${JSON.stringify(body)}`,
+  ).toBeLessThan(400);
+  expect(
+    body?.exito !== false && body?.success !== false,
+    body?.mensaje || body?.message || `${label} no fue confirmada por el backend.`,
+  ).toBeTruthy();
+}
+
+export async function emitOtherIncomeInvoice(page, summaryDialog, description) {
+  await expectOtherIncomeInvoiceSummary(summaryDialog, { items: [description] });
+  const confirmation = summaryDialog.locator('.mfr-check__input').first();
+  await expect(confirmation).toBeVisible();
+  if (!(await confirmation.isChecked())) await confirmation.check();
+
+  const arcaPromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).searchParams.get('action') === 'wsfe_emitir',
+    { timeout: 180_000 },
+  );
+  const createPromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).searchParams.get('action') === 'otros_ingresos_crear',
+    { timeout: 180_000 },
+  );
+  const linkPromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).searchParams.get('action') === 'otros_ingresos_comprobantes_vincular_movimiento',
+    { timeout: 180_000 },
+  );
+
+  await summaryDialog.getByRole('button', { name: /Emitir \+ facturar/i }).click();
+  const [arcaResponse, createResponse, linkResponse] = await Promise.all([
+    arcaPromise,
+    createPromise,
+    linkPromise,
+  ]);
+  const [arcaBody, createBody, linkBody] = await Promise.all([
+    arcaResponse.json().catch(() => ({})),
+    createResponse.json().catch(() => ({})),
+    linkResponse.json().catch(() => ({})),
+  ]);
+  expectSuccessfulJsonResponse(arcaResponse, arcaBody, 'La emisión ARCA');
+  expect(
+    arcaBody?.cae || arcaBody?.data?.cae || arcaBody?.factura?.cae || arcaBody?.data?.factura?.cae,
+    'ARCA debe devolver un CAE.',
+  ).toBeTruthy();
+  expectSuccessfulJsonResponse(createResponse, createBody, 'El alta del ingreso facturado');
+  expectSuccessfulJsonResponse(linkResponse, linkBody, 'La vinculación de la factura');
+  await expect(summaryDialog).toBeHidden({ timeout: 180_000 });
+
+  const row = await searchRow(page, description, /Buscar por descripción/i);
+  await expect(row.getByTitle('Editar')).toHaveCount(0);
+  await expect(row.getByTitle(/Facturar ingreso/i)).toHaveCount(0);
+  await expect(row.getByTitle('Ver comprobante')).toBeEnabled();
+  return { row, arcaBody, createBody, linkBody };
+}
+
+export async function openOtherIncomeDetail(page, query) {
+  const row = await searchRow(page, query, /Buscar por descripción/i);
+  await row.getByTitle(/Ver información completa del movimiento/i).click();
+  const dialog = await waitDialog(page, /Detalle de ingreso/i);
+  await expect(dialog).toContainText(query);
+  return { row, dialog };
+}
+
+export async function expectOtherIncomeCreditTrace(page, query, expected = {}) {
+  const { row, dialog } = await openOtherIncomeDetail(page, query);
+  await expect(dialog).toContainText(/Ingreso ajustado por nota de crédito/i);
+  await expect(dialog.getByText(/Estado documental/i).first()).toBeVisible();
+  await expect(dialog.getByText(/Ajustada por nota de crédito/i).first()).toBeVisible();
+
+  const trace = dialog.getByRole('note', { name: /Trazabilidad de notas de crédito/i });
+  await expect(trace).toBeVisible();
+  await trace.getByTitle(/Ver detalle de la nota de crédito/i).click();
+  await expect(trace).toContainText(/Importe original/i);
+  await expect(trace).toContainText(/Total acreditado/i);
+  await expect(trace).toContainText(/Valor vigente/i);
+  await expect(trace).toContainText(/Nota de crédito/i);
+  if (expected.item) await expect(trace).toContainText(expected.item);
+
+  await dialog.getByRole('button', { name: /Cerrar/i }).last().click();
+  await expect(dialog).toBeHidden();
+  return row;
+}
+
+export async function expectOtherIncomeItems(page, query, expectedItems = []) {
+  const { row, dialog } = await openOtherIncomeDetail(page, query);
+  for (const item of expectedItems) {
+    await expect(dialog).toContainText(item);
+  }
+
+  await dialog.getByRole('button', { name: /Cerrar/i }).last().click();
+  await expect(dialog).toBeHidden();
+  return row;
+}
+
+export async function deleteFiscalOtherIncomeThroughTotalCreditNote(page, query) {
+  const row = await searchRow(page, query, /Buscar por descripción/i);
+  await row.getByTitle('Eliminar').click();
+
+  const blockedDialog = await waitDialog(page, /No se puede eliminar todavía/i);
+  await expect(blockedDialog).toContainText(/factura emitida en ARCA/i);
+  await expect(blockedDialog).toContainText(/nota de crédito por todo el saldo/i);
+  await expect(blockedDialog.getByRole('button', { name: /^Eliminar$/i })).toBeDisabled();
+  await blockedDialog.getByRole('button', { name: /Emitir nota de crédito/i }).click();
+  await expect(blockedDialog).toBeHidden();
+
+  const creditDialog = await waitDialog(page, /Nota de crédito de ingreso|Emitir nota de crédito/i);
+  await expect(creditDialog).toContainText(/Ingreso facturado en ARCA/i, { timeout: 90_000 });
+  await expect(creditDialog).toContainText(/ANULACIÓN TOTAL/i);
+  const continueButton = creditDialog.getByRole('button', { name: /^Emitir nota de crédito$/i }).last();
+  await expect(continueButton).toBeEnabled({ timeout: 90_000 });
+  await continueButton.click();
+
+  const summary = await waitDialog(page, /Resumen antes de emitir nota de crédito/i);
+  await expect(summary).toContainText(/Resumen de nota de crédito/i);
+  const confirmation = summary.locator('.mfr-check__input').first();
+  await expect(confirmation).toBeVisible();
+  if (!(await confirmation.isChecked())) await confirmation.check();
+
+  const arcaPromise = page.waitForResponse(
+    (response) => response.request().method() === 'POST'
+      && new URL(response.url()).searchParams.get('action') === 'wsfe_emitir',
+    { timeout: 180_000 },
+  );
+  const applyPromise = page.waitForResponse(
+    (response) => response.request().method() === 'POST'
+      && isOtherIncomeCreditOperation(response.request(), 'aplicar'),
+    { timeout: 180_000 },
+  );
+  await summary.getByRole('button', { name: /Emitir \+ facturar/i }).click();
+  const [arcaResponse, applyResponse] = await Promise.all([arcaPromise, applyPromise]);
+  const [arcaBody, applyBody] = await Promise.all([
+    arcaResponse.json().catch(() => ({})),
+    applyResponse.json().catch(() => ({})),
+  ]);
+  expectSuccessfulJsonResponse(arcaResponse, arcaBody, 'La nota de crédito ARCA');
+  expect(
+    arcaBody?.cae || arcaBody?.data?.cae || arcaBody?.factura?.cae || arcaBody?.data?.factura?.cae,
+    'La nota de crédito ARCA debe devolver CAE.',
+  ).toBeTruthy();
+  expectSuccessfulJsonResponse(applyResponse, applyBody, 'La aplicación de la nota de crédito total');
+  await expect(summary).toBeHidden({ timeout: 180_000 });
+
+  const finalDelete = await waitDialog(page, /Eliminar ingreso anulado/i);
+  await expect(finalDelete.getByRole('button', { name: /^Eliminar$/i })).toBeEnabled();
+  const deletePromise = page.waitForResponse(
+    (response) => response.request().method() === 'POST'
+      && new URL(response.url()).searchParams.get('action') === 'otros_ingresos_eliminar',
+    { timeout: 120_000 },
+  );
+  await finalDelete.getByRole('button', { name: /^Eliminar$/i }).click();
+  const deleteResponse = await deletePromise;
+  const deleteBody = await deleteResponse.json().catch(() => ({}));
+  expectSuccessfulJsonResponse(deleteResponse, deleteBody, 'La eliminación del ingreso fiscal anulado');
+  await expect(finalDelete).toBeHidden({ timeout: 120_000 });
+
+  const search = page.getByPlaceholder(/Buscar por descripción/i).first();
+  await search.fill(query);
+  await search.press('Enter');
+  await waitForBusyToFinish(page);
+  await expect(page.locator('.mov-gridTable--row:visible:not(.mov-row--skeleton)').filter({ hasText: query })).toHaveCount(0);
+}
+
+export async function createOtherIncomeWithProduct(page, data) {
+  await page.goto('/panel/Otrosingresos');
+  await waitForBusyToFinish(page);
+  await page.getByTitle('Crear nuevo ingreso').click();
+  const dialog = await waitDialog(page, 'Nuevo Ingreso');
+  const requestedClient = String(data.clientName || data.clientSearch || '').trim();
+  data.clientName = await selectFirstAutocomplete(dialog, 'Cliente', requestedClient);
+
+  const row = dialog.locator('.gm-table-body .gm-table-row').first();
+  await dialog.getByLabel('Tipo de ítem fila 1').selectOption('producto');
+  await selectProduct(row, data.productName);
+  await row.locator('input[type="number"]').first().fill(String(data.quantity ?? 1));
+
+  if (data.price !== undefined) {
+    const price = row.locator('input[inputmode="decimal"]').first();
+    await price.fill(String(data.price));
+    await price.blur();
+  }
+
+  await fillPayment(dialog);
+  await clickSaveAndWait(dialog, /Guardar ingreso/i, { timeout: 60_000 });
+  return searchRow(page, data.productName, /Buscar por descripción/i);
+}
+
+export async function createMixedOtherIncome(page, data) {
+  await page.goto('/panel/Otrosingresos');
+  await waitForBusyToFinish(page);
+  await page.getByTitle('Crear nuevo ingreso').click();
+  const dialog = await waitDialog(page, 'Nuevo Ingreso');
+  const requestedClient = String(data.clientName || data.clientSearch || '').trim();
+  data.clientName = await selectFirstAutocomplete(dialog, 'Cliente', requestedClient);
+
+  const productRow = dialog.locator('.gm-table-body .gm-table-row').first();
+  await dialog.getByLabel('Tipo de ítem fila 1').selectOption('producto');
+  await selectProduct(productRow, data.productName);
+  await productRow.locator('input[type="number"]').first().fill(String(data.productQuantity ?? 1));
+  const productPrice = productRow.locator('input[inputmode="decimal"]').first();
+  await productPrice.fill(String(data.productPrice ?? 100));
+  await productPrice.blur();
+
+  await dialog.getByRole('button', { name: /Agregar detalle/i }).click();
+  const serviceRow = dialog.locator('.gm-table-body .gm-table-row').nth(1);
+  await expect(dialog.getByLabel('Tipo de ítem fila 2')).toHaveValue('servicio');
+  const serviceInput = serviceRow.locator('input[placeholder*="descripción" i]').first();
+  await serviceInput.fill(data.serviceDescription);
+  await serviceRow.locator('input[type="number"]').first().fill(String(data.serviceQuantity ?? 1));
+  const servicePrice = serviceRow.locator('input[inputmode="decimal"]').first();
+  await servicePrice.fill(String(data.servicePrice ?? 50));
+  await servicePrice.blur();
+
+  await fillPayment(dialog);
+  await clickSaveAndWait(dialog, /Guardar ingreso/i, { timeout: 60_000 });
+  return searchRow(page, data.productName, /Buscar por descripción/i);
+}
+
+export async function openOtherIncomeCreditNote(page, query) {
+  const row = await searchRow(page, query, /Buscar por descripción/i);
+  await row.getByTitle('Emitir nota de crédito').click();
+  const dialog = await waitDialog(page, 'Nota de crédito de ingreso');
+  return { row, dialog };
+}
+
+export async function configureOtherIncomeCreditNote(dialog, options = {}) {
+  const normalized = typeof options === 'number' ? { quantity: options } : options;
+  const motive = normalized.motive || 'DEVOLUCION_MERCADERIA';
+
+  // El modal de ingresos reutiliza el componente de NC de Ventas, pero se
+  // renderiza en un portal y primero carga el contexto del movimiento. Buscar
+  // el selector por sus opciones evita depender de wrappers/clases de layout.
+  const motiveSelect = dialog
+    .locator(`select:has(option[value="${motive}"])`)
+    .first();
+  await expect(motiveSelect).toBeVisible({ timeout: 30_000 });
+  await motiveSelect.selectOption(motive);
+  await expect(motiveSelect).toHaveValue(motive);
+
+  if (['DESCUENTO', 'BONIFICACION', 'DIFERENCIA_PRECIO', 'OTRO'].includes(motive)) {
+    const adjustment = dialog.locator('.ncv-form-grid--adjustment').first();
+    await expect(adjustment).toBeVisible({ timeout: 20_000 });
+
+    const amount = adjustment.locator('input[type="number"]').first();
+    await expect(amount).toBeVisible();
+    await amount.fill(String(normalized.amount ?? 10));
+
+    const ivaSelect = adjustment.locator('select').first();
+    await expect(ivaSelect).toBeVisible();
+    await ivaSelect.selectOption(String(normalized.ivaPct ?? 21));
+  } else if (motive !== 'ANULACION_TOTAL') {
+    const qty = dialog.locator('input[aria-label^="Cantidad a acreditar"]').first();
+    await expect(qty).toBeVisible({ timeout: 20_000 });
+    await qty.fill(String(normalized.quantity ?? 1));
+
+    const stockCheck = dialog.locator('input[aria-label^="Reingresar"]').first();
+    if (await stockCheck.isVisible().catch(() => false)) {
+      if (!(await stockCheck.isChecked())) await stockCheck.check();
+      await expect(stockCheck).toBeChecked();
+    }
+  }
+
+  return { motiveSelect };
+}
+
+export async function applyOtherIncomeCreditNote(page, query, options = 1) {
+  const { dialog } = await openOtherIncomeCreditNote(page, query);
+  await configureOtherIncomeCreditNote(dialog, options);
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      isOtherIncomeCreditOperation(response.request(), 'crear'),
+    { timeout: 90_000 },
+  );
+  await dialog.getByRole('button', { name: /Aplicar nota de crédito/i }).last().click();
+  const response = await responsePromise;
+  const body = await response.json().catch(() => ({}));
+  expect(response.status(), JSON.stringify(body)).toBeLessThan(400);
+  expect(body?.exito !== false && body?.success !== false, body?.mensaje || body?.message).toBeTruthy();
+  await expect(dialog).toBeHidden({ timeout: 90_000 });
+  return { response, body };
 }
 
 export async function createOtherExpense(page, data) {

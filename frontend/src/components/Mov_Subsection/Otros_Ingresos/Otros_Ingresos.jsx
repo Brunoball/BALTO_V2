@@ -15,6 +15,7 @@ import ModalVerComprobante from "../../Global/Ver_Comprobantes/ModalVerComproban
 import ModalNuevoIngreso from "./modales/ModalNuevoIngreso.jsx";
 import ModalEditarIngreso from "./modales/ModalEditarIngreso.jsx";
 import ModalCobrarOtrosIngresos from "./modales/ModalCobrarOtrosIngresos.jsx";
+import ModalEmitirNotaCreditoIngreso from "./modales/ModalEmitirNotaCreditoIngreso.jsx";
 import ModalEliminar from "../../Global/Modales/ModalEliminar.jsx";
 import { ModalDetalleMovimientoIngreso } from "../../Global/Modales/ModalDetalleMovimiento.jsx";
 
@@ -32,6 +33,7 @@ import {
   faBoxOpen,
   faEye,
   faInfoCircle,
+  faFileInvoiceDollar,
 } from "@fortawesome/free-solid-svg-icons";
 
 import * as XLSX from "xlsx";
@@ -57,6 +59,10 @@ function moneyARS(v) {
 function safeText(v) {
   const s = String(v ?? "").trim();
   return s ? s : "—";
+}
+
+function cleanText(v) {
+  return String(v ?? "").trim();
 }
 function cantidadDetallesMovimiento(row) {
   const arrays = [row?.items_detalle, row?.itemsDetalle, row?.items, row?.detalles];
@@ -205,6 +211,39 @@ function getIngresoIdComprobante(row) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function normalizeIngresoComprobantes(row) {
+  const docs = Array.isArray(row?.comprobantes_detalle) ? row.comprobantes_detalle : [];
+  return docs
+    .map((doc) => {
+      const id = Number(doc?.id_comprobante ?? doc?.id_archivo ?? doc?.id ?? 0);
+      if (!(id > 0)) return null;
+      const tipo = cleanText(doc?.tipo ?? doc?.archivo_tipo ?? doc?.comprobante_tipo).toUpperCase();
+      const esNota = tipo.includes("NOTA_CREDITO");
+      const esFactura = tipo.includes("FACTURA") || Number(doc?.emitido_en_arca || 0) === 1;
+      const label = cleanText(
+        doc?.label ?? doc?.title ??
+        (esNota ? "Nota de crédito" : esFactura ? "Factura" : "Comprobante de ingreso")
+      ) || "Comprobante de ingreso";
+      return {
+        ...doc,
+        id_comprobante: id,
+        key: cleanText(doc?.key) || `${tipo || "comprobante"}-${id}`,
+        label,
+        title: cleanText(doc?.title) || label,
+        mime: cleanText(doc?.mime ?? doc?.archivo_mime) || "application/pdf",
+        cacheSalt: cleanText(doc?.archivo_path ?? doc?.tipo ?? id) || String(id),
+      };
+    })
+    .filter(Boolean);
+}
+
+function hasFacturaFiscal(row) {
+  if (Number(row?.factura_emitida_en_arca || row?.emitido_en_arca || 0) === 1) return true;
+  return normalizeIngresoComprobantes(row).some((doc) =>
+    Number(doc?.emitido_en_arca || 0) === 1 && !String(doc?.tipo || "").toUpperCase().includes("NOTA_CREDITO")
+  );
+}
+
 function getOtroIngresoMediosDetalle(row) {
   if (Array.isArray(row?.medios_pago_detalle)) return row.medios_pago_detalle;
 
@@ -307,6 +346,7 @@ function isOtroIngresoPagado(row) {
 
 
 function normalizeOtroIngresoRow(r) {
+  const comprobantesDetalle = normalizeIngresoComprobantes(r);
   return {
     ...r,
     id_movimiento: getMovimientoId(r) ?? r?.id_movimiento ?? null,
@@ -316,6 +356,7 @@ function normalizeOtroIngresoRow(r) {
     comprobante_url: String(r?.comprobante_url ?? "").trim(),
     archivo_mime: String(r?.archivo_mime ?? "").trim(),
     comprobante_tipo: String(r?.comprobante_tipo ?? "").trim(),
+    comprobantes_detalle: comprobantesDetalle,
     medios_pago_detalle: getOtroIngresoMediosDetalle(r),
     cantidad_medios_pago: getOtroIngresoCantidadMedios(r),
     cobrado_total: getOtroIngresoCobrado(r),
@@ -323,7 +364,7 @@ function normalizeOtroIngresoRow(r) {
     estado_pago: getOtroIngresoEstadoPago(r),
     pagado: isOtroIngresoPagado(r),
     tiene_comprobante:
-      Number(r?.id_comprobante ?? 0) > 0 || String(r?.comprobante_url ?? "").trim() !== "",
+      comprobantesDetalle.length > 0 || Number(r?.id_comprobante ?? 0) > 0 || String(r?.comprobante_url ?? "").trim() !== "",
   };
 }
 
@@ -439,6 +480,8 @@ export default function OtrosIngresos() {
   const [openAdd, setOpenAdd] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [openCobrar, setOpenCobrar] = useState(false);
+  const [openNC, setOpenNC] = useState(false);
+  const [modoNC, setModoNC] = useState("NORMAL");
   const [selectedRow, setSelectedRow] = useState(null);
 
   const [openDelete, setOpenDelete] = useState(false);
@@ -449,6 +492,7 @@ export default function OtrosIngresos() {
     url: "",
     mime: "",
     title: "Comprobante",
+    documents: [],
   });
 
   const [openMediosPago, setOpenMediosPago] = useState(false);
@@ -1076,7 +1120,7 @@ export default function OtrosIngresos() {
     setOpenDelete(true);
   }, []);
 
-  const handleConfirmDelete = useCallback(async () => {
+  const handleConfirmDelete = useCallback(async ({ permitirFiscalAnulada = false } = {}) => {
     if (!rowToDelete?.id_movimiento) {
       throw new Error("No se encontró el movimiento a eliminar.");
     }
@@ -1095,6 +1139,8 @@ export default function OtrosIngresos() {
       const data = await apiPostJson(`${API}?${sp.toString()}`, {
         idUsuario,
         idUsuarioMaster,
+        permitir_fiscal_anulada: permitirFiscalAnulada ? 1 : 0,
+        eliminar_fiscal_anulada: permitirFiscalAnulada ? 1 : 0,
       });
       if (!data?.exito) throw new Error(data?.mensaje || "No se pudo eliminar.");
 
@@ -1179,6 +1225,14 @@ export default function OtrosIngresos() {
     async (row) => {
       const id = Number(row?.id_movimiento ?? 0);
       if (!id) return;
+      if (hasFacturaFiscal(row)) {
+        showToast("advertencia", "Los ingresos con factura emitida en ARCA no se pueden editar.", 3400);
+        return;
+      }
+      if (Number(row?.nota_credito_cantidad || 0) > 0 || Number(row?.tiene_nota_credito || 0) === 1) {
+        showToast("advertencia", "Los ingresos con notas de crédito no se pueden editar.", 3400);
+        return;
+      }
 
       setLoadingEditDataId(id);
       setError("");
@@ -1244,6 +1298,11 @@ export default function OtrosIngresos() {
 
   const handlePrewarmComprobante = useCallback(
     async (row) => {
+      const docs = normalizeIngresoComprobantes(row);
+      if (docs.length) {
+        docs.forEach((doc) => getComprobanteSignedUrl(doc.id_comprobante, row?.id_movimiento).catch(() => {}));
+        return;
+      }
       const idComprobante = getIngresoIdComprobante(row);
       const idMovimiento = Number(row?.id_movimiento ?? 0);
       if (!idComprobante && !idMovimiento) return;
@@ -1255,18 +1314,33 @@ export default function OtrosIngresos() {
 
   const handleOpenComprobante = useCallback(
     async (row) => {
+      const docsDetalle = normalizeIngresoComprobantes(row);
       const idComprobante = getIngresoIdComprobante(row);
       const idMovimiento = Number(row?.id_movimiento ?? 0);
 
       const tieneComprobante =
+        docsDetalle.length > 0 ||
         (idComprobante && idComprobante > 0) ||
         String(row?.comprobante_url ?? "").trim() !== "";
 
       if (!tieneComprobante) return;
 
       try {
-        const signedUrl = await getComprobanteSignedUrl(idComprobante, idMovimiento);
-        if (!signedUrl) {
+        const candidates = docsDetalle.length
+          ? docsDetalle
+          : [{
+              id_comprobante: idComprobante,
+              label: "Comprobante de ingreso",
+              title: "Comprobante de ingreso",
+              mime: String(row?.archivo_mime ?? "").trim() || "application/octet-stream",
+            }];
+        const documents = (
+          await Promise.all(candidates.map(async (doc) => ({
+            ...doc,
+            url: await getComprobanteSignedUrl(doc.id_comprobante, idMovimiento),
+          })))
+        ).filter((doc) => String(doc.url || "").trim());
+        if (!documents.length) {
           showToast("error", "No se pudo obtener el comprobante.", 3000);
           return;
         }
@@ -1275,11 +1349,12 @@ export default function OtrosIngresos() {
         const fecha = formatFechaDMY(row?.fecha);
 
         setComprobanteView({
-          url: signedUrl,
-          mime: String(row?.archivo_mime ?? "").trim() || "application/octet-stream",
+          url: documents[0].url,
+          mime: documents[0].mime || "application/octet-stream",
           title: detalle
-            ? `Comprobante de ingreso - ${detalle} - ${fecha}`
-            : `Comprobante de ingreso - ${fecha}`,
+            ? `Comprobantes de ingreso - ${detalle} - ${fecha}`
+            : `Comprobantes de ingreso - ${fecha}`,
+          documents,
         });
 
         setOpenViewComprobante(true);
@@ -1296,8 +1371,58 @@ export default function OtrosIngresos() {
       url: "",
       mime: "",
       title: "Comprobante",
+      documents: [],
     });
   }, []);
+
+  const deleteEsFiscal = useMemo(() => hasFacturaFiscal(rowToDelete), [rowToDelete]);
+  const deleteTieneNotas = useMemo(
+    () => Number(rowToDelete?.nota_credito_cantidad || 0) > 0 || Number(rowToDelete?.tiene_nota_credito || 0) === 1,
+    [rowToDelete]
+  );
+  const deleteNotaFiscalTotal = useMemo(
+    () => deleteEsFiscal && (
+      Number(rowToDelete?.nota_credito_total || 0) === 1 ||
+      Number(rowToDelete?.monto_total ?? rowToDelete?.total ?? 0) <= 0.004
+    ),
+    [rowToDelete, deleteEsFiscal]
+  );
+  const deleteConfig = useMemo(() => {
+    if (deleteEsFiscal && !deleteNotaFiscalTotal) {
+      return {
+        title: "No se puede eliminar todavía",
+        message: "Este ingreso tiene una factura emitida en ARCA.",
+        warning: "Primero emití una nota de crédito por todo el saldo pendiente.",
+        confirmDisabled: true,
+        secondaryActionLabel: "Emitir nota de crédito",
+      };
+    }
+    if (deleteEsFiscal && deleteNotaFiscalTotal) {
+      return {
+        title: "Eliminar ingreso anulado",
+        message: "La factura ya fue anulada totalmente mediante nota de crédito.",
+        warning: "Se eliminará el registro y Balto revertirá sus impactos de stock.",
+        confirmDisabled: false,
+        secondaryActionLabel: "",
+      };
+    }
+    if (deleteTieneNotas) {
+      return {
+        title: "Eliminar ingreso y notas de crédito",
+        message: "¿Seguro que querés eliminar este ingreso y sus notas de crédito internas?",
+        warning: "Balto revertirá el impacto original y el de cada nota para conservar el stock correcto.",
+        confirmDisabled: false,
+        secondaryActionLabel: "",
+      };
+    }
+    return {
+      title: "Eliminar ingreso",
+      message: "¿Seguro que querés eliminar este ingreso definitivamente?",
+      warning: "Esta acción no se puede deshacer.",
+      confirmDisabled: false,
+      secondaryActionLabel: "",
+    };
+  }, [deleteEsFiscal, deleteNotaFiscalTotal, deleteTieneNotas]);
 
   const isAnyLoading = loadingRows || loadingMore || loadingAll || !!loadingEditDataId;
 
@@ -1560,7 +1685,11 @@ export default function OtrosIngresos() {
                   const key = getRowKey(r);
                   const isLoadingThisEdit = loadingEditDataId === r.id_movimiento;
                   const tieneComprobante =
+                    normalizeIngresoComprobantes(r).length > 0 ||
                     Number(r?.id_comprobante ?? 0) > 0 || String(r?.comprobante_url ?? "").trim() !== "";
+                  const ingresoFiscal = hasFacturaFiscal(r);
+                  const tieneNotaCredito = Number(r?.nota_credito_cantidad || 0) > 0 || Number(r?.tiene_nota_credito || 0) === 1;
+                  const ingresoSinSaldo = Number(r?.monto_total ?? r?.total ?? 0) <= 0.004;
                   return (
                     <div
                       key={key}
@@ -1611,16 +1740,32 @@ export default function OtrosIngresos() {
                                   <FontAwesomeIcon icon={faInfoCircle} />
                                 </button>
 
-
                                 <button
                                   type="button"
                                   className="mov-iconBtn"
-                                  title="Editar"
-                                  onClick={() => handleOpenEdit(r)}
-                                  disabled={isAnyLoading || loadingListsCtx || isLoadingThisEdit}
+                                  title={ingresoSinSaldo ? "Ingreso acreditado totalmente" : "Emitir nota de crédito"}
+                                  onClick={() => {
+                                    setSelectedRow(r);
+                                    setModoNC("NORMAL");
+                                    setOpenNC(true);
+                                  }}
+                                  disabled={isAnyLoading || loadingListsCtx || ingresoSinSaldo}
                                 >
-                                  {isLoadingThisEdit ? "..." : <FontAwesomeIcon icon={faPenToSquare} />}
+                                  <FontAwesomeIcon icon={faFileInvoiceDollar} />
                                 </button>
+
+
+                                {!ingresoFiscal && !tieneNotaCredito && (
+                                  <button
+                                    type="button"
+                                    className="mov-iconBtn"
+                                    title="Editar"
+                                    onClick={() => handleOpenEdit(r)}
+                                    disabled={isAnyLoading || loadingListsCtx || isLoadingThisEdit}
+                                  >
+                                    {isLoadingThisEdit ? "..." : <FontAwesomeIcon icon={faPenToSquare} />}
+                                  </button>
+                                )}
 
                                 <button
                                   type="button"
@@ -1712,14 +1857,21 @@ export default function OtrosIngresos() {
         }}
         onToast={showToast}
         onSubmit={apiPostSave}
-        onSaved={async () => {
+        onSaved={async (result) => {
+          const fueFacturado = result?.accion_final === "facturar";
           setOpenAdd(false);
           setSelectedRow(null);
           signedUrlCacheRef.current.clear();
           signedUrlInFlightRef.current.clear();
           await reloadVista();
           await refreshPeriodos();
-          showToast("exito", "Ingreso guardado correctamente.", 2600);
+          showToast(
+            "exito",
+            fueFacturado
+              ? "Ingreso guardado y factura emitida correctamente."
+              : "Ingreso guardado correctamente.",
+            fueFacturado ? 3600 : 2600
+          );
         }}
       />
 
@@ -1760,21 +1912,74 @@ export default function OtrosIngresos() {
         }}
       />
 
+      <ModalEmitirNotaCreditoIngreso
+        open={openNC}
+        row={selectedRow}
+        modo={modoNC}
+        onClose={() => {
+          setOpenNC(false);
+          setModoNC("NORMAL");
+          setSelectedRow(null);
+        }}
+        onToast={showToast}
+        onDone={async () => {
+          const currentId = Number(selectedRow?.id_movimiento || 0);
+          const currentRow = selectedRow;
+          const currentMode = modoNC;
+          setOpenNC(false);
+          setModoNC("NORMAL");
+          signedUrlCacheRef.current.clear();
+          signedUrlInFlightRef.current.clear();
+          await reloadVista();
+
+          if (currentMode === "ELIMINAR_TOTAL") {
+            const updated = rowsRef.current.find((item) => getMovimientoId(item) === currentId) || {
+              ...(currentRow || {}),
+              factura_tiene_nota_credito: 1,
+              tiene_nota_credito_fiscal: 1,
+              nota_credito_total: 1,
+              monto_total: 0,
+              total: 0,
+            };
+            setSelectedRow(null);
+            setRowToDelete(updated);
+            setOpenDelete(true);
+            showToast("exito", "Nota de crédito total emitida. Ahora podés confirmar la eliminación.", 3800);
+            return;
+          }
+
+          setSelectedRow(null);
+          showToast("exito", "Nota de crédito aplicada. El ingreso original queda en el historial.", 3800);
+        }}
+      />
+
       <ModalEliminar
         open={openDelete}
         row={rowToDelete}
         onClose={handleCloseDeleteModal}
-        onConfirm={handleConfirmDelete}
+        onConfirm={deleteEsFiscal
+          ? (deleteNotaFiscalTotal ? () => handleConfirmDelete({ permitirFiscalAnulada: true }) : null)
+          : handleConfirmDelete}
         onToast={showToast}
-        title="Eliminar ingreso"
-        message="¿Seguro que querés eliminar este ingreso definitivamente?"
-        warning="Esta acción no se puede deshacer."
+        title={deleteConfig.title}
+        message={deleteConfig.message}
+        warning={deleteConfig.warning}
         loading={!!deletingId}
         loadingMessage="Eliminando ingreso…"
-        successMessage="Ingreso eliminado."
+        successMessage={deleteTieneNotas ? "Ingreso y notas de crédito eliminados." : "Ingreso eliminado."}
         errorMessage="No se pudo eliminar el ingreso."
         confirmLabel="Eliminar"
         cancelLabel="Cancelar"
+        confirmDisabled={deleteConfig.confirmDisabled}
+        secondaryActionLabel={deleteConfig.secondaryActionLabel}
+        onSecondaryAction={deleteEsFiscal && !deleteNotaFiscalTotal ? async () => {
+          const current = rowToDelete;
+          setOpenDelete(false);
+          setRowToDelete(null);
+          setSelectedRow(current);
+          setModoNC("ELIMINAR_TOTAL");
+          setOpenNC(true);
+        } : null}
         details={[
           {
             label: "ID Movimiento",
@@ -1815,6 +2020,7 @@ export default function OtrosIngresos() {
         url={comprobanteView.url}
         mime={comprobanteView.mime}
         title={comprobanteView.title}
+        documents={comprobanteView.documents}
         onClose={closeComprobanteModal}
       />
     </div>

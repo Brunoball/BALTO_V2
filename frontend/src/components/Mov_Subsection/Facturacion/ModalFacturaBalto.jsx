@@ -204,6 +204,7 @@ export default function ModalFacturaBalto({
   data,
   onFacturada,
   onDone,
+  skipMovimientoAutocreacion = false,
 }) {
   const [step, setStep] = useState(1);
 
@@ -268,6 +269,20 @@ export default function ModalFacturaBalto({
 
   const resetAll = useCallback(() => {
     const cf = data?.cliente_facturacion ?? null;
+    const incomingItems = Array.isArray(data?.items_facturacion)
+      ? data.items_facturacion
+          .map((item, index) => ({
+            id: item?.id || item?.codigo || `it_${index + 1}`,
+            codigo: item?.codigo || String(index + 1),
+            descripcion: safeStr(item?.descripcion ?? item?.detalle ?? item?.concepto),
+            cantidad: Number(item?.cantidad || 0),
+            precio_unitario: Number(item?.precio_unitario ?? item?.precio ?? 0),
+            bonif_pct: Number(item?.bonif_pct || 0),
+            subtotal: Number(item?.subtotal ?? item?.total ?? 0),
+          }))
+          .filter((item) => item.descripcion && item.cantidad > 0 && item.precio_unitario > 0)
+      : [];
+    const incomingTotal = Number(data?.total_ars ?? data?.monto ?? data?.importe ?? 0);
 
     setStep(1);
     setError("");
@@ -284,13 +299,13 @@ export default function ModalFacturaBalto({
     setManualDomicilio(safeStr(cf?.domicilio));
 
     setFormFactura({
-      fecha_cbte_iso: todayISO(),
-      vto_pago_iso: plusDaysISO(10),
-      cbte_tipo: 11,
-      pto_vta: 2,
-      items_facturacion: [buildInitialItem()],
-      total_ars: 0,
-      observaciones: "",
+      fecha_cbte_iso: safeStr(data?.fecha_cbte_iso || data?.fecha)?.slice(0, 10) || todayISO(),
+      vto_pago_iso: safeStr(data?.vto_pago_iso)?.slice(0, 10) || plusDaysISO(10),
+      cbte_tipo: Number(data?.cbte_tipo || 11),
+      pto_vta: Number(data?.pto_vta || 2),
+      items_facturacion: incomingItems.length ? incomingItems : [buildInitialItem()],
+      total_ars: Number.isFinite(incomingTotal) ? incomingTotal : 0,
+      observaciones: safeStr(data?.observaciones),
     });
   }, [data]);
 
@@ -614,10 +629,75 @@ export default function ModalFacturaBalto({
         cbteTipo={Number(configSeleccionada?.cbte_tipo || formFactura.cbte_tipo || 11)}
         ptoVta={String(configSeleccionada?.pto_vta || formFactura.pto_vta || 2)}
         configsFacturacionInicial={configsFacturacion}
-        onFacturada={onFacturada}
-        onDone={onDone}
+        onFacturada={
+          typeof onFacturada === "function"
+            ? async (fact) =>
+                await onFacturada({
+                  ...fact,
+                  cliente_facturacion: fact?.cliente_facturacion || clienteFact || null,
+                  config_facturacion:
+                    fact?.config_facturacion || configSeleccionada || null,
+                  resumen_facturacion: {
+                    ...(data || {}),
+                    cliente_facturacion: clienteFact || null,
+                    labelCliente: nombreCliente,
+                    labelSistema: nombreSistema,
+                    fecha_cbte_iso: formFactura.fecha_cbte_iso,
+                    vto_pago_iso: formFactura.vto_pago_iso,
+                    cbte_tipo: Number(
+                      configSeleccionada?.cbte_tipo || formFactura.cbte_tipo || 11
+                    ),
+                    pto_vta: Number(
+                      configSeleccionada?.pto_vta || formFactura.pto_vta || 2
+                    ),
+                    id_config_facturacion:
+                      configFacturacionId(configSeleccionada) || null,
+                    config_facturacion: configSeleccionada || null,
+                    items_facturacion: formFactura.items_facturacion,
+                    total_ars: formFactura.total_ars,
+                    monto: formFactura.total_ars,
+                    importe: formFactura.total_ars,
+                    observaciones: formFactura.observaciones,
+                  },
+                })
+            : undefined
+        }
+        onDone={
+          typeof onDone === "function"
+            ? async (fact) =>
+                await onDone({
+                  ...fact,
+                  cliente_facturacion: fact?.cliente_facturacion || clienteFact || null,
+                  config_facturacion:
+                    fact?.config_facturacion || configSeleccionada || null,
+                  resumen_facturacion: {
+                    ...(data || {}),
+                    cliente_facturacion: clienteFact || null,
+                    labelCliente: nombreCliente,
+                    labelSistema: nombreSistema,
+                    fecha_cbte_iso: formFactura.fecha_cbte_iso,
+                    vto_pago_iso: formFactura.vto_pago_iso,
+                    cbte_tipo: Number(
+                      configSeleccionada?.cbte_tipo || formFactura.cbte_tipo || 11
+                    ),
+                    pto_vta: Number(
+                      configSeleccionada?.pto_vta || formFactura.pto_vta || 2
+                    ),
+                    id_config_facturacion:
+                      configFacturacionId(configSeleccionada) || null,
+                    config_facturacion: configSeleccionada || null,
+                    items_facturacion: formFactura.items_facturacion,
+                    total_ars: formFactura.total_ars,
+                    monto: formFactura.total_ars,
+                    importe: formFactura.total_ars,
+                    observaciones: formFactura.observaciones,
+                  },
+                })
+            : undefined
+        }
         forceTestAmount={false}
         testAmount={null}
+        skipMovimientoAutocreacion={skipMovimientoAutocreacion}
       />
     );
   }

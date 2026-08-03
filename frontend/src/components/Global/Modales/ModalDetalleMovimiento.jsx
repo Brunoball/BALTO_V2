@@ -555,6 +555,11 @@ export default function ModalDetalleMovimiento({
   const estado = getEstado(row);
   const creditTraceEntityLabel = String(creditTraceEntity || "venta").trim().toLowerCase();
   const creditTraceEntityTitle = `${creditTraceEntityLabel.charAt(0).toUpperCase()}${creditTraceEntityLabel.slice(1)}`;
+  const creditTraceEntityIsMasculine = ["ingreso", "egreso", "movimiento"].includes(creditTraceEntityLabel);
+  const creditTraceAdjustedLabel = creditTraceEntityIsMasculine ? "ajustado" : "ajustada";
+  const creditTraceCurrentEntityLabel = creditTraceEntityIsMasculine
+    ? `del ${creditTraceEntityLabel}`
+    : `de la ${creditTraceEntityLabel}`;
 
   return createPortal(
     <div className="mi-modal__overlay" role="presentation">
@@ -643,10 +648,10 @@ export default function ModalDetalleMovimiento({
                 <div className="mdm-credit-trace__body">
                   <div className="mdm-credit-trace__heading">
                     <div>
-                      <strong>{creditTraceEntityTitle} ajustada por nota de crédito</strong>
+                      <strong>{creditTraceEntityTitle} {creditTraceAdjustedLabel} por nota de crédito</strong>
                       {creditTraceExpanded ? (
                         <span>
-                          Se mantiene el importe y detalle original para trazabilidad. El valor actual de la {creditTraceEntityLabel} es el neto luego de las notas aplicadas.
+                          Se mantiene el importe y detalle original para trazabilidad. El valor actual {creditTraceCurrentEntityLabel} es el neto luego de las notas aplicadas.
                         </span>
                       ) : null}
                     </div>
@@ -934,6 +939,9 @@ export function ModalDetalleMovimientoIngreso(props) {
     <ModalDetalleMovimiento
       {...props}
       hideTerceroYTipo
+      showCreditTrace
+      unifiedItemsScroll
+      creditTraceEntity="ingreso"
       title={props.title || "Detalle de ingreso"}
     />
   );

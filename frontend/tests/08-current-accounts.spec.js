@@ -111,7 +111,12 @@ async function openAccount(page, kind, party) {
   await waitForBusyToFinish(page);
 
   const search = page.getByPlaceholder(config.searchPlaceholder).first();
-  await expect(search).toBeVisible({ timeout: 20_000 });
+
+  // La pantalla puede mostrar el buscador antes de terminar de cargar la cuenta
+  // corriente. Esperamos que React lo habilite y permita edición antes de escribir.
+  await expect(search).toBeVisible({ timeout: 30_000 });
+  await expect(search).toBeEnabled({ timeout: 45_000 });
+  await expect(search).toBeEditable({ timeout: 45_000 });
   await search.fill(party.name);
 
   const summaryRow = page
