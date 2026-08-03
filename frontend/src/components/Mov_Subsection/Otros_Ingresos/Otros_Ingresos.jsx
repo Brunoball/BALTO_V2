@@ -3,6 +3,7 @@ import BASE_URL from "../../../config/config.jsx";
 import "../../Global/Global_css/Global_Section.css";
 import "../../Global/Global_css/roots.css";
 import "../../Global/Global_css/Global_oscuro.css";
+import "../Ventas/Ventas.css";
 
 import Toast from "../../Global/Toast.jsx";
 import useTableScrollGutter from "../../Global/useTableScrollGutter.jsx";
@@ -1377,7 +1378,12 @@ export default function OtrosIngresos() {
 
   const deleteEsFiscal = useMemo(() => hasFacturaFiscal(rowToDelete), [rowToDelete]);
   const deleteTieneNotas = useMemo(
-    () => Number(rowToDelete?.nota_credito_cantidad || 0) > 0 || Number(rowToDelete?.tiene_nota_credito || 0) === 1,
+    () =>
+      Number(rowToDelete?.nota_credito_cantidad || 0) > 0 ||
+      Number(rowToDelete?.tiene_nota_credito || 0) === 1 ||
+      Number(rowToDelete?.factura_tiene_nota_credito || 0) === 1 ||
+      Number(rowToDelete?.tiene_nota_credito_fiscal || 0) === 1 ||
+      Number(rowToDelete?.monto_acreditado || 0) > 0,
     [rowToDelete]
   );
   const deleteNotaFiscalTotal = useMemo(
@@ -1387,23 +1393,113 @@ export default function OtrosIngresos() {
     ),
     [rowToDelete, deleteEsFiscal]
   );
+  const deleteCantidadNotas = useMemo(() => {
+    const cantidad = Number(rowToDelete?.nota_credito_cantidad || 0);
+    return Number.isFinite(cantidad) && cantidad > 0 ? cantidad : (deleteTieneNotas ? 1 : 0);
+  }, [rowToDelete, deleteTieneNotas]);
+  const deleteExtraContent = useMemo(() => {
+    if (!rowToDelete || !deleteEsFiscal) return null;
+
+    if (deleteNotaFiscalTotal) {
+      return (
+        <div
+          style={{
+            background: "#f6ffed",
+            border: "1px solid #b7eb8f",
+            color: "#237804",
+            borderRadius: 12,
+            padding: 12,
+            marginTop: 10,
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>
+            La nota de crédito ya fue emitida
+          </div>
+          <div style={{ lineHeight: 1.5 }}>Ahora ya podés eliminar el ingreso.</div>
+        </div>
+      );
+    }
+
+    const texto = deleteTieneNotas
+      ? "El ingreso tiene una acreditación parcial. Para eliminarlo, primero emití una nota de crédito por todo el saldo pendiente en ARCA."
+      : "Para eliminar este ingreso, primero emití una nota de crédito por el total en ARCA.";
+
+    return (
+      <div className="extraContent-ventas extraContent-ventas--warning">
+        <div className="extraContent-ventas__title">Se requiere una nota de crédito total</div>
+        <div className="extraContent-ventas__text">{texto}</div>
+      </div>
+    );
+  }, [rowToDelete, deleteEsFiscal, deleteNotaFiscalTotal, deleteTieneNotas]);
+  const deleteDetails = useMemo(() => {
+    const details = [
+      {
+        label: "ID Movimiento",
+        value: rowToDelete?.id_movimiento ? `#${rowToDelete.id_movimiento}` : "—",
+      },
+      {
+        label: "Tipo",
+        value: rowToDelete?.tipo_movimiento || rowToDelete?.tipo || "OTROS INGRESOS",
+      },
+      {
+        label: "Concepto",
+        value:
+          rowToDelete?.detalle ||
+          rowToDelete?.descripcion ||
+          rowToDelete?.concepto ||
+          "—",
+      },
+      {
+        label: "Monto neto",
+        value: moneyARS(
+          rowToDelete?.monto_total ??
+            rowToDelete?.total ??
+            rowToDelete?.total_general ??
+            0
+        ),
+      },
+    ];
+
+    if (deleteEsFiscal) {
+      details.push({
+        label: "Estado fiscal",
+        value: deleteNotaFiscalTotal
+          ? "ANULADO POR NOTA DE CRÉDITO"
+          : deleteTieneNotas
+            ? "ACREDITACIÓN PARCIAL"
+            : "FACTURA EMITIDA",
+      });
+
+      if (deleteTieneNotas) {
+        details.push({ label: "Notas de crédito", value: String(deleteCantidadNotas) });
+      }
+    }
+
+    return details;
+  }, [rowToDelete, deleteEsFiscal, deleteNotaFiscalTotal, deleteTieneNotas, deleteCantidadNotas]);
   const deleteConfig = useMemo(() => {
     if (deleteEsFiscal && !deleteNotaFiscalTotal) {
       return {
         title: "No se puede eliminar todavía",
-        message: "Este ingreso tiene una factura emitida en ARCA.",
-        warning: "Primero emití una nota de crédito por todo el saldo pendiente.",
+        message: deleteTieneNotas
+          ? "La factura de ARCA todavía tiene saldo pendiente."
+          : "Este ingreso tiene una factura emitida en ARCA.",
+        warning: "",
+        confirmLabel: "Eliminar",
         confirmDisabled: true,
         secondaryActionLabel: "Emitir nota de crédito",
+        confirmVariant: "danger",
       };
     }
     if (deleteEsFiscal && deleteNotaFiscalTotal) {
       return {
-        title: "Eliminar ingreso anulado",
-        message: "La factura ya fue anulada totalmente mediante nota de crédito.",
-        warning: "Se eliminará el registro y Balto revertirá sus impactos de stock.",
+        title: "Eliminar ingreso",
+        message: "Este ingreso ya tiene su nota de crédito asociada.",
+        warning: "Ahora sí podés eliminar el registro definitivamente.",
+        confirmLabel: "Eliminar",
         confirmDisabled: false,
         secondaryActionLabel: "",
+        confirmVariant: "danger",
       };
     }
     if (deleteTieneNotas) {
@@ -1411,16 +1507,20 @@ export default function OtrosIngresos() {
         title: "Eliminar ingreso y notas de crédito",
         message: "¿Seguro que querés eliminar este ingreso y sus notas de crédito internas?",
         warning: "Balto revertirá el impacto original y el de cada nota para conservar el stock correcto.",
+        confirmLabel: "Eliminar todo",
         confirmDisabled: false,
         secondaryActionLabel: "",
+        confirmVariant: "danger",
       };
     }
     return {
       title: "Eliminar ingreso",
       message: "¿Seguro que querés eliminar este ingreso definitivamente?",
       warning: "Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar",
       confirmDisabled: false,
       secondaryActionLabel: "",
+      confirmVariant: "danger",
     };
   }, [deleteEsFiscal, deleteNotaFiscalTotal, deleteTieneNotas]);
 
@@ -1968,9 +2068,10 @@ export default function OtrosIngresos() {
         loadingMessage="Eliminando ingreso…"
         successMessage={deleteTieneNotas ? "Ingreso y notas de crédito eliminados." : "Ingreso eliminado."}
         errorMessage="No se pudo eliminar el ingreso."
-        confirmLabel="Eliminar"
+        confirmLabel={deleteConfig.confirmLabel}
         cancelLabel="Cancelar"
         confirmDisabled={deleteConfig.confirmDisabled}
+        confirmVariant={deleteConfig.confirmVariant}
         secondaryActionLabel={deleteConfig.secondaryActionLabel}
         onSecondaryAction={deleteEsFiscal && !deleteNotaFiscalTotal ? async () => {
           const current = rowToDelete;
@@ -1980,33 +2081,8 @@ export default function OtrosIngresos() {
           setModoNC("ELIMINAR_TOTAL");
           setOpenNC(true);
         } : null}
-        details={[
-          {
-            label: "ID Movimiento",
-            value: rowToDelete?.id_movimiento ? `#${rowToDelete.id_movimiento}` : "—",
-          },
-          {
-            label: "Tipo",
-            value: rowToDelete?.tipo_movimiento || rowToDelete?.tipo || "OTROS INGRESOS",
-          },
-          {
-            label: "Concepto",
-            value:
-              rowToDelete?.detalle ||
-              rowToDelete?.descripcion ||
-              rowToDelete?.concepto ||
-              "—",
-          },
-          {
-            label: "Monto",
-            value: moneyARS(
-              rowToDelete?.monto_total ??
-                rowToDelete?.total ??
-                rowToDelete?.total_general ??
-                0
-            ),
-          },
-        ]}
+        details={deleteDetails}
+        extraContent={deleteExtraContent}
       />
 
       <ModalDetalleMovimientoIngreso
