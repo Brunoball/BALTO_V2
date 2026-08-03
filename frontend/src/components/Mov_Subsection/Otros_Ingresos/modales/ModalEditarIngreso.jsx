@@ -1427,7 +1427,10 @@ export default function ModalEditarIngreso({
 
           {/* Content */}
           <div className="gm-modal-content">
-            <form onSubmit={submit} style={{ display: "contents" }}>
+            <form
+              onSubmit={submit}
+              style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+            >
               <div className="gm-movement-layout">
                 {/* Tabla de ítems */}
                 <section className="gm-movement-main gm-table gm-table--movement oi-table">
@@ -1690,13 +1693,6 @@ export default function ModalEditarIngreso({
                       </div>
 
                       <div className="gm-section-body">
-                        <div className="gm-info-box oi-stock-mode" style={{ marginBottom: 14 }}>
-                          <b>Podés combinar detalles y productos</b>
-                          <small style={{ display: "block", marginTop: 3 }}>
-                            Elegí el tipo en cada fila. Los detalles no mueven stock; los productos sí lo descuentan.
-                          </small>
-                        </div>
-
                         {/* ⭐ FECHA CON VALIDACIONES ⭐ */}
                         <div className="gm-field" onClick={openDatePicker}>
                           <input
@@ -1709,7 +1705,9 @@ export default function ModalEditarIngreso({
                             onChange={handleFechaChange}
                             disabled={saving}
                           />
-                          <label className="gm-label">Fecha</label>
+                          <label className="gm-label" onClick={openDatePicker}>
+                            Fecha
+                          </label>
                         </div>
 
                         {/* Medios de pago integrados */}
@@ -1724,7 +1722,7 @@ export default function ModalEditarIngreso({
                         />
 
                         {/* Comprobante */}
-                        <div className="gm-upload-card" style={{ marginTop: 14 }}>
+                        <div className="gm-upload-card">
                           <div className="gm-upload-card__head">
                             <div className="gm-upload-card__title">Comprobante</div>
                             <div className="gm-upload-card__sub">

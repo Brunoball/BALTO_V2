@@ -2546,6 +2546,23 @@ export default function ModalNuevoIngreso({
                     </div>
 
                     <div className="gm-section-body">
+                      {/* ⭐ FECHA CON VALIDACIONES ⭐ */}
+                      <div className="gm-field" onClick={openDatePicker}>
+                        <input
+                          ref={fechaRef}
+                          className="gm-input"
+                          type="date"
+                          placeholder=" "
+                          value={fecha}
+                          max={todayISO()}
+                          onChange={handleFechaChange}
+                          disabled={saving}
+                        />
+                        <label className="gm-label" onClick={openDatePicker}>
+                          Fecha
+                        </label>
+                      </div>
+
                       <div className="oi-cliente-wrap">
                         <GlobalAutocomplete
                           value={cliInput}
@@ -2571,28 +2588,6 @@ export default function ModalNuevoIngreso({
                         />
                       </div>
 
-                      <div className="gm-info-box oi-stock-mode" style={{ marginBottom: 14 }}>
-                        <b>Podés combinar detalles y productos</b>
-                        <small style={{ display: "block", marginTop: 3 }}>
-                          Elegí el tipo en cada fila. Los detalles no mueven stock; los productos sí lo descuentan.
-                        </small>
-                      </div>
-
-                      {/* ⭐ FECHA CON VALIDACIONES ⭐ */}
-                      <div className="gm-field" onClick={openDatePicker}>
-                        <input
-                          ref={fechaRef}
-                          className="gm-input"
-                          type="date"
-                          placeholder=" "
-                          value={fecha}
-                          max={todayISO()}
-                          onChange={handleFechaChange}
-                          disabled={saving}
-                        />
-                        <label className="gm-label">Fecha</label>
-                      </div>
-
                       {/* Medios de pago integrados */}
                       <PanelMediosPago
                         mediosFilas={mediosFilas}
@@ -2607,7 +2602,7 @@ export default function ModalNuevoIngreso({
                       />
 
                       {/* Comprobante */}
-                      <div className="gm-upload-card" style={{ marginTop: 14 }}>
+                      <div className="gm-upload-card">
                         <div className="gm-upload-card__head">
                           <div className="gm-upload-card__title">Comprobante</div>
                           <div className="gm-upload-card__sub">
@@ -2657,7 +2652,7 @@ export default function ModalNuevoIngreso({
                             )}
                           </div>
 
-                          <div className="gm-upload-bar" style={{ marginTop: 12 }}>
+                          <div className="gm-upload-bar" style={{ marginTop: 10 }}>
                             <input
                               ref={inputFileRef}
                               type="file"
