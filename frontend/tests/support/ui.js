@@ -57,56 +57,123 @@ export async function selectOptionValues(select) {
   );
 }
 
-export async function selectFirstNonEmpty(select, preferredPattern) {
-  await expect(select).toBeVisible();
-  const options = await select.locator('option').evaluateAll((nodes) =>
-    nodes.map((node) => ({ value: node.value, text: (node.textContent || '').trim(), disabled: node.disabled }))
+async function readSelectOptions(select) {
+  return select.locator('option').evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      value: String(node.value || ''),
+      text: (node.textContent || '').trim(),
+      disabled: Boolean(node.disabled),
+    }))
   );
+}
 
-  let candidate = null;
-  if (preferredPattern) {
-    candidate = options.find(
-      (option) => option.value && !option.disabled && preferredPattern.test(option.text)
-    );
-  }
-  if (!candidate) {
-    candidate = options.find((option) => option.value && !option.disabled);
-  }
-  if (!candidate) throw new Error('El selector no tiene opciones utilizables.');
+async function waitAndSelectOption(select, findCandidate, errorMessage) {
+  let selected = null;
 
-  await select.selectOption(candidate.value);
-  return candidate;
+  // Las listas globales y los datos del movimiento se cargan en paralelo. En una
+  // suite larga React puede mostrar el select con sólo el placeholder durante
+  // algunos instantes. Reconsultamos el DOM real en cada intento.
+  await expect(async () => {
+    await expect(select).toBeVisible({ timeout: 5_000 });
+    const options = await readSelectOptions(select);
+    const candidate = findCandidate(options);
+    if (!candidate) throw new Error(errorMessage);
+
+    await select.selectOption(candidate.value, { timeout: 5_000 });
+    await expect(select).toHaveValue(candidate.value, { timeout: 5_000 });
+    selected = candidate;
+  }).toPass({
+    timeout: 30_000,
+    intervals: [150, 300, 600, 1_000],
+  });
+
+  return selected;
+}
+
+export async function selectFirstNonEmpty(select, preferredPattern) {
+  return waitAndSelectOption(
+    select,
+    (options) => {
+      const usable = options.filter((option) => option.value && !option.disabled);
+      if (preferredPattern) {
+        const preferred = usable.find((option) => preferredPattern.test(option.text));
+        if (preferred) return preferred;
+      }
+      return usable[0] || null;
+    },
+    'El selector no tiene opciones utilizables.',
+  );
 }
 
 export async function selectSafePaymentMethod(scope) {
   const select = scope.locator('.gm-payment-row--method select').first();
-  await expect(select).toBeVisible();
-
-  const options = await select.locator('option').evaluateAll((nodes) =>
-    nodes.map((node) => ({ value: node.value, text: (node.textContent || '').trim(), disabled: node.disabled }))
+  return waitAndSelectOption(
+    select,
+    (options) => {
+      const usable = options.filter((option) => option.value && !option.disabled);
+      return (
+        usable.find((option) => /EFECTIVO|TRANSFERENCIA|BANCO|TARJETA/i.test(option.text) && !/CHEQ/i.test(option.text)) ||
+        usable.find((option) => !/CHEQ/i.test(option.text)) ||
+        usable[0] ||
+        null
+      );
+    },
+    'No hay medios de pago disponibles.',
   );
-  const usable = options.filter((option) => option.value && !option.disabled);
-  const candidate =
-    usable.find((option) => /EFECTIVO|TRANSFERENCIA|BANCO|TARJETA/i.test(option.text) && !/CHEQ/i.test(option.text)) ||
-    usable.find((option) => !/CHEQ/i.test(option.text)) ||
-    usable[0];
+}
 
-  if (!candidate) throw new Error('No hay medios de pago disponibles.');
-  await select.selectOption(candidate.value);
-  return candidate;
+function moneyInputValue(value) {
+  const normalized = String(value || '')
+    .replace(/\s/g, '')
+    .replace(/[^0-9,.-]/g, '')
+    .replace(/\.(?=\d{3}(?:\D|$))/g, '')
+    .replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export async function completeRemainingAmount(scope) {
-  const complete = scope.getByTitle(/Completar importe restante/i).first();
-  if (await complete.isVisible().catch(() => false)) {
-    await complete.click();
-    return;
-  }
-
   const amount = scope.locator('.gm-payment-row--amount input').first();
   await expect(amount).toBeVisible();
-  await amount.fill('100');
-  await amount.blur();
+
+  // “Rest.” también se usa al editar: el campo puede contener el importe viejo
+  // (> 0) y todavía quedar una diferencia pendiente. Por eso no alcanza con
+  // comprobar que haya un valor; el botón debe quedar deshabilitado (saldo 0).
+  // React puede reemplazar botón e input durante el recálculo, así que todos los
+  // locators se vuelven a resolver en cada intento.
+  await expect(async () => {
+    const currentAmount = moneyInputValue(await amount.inputValue());
+    const complete = scope.getByTitle(/Completar importe restante/i).first();
+    const visible = await complete.isVisible().catch(() => false);
+
+    if (!visible) {
+      if (currentAmount > 0) return;
+      throw new Error('No apareció el botón para completar el importe restante.');
+    }
+
+    const enabled = await complete.isEnabled().catch(() => false);
+    if (!enabled) {
+      if (currentAmount > 0) return;
+      throw new Error('El importe restante todavía no puede completarse.');
+    }
+
+    const before = currentAmount;
+    await complete.click({ timeout: 5_000 });
+
+    await expect.poll(
+      async () => {
+        const freshAmount = scope.locator('.gm-payment-row--amount input').first();
+        const freshComplete = scope.getByTitle(/Completar importe restante/i).first();
+        const value = moneyInputValue(await freshAmount.inputValue());
+        const stillEnabled = await freshComplete.isEnabled().catch(() => false);
+        return value > before || (value > 0 && !stillEnabled);
+      },
+      { timeout: 5_000, intervals: [100, 250, 500] },
+    ).toBeTruthy();
+  }).toPass({
+    timeout: 20_000,
+    intervals: [150, 300, 600, 1_000],
+  });
 }
 
 export async function fillPayment(scope) {
@@ -159,16 +226,18 @@ export async function selectFirstAutocomplete(scope, labelText, preferredText = 
     option = matching;
     text = (await matching.innerText()).trim();
   } else {
-    const countOptions = await options.count();
-    for (let index = 0; index < countOptions; index += 1) {
-      const current = options.nth(index);
-      const currentText = (await current.innerText()).trim();
-      if (!/agregar/i.test(currentText)) {
-        option = current;
-        text = currentText;
-        break;
-      }
-    }
+    // La opción de alta se renderiza de inmediato, pero las listas globales pueden
+    // terminar de hidratarse unos instantes después de abrir el modal. Esperamos
+    // explícitamente una opción real para no confundir esa carga asincrónica con
+    // una base sin clientes/proveedores existentes.
+    const existingOptions = options.filter({ hasNotText: /agregar/i });
+    await expect(
+      existingOptions.first(),
+      `Debe existir al menos un ${labelText} real en el autocompletado`,
+    ).toBeVisible({ timeout: 30_000 });
+
+    option = existingOptions.first();
+    text = (await option.innerText()).trim();
   }
 
   if (!option) {

@@ -451,6 +451,15 @@ function MedioPagoRow({
     return Math.max(0, safeNumber(totalIngreso) - sumaOtros);
   }, [sumaMediosPago, totalIngreso, montoActual]);
 
+  // `restanteParaEstaFila` es el importe objetivo de la fila, no la diferencia
+  // que falta agregar. Al cambiar un cheque por otro medio el monto ya puede
+  // coincidir con ese objetivo; en ese caso "Rest." debe quedar deshabilitado.
+  const puedeCompletarRestante =
+    !saving &&
+    !esCheque &&
+    safeNumber(totalIngreso) > 0 &&
+    restanteParaEstaFila - montoActual > 0.009;
+
   // Sincronizar el monto visual cuando el medio tiene un cheque/eCheq vinculado.
   useEffect(() => {
     if (
@@ -568,7 +577,7 @@ function MedioPagoRow({
                   montoFocused: false,
                 })
               }
-              disabled={saving || restanteParaEstaFila <= 0.009}
+              disabled={!puedeCompletarRestante}
               title="Completar importe restante"
             >
               ↓ Rest.

@@ -7,6 +7,7 @@ import {
   searchRow,
   selectFirstAutocomplete,
   selectFirstNonEmpty,
+  selectSafePaymentMethod,
   selectMovementMode,
   selectProduct,
   waitDialog,
@@ -1126,6 +1127,13 @@ export async function payReceivable(page, productName) {
 
   const debtRow = dialog.locator(`.gm-receipt-row[data-movement-id="${movementId}"]`).first();
   await expect(debtRow).toBeVisible({ timeout: 20_000 });
+
+  // Elegir el medio de pago hace que React reconstruya el bloque lateral. Si la
+  // deuda se selecciona antes, esa reconstrucción puede restaurar la selección a
+  // cero y deshabilitar “Rest.”. Primero estabilizamos el medio y luego marcamos
+  // exactamente la deuda creada por el test.
+  await selectSafePaymentMethod(dialog);
+
   const checkbox = debtRow.locator('input[type="checkbox"]');
   if (!(await checkbox.isChecked())) {
     // En Recibos la fila completa es el control de selección. Usar check() sobre
@@ -1134,7 +1142,7 @@ export async function payReceivable(page, productName) {
     await debtRow.click();
   }
   await expect(checkbox).toBeChecked({ timeout: 10_000 });
-  await fillPayment(dialog);
+  await completeRemainingAmount(dialog);
 
   const confirm = dialog.getByRole('button', { name: /Confirmar cobro/i });
   await expect(confirm).toBeEnabled();

@@ -166,6 +166,9 @@ export async function createOtherIncomeWithIncomingCheque(page, data, cheque) {
   await waitForBusyToFinish(page);
   await page.getByTitle('Crear nuevo ingreso').click();
   const dialog = await waitDialog(page, 'Nuevo Ingreso');
+  const requestedClient = String(data.clientName || data.clientSearch || '').trim();
+  data.clientName = await selectFirstAutocomplete(dialog, 'Cliente', requestedClient);
+
   const row = await createCatalogDescription(dialog, data.description);
   await row.locator('input[type="number"]').first().fill(String(data.quantity ?? 1));
   const price = row.locator('input[inputmode="decimal"]').first();

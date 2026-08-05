@@ -763,7 +763,13 @@ function MedioPagoRow({ row, mediosPagoList, totalEgreso, sumaMediosPago, onUpda
     return Math.max(0, safeNumber(totalEgreso) - sumaOtros);
   }, [sumaMediosPago, totalEgreso, montoActual]);
 
-  const puedeCompletarRestante = !esCheque && totalEgreso > 0 && restanteParaEstaFila > 0.009;
+  // `restanteParaEstaFila` representa el importe objetivo de esta fila, no
+  // cuánto falta sumar. Al reemplazar un cheque por otro medio, el monto
+  // actual puede cubrir ya ese objetivo y "Rest." debe quedar deshabilitado.
+  const puedeCompletarRestante =
+    !esCheque &&
+    safeNumber(totalEgreso) > 0 &&
+    restanteParaEstaFila - montoActual > 0.009;
 
   const handleChangeMedio = useCallback(
     (val) => {

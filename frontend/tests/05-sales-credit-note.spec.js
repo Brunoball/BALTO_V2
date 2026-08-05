@@ -3,9 +3,15 @@ import { uniqueName, uniqueSku } from './support/data.js';
 import { installDiagnostics, assertNoCriticalErrors } from './support/diagnostics.js';
 import {
   clickSaveAndWait,
+  fillMovementRow,
+  fillPayment,
   requireMutations,
   searchRow,
+  selectFirstAutocomplete,
+  selectFirstNonEmpty,
   selectOptionValues,
+  waitDialog,
+  waitForBusyToFinish,
 } from './support/ui.js';
 import {
   createStockProduct,
@@ -16,6 +22,7 @@ import {
   configureSaleCreditNote,
   deleteSale,
   deleteUnusedStockProduct,
+  openMovementDetail,
 } from './support/flows.js';
 
 const CREDIT_NOTE_MOTIVES = [
@@ -38,6 +45,110 @@ function creditNoteId(body) {
       0,
   );
 }
+
+function parseArsInput(value) {
+  const normalized = String(value ?? '')
+    .replace(/[^\d,.-]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  return Number(normalized || 0);
+}
+
+
+test('@crud @critical venta: descuento manual reajusta el medio de pago al total neto', async ({ page }, testInfo) => {
+  await requireMutations(test, page);
+  test.setTimeout(4 * 60_000);
+  const diagnostics = installDiagnostics(page);
+  const productName = uniqueName('VENTA-DESCUENTO');
+
+  await createStockProduct(page, {
+    name: productName,
+    sku: uniqueSku('VENTADESC'),
+    stock: 5,
+    cost: 500,
+    price: 1000,
+  });
+
+  await page.goto('/panel/ventas');
+  await waitForBusyToFinish(page);
+  await page.getByRole('button', { name: /Nueva Venta/i }).click();
+  const dialog = await waitDialog(page, 'Nueva Venta');
+
+  await fillMovementRow(dialog, {
+    productName,
+    quantity: 1,
+    price: 1000,
+  });
+  await selectFirstAutocomplete(dialog, 'Cliente');
+
+  const typeField = dialog.locator('.gm-field').filter({ hasText: 'Forma de venta' }).first();
+  await selectFirstNonEmpty(typeField.locator('select'), /CONTADO/i);
+
+  // Reproduce exactamente el error: primero se completa el pago por el bruto
+  // y recién después se aplica el descuento.
+  await fillPayment(dialog);
+  const amountInput = dialog.locator('.gm-payment-row--amount input').first();
+  await expect.poll(async () => parseArsInput(await amountInput.inputValue())).toBeCloseTo(1000, 2);
+
+  await dialog.getByLabel('Tipo de descuento').selectOption('PORCENTAJE');
+  await dialog.getByLabel('Valor del descuento').fill('10');
+
+  await expect.poll(async () => parseArsInput(await amountInput.inputValue()), {
+    message: 'El medio de pago debe reajustarse automáticamente al total con descuento',
+  }).toBeCloseTo(900, 2);
+  await expect(dialog.locator('.gm-payment-totals')).toContainText(/Asignado/i);
+  await expect(dialog.locator('.gm-payment-totals')).toContainText(/900,00/);
+
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).searchParams.get('action') === 'ventas_crear_batch',
+    { timeout: 90_000 },
+  );
+
+  await clickSaveAndWait(dialog, /Guardar venta/i, { timeout: 90_000 });
+  const response = await responsePromise;
+  const body = await response.json().catch(() => ({}));
+  const result = body?.data || body;
+  const requestPayload = response.request().postDataJSON();
+
+  expect(response.status(), JSON.stringify(body)).toBeLessThan(400);
+  expect(body?.exito !== false && body?.success !== false, body?.mensaje || body?.message).toBeTruthy();
+  expect(Number(requestPayload?.total_bruto || 0)).toBeCloseTo(1000, 2);
+  expect(Number(requestPayload?.descuento_monto || 0)).toBeCloseTo(100, 2);
+  expect(Number(result?.monto_total ?? result?.total ?? 0)).toBeCloseTo(900, 2);
+  expect(Number(result?.total_pagado ?? 0)).toBeCloseTo(900, 2);
+
+  const pagosEnviados = Array.isArray(requestPayload?.medios_pago) ? requestPayload.medios_pago : [];
+  expect(pagosEnviados).toHaveLength(1);
+  expect(Number(pagosEnviados[0]?.monto || 0)).toBeCloseTo(900, 2);
+
+  const row = await searchRow(page, productName, /Buscar por descripción, cliente/i);
+  await expect(row).toContainText(/900,00/);
+
+  const detail = await openMovementDetail(page, productName, 'sale');
+  const discountNote = detail.getByLabel('Detalle del descuento comercial');
+  await expect(discountNote).toBeVisible();
+  await expect(discountNote).toContainText(/Total sin descuento/i);
+  await expect(discountNote).toContainText(/1\.000,00/);
+  await expect(discountNote).toContainText(/Descuento \(10/i);
+  await expect(discountNote).toContainText(/100,00/);
+  await expect(discountNote).toContainText(/Total vendido/i);
+  await expect(discountNote).toContainText(/900,00/);
+
+  const paymentSection = detail.locator('.mdm-section--medios');
+  await expect(paymentSection).toContainText(/Total pagado/i);
+  await expect(paymentSection).toContainText(/900,00/);
+
+  await detail.getByRole('button', { name: /Cerrar/i }).click();
+  await expect(detail).toBeHidden();
+
+  await deleteSale(page, productName);
+  await page.goto('/panel/stock');
+  await deleteUnusedStockProduct(page, productName);
+
+  await assertNoCriticalErrors(diagnostics, testInfo, { allowConsole: [/Tienda Nube/i, /imagen/i] });
+});
 
 test('@crud @critical venta: descuenta stock y NC interna reingresa stock', async ({ page }, testInfo) => {
   // En la corrida completa el backend compartido puede tardar bastante más que

@@ -50,6 +50,9 @@ function safeNumber(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
+function roundMoney(v) {
+  return Math.round((safeNumber(v) + Number.EPSILON) * 100) / 100;
+}
 function isBlank(v) {
   return String(v ?? "").trim() === "";
 }
@@ -577,13 +580,23 @@ function normalizeChequeTipoFromMedio(nombre) {
   return null;
 }
 
+function getSelectedSaleItemId(r) {
+  const id = Number(r?.id_stock_producto || r?.id_detalle);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+function isUsableSaleRow(r) {
+  return getSelectedSaleItemId(r) !== null && safeNumber(r?.total) > 0;
+}
+
 function describeLineProblem(r, idx1based) {
-  const detId = Number(r.id_stock_producto || r.id_detalle);
+  const detId = getSelectedSaleItemId(r);
   const detTxt = String(r.detalleText || "").trim();
   const qtyBlank = isBlank(r.cantidad);
-  const priceBlank = isBlank(r.precio);
+  const precioLista = r.precioLista ?? r.precio;
+  const priceBlank = isBlank(precioLista);
   const qty = safeNumber(r.cantidad);
-  const price = safeNumber(r.precio);
+  const price = safeNumber(precioLista);
   const total = safeNumber(r.total);
 
   const touched =
@@ -593,7 +606,7 @@ function describeLineProblem(r, idx1based) {
     !qtyBlank ||
     !priceBlank ||
     safeNumber(r.cantidad) !== 0 ||
-    safeNumber(r.precio) !== 0;
+    safeNumber(precioLista) !== 0;
 
   if (!touched) return null;
 
@@ -1431,6 +1444,8 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
   const [accionContado, setAccionContado] = useState("guardar");
   const [cliInput, setCliInput] = useState("");
   const [rows, setRows] = useState(() => [buildEmptyRow()]);
+  const [descuentoTipo, setDescuentoTipo] = useState("PORCENTAJE");
+  const [descuentoValor, setDescuentoValor] = useState("");
   const [mediosFilas, setMediosFilas] = useState(() => [buildEmptyMedioPagoVenta()]);
   const [saving, setSaving] = useState(false);
   const [addUI, setAddUI] = useState({ open: false, kind: null, rowId: null, text: "", cuit: "", fiscalData: null, fiscalError: "", lookupLoading: false, saving: false });
@@ -1452,6 +1467,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
   const rowsContainerRef = useRef(null);
   const fechaInputRef = useRef(null);
   const pdfAssetsPreloadedRef = useRef(false);
+  const totalVentaAnteriorRef = useRef(null);
   const [hasScroll, setHasScroll] = useState(false);
 
   useEffect(() => {
@@ -1482,6 +1498,8 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
       setAccionContado("guardar");
       setCliInput("");
       setRows([buildEmptyRow()]);
+      setDescuentoTipo("PORCENTAJE");
+      setDescuentoValor("");
       setMediosFilas([buildEmptyMedioPagoVenta()]);
       setAddUI({ open: false, kind: null, rowId: null, text: "", cuit: "", fiscalData: null, fiscalError: "", lookupLoading: false, saving: false });
       setSaving(false);
@@ -1495,6 +1513,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
       setConfigFacturacion(null);
       setOpenResumenFactura(false);
       setResumenFacturaData(null);
+      totalVentaAnteriorRef.current = null;
       setArcaOperationKey(getOrCreateNuevaVentaArcaKey());
       setTimeout(() => closeBtnRef.current?.focus(), 0);
     }
@@ -1943,27 +1962,118 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
     };
   }, [open, onClose, openResumenFactura, addUI.open, fiscalPanelOpen]);
 
-  const rowsCalc = useMemo(
+  const rowsBaseCalc = useMemo(
     () =>
       rows.map((r) => {
+        const tieneItemSeleccionado = getSelectedSaleItemId(r) !== null;
         const cantidad = Math.max(0, safeNumber(r.cantidad));
-        const precio = Math.max(0, safeNumber(r.precio));
+        const precioLista = Math.max(0, safeNumber(r.precio));
         const ivaPct = Math.max(0, safeNumber(r.ivaPct));
-        const subtotal = cantidad * precio;
-        const ivaMonto = subtotal * (ivaPct / 100);
-        const total = subtotal + ivaMonto;
-        return { ...r, subtotal, ivaMonto, total };
+        const subtotalBruto = tieneItemSeleccionado ? roundMoney(cantidad * precioLista) : 0;
+        const ivaMontoBruto = roundMoney(subtotalBruto * (ivaPct / 100));
+        const totalBruto = roundMoney(subtotalBruto + ivaMontoBruto);
+        return {
+          ...r,
+          precioLista,
+          subtotalBruto,
+          ivaMontoBruto,
+          totalBruto,
+        };
       }),
     [rows]
   );
 
+  const descuentoResumen = useMemo(() => {
+    const totalBruto = roundMoney(rowsBaseCalc.reduce((acc, r) => acc + safeNumber(r.totalBruto), 0));
+    const tipo = descuentoTipo === "MONTO" ? "MONTO" : "PORCENTAJE";
+    const valorIngresado = Math.max(0, safeNumber(descuentoValor));
+    const valorNormalizado = tipo === "PORCENTAJE"
+      ? roundMoney(Math.min(valorIngresado, 99.99))
+      : roundMoney(valorIngresado);
+    const maximoAplicable = Math.max(0, roundMoney(totalBruto - 0.01));
+    const solicitado = tipo === "PORCENTAJE"
+      ? roundMoney(totalBruto * (valorNormalizado / 100))
+      : valorNormalizado;
+    const monto = Math.min(maximoAplicable, solicitado);
+    const totalFinal = roundMoney(totalBruto - monto);
+    const porcentajeEfectivo = totalBruto > 0 ? (monto / totalBruto) * 100 : 0;
+
+    return {
+      tipo,
+      valor: valorNormalizado,
+      monto,
+      totalBruto,
+      totalFinal,
+      porcentajeEfectivo,
+      factor: totalBruto > 0 ? totalFinal / totalBruto : 1,
+    };
+  }, [rowsBaseCalc, descuentoTipo, descuentoValor]);
+
+  const rowsCalc = useMemo(() => {
+    const validIndexes = rowsBaseCalc
+      .map((r, index) => (safeNumber(r.totalBruto) > 0 ? index : -1))
+      .filter((index) => index >= 0);
+    const lastValidIndex = validIndexes.length ? validIndexes[validIndexes.length - 1] : -1;
+    let totalNetoAcumulado = 0;
+
+    return rowsBaseCalc.map((r, index) => {
+      const cantidad = Math.max(0, safeNumber(r.cantidad));
+      const ivaPct = Math.max(0, safeNumber(r.ivaPct));
+      const totalBruto = roundMoney(r.totalBruto);
+
+      if (totalBruto <= 0 || descuentoResumen.monto <= 0) {
+        return {
+          ...r,
+          precio: r.precioLista,
+          subtotal: r.subtotalBruto,
+          ivaMonto: r.ivaMontoBruto,
+          total: r.totalBruto,
+          descuentoMonto: 0,
+          descuentoSubtotalMonto: 0,
+          bonifPctAplicado: 0,
+        };
+      }
+
+      const totalNeto = index === lastValidIndex
+        ? roundMoney(descuentoResumen.totalFinal - totalNetoAcumulado)
+        : roundMoney(totalBruto * descuentoResumen.factor);
+      totalNetoAcumulado = roundMoney(totalNetoAcumulado + totalNeto);
+
+      const divisorIva = 1 + ivaPct / 100;
+      const subtotal = divisorIva > 0 ? roundMoney(totalNeto / divisorIva) : totalNeto;
+      const ivaMonto = roundMoney(totalNeto - subtotal);
+      const precioNeto = cantidad > 0 ? roundMoney(subtotal / cantidad) : 0;
+      const descuentoMonto = roundMoney(totalBruto - totalNeto);
+      const descuentoSubtotalMonto = roundMoney(r.subtotalBruto - subtotal);
+      const bonifPctAplicado = r.subtotalBruto > 0
+        ? (descuentoSubtotalMonto / r.subtotalBruto) * 100
+        : 0;
+
+      return {
+        ...r,
+        precio: precioNeto,
+        subtotal,
+        ivaMonto,
+        total: totalNeto,
+        descuentoMonto,
+        descuentoSubtotalMonto,
+        bonifPctAplicado,
+      };
+    });
+  }, [rowsBaseCalc, descuentoResumen]);
+
   const resumen = useMemo(
     () => ({
-      subtotal: rowsCalc.reduce((a, r) => a + (r.subtotal || 0), 0),
-      iva: rowsCalc.reduce((a, r) => a + (r.ivaMonto || 0), 0),
-      total: rowsCalc.reduce((a, r) => a + (r.total || 0), 0),
+      subtotal: roundMoney(rowsCalc.reduce((a, r) => a + safeNumber(r.subtotal), 0)),
+      iva: roundMoney(rowsCalc.reduce((a, r) => a + safeNumber(r.ivaMonto), 0)),
+      total: roundMoney(rowsCalc.reduce((a, r) => a + safeNumber(r.total), 0)),
+      totalBruto: descuentoResumen.totalBruto,
+      descuento: descuentoResumen.monto,
+      descuentoTipo: descuentoResumen.tipo,
+      descuentoValor: descuentoResumen.valor,
+      descuentoPorcentajeEfectivo: descuentoResumen.porcentajeEfectivo,
     }),
-    [rowsCalc]
+    [rowsCalc, descuentoResumen]
   );
 
   const tipoVentaSelected = useMemo(() => {
@@ -1990,6 +2100,87 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
       return acc + (tipoCheque !== null ? safeNumber(mp.cheque?.importe) : safeNumber(mp.monto));
     }, 0);
   }, [mediosFilas, mediosPagoList]);
+
+  useEffect(() => {
+    const totalActual = roundMoney(resumen.total);
+    const totalAnterior = totalVentaAnteriorRef.current;
+    totalVentaAnteriorRef.current = totalActual;
+
+    if (!open || !isContado || totalAnterior === null || Math.abs(totalActual - totalAnterior) <= 0.004) {
+      return;
+    }
+
+    setMediosFilas((filasActuales) => {
+      const filas = Array.isArray(filasActuales) ? filasActuales : [];
+      const montoFila = (fila) => {
+        const mpRow = mediosPagoList.find(
+          (x) => String(getMedioPagoId(x) ?? "") === String(fila?.id_medio_pago ?? "")
+        );
+        const tipoCheque = normalizeChequeTipoFromMedio(getMedioPagoNombre(mpRow));
+        return tipoCheque !== null && fila?.cheque
+          ? roundMoney(safeNumber(fila.cheque?.importe))
+          : roundMoney(safeNumber(fila?.monto));
+      };
+
+      const totalAsignado = roundMoney(filas.reduce((acc, fila) => acc + montoFila(fila), 0));
+
+      // Sólo se reajusta automáticamente cuando los medios cubrían exactamente
+      // el total anterior. Así un excedente cargado a propósito sigue intacto.
+      if (Math.abs(totalAsignado - totalAnterior) > 0.05) return filasActuales;
+
+      let diferencia = roundMoney(totalActual - totalAsignado);
+      if (Math.abs(diferencia) <= 0.009) return filasActuales;
+
+      const nuevasFilas = filas.map((fila) => ({
+        ...fila,
+        cheque: fila?.cheque ? { ...fila.cheque } : null,
+      }));
+      const candidatos = nuevasFilas
+        .map((fila, index) => {
+          const mpRow = mediosPagoList.find(
+            (x) => String(getMedioPagoId(x) ?? "") === String(fila?.id_medio_pago ?? "")
+          );
+          const esCheque = normalizeChequeTipoFromMedio(getMedioPagoNombre(mpRow)) !== null;
+          return {
+            index,
+            esCheque,
+            seleccionado: Boolean(fila?.id_medio_pago),
+            monto: montoFila(fila),
+          };
+        })
+        .filter((item) => item.seleccionado)
+        .sort((a, b) => Number(a.esCheque) - Number(b.esCheque) || b.index - a.index);
+
+      if (!candidatos.length) return filasActuales;
+
+      if (diferencia > 0) {
+        const objetivo = candidatos[0];
+        const fila = nuevasFilas[objetivo.index];
+        const montoNuevo = roundMoney(objetivo.monto + diferencia);
+        fila.monto = montoNuevo;
+        fila.montoDraft = "";
+        fila.montoFocused = false;
+        if (fila.cheque) fila.cheque.importe = montoNuevo;
+        return nuevasFilas;
+      }
+
+      let reduccionPendiente = Math.abs(diferencia);
+      for (const candidato of candidatos) {
+        if (reduccionPendiente <= 0.009) break;
+        const fila = nuevasFilas[candidato.index];
+        const montoAnterior = montoFila(fila);
+        const reduccion = Math.min(montoAnterior, reduccionPendiente);
+        const montoNuevo = roundMoney(montoAnterior - reduccion);
+        fila.monto = montoNuevo;
+        fila.montoDraft = "";
+        fila.montoFocused = false;
+        if (fila.cheque) fila.cheque.importe = montoNuevo;
+        reduccionPendiente = roundMoney(reduccionPendiente - reduccion);
+      }
+
+      return nuevasFilas;
+    });
+  }, [open, isContado, resumen.total, mediosPagoList]);
 
   const fetchClienteFiscal = useCallback(
     async (idCliente) => {
@@ -2161,6 +2352,17 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
       return { ok: false, msg: "Falta seleccionar la Forma de venta." };
     }
 
+    const descuentoIngresado = safeNumber(descuentoValor);
+    if (descuentoIngresado < 0) {
+      return { ok: false, msg: "El descuento no puede ser negativo." };
+    }
+    if (descuentoTipo === "PORCENTAJE" && descuentoIngresado >= 100) {
+      return { ok: false, msg: "El descuento porcentual debe ser menor al 100 %." };
+    }
+    if (descuentoTipo === "MONTO" && descuentoIngresado > 0 && descuentoIngresado >= resumen.totalBruto) {
+      return { ok: false, msg: "El descuento en pesos debe ser menor al total de la venta." };
+    }
+
     if (isContado) {
       const filasPago = mediosFilas.filter((r) => r.id_medio_pago && r.id_medio_pago !== "");
       if (!filasPago.length) {
@@ -2247,9 +2449,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
       if (p) problems.push(p);
     });
 
-    const usable = rowsCalc.filter(
-      (r) => Number.isFinite(Number(r.id_detalle)) && Number(r.id_detalle) > 0 && Number(r.total || 0) > 0
-    );
+    const usable = rowsCalc.filter(isUsableSaleRow);
 
     if (!usable.length) {
       if (problems.length) {
@@ -2261,21 +2461,21 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
     }
 
     return { ok: true, warn: problems.length > 0 };
-  }, [cliInput, selectedClienteId, filters, isContado, fecha, usuarioBasicoVentas, rowsCalc, mediosFilas, mediosPagoList, resumen.total, sumaMediosPago]);
+  }, [cliInput, selectedClienteId, filters, isContado, fecha, usuarioBasicoVentas, rowsCalc, mediosFilas, mediosPagoList, resumen, sumaMediosPago, descuentoTipo, descuentoValor]);
 
   const buildResumenFacturaPayload = useCallback(
     (clienteFiscalResuelto, cfg, clienteOverride = null) => {
       const items = rowsCalc
-        .filter((r) => Number.isFinite(Number(r.id_detalle)) && Number(r.id_detalle) > 0 && Number(r.total || 0) > 0)
+        .filter(isUsableSaleRow)
         .map((r, i) => ({
           codigo: String(i + 1),
           descripcion: safeStr(r.detalleText),
           cantidad: Number(r.cantidad || 0),
           unidad: "u",
-          precio_unitario: Number(r.precio || 0),
-          precio: Number(r.precio || 0),
-          bonif_pct: 0,
-          impBonif: 0,
+          precio_unitario: Number(r.precioLista ?? r.precio ?? 0),
+          precio: Number(r.precioLista ?? r.precio ?? 0),
+          bonif_pct: Number(r.bonifPctAplicado || 0),
+          impBonif: Number(r.descuentoSubtotalMonto || 0),
           subtotal: Number(r.subtotal || 0),
           ars: Number(r.total || 0),
           iva_pct: Number(r.ivaPct || 0),
@@ -2321,31 +2521,37 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
         total_ars: Number(resumen.total || 0),
         monto: Number(resumen.total || 0),
         importe: Number(resumen.total || 0),
+        descuento_tipo: resumen.descuento > 0 ? resumen.descuentoTipo : null,
+        descuento_valor: resumen.descuento > 0 ? Number(resumen.descuentoValor || 0) : 0,
+        descuento_monto: Number(resumen.descuento || 0),
+        total_bruto: Number(resumen.totalBruto || resumen.total || 0),
         operacion_key: arcaOperationKey || getOrCreateNuevaVentaArcaKey(),
         operacion_contexto: "FACTURA_VENTA",
         operacion_id_origen: null,
-        observaciones: "",
+        observaciones: resumen.descuento > 0
+          ? `Descuento comercial aplicado: ${resumen.descuentoTipo === "PORCENTAJE" ? `${Number(resumen.descuentoValor || 0).toLocaleString("es-AR")}%` : moneyARS(resumen.descuento)}.`
+          : "",
         emisor: emisorPdf.emisor,
       };
     },
-    [rowsCalc, mediosFilas, mediosPagoList, selectedClienteNombre, selectedClienteId, filters.id_tipo_venta, fecha, isContado, resumen.total, arcaOperationKey]
+    [rowsCalc, mediosFilas, mediosPagoList, selectedClienteNombre, selectedClienteId, filters.id_tipo_venta, fecha, isContado, resumen, arcaOperationKey]
   );
 
   const buildVentaNoFacturadaPayload = useCallback(
     (cfg = null, clienteFiscalOverride = null) => {
       const items = rowsCalc
-        .filter((r) => Number.isFinite(Number(r.id_detalle)) && Number(r.id_detalle) > 0 && Number(r.total || 0) > 0)
+        .filter(isUsableSaleRow)
         .map((r, i) => ({
           id: r.id,
-          id_detalle: Number(r.id_detalle || 0),
+          id_detalle: Number(getSelectedSaleItemId(r) || 0),
           codigo: String(i + 1),
           descripcion: safeStr(r.detalleText),
           cantidad: Number(r.cantidad || 0),
           unidad: "u",
-          precio_unitario: Number(r.precio || 0),
-          precio: Number(r.precio || 0),
-          bonif_pct: 0,
-          impBonif: 0,
+          precio_unitario: Number(r.precioLista ?? r.precio ?? 0),
+          precio: Number(r.precioLista ?? r.precio ?? 0),
+          bonif_pct: Number(r.bonifPctAplicado || 0),
+          impBonif: Number(r.descuentoSubtotalMonto || 0),
           subtotal: Number(r.subtotal || 0),
           ars: Number(r.total || 0),
           iva_pct: Number(r.ivaPct || 0),
@@ -2384,8 +2590,13 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
         total_ars: Number(resumen.total || 0),
         monto: Number(resumen.total || 0),
         importe: Number(resumen.total || 0),
-        observaciones:
-          "Comprobante interno generado automáticamente por una venta no facturada. Sin CAE, sin QR fiscal y sin validez fiscal.",
+        descuento_tipo: resumen.descuento > 0 ? resumen.descuentoTipo : null,
+        descuento_valor: resumen.descuento > 0 ? Number(resumen.descuentoValor || 0) : 0,
+        descuento_monto: Number(resumen.descuento || 0),
+        total_bruto: Number(resumen.totalBruto || resumen.total || 0),
+        observaciones: resumen.descuento > 0
+          ? `Comprobante interno generado automáticamente por una venta no facturada. Descuento comercial aplicado: ${resumen.descuentoTipo === "PORCENTAJE" ? `${Number(resumen.descuentoValor || 0).toLocaleString("es-AR")}%` : moneyARS(resumen.descuento)}. Sin CAE, sin QR fiscal y sin validez fiscal.`
+          : "Comprobante interno generado automáticamente por una venta no facturada. Sin CAE, sin QR fiscal y sin validez fiscal.",
         emisor: emisorPdf.emisor,
       };
     },
@@ -2403,7 +2614,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
       tipoVentaSelected,
       isContado,
       fecha,
-      resumen.total,
+      resumen,
     ]
   );
 
@@ -2531,6 +2742,9 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
           id_stock_variante: Number.isFinite(varianteId) && varianteId > 0 ? varianteId : null,
           cantidad: Math.round(Number(r.cantidad) * 100) / 100,
           precio: Math.round(Number(r.precio) * 100) / 100,
+          precio_lista: Math.round(Number(r.precioLista ?? r.precio) * 100) / 100,
+          descuento_monto: Math.round(Number(r.descuentoMonto || 0) * 100) / 100,
+          descuento_pct: Number(r.bonifPctAplicado || 0),
           iva_pct: Math.round(Number(r.ivaPct) * 100) / 100,
           subtotal: Math.round(Number(r.subtotal) * 100) / 100,
           iva_monto: Math.round(Number(r.ivaMonto) * 100) / 100,
@@ -2548,6 +2762,10 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
         idUsuario,
         items: payloads,
         medios_pago: isContado ? mediosPayload : [],
+        descuento_tipo: resumen.descuento > 0 ? resumen.descuentoTipo : null,
+        descuento_valor: resumen.descuento > 0 ? Number(resumen.descuentoValor || 0) : 0,
+        descuento_monto: Number(resumen.descuento || 0),
+        total_bruto: Number(resumen.totalBruto || resumen.total || 0),
       });
       if (!data?.exito) throw new Error(data?.mensaje || "No se pudo guardar el batch de ventas.");
 
@@ -2562,7 +2780,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
         es_facturada: esFacturadaFinal,
       };
     },
-    [API_BATCH, fecha, mediosFilas, mediosPagoList, rowsCalc, selectedClienteId, selectedClienteNombre, filters, isContado]
+    [API_BATCH, fecha, mediosFilas, mediosPagoList, rowsCalc, selectedClienteId, selectedClienteNombre, filters, isContado, resumen]
   );
 
   const subirComprobanteYVincularPrimerMovimiento = useCallback(
@@ -3486,6 +3704,12 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                       <span>IVA</span>
                       <b>{moneyARS(resumen.iva)}</b>
                     </div>
+                    {resumen.descuento > 0 && (
+                      <div className="gm-summary-chip nv-summary-chip--discount">
+                        <span>Descuento</span>
+                        <b>- {moneyARS(resumen.descuento)}</b>
+                      </div>
+                    )}
                     <div className="gm-summary-chip gm-summary-chip--total">
                       <span>Total</span>
                       <b>{moneyARS(resumen.total)}</b>
@@ -3577,6 +3801,53 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
                         <label className={`gm-label${filters.id_tipo_venta ? " gm-label--up" : ""}`}>
                           Forma de venta *
                         </label>
+                      </div>
+
+                      <div className="nv-discount-box">
+                        <div className="nv-discount-box__head">
+                          <div>
+                            <strong>Descuento manual</strong>
+                            <span>No modifica el precio del producto ni Tienda Nube.</span>
+                          </div>
+                        </div>
+                        <div className="nv-discount-box__controls">
+                          <select
+                            className="gm-input gm-select nv-discount-box__type"
+                            value={descuentoTipo}
+                            onChange={(e) => {
+                              setDescuentoTipo(e.target.value === "MONTO" ? "MONTO" : "PORCENTAJE");
+                              setDescuentoValor("");
+                            }}
+                            disabled={saving}
+                            aria-label="Tipo de descuento"
+                          >
+                            <option value="PORCENTAJE">Porcentaje (%)</option>
+                            <option value="MONTO">Importe ($)</option>
+                          </select>
+                          <div className="nv-discount-box__input-wrap">
+                            <span>{descuentoTipo === "PORCENTAJE" ? "%" : "$"}</span>
+                            <input
+                              className="gm-input nv-discount-box__input"
+                              type="number"
+                              min="0"
+                              max={descuentoTipo === "PORCENTAJE" ? "99.99" : undefined}
+                              step="0.01"
+                              value={descuentoValor}
+                              onChange={(e) => setDescuentoValor(e.target.value)}
+                              placeholder="0"
+                              disabled={saving}
+                              aria-label="Valor del descuento"
+                            />
+                          </div>
+                        </div>
+                        <div className="nv-discount-box__summary">
+                          <span>Total sin descuento: <b>{moneyARS(resumen.totalBruto)}</b></span>
+                          {resumen.descuento > 0 ? (
+                            <span className="is-applied">Se descuentan <b>{moneyARS(resumen.descuento)}</b></span>
+                          ) : (
+                            <span>Sin descuento aplicado</span>
+                          )}
+                        </div>
                       </div>
 
                       {isContado && (
