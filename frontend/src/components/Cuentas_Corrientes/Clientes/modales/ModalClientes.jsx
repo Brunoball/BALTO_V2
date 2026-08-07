@@ -236,8 +236,11 @@ function FiscalResumen({ fiscal }) {
 }
 
 function FiscalEditableFields({ fiscal, cuit, saving, fiscalLoading, onFieldChange }) {
+  // No mostrar el panel legal solo por escribir un CUIT.
+  // Se habilita recien cuando existen datos fiscales reales (por ARCA o edicion).
+  if (!fiscalHasAnyData(fiscal)) return null;
+
   const f = normalizeFiscalData({ ...(fiscal || {}), cuit: fiscal?.cuit || cuit });
-  if (!fiscalHasAnyData(f)) return null;
 
   return (
     <div className="cc-legal-edit-card">
