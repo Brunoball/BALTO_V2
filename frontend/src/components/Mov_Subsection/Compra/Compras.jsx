@@ -126,6 +126,24 @@ function getRowId(r) {
   );
 }
 
+function compraTieneNotaCreditoAplicada(row) {
+  if (!row || typeof row !== "object") return false;
+  if (Number(row.puede_editar) === 0 && String(row.motivo_no_editable || "").trim()) return true;
+
+  const flags = [
+    row.compra_tiene_nota_credito,
+    row.tiene_nota_credito,
+    row.nota_credito_total,
+    row.nota_credito_parcial,
+  ];
+  if (flags.some((value) => Number(value) === 1 || value === true)) return true;
+  if (Number(row.nota_credito_cantidad || 0) > 0) return true;
+
+  return Array.isArray(row.notas_credito_detalle) && row.notas_credito_detalle.some(
+    (nota) => String(nota?.estado || "").trim().toUpperCase() === "APLICADA"
+  );
+}
+
 function formatFechaDMY(v) {
   const s = String(v ?? "").trim();
   if (!s) return "—";
@@ -725,29 +743,24 @@ export default function Compras() {
       const id = payloadFinal?.id_movimiento ?? payloadFinal?.id ?? getRowId(selectedRow);
       if (!id) throw new Error("No encuentro id_movimiento para editar.");
 
-      const body = { 
-        ...payloadFinal, 
-        id_movimiento: Number(id), 
+      const body = {
+        ...payloadFinal,
+        id_movimiento: Number(id),
         idUsuario,
-        idUsuarioMaster: idUsuarioMaster || idUsuario
+        idUsuarioMaster: idUsuarioMaster || idUsuario,
       };
-      
-      const candidates = ["compras_editar", "compras_actualizar", "movimientos_editar"];
 
-      let lastErr = null;
-      for (const action of candidates) {
-        try {
-          const sp = new URLSearchParams();
-          sp.set("action", action);
-          sp.set("id_movimiento", String(id));
-          const data = await apiPostJson(`${API}?${sp.toString()}`, body);
-          if (data?.exito) return data;
-          lastErr = new Error(data?.mensaje || `No se pudo editar (action=${action}).`);
-        } catch (e) {
-          lastErr = e;
-        }
+      // Existe una única ruta canónica. Antes se reintentaba cualquier 422 con
+      // dos aliases y el usuario terminaba viendo un 404 que ocultaba el motivo real.
+      const sp = new URLSearchParams();
+      sp.set("action", "compras_editar");
+      sp.set("id_movimiento", String(id));
+
+      const data = await apiPostJson(`${API}?${sp.toString()}`, body);
+      if (!data?.exito) {
+        throw new Error(data?.mensaje || data?.message || "No se pudo editar la compra.");
       }
-      throw lastErr || new Error("No se pudo editar la compra.");
+      return data;
     },
     [API, apiPostJson, selectedRow]
   );
@@ -1185,9 +1198,54 @@ export default function Compras() {
   }, [columns]);
 
   const openEditModal = async (r) => {
-    setSelectedRow(r);
+    const id = getRowId(r);
+    if (!id) {
+      showToast("error", "No se encontró el id de la compra.", 3200);
+      return;
+    }
+
     await ensureComprasProductList();
-    setOpenEdit(true);
+
+    try {
+      // El editor no debe abrir con una fila vieja de localStorage. La compra
+      // puntual incluye items, medios de pago y el estado real de sus NC.
+      const sp = new URLSearchParams();
+      sp.set("action", "compras_obtener");
+      sp.set("id_movimiento", String(id));
+      sp.set("_ts", String(Date.now()));
+
+      const data = await apiGet(`${API}?${sp.toString()}`);
+      if (!data?.exito) {
+        throw new Error(data?.mensaje || data?.message || "No se pudo obtener la compra actualizada.");
+      }
+
+      const fresh = Array.isArray(data.compras)
+        ? data.compras[0]
+        : data.compra || data.data || null;
+      if (!fresh || !getRowId(fresh)) {
+        throw new Error("El backend no devolvió el detalle de la compra.");
+      }
+
+      const merged = { ...(r || {}), ...(fresh || {}) };
+      if (compraTieneNotaCreditoAplicada(merged)) {
+        showToast(
+          "advertencia",
+          "Esta compra tiene una nota de crédito aplicada y no puede editarse sin romper su relación contable.",
+          5200
+        );
+        return;
+      }
+
+      setSelectedRow(merged);
+      setRows((prev) =>
+        (Array.isArray(prev) ? prev : []).map((row) =>
+          String(getRowId(row) || "") === String(id) ? { ...row, ...merged } : row
+        )
+      );
+      setOpenEdit(true);
+    } catch (e) {
+      showToast("error", e?.message || "No se pudo abrir la edición de la compra.", 4200);
+    }
   };
 
   const openDeleteModal = (r) => {
@@ -1708,6 +1766,7 @@ export default function Compras() {
                   const rowId = getRowId(r) ?? `row-${Math.random()}`;
                   const canSee = normalizeCompraComprobanteDocs(r).length > 0;
                   const saldoNotaCreditoDisponible = Number(r?.monto_total ?? r?.total ?? 0) > 0.004;
+                  const edicionBloqueadaPorNotaCredito = compraTieneNotaCreditoAplicada(r);
                   const isDeleting =
                     deletingId !== null && String(deletingId) === String(rowId);
                   return (
@@ -1767,15 +1826,17 @@ export default function Compras() {
                                   <FontAwesomeIcon icon={faFileInvoiceDollar} />
                                 </button>
 
-                                <button
-                                  type="button"
-                                  className="mov-iconBtn"
-                                  title="Editar"
-                                  onClick={() => openEditModal(r)}
-                                  disabled={isAnyLoading || loadingListsCtx}
-                                >
-                                  <FontAwesomeIcon icon={faPenToSquare} />
-                                </button>
+                                {!edicionBloqueadaPorNotaCredito && (
+                                  <button
+                                    type="button"
+                                    className="mov-iconBtn"
+                                    title="Editar"
+                                    onClick={() => openEditModal(r)}
+                                    disabled={isAnyLoading || loadingListsCtx}
+                                  >
+                                    <FontAwesomeIcon icon={faPenToSquare} />
+                                  </button>
+                                )}
 
                                 <button
                                   type="button"

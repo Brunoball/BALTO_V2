@@ -92,6 +92,20 @@ test('@crud @critical compra: ingresa stock, edita cantidad y NC de proveedor re
   stockRow = await searchRow(page, productName, /Buscar por nombre, SKU o variante/i);
   await expect(stockRow.locator('[role="cell"]').nth(2)).toContainText('13');
 
+  // Una compra con NC aplicada no se puede reescribir: cambiar sus items rompería
+  // la trazabilidad entre el movimiento original y la nota. La acción Editar
+  // debe desaparecer completamente, no quedar visible como botón deshabilitado.
+  await page.goto('/panel/compras');
+  const purchaseWithCreditNote = await searchRow(page, productName, /Buscar por descripción, proveedor/i);
+  await expect(
+    purchaseWithCreditNote.getByTitle('Editar'),
+    'El botón Editar debe ocultarse cuando la compra tiene una nota de crédito aplicada',
+  ).toHaveCount(0);
+  await expect(
+    purchaseWithCreditNote.getByTitle('No se puede editar: tiene una nota de crédito aplicada'),
+    'No debe quedar visible el antiguo botón Editar deshabilitado',
+  ).toHaveCount(0);
+
   await assertNoCriticalErrors(diagnostics, testInfo, { allowConsole: [/Tienda Nube/i, /imagen/i] });
 });
 

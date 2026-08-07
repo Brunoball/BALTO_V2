@@ -258,7 +258,45 @@ export async function editPurchaseQuantity(page, productName, quantity) {
   const qty = itemRow.locator('input[type="number"]').first();
   await qty.fill(String(quantity));
   await qty.blur();
-  await clickSaveAndWait(dialog, /Guardar cambios/i, { timeout: 60_000 });
+
+  const editActions = [];
+  const captureEditRequest = (request) => {
+    if (request.method() !== 'POST') return;
+    const action = new URL(request.url()).searchParams.get('action');
+    if (['compras_editar', 'compras_actualizar', 'movimientos_editar'].includes(action)) {
+      editActions.push(action);
+    }
+  };
+  page.on('request', captureEditRequest);
+
+  try {
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).searchParams.get('action') === 'compras_editar',
+      { timeout: 60_000 },
+    );
+
+    await clickSaveAndWait(dialog, /Guardar cambios/i, { timeout: 60_000 });
+    const response = await responsePromise;
+    const body = await response.json().catch(() => ({}));
+
+    expect(
+      response.status(),
+      `Editar compra respondió HTTP ${response.status()}: ${JSON.stringify(body)}`,
+    ).toBeLessThan(400);
+    expect(
+      body?.exito !== false && body?.success !== false,
+      body?.mensaje || body?.message || 'No se pudo editar la compra',
+    ).toBeTruthy();
+    expect(
+      editActions,
+      'La edición debe usar sólo compras_editar y nunca caer en aliases que oculten un 422 con un 404',
+    ).toEqual(['compras_editar']);
+  } finally {
+    page.off('request', captureEditRequest);
+  }
+
   return searchRow(page, productName, /Buscar por descripción, proveedor/i);
 }
 

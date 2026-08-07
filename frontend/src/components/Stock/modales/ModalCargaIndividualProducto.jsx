@@ -386,7 +386,7 @@ function isValidMoneyValue(value) {
 function FloatingField({ label, icon, error, children, style }) {
   return (
     <div
-      className={`cmi-floatingField ${error ? "cmi-floatingField--error" : ""}`}
+      className={`cmi-floatingField fl-field ${error ? "cmi-floatingField--error" : ""}`}
       style={style}
       title={error ? errorToText(error) : undefined}
     >

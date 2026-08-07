@@ -263,12 +263,18 @@ export async function selectProduct(scope, productName, options = {}) {
 
   const list = scope.page().locator('#psa-portal-list');
   await expect(list).toBeVisible({ timeout: 12_000 });
-  const item = list.locator('.psa-item, li').filter({ hasText: productName }).first();
-  if (await item.isVisible().catch(() => false)) {
-    await item.click();
-  } else {
-    await productInput.press('Enter');
-  }
+
+  const item = list
+    .locator('.psa-item, li')
+    .filter({ hasText: productName })
+    .first();
+
+  await expect(
+    item,
+    `Debe aparecer el producto "${productName}" en el autocompletado`
+  ).toBeVisible({ timeout: 15_000 });
+
+  await item.click();
 
   if (options.expectSelected !== false) {
     await expect(productInput).toHaveValue(new RegExp(productName, 'i'));
