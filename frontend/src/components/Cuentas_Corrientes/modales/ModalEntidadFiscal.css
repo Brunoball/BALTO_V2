@@ -1318,15 +1318,27 @@ body.dark .cc-legal-edit-card__field .fl-label{
 
 .cc-entity-form-card {
   min-height: 0;
+  overflow: hidden;
 }
 
+/*
+   El resultado de la consulta de CUIT puede agregar varias tarjetas/campos.
+   El scroll vive en el cuerpo del formulario para que esa información no se
+   recorte y el encabezado del modal permanezca siempre visible.
+*/
 .cc-entity-form-card__body {
-  padding: 18px 18px 18px;
+  flex: 1 1 auto;
   min-height: 0;
+  padding: 18px 18px 18px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 
 .cc-entity-form-card__body .cc-entity-form-body {
   padding: 0 !important;
+  min-height: min-content;
   overflow: visible !important;
 }
 
@@ -1538,4 +1550,26 @@ html:not([data-theme="oscuro"]) .cc-entity-form-side-panel .cc-legal-panel-secti
 body:not(.dark) .cc-entity-form-side-panel .cc-legal-panel-section__dot{
   background: #1683ff;
   box-shadow: 0 0 0 4px rgba(22, 131, 255, .16);
+}
+
+/* =========================================================
+   Formulario cliente/proveedor — floating label deshabilitado
+   Durante la consulta ARCA los inputs quedan disabled. La regla global
+   de disabled usa un fondo claro y en tema oscuro genera un bloque blanco.
+   Si el campo todavía está vacío, el label permanece centrado y debe ser
+   transparente; si ya tiene valor y flota, conserva el fondo del modal.
+   ========================================================= */
+.cc-entity-form-modal .fl-input:disabled:placeholder-shown + .fl-label {
+  background: transparent !important;
+}
+
+.cc-entity-form-modal .fl-input:disabled:not(:placeholder-shown) + .fl-label {
+  background: var(--mi-bg, #fff) !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="oscuro"] .cc-entity-form-modal .fl-input:disabled:not(:placeholder-shown) + .fl-label,
+body.dark .cc-entity-form-modal .fl-input:disabled:not(:placeholder-shown) + .fl-label {
+  background: rgba(6, 18, 28, .96) !important;
+  color: rgba(180, 210, 255, .92) !important;
 }

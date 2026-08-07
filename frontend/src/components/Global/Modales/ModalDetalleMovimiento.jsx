@@ -645,11 +645,23 @@ export default function ModalDetalleMovimiento({
             <div className={unifiedItemsScroll ? "mdm-items-scroll" : "mdm-items-content"}>
               {hasCommercialDiscount ? (
                 <div className="mdm-commercial-discount" role="note" aria-label="Detalle del descuento comercial">
-                  <div className="mdm-commercial-discount__title">
-                    <FontAwesomeIcon icon={faFileInvoiceDollar} aria-hidden="true" />
-                    <div>
-                      <strong>Descuento comercial aplicado a la venta</strong>
-                      <span>El precio de lista del producto no fue modificado.</span>
+                  <div className="mdm-commercial-discount__heading">
+                    <div className="mdm-commercial-discount__title">
+                      <FontAwesomeIcon icon={faFileInvoiceDollar} aria-hidden="true" />
+                      <div>
+                        <strong>Descuento comercial aplicado a la venta</strong>
+                        <span>El precio de lista del producto no fue modificado.</span>
+                      </div>
+                    </div>
+                    <div className="mdm-commercial-discount__chips" aria-label="Resumen del descuento comercial">
+                      <div className="mi-cr-totalLine mdm-total-chip--gross">
+                        <span>Total sin descuento</span>
+                        <b>{moneyARS(totalBrutoComercial)}</b>
+                      </div>
+                      <div className="mi-cr-totalLine mdm-total-chip--discount">
+                        <span>Descuento comercial</span>
+                        <b>- {moneyARS(descuentoMonto)}</b>
+                      </div>
                     </div>
                   </div>
                   <div className="mdm-commercial-discount__totals">
@@ -859,18 +871,6 @@ export default function ModalDetalleMovimiento({
                     <span>{hasCommercialDiscount ? "IVA con descuento" : hasCreditTrace ? "IVA original" : "IVA"}</span>
                     <b>{moneyARS(resumenItems.iva)}</b>
                   </div>
-                  {hasCommercialDiscount ? (
-                    <>
-                      <div className="mi-cr-totalLine mdm-total-chip--gross">
-                        <span>Total sin descuento</span>
-                        <b>{moneyARS(totalBrutoComercial)}</b>
-                      </div>
-                      <div className="mi-cr-totalLine mdm-total-chip--discount">
-                        <span>Descuento comercial</span>
-                        <b>- {moneyARS(descuentoMonto)}</b>
-                      </div>
-                    </>
-                  ) : null}
                   {hasCreditTrace ? (
                     <div className="mi-cr-totalLine mi-cr-totalLine--total mdm-total-chip--current">
                       <span>Total vigente</span>
