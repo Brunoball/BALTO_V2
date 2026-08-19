@@ -21,3 +21,9 @@
 .cmi-container--editar .cmi-v2-formShell--producto > .cmi-v2-variantPanelOnly {
   display: flex !important;
 }
+
+/* Pestañas de Editar producto: mantener tipografía liviana. */
+.cmi-container--editar .cmi-v2-mainTab,
+.cmi-container--editar .cmi-v2-tabBtn {
+  font-weight: 500;
+}

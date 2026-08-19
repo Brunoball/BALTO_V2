@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -7,7 +8,6 @@ import {
   faFloppyDisk,
   faMoneyCheckDollar,
   faPlus,
-  faRotateLeft,
   faTrash,
   faUsers,
   faWallet,
@@ -15,6 +15,8 @@ import {
 
 import BASE_URL from "../../../config/config";
 import Toast from "../../Global/Toast";
+import ModalEliminar from "../../Global/Modales/ModalEliminar";
+import "../../Global/Global_css/GlobalsModalsV2.css";
 import "./ConfiguracionSaldosIniciales.css";
 
 const API_RELATIVE = "api.php";
@@ -126,6 +128,30 @@ function fmtDate(value) {
   return y && m && d ? `${d}/${m}/${y}` : "—";
 }
 
+function openNativeDatePicker(event) {
+  const input = event?.currentTarget;
+  if (!input || input.disabled || input.readOnly) return;
+
+  input.focus();
+  if (typeof input.showPicker === "function") {
+    try {
+      input.showPicker();
+    } catch {
+      // El focus mantiene el fallback nativo en navegadores sin showPicker habilitado.
+    }
+  }
+}
+
+function FloatingField({ label, value, className = "", children }) {
+  const hasValue = value !== undefined && value !== null && String(value) !== "";
+  return (
+    <label className={`cfg-si-field ${hasValue ? "is-filled" : ""} ${className}`.trim()}>
+      {children}
+      <span className="cfg-si-floatLabel">{label}</span>
+    </label>
+  );
+}
+
 export default function ConfiguracionSaldosIniciales() {
   const navigate = useNavigate();
   const [tab, setTab] = useState("tesoreria");
@@ -137,6 +163,7 @@ export default function ConfiguracionSaldosIniciales() {
   const [ccTipo, setCcTipo] = useState("CLIENTE");
   const [ccSearch, setCcSearch] = useState("");
   const [ccEditor, setCcEditor] = useState(null);
+  const [chequeAEliminar, setChequeAEliminar] = useState(null);
   const [chequeForm, setChequeForm] = useState({
     tipo: "CHEQUE",
     fecha_saldo: todayISO(),
@@ -188,6 +215,18 @@ export default function ConfiguracionSaldosIniciales() {
   }, [hydrate, notify]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!ccEditor) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape" && !saving) {
+        event.preventDefault();
+        setCcEditor(null);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [ccEditor, saving]);
 
   const saveTreasury = useCallback(async () => {
     const rowsToSave = tesoreriaRows.filter(
@@ -341,22 +380,20 @@ export default function ConfiguracionSaldosIniciales() {
     }
   }, [chequeForm, hydrate, notify]);
 
-  const deleteCheque = useCallback(async (row) => {
-    if (!row?.id_cheque) return;
+  const deleteCheque = useCallback(async () => {
+    if (!chequeAEliminar?.id_cheque) return;
     setSaving(true);
     try {
       const payload = await apiFetch("config_saldos_iniciales_cheque_eliminar", {
         method: "POST",
-        body: JSON.stringify({ id_cheque: row.id_cheque }),
+        body: JSON.stringify({ id_cheque: chequeAEliminar.id_cheque }),
       });
       hydrate(payload);
-      notify("exito", payload.mensaje || "Cheque/eCheq inicial eliminado.");
-    } catch (e) {
-      notify("error", e?.message || "No se pudo eliminar el cheque/eCheq.", 4500);
+      setChequeAEliminar(null);
     } finally {
       setSaving(false);
     }
-  }, [hydrate, notify]);
+  }, [chequeAEliminar, hydrate]);
 
   const configuredCount = useMemo(() => ({
     tesoreria: data.tesoreria.length,
@@ -377,9 +414,6 @@ export default function ConfiguracionSaldosIniciales() {
             <h1>Saldos iniciales</h1>
             <p>Registrá la situación existente antes de comenzar a operar en Balto. Estos valores no generan ventas, compras, ingresos ni egresos ficticios.</p>
           </div>
-          <button className="cfg-si-secondaryBtn" type="button" onClick={load} disabled={loading || saving}>
-            <FontAwesomeIcon icon={faRotateLeft} /> Actualizar
-          </button>
         </header>
 
         <div className="cfg-si-tabs" role="tablist">
@@ -413,9 +447,15 @@ export default function ConfiguracionSaldosIniciales() {
                       <span className="cfg-si-accountIcon"><FontAwesomeIcon icon={row.nombre.toUpperCase().includes("BANCO") ? faBuildingColumns : faWallet} /></span>
                       <div><strong>{row.nombre}</strong><small>{row.configured ? "Saldo configurado" : "Sin saldo inicial"}</small></div>
                     </div>
-                    <label>Fecha de apertura<input type="date" max={todayISO()} value={row.fecha_saldo} onChange={(e) => setTesoreriaRows((prev) => prev.map((x, i) => i === index ? { ...x, fecha_saldo: e.target.value } : x))} /></label>
-                    <label>Saldo inicial<div className="cfg-si-moneyInput"><span>$</span><input inputMode="decimal" placeholder="0,00" value={row.saldo} onChange={(e) => setTesoreriaRows((prev) => prev.map((x, i) => i === index ? { ...x, saldo: e.target.value } : x))} /></div></label>
-                    <label>Observación<input type="text" maxLength={500} placeholder="Opcional" value={row.observaciones} onChange={(e) => setTesoreriaRows((prev) => prev.map((x, i) => i === index ? { ...x, observaciones: e.target.value } : x))} /></label>
+                    <FloatingField label="Fecha de apertura" value={row.fecha_saldo}>
+                      <input className="cfg-si-control cfg-si-dateControl" type="date" max={todayISO()} value={row.fecha_saldo} onClick={openNativeDatePicker} onChange={(e) => setTesoreriaRows((prev) => prev.map((x, i) => i === index ? { ...x, fecha_saldo: e.target.value } : x))} />
+                    </FloatingField>
+                    <FloatingField label="Saldo inicial" value={row.saldo} className="cfg-si-field--money">
+                      <div className="cfg-si-moneyInput"><span>$</span><input className="cfg-si-control" inputMode="decimal" placeholder=" " value={row.saldo} onChange={(e) => setTesoreriaRows((prev) => prev.map((x, i) => i === index ? { ...x, saldo: e.target.value } : x))} /></div>
+                    </FloatingField>
+                    <FloatingField label="Observación" value={row.observaciones}>
+                      <input className="cfg-si-control" type="text" maxLength={500} placeholder=" " value={row.observaciones} onChange={(e) => setTesoreriaRows((prev) => prev.map((x, i) => i === index ? { ...x, observaciones: e.target.value } : x))} />
+                    </FloatingField>
                   </article>
                 ))}
               </div>
@@ -424,21 +464,37 @@ export default function ConfiguracionSaldosIniciales() {
             <div className="cfg-si-panel">
               <div className="cfg-si-panelHead"><div><h2>Cheques y eCheq en cartera</h2><p>Cargá cada documento real que el negocio ya poseía al comenzar a usar Balto.</p></div></div>
               <div className="cfg-si-chequeForm">
-                <label>Tipo<select value={chequeForm.tipo} onChange={(e) => setChequeForm((p) => ({ ...p, tipo: e.target.value }))}><option value="CHEQUE">Cheque</option><option value="ECHEQ">eCheq</option></select></label>
-                <label>Fecha de apertura<input type="date" max={todayISO()} value={chequeForm.fecha_saldo} onChange={(e) => setChequeForm((p) => ({ ...p, fecha_saldo: e.target.value }))} /></label>
-                <label>Fecha emisión<input type="date" max={todayISO()} value={chequeForm.fecha_emision} onChange={(e) => setChequeForm((p) => ({ ...p, fecha_emision: e.target.value }))} /></label>
-                <label>Fecha de pago / vencimiento<input type="date" value={chequeForm.fecha_pago} onChange={(e) => setChequeForm((p) => ({ ...p, fecha_pago: e.target.value }))} /></label>
-                <label className="cfg-si-span2">Emisor<input type="text" maxLength={150} value={chequeForm.emisor} onChange={(e) => setChequeForm((p) => ({ ...p, emisor: e.target.value.toLocaleUpperCase("es-AR") }))} /></label>
-                <label>Número<input type="text" inputMode="numeric" maxLength={80} value={chequeForm.numero_cheque} onChange={(e) => setChequeForm((p) => ({ ...p, numero_cheque: e.target.value.replace(/[^0-9]/g, "") }))} /></label>
-                <label>Importe<div className="cfg-si-moneyInput"><span>$</span><input inputMode="decimal" value={chequeForm.importe} onChange={(e) => setChequeForm((p) => ({ ...p, importe: e.target.value }))} /></div></label>
-                <label className="cfg-si-span2">Observación<input type="text" maxLength={500} placeholder="Opcional" value={chequeForm.observaciones} onChange={(e) => setChequeForm((p) => ({ ...p, observaciones: e.target.value }))} /></label>
+                <FloatingField label="Tipo" value={chequeForm.tipo}>
+                  <select className="cfg-si-control" value={chequeForm.tipo} onChange={(e) => setChequeForm((p) => ({ ...p, tipo: e.target.value }))}><option value="CHEQUE">Cheque</option><option value="ECHEQ">eCheq</option></select>
+                </FloatingField>
+                <FloatingField label="Fecha de apertura" value={chequeForm.fecha_saldo}>
+                  <input className="cfg-si-control cfg-si-dateControl" type="date" max={todayISO()} value={chequeForm.fecha_saldo} onClick={openNativeDatePicker} onChange={(e) => setChequeForm((p) => ({ ...p, fecha_saldo: e.target.value }))} />
+                </FloatingField>
+                <FloatingField label="Fecha emisión" value={chequeForm.fecha_emision}>
+                  <input className="cfg-si-control cfg-si-dateControl" type="date" max={todayISO()} value={chequeForm.fecha_emision} onClick={openNativeDatePicker} onChange={(e) => setChequeForm((p) => ({ ...p, fecha_emision: e.target.value }))} />
+                </FloatingField>
+                <FloatingField label="Fecha de pago / vencimiento" value={chequeForm.fecha_pago}>
+                  <input className="cfg-si-control cfg-si-dateControl" type="date" value={chequeForm.fecha_pago} onClick={openNativeDatePicker} onChange={(e) => setChequeForm((p) => ({ ...p, fecha_pago: e.target.value }))} />
+                </FloatingField>
+                <FloatingField label="Emisor" value={chequeForm.emisor} className="cfg-si-span2">
+                  <input className="cfg-si-control" type="text" maxLength={150} placeholder=" " value={chequeForm.emisor} onChange={(e) => setChequeForm((p) => ({ ...p, emisor: e.target.value.toLocaleUpperCase("es-AR") }))} />
+                </FloatingField>
+                <FloatingField label="Número" value={chequeForm.numero_cheque}>
+                  <input className="cfg-si-control" type="text" inputMode="numeric" maxLength={80} placeholder=" " value={chequeForm.numero_cheque} onChange={(e) => setChequeForm((p) => ({ ...p, numero_cheque: e.target.value.replace(/[^0-9]/g, "") }))} />
+                </FloatingField>
+                <FloatingField label="Importe" value={chequeForm.importe} className="cfg-si-field--money">
+                  <div className="cfg-si-moneyInput"><span>$</span><input className="cfg-si-control" inputMode="decimal" placeholder=" " value={chequeForm.importe} onChange={(e) => setChequeForm((p) => ({ ...p, importe: e.target.value }))} /></div>
+                </FloatingField>
+                <FloatingField label="Observación" value={chequeForm.observaciones} className="cfg-si-span2">
+                  <input className="cfg-si-control" type="text" maxLength={500} placeholder=" " value={chequeForm.observaciones} onChange={(e) => setChequeForm((p) => ({ ...p, observaciones: e.target.value }))} />
+                </FloatingField>
                 <div className="cfg-si-chequeAction"><button className="cfg-si-primaryBtn" type="button" onClick={saveCheque} disabled={saving}><FontAwesomeIcon icon={faPlus} /> Cargar en cartera</button></div>
               </div>
 
               <div className="cfg-si-tableWrap">
-                <table className="cfg-si-table"><thead><tr><th>Tipo</th><th>Número</th><th>Emisor</th><th>Apertura</th><th>Vencimiento</th><th className="is-right">Importe</th><th>Estado</th><th></th></tr></thead>
+                <table className="cfg-si-table"><thead><tr><th className="is-center">Tipo</th><th className="is-center">Número</th><th>Emisor</th><th>Apertura</th><th className="is-center">Vencimiento</th><th className="is-right">Importe</th><th className="is-center">Estado</th><th className="is-center">Acciones</th></tr></thead>
                   <tbody>{data.cheques.length ? data.cheques.map((r) => (
-                    <tr key={r.id_cheque}><td>{r.tipo}</td><td>{r.numero_cheque}</td><td>{r.emisor}</td><td>{fmtDate(r.fecha_saldo)}</td><td>{fmtDate(r.fecha_pago)}</td><td className="is-right is-strong">{moneyARS(r.importe)}</td><td><span className={`cfg-si-state ${r.estado === "EN_CARTERA" ? "is-ok" : ""}`}>{String(r.estado || "").replaceAll("_", " ")}</span></td><td><button type="button" className="cfg-si-dangerIcon" title="Eliminar carga inicial" onClick={() => deleteCheque(r)} disabled={saving}><FontAwesomeIcon icon={faTrash} /></button></td></tr>
+                    <tr key={r.id_cheque}><td className="is-center">{r.tipo}</td><td className="is-center">{r.numero_cheque}</td><td>{r.emisor}</td><td>{fmtDate(r.fecha_saldo)}</td><td className="is-center">{fmtDate(r.fecha_pago)}</td><td className="is-right is-strong">{moneyARS(r.importe)}</td><td className="is-center"><span className={`cfg-si-state ${r.estado === "EN_CARTERA" ? "is-ok" : ""}`}>{String(r.estado || "").replaceAll("_", " ")}</span></td><td className="is-center"><button type="button" className="cfg-si-dangerIcon" title="Eliminar carga inicial" onClick={() => setChequeAEliminar(r)} disabled={saving}><FontAwesomeIcon icon={faTrash} /></button></td></tr>
                   )) : <tr><td colSpan="8" className="cfg-si-tableEmpty">No hay cheques iniciales cargados.</td></tr>}</tbody></table>
               </div>
             </div>
@@ -447,7 +503,9 @@ export default function ConfiguracionSaldosIniciales() {
               <div className="cfg-si-panelHead"><div><h2>Cuentas corrientes</h2><p>Definí cuánto debía cada cliente o cuánto se debía a cada proveedor antes de Balto.</p></div></div>
               <div className="cfg-si-ccToolbar">
                 <div className="cfg-si-segmented"><button type="button" className={ccTipo === "CLIENTE" ? "is-active" : ""} onClick={() => { setCcTipo("CLIENTE"); setCcEditor(null); }}>Clientes</button><button type="button" className={ccTipo === "PROVEEDOR" ? "is-active" : ""} onClick={() => { setCcTipo("PROVEEDOR"); setCcEditor(null); }}>Proveedores</button></div>
-                <input className="cfg-si-search" type="search" placeholder={`Buscar ${ccTipo === "CLIENTE" ? "cliente" : "proveedor"}…`} value={ccSearch} onChange={(e) => setCcSearch(e.target.value)} />
+                <FloatingField label={`Buscar ${ccTipo === "CLIENTE" ? "cliente" : "proveedor"}`} value={ccSearch} className="cfg-si-searchField">
+                  <input className="cfg-si-control cfg-si-search" type="search" placeholder=" " value={ccSearch} onChange={(e) => setCcSearch(e.target.value)} />
+                </FloatingField>
               </div>
               <div className="cfg-si-ccList">
                 {filteredCcRows.map((r) => {
@@ -464,21 +522,81 @@ export default function ConfiguracionSaldosIniciales() {
           )}
         </div>
 
-        {ccEditor && (
-          <div className="cfg-si-modalBack" onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) setCcEditor(null); }}>
-            <div className="cfg-si-modal" role="dialog" aria-modal="true">
-              <div className="cfg-si-modalHead"><div><small>{ccEditor.tipo_entidad === "CLIENTE" ? "Cliente" : "Proveedor"}</small><h3>{ccEditor.nombre}</h3></div><button type="button" onClick={() => setCcEditor(null)} disabled={saving}>×</button></div>
-              <div className="cfg-si-modalBody">
-                {ccEditor.exists && <div className="cfg-si-warning">Al modificar este saldo inicial también cambiarán los saldos posteriores de esta cuenta corriente.</div>}
-                <label>Fecha de apertura<input type="date" max={todayISO()} value={ccEditor.fecha_saldo} onChange={(e) => setCcEditor((p) => ({ ...p, fecha_saldo: e.target.value }))} /></label>
-                <label>Situación<select value={ccEditor.sentido} onChange={(e) => setCcEditor((p) => ({ ...p, sentido: e.target.value }))}>{ccEditor.tipo_entidad === "CLIENTE" ? <><option value="DEUDA">El cliente nos debe</option><option value="FAVOR">El cliente tiene saldo a favor</option></> : <><option value="DEUDA">Le debemos al proveedor</option><option value="FAVOR">Tenemos saldo a favor</option></>}</select></label>
-                <label>Importe<div className="cfg-si-moneyInput"><span>$</span><input autoFocus inputMode="decimal" placeholder="0,00" value={ccEditor.importe} onChange={(e) => setCcEditor((p) => ({ ...p, importe: e.target.value }))} /></div></label>
-                <label>Observación<textarea rows="3" maxLength={500} placeholder="Ej.: saldo anterior a la implementación de Balto" value={ccEditor.observaciones} onChange={(e) => setCcEditor((p) => ({ ...p, observaciones: e.target.value }))} /></label>
+        {ccEditor && createPortal(
+          <div className="gm-modal-overlay" role="presentation">
+            <div className="gm-modal-container gm-modal-v2 cfg-si-ccModal" role="dialog" aria-modal="true" aria-labelledby="cfg-si-cc-modal-title">
+              <div className="gm-modal-header">
+                <div className="gm-modal-head-icon" aria-hidden="true"><FontAwesomeIcon icon={faUsers} /></div>
+                <div className="gm-modal-head-left">
+                  <h2 className="gm-modal-title" id="cfg-si-cc-modal-title">{ccEditor.nombre}</h2>
+                  <p className="gm-modal-subtitle">{ccEditor.tipo_entidad === "CLIENTE" ? "Saldo inicial de cliente" : "Saldo inicial de proveedor"}</p>
+                </div>
+                <button type="button" className="gm-modal-close" onClick={() => setCcEditor(null)} disabled={saving} aria-label="Cerrar">✕</button>
               </div>
-              <div className="cfg-si-modalFoot">{ccEditor.exists && <button className="cfg-si-deleteBtn" type="button" onClick={deleteCc} disabled={saving}><FontAwesomeIcon icon={faTrash} /> Eliminar saldo</button>}<div className="cfg-si-modalFootRight"><button className="cfg-si-secondaryBtn" type="button" onClick={() => setCcEditor(null)} disabled={saving}>Cancelar</button><button className="cfg-si-primaryBtn" type="button" onClick={saveCc} disabled={saving}><FontAwesomeIcon icon={faFloppyDisk} /> Guardar</button></div></div>
+
+              <div className="gm-modal-content cfg-si-ccModalContent">
+                {ccEditor.exists && <div className="gm-info-box cfg-si-ccModalNotice">Al modificar este saldo inicial también cambiarán los saldos posteriores de esta cuenta corriente.</div>}
+
+                <div className="cfg-si-ccModalGrid">
+                  <div className="gm-field">
+                    <input className="gm-input" type="date" max={todayISO()} value={ccEditor.fecha_saldo} placeholder=" " onClick={openNativeDatePicker} onChange={(e) => setCcEditor((p) => ({ ...p, fecha_saldo: e.target.value }))} />
+                    <span className="gm-label gm-label--up">Fecha de apertura</span>
+                  </div>
+
+                  <div className="gm-field">
+                    <select className="gm-input gm-select" value={ccEditor.sentido} onChange={(e) => setCcEditor((p) => ({ ...p, sentido: e.target.value }))}>
+                      {ccEditor.tipo_entidad === "CLIENTE" ? <><option value="DEUDA">El cliente nos debe</option><option value="FAVOR">El cliente tiene saldo a favor</option></> : <><option value="DEUDA">Le debemos al proveedor</option><option value="FAVOR">Tenemos saldo a favor</option></>}
+                    </select>
+                    <span className="gm-label gm-label--up">Situación</span>
+                  </div>
+
+                  <div className="gm-field cfg-si-ccModalMoneyField">
+                    <input className="gm-input cfg-si-ccModalMoneyInput" autoFocus inputMode="decimal" placeholder=" " value={ccEditor.importe} onChange={(e) => setCcEditor((p) => ({ ...p, importe: e.target.value }))} />
+                    <span className="gm-label">Importe</span>
+                  </div>
+
+                  <div className="gm-field cfg-si-ccModalObservation">
+                    <textarea className="gm-input cfg-si-ccModalTextarea" rows="3" maxLength={500} placeholder=" " value={ccEditor.observaciones} onChange={(e) => setCcEditor((p) => ({ ...p, observaciones: e.target.value }))} />
+                    <span className={`gm-label ${ccEditor.observaciones !== "" ? "gm-label--up" : ""}`.trim()}>Observación</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="gm-modal-footer cfg-si-ccModalFooter">
+                {ccEditor.exists && <button className="gm-action-btn gm-action-btn--danger cfg-si-ccModalDelete" type="button" onClick={deleteCc} disabled={saving}><span className="gm-action-btn__icon"><FontAwesomeIcon icon={faTrash} /></span>Eliminar saldo</button>}
+                <div className="cfg-si-ccModalFooterRight">
+                  <button className="gm-action-btn gm-action-btn--cancel" type="button" onClick={() => setCcEditor(null)} disabled={saving}>Cancelar</button>
+                  <button className="gm-action-btn gm-action-btn--save" type="button" onClick={saveCc} disabled={saving}><span className="gm-action-btn__icon"><FontAwesomeIcon icon={faFloppyDisk} /></span>Guardar</button>
+                </div>
+              </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
+
+        <ModalEliminar
+          open={!!chequeAEliminar}
+          row={chequeAEliminar}
+          loading={saving}
+          onClose={() => setChequeAEliminar(null)}
+          onConfirm={deleteCheque}
+          onToast={notify}
+          title="Eliminar cheque/eCheq"
+          message={`¿Seguro que querés eliminar el ${chequeAEliminar?.tipo === "ECHEQ" ? "eCheq" : "cheque"} N.º ${chequeAEliminar?.numero_cheque || ""} de los saldos iniciales?`}
+          warning="Esta acción quitará el documento de la cartera inicial y no se puede deshacer."
+          loadingMessage="Eliminando cheque/eCheq…"
+          successMessage="Cheque/eCheq inicial eliminado correctamente."
+          errorMessage="No se pudo eliminar el cheque/eCheq inicial."
+          confirmLabel="Eliminar"
+          cancelLabel="Cancelar"
+          details={chequeAEliminar ? [
+            { label: "Tipo", value: chequeAEliminar.tipo === "ECHEQ" ? "eCheq" : "Cheque" },
+            { label: "Número", value: chequeAEliminar.numero_cheque || "—" },
+            { label: "Emisor", value: chequeAEliminar.emisor || "—" },
+            { label: "Vencimiento", value: fmtDate(chequeAEliminar.fecha_pago) },
+            { label: "Importe", value: moneyARS(chequeAEliminar.importe) },
+          ] : []}
+        />
       </section>
     </>
   );

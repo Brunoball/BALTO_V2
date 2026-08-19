@@ -54,3 +54,9 @@
   line-height: 1.45;
   padding: 10px 12px;
 }
+
+/* Pestañas de Nuevo producto: jerarquía por color, no por negrita. */
+.cmi-content--individual .cmi-v2-mainTab,
+.cmi-content--individual .cmi-v2-tabBtn {
+  font-weight: 500;
+}

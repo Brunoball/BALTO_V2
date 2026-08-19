@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faBarcode,
@@ -7,7 +8,6 @@ import {
   faPrint,
   faRefresh,
   faSpinner,
-  faTrashCan,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import {
@@ -304,12 +304,26 @@ export default function StockBarcodePanel({
 
   useEffect(() => {
     if (!scanTarget) return undefined;
+
     const timer = window.setTimeout(() => {
       inputRef.current?.focus();
       inputRef.current?.select?.();
     }, 40);
-    return () => window.clearTimeout(timer);
-  }, [scanTarget]);
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !saving) {
+        event.preventDefault();
+        setScanTarget(null);
+        setScanValue("");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [scanTarget, saving]);
 
   const formVariantRows = useMemo(() => {
     if (!tieneVariantes) return [];
@@ -385,7 +399,7 @@ export default function StockBarcodePanel({
       }
       const reloaded = await loadCodes({ quiet: true });
       if (!reloaded) {
-        notify("El producto se guardó, pero no se pudieron recargar los códigos. Usá Actualizar antes de imprimir.", "error");
+        notify("El producto se guardó, pero no se pudieron recargar los códigos. Volvé a intentar desde esta pestaña.", "error");
         return;
       }
       notify("Cambios guardados. Los códigos ya usan los IDs definitivos de las variantes.", "exito");
@@ -453,42 +467,6 @@ export default function StockBarcodePanel({
     }
   };
 
-  const removeExternalCode = async (item) => {
-    if (barcodeActionsBlocked) return;
-    const confirmed = window.confirm("¿Querés quitar el código de barra existente de este artículo?");
-    if (!confirmed) return;
-
-    setSaving(true);
-    try {
-      const res = await fetch(barcodeEndpointUrl(), {
-        method: "DELETE",
-        headers: buildHeadersJSON(),
-        body: JSON.stringify({
-          op: "quitar",
-          tipo_entidad: item.tipo_entidad,
-          id_stock_producto: item.id_stock_producto,
-          id_stock_variante: item.id_stock_variante || null,
-        }),
-      });
-      await parseJsonOrThrow(res);
-      setItems((prev) => prev.map((row) => {
-        const same = row.tipo_entidad === item.tipo_entidad &&
-          Number(row.id_stock_producto) === Number(item.id_stock_producto) &&
-          Number(row.id_stock_variante || 0) === Number(item.id_stock_variante || 0);
-        return same ? { ...row, codigo_barra: "" } : row;
-      }));
-      if (scanTarget && Number(scanTarget.id_stock_variante || 0) === Number(item.id_stock_variante || 0)) {
-        setScanTarget(null);
-        setScanValue("");
-      }
-      notify("Código de barra quitado.", "exito");
-    } catch (err) {
-      notify(err?.message || "No se pudo quitar el código de barra.", "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const beginScan = (item) => {
     if (barcodeActionsBlocked) return;
     const itemInactive = Number(item?.activo ?? 1) === 0 || Number(item?.producto_activo ?? 1) === 0;
@@ -517,7 +495,8 @@ export default function StockBarcodePanel({
     : items.filter((item) => Number(item.activo ?? 1) !== 0 && Number(item.producto_activo ?? 1) !== 0);
 
   return (
-    <section className={`stock-barcode cmi-barcodePanelOnly ${className}`.trim()} aria-label="Códigos de barra">
+    <>
+      <section className={`stock-barcode cmi-barcodePanelOnly ${className}`.trim()} aria-label="Códigos de barra">
       <div className="stock-barcode__header">
         <div>
           <div className="stock-barcode__eyebrow"><FontAwesomeIcon icon={faBarcode} /> Stock</div>
@@ -529,15 +508,6 @@ export default function StockBarcodePanel({
 
         {idProducto > 0 && items.length > 0 && (
           <div className="stock-barcode__headerActions">
-            <button
-              type="button"
-              className="mit-btn mit-btn--ghost"
-              onClick={() => loadCodes()}
-              disabled={loading || saving || savingProduct || productSaving}
-              title="Actualizar códigos"
-            >
-              <FontAwesomeIcon icon={faRefresh} spin={loading} /> Actualizar
-            </button>
             <button
               type="button"
               className="mit-btn mit-btn--solid"
@@ -612,10 +582,6 @@ export default function StockBarcodePanel({
             const rowKey = item.provisional
               ? `provisional-${index}`
               : `${item.tipo_entidad}-${item.id_stock_variante || item.id_stock_producto}`;
-            const isScanning = scanTarget && !item.provisional &&
-              scanTarget.tipo_entidad === item.tipo_entidad &&
-              Number(scanTarget.id_stock_producto) === Number(item.id_stock_producto) &&
-              Number(scanTarget.id_stock_variante || 0) === Number(item.id_stock_variante || 0);
             const displayName = item.tipo_entidad === "variante"
               ? (item.nombre_variante || `Variante ${index + 1}`)
               : (item.producto_nombre || nombreProducto || "Producto");
@@ -624,7 +590,10 @@ export default function StockBarcodePanel({
             );
 
             return (
-              <article className={`stock-barcode__card ${item.provisional ? "is-provisional" : ""}`} key={rowKey}>
+              <article
+                className={`stock-barcode__card stock-barcode__card--${item.tipo_entidad} ${item.provisional ? "is-provisional" : ""}`.trim()}
+                key={rowKey}
+              >
                 <div className="stock-barcode__cardHead">
                   <div>
                     <div className="stock-barcode__itemType">
@@ -670,7 +639,7 @@ export default function StockBarcodePanel({
                     )}
                   </div>
 
-                  <div className="stock-barcode__section stock-barcode__section--external">
+                  <div className={`stock-barcode__section stock-barcode__section--external ${!item.provisional && item.codigo_barra ? "has-code" : ""}`.trim()}>
                     <div className="stock-barcode__sectionHead">
                       <div>
                         <span className="stock-barcode__label">Código existente</span>
@@ -684,10 +653,14 @@ export default function StockBarcodePanel({
                     </div>
 
                     {item.provisional ? (
-                      <p className="stock-barcode__help">
-                        Se habilita después de guardar, cuando Balto ya conoce el ID del artículo.
-                      </p>
-                    ) : item.codigo_barra && !isScanning ? (
+                      <div className="stock-barcode__externalState is-pending">
+                        <FontAwesomeIcon icon={faBarcode} />
+                        <div>
+                          <strong>Disponible después de guardar</strong>
+                          <span>Balto necesita el ID definitivo del artículo.</span>
+                        </div>
+                      </div>
+                    ) : item.codigo_barra ? (
                       <>
                         <div className="stock-barcode__previewWrap stock-barcode__previewWrap--external">
                           <Code128Preview value={item.codigo_barra} />
@@ -703,78 +676,29 @@ export default function StockBarcodePanel({
                           >
                             <FontAwesomeIcon icon={faKeyboard} /> Cambiar código
                           </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="stock-barcode__externalState">
+                          <FontAwesomeIcon icon={faBarcode} />
+                          <div>
+                            <strong>Sin código asociado</strong>
+                            <span>Podés escanear el código que ya trae el artículo.</span>
+                          </div>
+                        </div>
+                        <div className="stock-barcode__externalActions">
                           <button
                             type="button"
-                            className="mit-btn mit-btn--ghost stock-barcode__dangerBtn"
-                            onClick={() => removeExternalCode(item)}
-                            disabled={barcodeActionsBlocked}
+                            className="mit-btn mit-btn--ghost"
+                            onClick={() => beginScan(item)}
+                            disabled={barcodeActionsBlocked || itemInactive}
+                            title={itemInactive ? "No se puede asociar un código a un artículo dado de baja" : "Agregar código de barra"}
                           >
-                            <FontAwesomeIcon icon={faTrashCan} /> Quitar
+                            <FontAwesomeIcon icon={faKeyboard} /> Agregar código
                           </button>
                         </div>
                       </>
-                    ) : isScanning ? (
-                      <div className="stock-barcode__scanBox">
-                        <div className="stock-barcode__scanStatus">
-                          <span className="stock-barcode__scanPulse" />
-                          <strong>Esperando lectura de la pistola...</strong>
-                        </div>
-                        <input
-                          ref={inputRef}
-                          className="cmi-input stock-barcode__scanInput"
-                          value={scanValue}
-                          onChange={(event) => setScanValue(event.target.value.replace(/[\r\n\t]/g, ""))}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === "Tab") {
-                              event.preventDefault();
-                              saveScannedCode();
-                            } else if (event.key === "Escape") {
-                              event.preventDefault();
-                              cancelScan();
-                            }
-                          }}
-                          placeholder="Escaneá ahora o escribí el código"
-                          autoComplete="off"
-                          spellCheck={false}
-                          disabled={barcodeActionsBlocked}
-                        />
-                        {scanValue && isCode128BText(normalizeBarcodeText(scanValue)) && (
-                          <div className="stock-barcode__livePreview">
-                            <Code128Preview value={scanValue} />
-                            <code>{normalizeBarcodeText(scanValue)}</code>
-                          </div>
-                        )}
-                        <div className="stock-barcode__scanActions">
-                          <button type="button" className="mit-btn mit-btn--ghost" onClick={cancelScan} disabled={saving || savingProduct || productSaving}>
-                            <FontAwesomeIcon icon={faXmark} /> Cancelar
-                          </button>
-                          <button
-                            type="button"
-                            className="mit-btn mit-btn--solid"
-                            onClick={saveScannedCode}
-                            disabled={barcodeActionsBlocked || !normalizeBarcodeText(scanValue)}
-                          >
-                            <FontAwesomeIcon icon={saving ? faSpinner : faCheck} spin={saving} />
-                            {saving ? "Guardando..." : "Guardar código"}
-                          </button>
-                        </div>
-                        <small className="stock-barcode__scannerHint">
-                          La mayoría de las lectoras envían Enter o Tab al terminar; en ese caso se guarda automáticamente.
-                        </small>
-                      </div>
-                    ) : (
-                      <div className="stock-barcode__emptyExternal">
-                        <p>Si el artículo ya viene etiquetado, activá la lectura y escanealo con la pistola.</p>
-                        <button
-                          type="button"
-                          className="mit-btn mit-btn--ghost"
-                          onClick={() => beginScan(item)}
-                          disabled={barcodeActionsBlocked || itemInactive}
-                          title={itemInactive ? "No se puede asociar un código a un artículo dado de baja" : "Guardar código de barra"}
-                        >
-                          <FontAwesomeIcon icon={faKeyboard} /> Guardar código de barra
-                        </button>
-                      </div>
                     )}
                   </div>
                 </div>
@@ -789,6 +713,106 @@ export default function StockBarcodePanel({
           )}
         </div>
       )}
-    </section>
+      </section>
+
+      {scanTarget && typeof document !== "undefined" && createPortal(
+        <div className="gm-modal-overlay" role="presentation">
+          <div
+            className="gm-modal-container gm-modal-container--small stock-barcode-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="stock-barcode-modal-title"
+          >
+            <div className="gm-modal-header">
+              <span className="gm-modal-head-icon" aria-hidden="true">
+                <FontAwesomeIcon icon={faBarcode} />
+              </span>
+              <div className="gm-modal-head-left">
+                <h3 className="gm-modal-title" id="stock-barcode-modal-title">
+                  {scanTarget.codigo_barra ? "Cambiar código de barra" : "Agregar código de barra"}
+                </h3>
+                <p className="gm-modal-subtitle">
+                  {scanTarget.tipo_entidad === "variante"
+                    ? (scanTarget.nombre_variante || "Variante")
+                    : (scanTarget.producto_nombre || nombreProducto || "Producto")}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="gm-modal-close"
+                onClick={cancelScan}
+                disabled={saving}
+                aria-label="Cerrar"
+                title="Cerrar"
+              >
+                <FontAwesomeIcon icon={faXmark} />
+              </button>
+            </div>
+
+            <div className="gm-modal-content stock-barcode-modal__content">
+              <div className="stock-barcode-modal__scanner">
+                <span className="stock-barcode__scanPulse" />
+                <div>
+                  <strong>Listo para leer</strong>
+                  <span>Escaneá con la pistola o escribí el código manualmente.</span>
+                </div>
+              </div>
+
+              <div className="gm-field">
+                <input
+                  ref={inputRef}
+                  className="gm-input stock-barcode__scanInput"
+                  value={scanValue}
+                  onChange={(event) => setScanValue(event.target.value.replace(/[\r\n\t]/g, ""))}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === "Tab") {
+                      event.preventDefault();
+                      saveScannedCode();
+                    }
+                  }}
+                  placeholder=" "
+                  autoComplete="off"
+                  spellCheck={false}
+                  disabled={barcodeActionsBlocked}
+                />
+                <label className="gm-label">Código de barra</label>
+              </div>
+
+              {scanValue && isCode128BText(normalizeBarcodeText(scanValue)) && (
+                <div className="stock-barcode__livePreview stock-barcode-modal__preview">
+                  <Code128Preview value={scanValue} />
+                  <code>{normalizeBarcodeText(scanValue)}</code>
+                </div>
+              )}
+
+              <small className="stock-barcode-modal__hint">
+                Las lectoras suelen enviar Enter o Tab al terminar; si lo hacen, el código se guarda automáticamente.
+              </small>
+            </div>
+
+            <div className="gm-modal-footer">
+              <button
+                type="button"
+                className="gm-action-btn gm-action-btn--cancel"
+                onClick={cancelScan}
+                disabled={saving}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="gm-action-btn gm-action-btn--save"
+                onClick={saveScannedCode}
+                disabled={barcodeActionsBlocked || !normalizeBarcodeText(scanValue)}
+              >
+                <FontAwesomeIcon icon={saving ? faSpinner : faCheck} spin={saving} />
+                {saving ? "Guardando..." : "Guardar código"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }

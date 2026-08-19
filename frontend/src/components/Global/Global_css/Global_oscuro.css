@@ -2481,3 +2481,11 @@ html[data-theme="oscuro"] .mov-skelIcon::after{
     rgba(255,255,255,.12),
   );
 }
+
+/* Configuración · Saldos iniciales
+   Las superficies/colores de la sección consumen las variables globales de roots.css.
+   Este hook sólo sincroniza los controles nativos (date/select) con el tema oscuro. */
+html[data-theme="oscuro"] .cfg-si-page,
+body.dark .cfg-si-page {
+  color-scheme: dark;
+}
