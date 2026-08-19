@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test } from './support/test.js';
 import { uniqueName } from './support/data.js';
 import { requireMutations } from './support/ui.js';
 import {

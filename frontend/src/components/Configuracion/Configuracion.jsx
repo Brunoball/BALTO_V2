@@ -14,6 +14,7 @@ import {
   faCalendarDays,
   faUsersGear,
   faFileInvoiceDollar,
+  faWallet,
 } from "@fortawesome/free-solid-svg-icons";
 
 import { useDateRange } from "../../context/DateRangeContext";
@@ -271,6 +272,25 @@ export default function Configuracion() {
         icon: (
           <div className="cfg-cardLogo cfg-cardLogo--icon">
             <FontAwesomeIcon icon={faFileInvoiceDollar} />
+          </div>
+        ),
+      },
+
+      {
+        id: "saldos-iniciales",
+        title: "Saldos iniciales",
+        description: "Cargá la apertura de caja, bancos, billeteras, cheques y cuentas corrientes.",
+        route: "/panel/configuracion/saldos-iniciales",
+        demoBlocked: esPlanDemo,
+        demoMessage: DEMO_ADVANCED_MESSAGE,
+        status: esPlanDemo
+          ? { text: "Bloqueado demo", type: "warning" }
+          : { text: "Configurable", type: "success" },
+        metaTop: "Puesta en marcha",
+        metaBottom: "Caja · Cheques · Cuentas corrientes",
+        icon: (
+          <div className="cfg-cardLogo cfg-cardLogo--icon">
+            <FontAwesomeIcon icon={faWallet} />
           </div>
         ),
       },

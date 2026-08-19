@@ -70,6 +70,10 @@ function onlyDigits(value) {
   return String(value ?? "").replace(/\D/g, "");
 }
 
+function normalizeCuitInput(value) {
+  return onlyDigits(value).slice(0, 11);
+}
+
 function getProveedorId(row) {
   return Number(row?.id_proveedor ?? row?.id ?? 0);
 }
@@ -975,7 +979,15 @@ export default function ModalProveedores({
         cargaManual: false,
       }));
 
-      onToast?.("exito", "Datos fiscales encontrados. Revisá y guardá el proveedor.");
+      if (summary?.constancia_completa === false || summary?.advertencia) {
+        onToast?.(
+          "advertencia",
+          summary?.advertencia ||
+            "ARCA identificó a la persona, pero no devolvió la constancia fiscal completa. Revisá el nombre y guardá."
+        );
+      } else {
+        onToast?.("exito", "Datos fiscales encontrados. Revisá y guardá el proveedor.");
+      }
       return fiscal;
     } catch (err) {
       setForm((prev) => ({
@@ -1549,13 +1561,12 @@ export default function ModalProveedores({
                 <input
                   type="text"
                   inputMode="numeric"
-                  maxLength={11}
                   className="fl-input"
                   placeholder=" "
                   value={form.cuit}
                   onChange={(e) =>
                     setForm((prev) => {
-                      const cuit = onlyDigits(e.target.value);
+                      const cuit = normalizeCuitInput(e.target.value);
                       const fiscalActual = fiscalHasAnyData(prev.fiscalData)
                         ? { ...normalizeFiscalData(prev.fiscalData), cuit, doc_nro: cuit }
                         : null;
@@ -1625,13 +1636,12 @@ export default function ModalProveedores({
                 <input
                   type="text"
                   inputMode="numeric"
-                  maxLength={11}
                   className="fl-input"
                   placeholder=" "
                   value={form.cuit}
                   onChange={(e) =>
                     setForm((prev) => {
-                      const cuit = onlyDigits(e.target.value);
+                      const cuit = normalizeCuitInput(e.target.value);
                       const fiscalActual = fiscalHasAnyData(prev.fiscalData)
                         ? { ...normalizeFiscalData(prev.fiscalData), cuit, doc_nro: cuit }
                         : null;

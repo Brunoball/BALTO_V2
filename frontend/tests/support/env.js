@@ -93,7 +93,7 @@ export const ENV = Object.freeze({
   expectedTenantName: String(process.env.PW_EXPECTED_TENANT_NAME || '').trim(),
   skipWebServer: bool(process.env.PW_SKIP_WEBSERVER, false),
   startCommand: process.env.PW_START_COMMAND || 'npm start',
-  cleanup: bool(process.env.PW_CLEANUP, false),
+  cleanup: true,
   skipTiendaNube: bool(process.env.PW_SKIP_TIENDA_NUBE, true),
   timeoutMs: integer(process.env.PW_TIMEOUT_MS, 60_000),
   expectTimeoutMs: integer(process.env.PW_EXPECT_TIMEOUT_MS, 12_000),

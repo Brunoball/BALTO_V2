@@ -994,6 +994,14 @@ html[data-theme="oscuro"] .cmi-v2-childPanel__head span {
   display: none !important;
 }
 
+.cmi-v2-formShell:not(.cmi-v2-formShell--codigo_barra) > .cmi-barcodePanelOnly {
+  display: none !important;
+}
+
+.cmi-v2-formShell--codigo_barra > :not(.cmi-v2-mainTabs):not(.cmi-barcodePanelOnly) {
+  display: none !important;
+}
+
 .cmi-v2-variantCategories {
   margin: 12px 0;
   padding: 12px;

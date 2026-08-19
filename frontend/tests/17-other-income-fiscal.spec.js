@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './support/test.js';
 import { ENV } from './support/env.js';
 
 test('@safety otros ingresos: la suite entregada no habilita emisiones ARCA reales', async () => {

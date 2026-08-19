@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './support/test.js';
 import { uniqueChequeNumber, uniqueName, uniqueSku, todayISO } from './support/data.js';
 import { requireMutations, searchRow, waitForBusyToFinish } from './support/ui.js';
 import {

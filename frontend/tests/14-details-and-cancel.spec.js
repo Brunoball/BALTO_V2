@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './support/test.js';
 import { uniqueName, uniqueSku } from './support/data.js';
 import { requireMutations, closeDialog } from './support/ui.js';
 import {

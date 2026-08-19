@@ -5,6 +5,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faFileInvoiceDollar, faEye, faTrash, faUpload, faMoneyCheckDollar, faCheck } from "@fortawesome/free-solid-svg-icons";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
 import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
+import useStockBarcodeScanner from "../../_shared/useStockBarcodeScanner.js";
 import BASE_URL from "../../../../config/config";
 import ModalNuevoCheque from "../../../Global/Modales/ModalNuevoCheque.jsx";
 import ModalClienteFiscalArca from "../../../Global/Modales/ModalClienteFiscalArca.jsx";
@@ -1503,6 +1504,48 @@ export default function ModalNuevoIngreso({
       cantidad: stockDisponible !== null && stockDisponible <= 0 ? "" : 1,
     });
   }, [updateRow]);
+
+  const barcodePendingRef = useRef(null);
+
+  const handleBarcodeProductSelect = useCallback((producto) => {
+    const target = rows.find((row) =>
+      !Number(row?.id_stock_producto || 0) &&
+      !Number(row?.id_stock_variante || 0) &&
+      !String(row?.detalle || "").trim()
+    );
+
+    if (target) {
+      handleSelectProducto(producto, target.id);
+      showToast("exito", `Producto leído: ${getProductoNombre(producto)}`);
+      return;
+    }
+
+    const nextRow = buildEmptyRow("producto");
+    barcodePendingRef.current = { rowId: nextRow.id, producto };
+    setRows((prev) => [...prev, nextRow]);
+  }, [rows, handleSelectProducto, showToast]);
+
+  useEffect(() => {
+    const pending = barcodePendingRef.current;
+    if (!pending || !rows.some((row) => row.id === pending.rowId)) return;
+    barcodePendingRef.current = null;
+    handleSelectProducto(pending.producto, pending.rowId);
+    showToast("exito", `Producto leído: ${getProductoNombre(pending.producto)}`);
+  }, [rows, handleSelectProducto, showToast]);
+
+  useStockBarcodeScanner({
+    enabled:
+      open &&
+      !saving &&
+      !openViewer &&
+      !openNuevaDescripcionModal &&
+      !openFactura &&
+      !addClienteOpen,
+    options: productosList,
+    allowOutOfStock: false,
+    onSelect: handleBarcodeProductSelect,
+    onError: (mensaje) => showToast("advertencia", mensaje),
+  });
 
   const handleCantidadChange = useCallback(
     (rowId, newCantidad) => {

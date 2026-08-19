@@ -201,6 +201,12 @@ async function parseJsonSafe(res) {
 function normalizeFacturaEmitida(resp, fallback = {}) {
   const root = resp && typeof resp === "object" ? resp : {};
   const factura = root?.data?.factura || root?.factura || root?.data || root;
+  const operacionArca =
+    root?.operacion_arca ||
+    root?.data?.operacion_arca ||
+    factura?.operacion_arca ||
+    fallback?.operacion_arca ||
+    null;
 
   return {
     modo: safeText(factura?.modo || fallback?.modo || "prod"),
@@ -224,6 +230,9 @@ function normalizeFacturaEmitida(resp, fallback = {}) {
     eventos: Array.isArray(factura?.eventos) ? factura.eventos : [],
     errores: Array.isArray(factura?.errores) ? factura.errores : [],
     raw_min: factura?.raw_min || {},
+    operacion_arca: operacionArca && typeof operacionArca === "object" ? operacionArca : null,
+    operacion_key: safeText(operacionArca?.key || fallback?.operacion_key),
+    operacion_contexto: safeText(operacionArca?.contexto || fallback?.operacion_contexto),
     id_comprobante:
       factura?.id_comprobante ??
       root?.id_comprobante ??
@@ -923,7 +932,9 @@ useEffect(() => {
       const trimmed = (raw || "").trim();
 
       if (trimmed.startsWith("<")) {
-        throw new Error("Backend devolvió HTML (error PHP).");
+        const err = new Error("Backend devolvió HTML (error PHP/gateway).");
+        err.httpStatus = res.status;
+        throw err;
       }
 
       let j = null;
@@ -940,7 +951,11 @@ useEffect(() => {
         toText(j?.detail) ||
         "";
 
-      if (!res.ok) throw new Error(pickErr() || `HTTP ${res.status}`);
+      if (!res.ok) {
+        const err = new Error(pickErr() || `HTTP ${res.status}`);
+        err.httpStatus = res.status;
+        throw err;
+      }
       if (j && typeof j === "object" && j.exito === false) {
         throw new Error(pickErr() || "Error servidor");
       }
@@ -948,6 +963,37 @@ useEffect(() => {
       return j;
     },
     [toText]
+  );
+
+  const fetchJSONArcaSeguro = useCallback(
+    async (url, opts) => {
+      let lastError = null;
+
+      // Es seguro reintentar wsfe_emitir porque la misma operacion_key queda
+      // persistida en backend antes de responder. Si ARCA ya otorgó CAE, el
+      // reintento recupera esa autorización y NO emite otro comprobante.
+      for (let intento = 1; intento <= 3; intento += 1) {
+        try {
+          return await fetchJSON(url, opts);
+        } catch (e) {
+          lastError = e;
+          const status = Number(e?.httpStatus || 0);
+          const msg = String(e?.message || "");
+          const transitorio =
+            e instanceof TypeError ||
+            status === 408 ||
+            status === 429 ||
+            status >= 500 ||
+            /failed to fetch|network|load failed|gateway|respuesta vacía/i.test(msg);
+
+          if (!transitorio || intento >= 3) throw e;
+          await new Promise((resolve) => window.setTimeout(resolve, 650 * intento));
+        }
+      }
+
+      throw lastError || new Error("No se pudo completar la comunicación con ARCA.");
+    },
+    [fetchJSON]
   );
 
   const validar = useCallback(() => {
@@ -1241,17 +1287,16 @@ useEffect(() => {
 
   const finalizarUnaSolaVez = useCallback(
     async (fact) => {
-      try {
-        if (typeof onDone === "function") {
-          await Promise.resolve(onDone(fact));
-          return;
-        }
+      // No ocultar nunca un error posterior al CAE. Si falla el guardado local
+      // o la subida del PDF, el error vuelve a este modal, que queda abierto para
+      // reintentar con la MISMA operacion_key y recuperar la autorización.
+      if (typeof onDone === "function") {
+        await Promise.resolve(onDone(fact));
+        return;
+      }
 
-        if (typeof onFacturada === "function") {
-          await Promise.resolve(onFacturada(fact));
-        }
-      } catch (e) {
-        console.error("Falló callback final del modal:", e);
+      if (typeof onFacturada === "function") {
+        await Promise.resolve(onFacturada(fact));
       }
     },
     [onDone, onFacturada]
@@ -1344,7 +1389,13 @@ useEffect(() => {
         },
       };
 
-      const resp = await fetchJSON(url, {
+      // Sólo reintentamos automáticamente cuando existe operacion_key. Sin esa
+      // clave no podemos garantizar idempotencia y un reintento podría duplicar
+      // una emisión fiscal.
+      const emitirRequest = safeText(body?.data?.operacion_key)
+        ? fetchJSONArcaSeguro
+        : fetchJSON;
+      const resp = await emitirRequest(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -1571,6 +1622,7 @@ useEffect(() => {
     nombreCliente,
     nombreSistema,
     fetchJSON,
+    fetchJSONArcaSeguro,
     guardarFacturaEnDB,
     finalizarUnaSolaVez,
     onCloseAll,

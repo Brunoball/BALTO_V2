@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './support/test.js';
 import { ENV } from './support/env.js';
 
 // Verifica el login real desde la pantalla pública con un contexto limpio.

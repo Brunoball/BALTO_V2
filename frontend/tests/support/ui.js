@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import { ENV, assertExpectedTenant, assertSafeMutationConfiguration } from './env.js';
+import { RUN_PREFIX } from './data.js';
 
 export async function gotoAndWait(page, path, expected) {
   await page.goto(path, { waitUntil: 'domcontentloaded' });
@@ -415,10 +416,10 @@ export async function requireMutations(test, page) {
   assertSafeMutationConfiguration();
   await assertExpectedTenant(page);
 
-  // Por defecto los E2E modifican datos reales de Balto, pero NO crean jobs ni
-  // cambios remotos en Tienda Nube. El backend ya reconoce este parámetro en
-  // su integrador; se agrega desde Playwright sin tocar el código productivo.
-  if (ENV.skipTiendaNube && page) {
+  // Todas las mutaciones de Playwright llevan e2e_run=PW-... para que la
+  // auditoría y el limpiador puedan reconocerlas sin confundirlas con datos
+  // reales. Si PW_SKIP_TIENDA_NUBE=1 también se conserva el bloqueo de sync.
+  if (page) {
     await page.context().route('**/api.php**', async (route) => {
       const request = route.request();
       if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())) {
@@ -427,7 +428,8 @@ export async function requireMutations(test, page) {
       }
 
       const url = new URL(request.url());
-      url.searchParams.set('skip_tiendanube_sync', '1');
+      if (ENV.skipTiendaNube) url.searchParams.set('skip_tiendanube_sync', '1');
+      url.searchParams.set('e2e_run', RUN_PREFIX);
       await route.continue({ url: url.toString() });
     });
   }

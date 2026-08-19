@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
+import useStockBarcodeScanner from "../../_shared/useStockBarcodeScanner.js";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "./ModalCompra.css";
@@ -906,6 +907,43 @@ function getProductoIdFromCompra(row) {
   const n = Number(cand);
   return Number.isFinite(n) && n > 0 ? String(n) : NULL_OPTION;
 }
+function getVarianteIdFromCompra(row) {
+  const item = getPrimerItemCompra(row);
+  const cand =
+    item?.id_stock_variante ??
+    item?.idStockVariante ??
+    item?.stock_variante_id ??
+    row?.id_stock_variante ??
+    row?.idStockVariante ??
+    row?.stock_variante_id ??
+    null;
+
+  const n = Number(cand);
+  return Number.isFinite(n) && n > 0 ? String(n) : NULL_OPTION;
+}
+
+function getStockProductoIdFromSelection(item) {
+  const cand =
+    item?.id_stock_producto ??
+    item?.idStockProducto ??
+    item?.stock_producto_id ??
+    item?.id_producto ??
+    item?.id ??
+    null;
+  const n = Number(cand);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function getStockVarianteIdFromSelection(item) {
+  const cand =
+    item?.id_stock_variante ??
+    item?.idStockVariante ??
+    item?.stock_variante_id ??
+    item?.id_variante ??
+    null;
+  const n = Number(cand);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
 
 function isResumenProductosLabel(value) {
   const s = normalizeText(value);
@@ -918,7 +956,7 @@ function isResumenProductosLabel(value) {
 
 function getProductoNombreFromCompra(row) {
   const item = getPrimerItemCompra(row);
-  const fromItem = String(
+  const producto = String(
     item?.producto_nombre ??
     item?.stock_producto_nombre ??
     item?.detalle_nombre ??
@@ -926,7 +964,13 @@ function getProductoNombreFromCompra(row) {
     item?.descripcion ??
     ""
   ).trim();
-  if (fromItem) return fromItem;
+  const variante = String(
+    item?.variante_nombre ??
+    item?.stock_variante_nombre ??
+    item?.nombre_variante ??
+    ""
+  ).trim();
+  if (producto) return [producto, variante].filter(Boolean).join(" - ");
 
   const original = String(row?.detalle_original ?? row?.producto_nombre ?? row?.stock_producto_nombre ?? "").trim();
   if (original) return original.split("|")[0].trim();
@@ -988,6 +1032,7 @@ function buildFormFromRowCompra(row, fixedLocal) {
     // guardado en movimientos_items.id_stock_producto. El backend de compras lo recibe como id_detalle
     // por compatibilidad, pero representa un producto de stock.
     id_detalle: getProductoIdFromCompra(r),
+    id_stock_variante: getVarianteIdFromCompra(r),
     monto_total: Math.max(0, Math.round(monto_total * 100) / 100),
     cantidad: Math.max(0, Math.round(cantidad * 1000) / 1000),
     precio: Math.max(0, Math.round(precio * 100) / 100),
@@ -1010,12 +1055,14 @@ function compraPayloadCoincideConRow(payload, row) {
   const qtyEq = (a, b) => Math.abs(safeNumber(a) - safeNumber(b)) <= 0.001;
 
   const payloadProductoId = id(payload.id_stock_producto ?? payload.id_detalle);
+  const payloadVarianteId = id(payload.id_stock_variante);
 
   return (
     String(payload.fecha || "").slice(0, 10) === String(original.fecha || "").slice(0, 10) &&
     id(payload.id_tipo_venta) === id(original.id_tipo_venta) &&
     id(payload.id_proveedor) === id(original.id_proveedor) &&
     payloadProductoId === id(original.id_detalle) &&
+    payloadVarianteId === id(original.id_stock_variante) &&
     qtyEq(payload.cantidad, original.cantidad) &&
     moneyEq(payload.precio, original.precio) &&
     moneyEq(payload.iva_pct, original.iva_pct) &&
@@ -1530,7 +1577,9 @@ export default function ModalEditarCompra({
     );
     setProveedorFocus(false);
     setDetalleInput(
-      nameById(merged.detalles, built.id_detalle) || getProductoNombreFromCompra(rowRef.current)
+      built.id_stock_variante && built.id_stock_variante !== NULL_OPTION
+        ? getProductoNombreFromCompra(rowRef.current)
+        : (nameById(merged.detalles, built.id_detalle) || getProductoNombreFromCompra(rowRef.current))
     );
     setDetalleFocus(false);
 
@@ -1690,15 +1739,38 @@ export default function ModalEditarCompra({
     setForm((prev) => ({
       ...prev,
       id_detalle: exact ? String(getGenericId(exact)) : NULL_OPTION,
+      id_stock_variante: NULL_OPTION,
     }));
   }, [findExactCatalogItem, safeLists.detalles]);
   const handleSelectDetalle = useCallback((det) => {
-    const nombre = String(det?.nombre ?? "").trim();
-    const did = getGenericId(det);
-    setDetalleInput(nombre);
-    setForm((prev) => ({ ...prev, id_detalle: did != null ? String(did) : NULL_OPTION }));
+    const idProducto = getStockProductoIdFromSelection(det) || getGenericId(det);
+    const idVariante = getStockVarianteIdFromSelection(det);
+    const productoNombre = String(det?.producto_nombre ?? det?.stock_producto_nombre ?? det?.nombre ?? "").trim();
+    const varianteNombre = String(det?.nombre_variante ?? det?.variante_nombre ?? det?.stock_variante_nombre ?? "").trim();
+    const nombre = String(det?.label ?? [productoNombre, varianteNombre].filter(Boolean).join(" - ") ?? "").trim();
+
+    setDetalleInput(nombre || productoNombre);
+    setForm((prev) => ({
+      ...prev,
+      id_detalle: idProducto != null ? String(idProducto) : NULL_OPTION,
+      id_stock_variante: idVariante != null ? String(idVariante) : NULL_OPTION,
+    }));
     setDetalleFocus(false);
   }, []);
+
+  const handleBarcodeProductSelect = useCallback((producto) => {
+    handleSelectDetalle(producto);
+    const nombre = String(producto?.label ?? producto?.nombre ?? producto?.producto_nombre ?? "Producto").trim();
+    showToast("exito", `Producto leído: ${nombre}`, 1800);
+  }, [handleSelectDetalle, showToast]);
+
+  useStockBarcodeScanner({
+    enabled: open && !saving && !addUI.open && !openVerComp,
+    options: safeLists.detalles,
+    allowOutOfStock: true,
+    onSelect: handleBarcodeProductSelect,
+    onError: (mensaje) => showToast("advertencia", mensaje, 3200),
+  });
 
   const payload = useMemo(() => {
     const toNullableId = (v) => {
@@ -1745,6 +1817,7 @@ export default function ModalEditarCompra({
       id_cliente: null,
       id_detalle: toNullableId(form.id_detalle),
       id_stock_producto: toNullableId(form.id_detalle),
+      id_stock_variante: toNullableId(form.id_stock_variante),
       cantidad: Math.round(cantidad * 1000) / 1000,
       precio: Math.round(precio * 100) / 100,
       iva_pct: Math.round(iva_pct * 100) / 100,

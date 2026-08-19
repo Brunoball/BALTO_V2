@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCheck, faPen, faTrashCan } from "@fortawesome/free-solid-svg-icons";
 import BASE_URL from "../../../../config/config";
 import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
+import useStockBarcodeScanner from "../../_shared/useStockBarcodeScanner.js";
 import ModalEliminar from "../../../Global/Modales/ModalEliminar.jsx";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "../../../Global/Global_css/Global_responsive.css";
@@ -263,6 +264,42 @@ export default function ModalModelosPresupuesto({ open, lists, onClose, onToast,
       precio: getPrecio(option),
     });
   }, [updateRow]);
+
+  const barcodePendingRef = useRef(null);
+
+  const handleBarcodeProductSelect = useCallback((producto) => {
+    const target = (form.rows || []).find((row) =>
+      !Number(row?.id_stock_producto || 0) &&
+      !Number(row?.id_stock_variante || 0) &&
+      !String(row?.descripcion || "").trim()
+    );
+
+    if (target) {
+      selectStock(target.localId, producto);
+      onToast?.("exito", `Producto leído: ${getNombre(producto)}`, 1800);
+      return;
+    }
+
+    const nextRow = emptyRow();
+    barcodePendingRef.current = { localId: nextRow.localId, producto };
+    setForm((prev) => ({ ...prev, rows: [...(prev.rows || []), nextRow] }));
+  }, [form.rows, selectStock, onToast]);
+
+  useEffect(() => {
+    const pending = barcodePendingRef.current;
+    if (!pending || !(form.rows || []).some((row) => row.localId === pending.localId)) return;
+    barcodePendingRef.current = null;
+    selectStock(pending.localId, pending.producto);
+    onToast?.("exito", `Producto leído: ${getNombre(pending.producto)}`, 1800);
+  }, [form.rows, selectStock, onToast]);
+
+  useStockBarcodeScanner({
+    enabled: open && editorOpen && !saving,
+    options: stockOptions,
+    allowOutOfStock: form.es_personalizado,
+    onSelect: handleBarcodeProductSelect,
+    onError: (mensaje) => onToast?.("advertencia", mensaje, 3200),
+  });
 
   const itemsPayload = useMemo(() => {
     return form.rows

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './support/test.js';
 import { ENV, assertExpectedTenant, assertSafeMutationConfiguration } from './support/env.js';
 import { assertFrontendUsesConfiguredBackend } from './support/ui.js';
 

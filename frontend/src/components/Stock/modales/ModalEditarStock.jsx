@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import "./ModalEditarStock.css";
 import ModalVerComprobante from "../../Global/Ver_Comprobantes/ModalVerComprobante";
+import StockBarcodePanel from "./StockBarcodePanel";
 import { isTopStockModal } from "./modalStackUtils";
 import {
   faBoxOpen,
@@ -1130,6 +1131,7 @@ export default function ModalEditarProducto({
   productoId,
   onClose,
   onGuardado,
+  onGuardadoIntermedio,
   onToast,
 }) {
   const closeBtnRef = useRef(null);
@@ -1146,6 +1148,7 @@ export default function ModalEditarProducto({
 
   const [form, setForm] = useState(buildEmptyForm());
   const [cargaActiva, setCargaActiva] = useState("producto");
+  const [barcodeRefreshKey, setBarcodeRefreshKey] = useState(0);
   const [categorias, setCategorias] = useState([]);
   const [loadingCategorias, setLoadingCategorias] = useState(false);
   const [tiposPrecio, setTiposPrecio] = useState([]);
@@ -2276,7 +2279,8 @@ export default function ModalEditarProducto({
     return errs;
   };
 
-  const handleGuardar = async () => {
+  const handleGuardar = async (options = {}) => {
+    const mantenerAbierto = options?.mantenerAbierto === true;
     const formNormalizado = hydratePricingFormValues(form);
     const errs = validar(formNormalizado);
 
@@ -2298,14 +2302,14 @@ export default function ModalEditarProducto({
         "error"
       );
 
-      return;
+      return false;
     }
 
     setGuardando(true);
     setErrores({});
     // Mantiene informado al usuario durante toda la edición, incluida la espera
     // de imagen/variantes y el refresco final de la grilla.
-    mostrarToast("Editando producto...", "cargando", 90000);
+    mostrarToast(mantenerAbierto ? "Guardando cambios del producto..." : "Editando producto...", "cargando", 90000);
 
     setForm((prev) => ({
       ...prev,
@@ -2480,7 +2484,7 @@ export default function ModalEditarProducto({
         variantesPayload
       );
 
-      await onGuardado?.(productoGuardado, {
+      const opcionesGuardado = {
         productoId: Number(formNormalizado.id || productoId || 0),
         imagen_actualizada: !!nuevaImagenFile,
         imagen_eliminada: eliminarImagenActual && !nuevaImagenFile,
@@ -2490,13 +2494,86 @@ export default function ModalEditarProducto({
         producto_optimista: productoGuardado,
         response: data,
         tiendanube_sync: data?.tiendanube_sync ?? data?.data?.tiendanube_sync ?? null,
-      });
+      };
+
+      if (mantenerAbierto) {
+        let productoParaRefresco = productoGuardado;
+        let formRefrescado = null;
+
+        try {
+          const detalleRes = await fetch(
+            `${API_URL}?action=stock_producto_obtener&id=${encodeURIComponent(Number(formNormalizado.id || productoId || 0))}`,
+            { method: "GET", headers: buildHeadersGET(), cache: "no-store" }
+          );
+          const detalleData = await parseJsonOrThrow(detalleRes);
+          formRefrescado = hydratePricingFormValues(normalizarProducto(detalleData));
+          productoParaRefresco =
+            detalleData?.producto ?? detalleData?.data?.producto ?? detalleData?.data ?? productoGuardado;
+        } catch (detalleError) {
+          // Fallback seguro: si la recarga completa falla después del COMMIT, recuperamos
+          // al menos los IDs definitivos desde el endpoint aislado de códigos. Así una
+          // segunda pulsación nunca vuelve a insertar las variantes recién creadas.
+          const endpoint = new URL("../modules/stock/codigos_barra/endpoint.php", API_URL);
+          endpoint.searchParams.set("op", "obtener");
+          endpoint.searchParams.set("id_stock_producto", String(Number(formNormalizado.id || productoId || 0)));
+          const barcodeRes = await fetch(endpoint.toString(), {
+            method: "GET",
+            headers: buildHeadersGET(),
+            cache: "no-store",
+          });
+          const barcodeData = await parseJsonOrThrow(barcodeRes);
+          const variantesDb = Array.isArray(barcodeData?.variantes) ? barcodeData.variantes : [];
+          const porSku = new Map(
+            variantesDb
+              .map((variant) => [String(variant?.sku || "").trim().toUpperCase(), variant])
+              .filter(([sku]) => sku)
+          );
+
+          formRefrescado = {
+            ...formNormalizado,
+            variantes: (formNormalizado.variantes || []).map((variant) => {
+              const sku = String(variant?.sku || "").trim().toUpperCase();
+              const guardada = porSku.get(sku);
+              return guardada
+                ? { ...variant, id_stock_variante: Number(guardada.id_stock_variante || 0) }
+                : variant;
+            }),
+          };
+          productoParaRefresco = {
+            ...(productoGuardado || {}),
+            variantes: variantesDb,
+            tiene_variantes: variantesDb.length > 0 ? 1 : Number(formNormalizado.tiene_variantes ? 1 : 0),
+          };
+        }
+
+        if (formRefrescado) {
+          setForm(formRefrescado);
+        }
+        setVariantesEliminadasIds([]);
+        variantesAntesDeDesactivarRef.current = null;
+        setNuevaImagenFile(null);
+        setNuevaImagenPreview("");
+        setEliminarImagenActual(false);
+        setBarcodeRefreshKey((value) => value + 1);
+
+        await onGuardadoIntermedio?.(productoParaRefresco, {
+          ...opcionesGuardado,
+          guardado_intermedio: true,
+          producto_optimista: productoParaRefresco || productoGuardado,
+        });
+
+        return true;
+      }
+
+      await onGuardado?.(productoGuardado, opcionesGuardado);
       if (typeof onGuardado !== "function") {
         mostrarToast("Producto actualizado correctamente", "exito");
         onClose?.();
       }
+      return true;
     } catch (err) {
       mostrarToast(err.message || "Error al actualizar el producto", "error");
+      return false;
     } finally {
       setGuardando(false);
     }
@@ -2590,7 +2667,28 @@ export default function ModalEditarProducto({
                   >
                     <FontAwesomeIcon icon={faCubesStacked} /> Variantes
                   </button>
+                  <button
+                    type="button"
+                    className={`cmi-v2-mainTab ${cargaActiva === "codigo_barra" ? "is-active" : ""}`}
+                    onClick={() => setCargaActiva("codigo_barra")}
+                    role="tab"
+                    aria-selected={cargaActiva === "codigo_barra"}
+                    disabled={isLoading}
+                  >
+                    <FontAwesomeIcon icon={faBarcode} /> Código de barra
+                  </button>
                 </div>
+
+                <StockBarcodePanel
+                  productoId={productoId}
+                  nombreProducto={form.nombre}
+                  tieneVariantes={!!form.tiene_variantes}
+                  variantes={form.variantes}
+                  onToast={mostrarToast}
+                  onSavePendingChanges={() => handleGuardar({ mantenerAbierto: true })}
+                  productSaving={guardando}
+                  refreshKey={barcodeRefreshKey}
+                />
                 <FloatingField
                   label="Nombre del producto *"
                   icon={faBoxOpen}

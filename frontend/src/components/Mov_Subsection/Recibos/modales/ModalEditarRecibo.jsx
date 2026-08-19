@@ -4,6 +4,7 @@ import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "../RecibosModals.css";
 import "../../../Global/Global_css/roots.css";
 import BASE_URL from "../../../../config/config";
+import useStockBarcodeScanner from "../../_shared/useStockBarcodeScanner.js";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faReceipt,
@@ -187,6 +188,38 @@ function getProductoId(x) {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+function getProductoVarianteId(x) {
+  const cand =
+    x?.id_stock_variante ??
+    x?.idStockVariante ??
+    x?.stock_variante_id ??
+    x?.id_variante ??
+    x?.idVariante ??
+    x?.variante_id ??
+    0;
+  const n = Number(cand);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function getProductoVarianteNombre(x) {
+  return String(
+    x?.nombre_variante ??
+      x?.variante_nombre ??
+      x?.stock_variante_nombre ??
+      x?.stock_variante_nombre_raw ??
+      x?.variante ??
+      ""
+  ).trim();
+}
+
+function getProductoDisplayNombre(x) {
+  const direct = String(x?.label ?? "").trim();
+  if (direct) return direct;
+  const producto = getProductoNombre(x);
+  const variante = getProductoVarianteNombre(x);
+  return [producto, variante].filter(Boolean).join(" - ") || producto;
+}
+
 function getClienteId(x) {
   const cand = x?.id_cliente ?? x?.idCliente ?? x?.cliente_id ?? x?.id ?? 0;
   const n = Number(cand);
@@ -314,6 +347,7 @@ export default function ModalEditarRecibo({
     id_cliente: NULL_OPTION,
     clienteTxt: "",
     id_stock_producto: NULL_OPTION,
+    id_stock_variante: NULL_OPTION,
     productoTxt: "",
     cantidad: 1,
     precio: 0,
@@ -327,6 +361,7 @@ export default function ModalEditarRecibo({
     id_cliente: NULL_OPTION,
     clienteInput: "",
     id_stock_producto: NULL_OPTION,
+    id_stock_variante: NULL_OPTION,
     productoInput: "",
     cantidad: "1",
     precio: "",
@@ -363,6 +398,14 @@ export default function ModalEditarRecibo({
       r.idStockProducto ??
       r.stock_producto_id ??
       NULL_OPTION;
+    const idVar =
+      item?.id_stock_variante ??
+      item?.idStockVariante ??
+      item?.stock_variante_id ??
+      r.id_stock_variante ??
+      r.idStockVariante ??
+      r.stock_variante_id ??
+      NULL_OPTION;
 
     const cliNameFromList = nameById(localLists.clientes, idCliente, getClienteId, getClienteNombre);
     const productoNameFromList = nameById(localLists.productos, idProd, getProductoId, getProductoNombre);
@@ -372,6 +415,11 @@ export default function ModalEditarRecibo({
       getProductoNombre(item) ||
       String(r.producto_nombre ?? r.stock_producto_nombre ?? r.detalle_original ?? "").split("|")[0].trim() ||
       String(r.detalle ?? r.descripcion ?? "").replace(/^\s*\d+(?:[.,]\d+)?\s*x\s*/i, "").trim();
+    const varianteFallback = getProductoVarianteNombre(item) || getProductoVarianteNombre(r);
+    const productoBaseTxt = (productoNameFromList || productoFallback || "").trim();
+    const productoTxt = varianteFallback && productoBaseTxt
+      ? `${productoBaseTxt} - ${varianteFallback}`
+      : productoBaseTxt;
 
     const cantidad = Math.max(0, safeNumber(item?.cantidad ?? r.cantidad ?? 1)) || 1;
     const precio = Math.max(0, safeNumber(item?.precio ?? r.precio ?? (safeNumber(r.monto_total ?? r.total) / cantidad)));
@@ -383,7 +431,8 @@ export default function ModalEditarRecibo({
       id_cliente: String(idCliente ?? NULL_OPTION),
       clienteTxt: (cliNameFromList || clienteFallback || "").trim(),
       id_stock_producto: String(idProd ?? NULL_OPTION),
-      productoTxt: (productoNameFromList || productoFallback || "").trim(),
+      id_stock_variante: String(idVar ?? NULL_OPTION),
+      productoTxt,
       cantidad: round3(cantidad),
       precio: round2(precio),
       iva_pct: round2(ivaPct),
@@ -402,6 +451,7 @@ export default function ModalEditarRecibo({
       id_cliente: defaultsRef.current.id_cliente,
       clienteInput: defaultsRef.current.clienteTxt,
       id_stock_producto: defaultsRef.current.id_stock_producto,
+      id_stock_variante: defaultsRef.current.id_stock_variante,
       productoInput: defaultsRef.current.productoTxt,
       cantidad: String(defaultsRef.current.cantidad || 1),
       precio: defaultsRef.current.precio ? String(defaultsRef.current.precio) : "",
@@ -470,16 +520,46 @@ export default function ModalEditarRecibo({
       ...p,
       productoInput: value,
       id_stock_producto: exact ? String(getProductoId(exact)) : NULL_OPTION,
+      id_stock_variante: NULL_OPTION,
     }));
   };
 
   const handleSelectProducto = (prod) => {
     const nombre = getProductoNombre(prod);
     const id = getProductoId(prod);
-    setForm((p) => ({ ...p, productoInput: nombre, id_stock_producto: String(id || NULL_OPTION) }));
+    setForm((p) => ({
+      ...p,
+      productoInput: nombre,
+      id_stock_producto: String(id || NULL_OPTION),
+      id_stock_variante: NULL_OPTION,
+    }));
     setProductoFocus(false);
     setProductoArmed(false);
   };
+
+  const handleBarcodeProductSelect = useCallback((producto) => {
+    const idProducto = getProductoId(producto);
+    const idVariante = getProductoVarianteId(producto);
+    const nombre = getProductoDisplayNombre(producto) || getProductoNombre(producto) || "Producto";
+
+    setForm((prev) => ({
+      ...prev,
+      productoInput: nombre,
+      id_stock_producto: idProducto ? String(idProducto) : NULL_OPTION,
+      id_stock_variante: idVariante ? String(idVariante) : NULL_OPTION,
+    }));
+    setProductoFocus(false);
+    setProductoArmed(false);
+    showToast("exito", `Producto leído: ${nombre}`);
+  }, [showToast]);
+
+  useStockBarcodeScanner({
+    enabled: open && !saving,
+    options: localLists.productos,
+    allowOutOfStock: false,
+    onSelect: handleBarcodeProductSelect,
+    onError: (mensaje) => showToast("advertencia", mensaje),
+  });
 
   const handleClienteInputChange = (e) => {
     const value = e.target.value;
@@ -555,6 +635,20 @@ export default function ModalEditarRecibo({
 
       if (!productoId) throw new Error("Seleccioná un producto válido de stock. No se guarda como detalle para evitar cambiar el producto equivocado.");
 
+      let varianteId = form.id_stock_variante && form.id_stock_variante !== NULL_OPTION
+        ? Number(form.id_stock_variante)
+        : null;
+      if (!(varianteId > 0)) varianteId = null;
+
+      // Si el usuario no tocó el producto, preservamos la variante original.
+      // Si escribió/seleccionó manualmente otro producto, el handler ya la limpia.
+      if (!varianteId &&
+          Number(productoId) === Number(defaultsRef.current.id_stock_producto || 0) &&
+          normalizeSearchText(form.productoInput) === normalizeSearchText(defaultsRef.current.productoTxt)) {
+        const originalVariant = Number(defaultsRef.current.id_stock_variante || 0);
+        if (originalVariant > 0) varianteId = originalVariant;
+      }
+
       const cantidad = round3(Math.max(0, safeNumber(form.cantidad)));
       const precio = round2(Math.max(0, safeNumber(form.precio)));
       const ivaPct = round2(Math.max(0, safeNumber(form.iva_pct)));
@@ -567,6 +661,7 @@ export default function ModalEditarRecibo({
 
       const item = {
         id_stock_producto: Number(productoId),
+        id_stock_variante: varianteId,
         id_detalle: null,
         cantidad,
         precio,
@@ -583,6 +678,7 @@ export default function ModalEditarRecibo({
         id_cliente: Number(clienteId),
         cliente: String(form.clienteInput || "").trim(),
         id_stock_producto: Number(productoId),
+        id_stock_variante: varianteId,
         id_detalle: null,
         producto: String(form.productoInput || "").trim(),
         cantidad,

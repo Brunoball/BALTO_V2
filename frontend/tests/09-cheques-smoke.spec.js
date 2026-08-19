@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './support/test.js';
 import { installDiagnostics, assertNoCriticalErrors } from './support/diagnostics.js';
 import { waitForBusyToFinish } from './support/ui.js';
 

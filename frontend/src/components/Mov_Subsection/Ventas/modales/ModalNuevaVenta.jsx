@@ -10,6 +10,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faFileInvoiceDollar, faPlus, faMoneyCheckDollar } from "@fortawesome/free-solid-svg-icons";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
 import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
+import useStockBarcodeScanner from "../../_shared/useStockBarcodeScanner.js";
 import ModalNuevoCheque from "../../../Global/Modales/ModalNuevoCheque.jsx";
 import ModalClienteFiscalArca from "../../../Global/Modales/ModalClienteFiscalArca.jsx";
 import {
@@ -350,6 +351,96 @@ async function apiPostJson(url, payload) {
     body: JSON.stringify(payload ?? {}),
   });
   return await parseJsonOrThrow(res);
+}
+
+async function apiPostJsonConReintentoSeguro(url, payload, maxIntentos = 3) {
+  let lastError = null;
+
+  for (let intento = 1; intento <= maxIntentos; intento += 1) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: buildAuthHeaders(true),
+        body: JSON.stringify(payload ?? {}),
+      });
+
+      if (res.status >= 500 || res.status === 408 || res.status === 429) {
+        const text = await res.text();
+        let mensaje = `HTTP ${res.status}`;
+        try {
+          const data = text ? JSON.parse(text) : null;
+          mensaje = data?.mensaje || data?.error || mensaje;
+        } catch {
+          // Si el gateway devolvió HTML/texto se considera un error transitorio.
+        }
+        const err = new Error(mensaje);
+        err.httpStatus = res.status;
+        throw err;
+      }
+
+      return await parseJsonOrThrow(res);
+    } catch (e) {
+      lastError = e;
+      const status = Number(e?.httpStatus || 0);
+      const msg = String(e?.message || "");
+      const transitorio =
+        e instanceof TypeError ||
+        status === 408 ||
+        status === 429 ||
+        status >= 500 ||
+        /failed to fetch|network|load failed|gateway|respuesta vacía/i.test(msg);
+
+      if (!transitorio || intento >= maxIntentos) throw e;
+      await new Promise((resolve) => window.setTimeout(resolve, 650 * intento));
+    }
+  }
+
+  throw lastError || new Error("No se pudo completar la operación.");
+}
+
+async function fetchFormDataConReintentoSeguro(url, formData, maxIntentos = 3) {
+  let lastError = null;
+
+  for (let intento = 1; intento <= maxIntentos; intento += 1) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        body: formData,
+        headers: buildAuthHeaders(false),
+      });
+
+      if (res.status >= 500 || res.status === 408 || res.status === 429) {
+        const text = await res.text();
+        let mensaje = `HTTP ${res.status}`;
+        try {
+          const data = text ? JSON.parse(text) : null;
+          mensaje = data?.mensaje || data?.error || mensaje;
+        } catch {
+          // Error transitorio sin JSON.
+        }
+        const err = new Error(mensaje);
+        err.httpStatus = res.status;
+        throw err;
+      }
+
+      return await parseJsonOrThrow(res);
+    } catch (e) {
+      lastError = e;
+      const status = Number(e?.httpStatus || 0);
+      const msg = String(e?.message || "");
+      const transitorio =
+        e instanceof TypeError ||
+        status === 408 ||
+        status === 429 ||
+        status >= 500 ||
+        /failed to fetch|network|load failed|gateway|respuesta vacía/i.test(msg);
+
+      if (!transitorio || intento >= maxIntentos) throw e;
+      await new Promise((resolve) => window.setTimeout(resolve, 650 * intento));
+    }
+  }
+
+  throw lastError || new Error("No se pudo completar la subida.");
 }
 
 async function apiGetJson(url) {
@@ -1885,6 +1976,42 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
     [updateRow, showToast]
   );
 
+  const barcodePendingRef = useRef(null);
+
+  const handleBarcodeProductSelect = useCallback((producto) => {
+    const target = rows.find((row) =>
+      !Number(row?.id_stock_producto || 0) &&
+      !Number(row?.id_stock_variante || 0) &&
+      !String(row?.detalleText || "").trim()
+    );
+
+    if (target) {
+      handleSelectDetalle(producto, target.id);
+      showToast("exito", `Producto leído: ${getDetalleNombre(producto)}`, 1800);
+      return;
+    }
+
+    const nextRow = buildEmptyRow();
+    barcodePendingRef.current = { rowId: nextRow.id, producto };
+    setRows((prev) => [...prev, nextRow]);
+  }, [rows, handleSelectDetalle, showToast]);
+
+  useEffect(() => {
+    const pending = barcodePendingRef.current;
+    if (!pending || !rows.some((row) => row.id === pending.rowId)) return;
+    barcodePendingRef.current = null;
+    handleSelectDetalle(pending.producto, pending.rowId);
+    showToast("exito", `Producto leído: ${getDetalleNombre(pending.producto)}`, 1800);
+  }, [rows, handleSelectDetalle, showToast]);
+
+  useStockBarcodeScanner({
+    enabled: open && !saving && !addUI.open && !openResumenFactura,
+    options: detallesList,
+    allowOutOfStock: false,
+    onSelect: handleBarcodeProductSelect,
+    onError: (mensaje) => showToast("advertencia", mensaje, 3200),
+  });
+
   const handlePrecioTipoChange = useCallback(
     (rowId, selectedValue) => {
       const row = rows.find((x) => x.id === rowId);
@@ -2711,7 +2838,13 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
   );
 
   const guardarVentaBatch = useCallback(
-    async ({ clienteFiscalResuelto = null, clienteOverride = null, accionFinal = "guardar", esFacturadaFinal = false }) => {
+    async ({
+      clienteFiscalResuelto = null,
+      clienteOverride = null,
+      accionFinal = "guardar",
+      esFacturadaFinal = false,
+      facturaArca = null,
+    }) => {
       const { idUsuario } = getAuthInfo();
       const periodoApi = fechaToYYYYMM(fecha);
       const mediosPayload = buildMediosPagoPayload(mediosFilas, mediosPagoList);
@@ -2758,7 +2891,28 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
 
       if (!payloads.length) throw new Error("No hay filas válidas para guardar.");
 
-      const data = await apiPostJson(API_BATCH, {
+      const operacionFiscalKey = esFacturadaFinal
+        ? safeStr(
+            facturaArca?.operacion_arca?.key ||
+              facturaArca?.operacion_key ||
+              resumenFacturaData?.operacion_key ||
+              arcaOperationKey
+          )
+        : "";
+      const operacionFiscalContexto = esFacturadaFinal
+        ? safeStr(
+            facturaArca?.operacion_arca?.contexto ||
+              facturaArca?.operacion_contexto ||
+              resumenFacturaData?.operacion_contexto ||
+              "FACTURA_VENTA"
+          )
+        : "";
+
+      // Para ventas facturadas este POST es idempotente por operacion_key. El
+      // backend vincula CAE + venta en la misma transacción; por eso es seguro
+      // reintentar si se pierde la respuesta por un corte de conexión.
+      const postVenta = esFacturadaFinal ? apiPostJsonConReintentoSeguro : apiPostJson;
+      const data = await postVenta(API_BATCH, {
         idUsuario,
         items: payloads,
         medios_pago: isContado ? mediosPayload : [],
@@ -2766,6 +2920,8 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
         descuento_valor: resumen.descuento > 0 ? Number(resumen.descuentoValor || 0) : 0,
         descuento_monto: Number(resumen.descuento || 0),
         total_bruto: Number(resumen.totalBruto || resumen.total || 0),
+        operacion_key: operacionFiscalKey || undefined,
+        operacion_contexto: operacionFiscalContexto || undefined,
       });
       if (!data?.exito) throw new Error(data?.mensaje || "No se pudo guardar el batch de ventas.");
 
@@ -2780,7 +2936,20 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
         es_facturada: esFacturadaFinal,
       };
     },
-    [API_BATCH, fecha, mediosFilas, mediosPagoList, rowsCalc, selectedClienteId, selectedClienteNombre, filters, isContado, resumen]
+    [
+      API_BATCH,
+      fecha,
+      mediosFilas,
+      mediosPagoList,
+      rowsCalc,
+      selectedClienteId,
+      selectedClienteNombre,
+      filters,
+      isContado,
+      resumen,
+      resumenFacturaData,
+      arcaOperationKey,
+    ]
   );
 
   const subirComprobanteYVincularPrimerMovimiento = useCallback(
@@ -2854,12 +3023,9 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
 
       fd.append("meta", JSON.stringify(meta));
 
-      const res = await fetch(API_VINCULAR_COMPROBANTE, {
-        method: "POST",
-        body: fd,
-        headers: buildAuthHeaders(false),
-      });
-      const j = await parseJsonOrThrow(res);
+      // La subida también es reintentable: el backend reutiliza el mismo
+      // comprobante fiscal por CAE si el primer intento llegó a completarse.
+      const j = await fetchFormDataConReintentoSeguro(API_VINCULAR_COMPROBANTE, fd, 3);
       if (!j?.exito) throw new Error(j?.mensaje || "No se pudo subir el comprobante.");
       return j;
     },
@@ -3243,6 +3409,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
           clienteOverride: clienteParaVenta,
           accionFinal: "facturar",
           esFacturadaFinal: true,
+          facturaArca: factEmitida,
         });
 
         const idsOk = (
@@ -3310,7 +3477,15 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
           id_comprobante: idComprobante,
         });
       } catch (e) {
-        showToast("error", e?.message || "La factura se emitió pero no se pudo guardar la venta.", 5200);
+        showToast(
+          "error",
+          e?.message || "La factura se emitió pero no se pudo completar el guardado. Podés reintentar: no se volverá a emitir en ARCA.",
+          6200
+        );
+        // Es fundamental propagar el error. El modal fiscal debe quedar abierto y
+        // NO cerrar como si todo hubiera terminado. Al reintentar usa la misma
+        // operacion_key y recupera el CAE ya autorizado.
+        throw e;
       } finally {
         setSaving(false);
       }

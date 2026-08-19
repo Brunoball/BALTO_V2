@@ -19,6 +19,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
 import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
+import useStockBarcodeScanner from "../../_shared/useStockBarcodeScanner.js";
 import ModalClienteFiscalArca from "../../../Global/Modales/ModalClienteFiscalArca.jsx";
 
 const NULL_OPTION = "";
@@ -1336,6 +1337,42 @@ export default function ModalNuevaCompra({ open, lists, onClose, onToast, onSave
     },
     [updateRow]
   );
+
+  const barcodePendingRef = useRef(null);
+
+  const handleBarcodeProductSelect = useCallback((producto) => {
+    const target = rows.find((row) =>
+      !Number(row?.id_stock_producto || 0) &&
+      !Number(row?.id_stock_variante || 0) &&
+      !String(row?.detalleText || "").trim()
+    );
+
+    if (target) {
+      handleSelectDetalle(producto, target.id);
+      showToast("exito", `Producto leído: ${getDetalleNombre(producto)}`, 1800);
+      return;
+    }
+
+    const nextRow = buildEmptyRow();
+    barcodePendingRef.current = { rowId: nextRow.id, producto };
+    setRows((prev) => [...prev, nextRow]);
+  }, [rows, handleSelectDetalle, showToast]);
+
+  useEffect(() => {
+    const pending = barcodePendingRef.current;
+    if (!pending || !rows.some((row) => row.id === pending.rowId)) return;
+    barcodePendingRef.current = null;
+    handleSelectDetalle(pending.producto, pending.rowId);
+    showToast("exito", `Producto leído: ${getDetalleNombre(pending.producto)}`, 1800);
+  }, [rows, handleSelectDetalle, showToast]);
+
+  useStockBarcodeScanner({
+    enabled: open && !saving && !addUI.open && !openVerComp,
+    options: detallesList,
+    allowOutOfStock: true,
+    onSelect: handleBarcodeProductSelect,
+    onError: (mensaje) => showToast("advertencia", mensaje, 3200),
+  });
 
   const handleCantidadChange = useCallback(
     (rowId, newCantidad) => {

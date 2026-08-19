@@ -3695,6 +3695,23 @@ const Stock = () => {
           productoId={productoEditarId}
           onClose={handleCerrarEditar}
           onToast={mostrarToast}
+          onGuardadoIntermedio={async (productoGuardado, opciones = {}) => {
+            const productoIdEditado = getProductoId(productoGuardado) || Number(opciones?.productoId || productoEditarId || 0);
+
+            // Guardado desde la pestaña Código de barra: actualiza la grilla, pero
+            // mantiene el modal abierto para que aparezcan inmediatamente los BL-V-ID
+            // definitivos de las variantes recién creadas. No agrega lógica de Tienda Nube.
+            try {
+              await refrescarDespuesDeGuardar(productoGuardado, {
+                ...opciones,
+                productoId: productoIdEditado,
+                producto_optimista: opciones?.producto_optimista || productoGuardado,
+              });
+              notifyListsUpdated();
+            } catch (refreshError) {
+              console.warn("[Stock] El producto se guardó desde Código de barra, pero la grilla no pudo refrescarse en ese instante.", refreshError);
+            }
+          }}
           onGuardado={async (productoGuardado, opciones = {}) => {
             const productoIdEditado = getProductoId(productoGuardado) || Number(opciones?.productoId || productoEditarId || 0);
 

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './support/test.js';
 
 // Reemplaza el ejemplo de playwright.dev por una comprobación real de Balto.
 test('@smoke Balto abre el panel autenticado', async ({ page }) => {

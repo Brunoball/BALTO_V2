@@ -8,6 +8,7 @@ import {
   assertExpectedTenant,
   assertSafeMutationConfiguration,
 } from '../support/env.js';
+import { cleanupE2EWithPage } from '../support/cleanup.js';
 
 setup('autenticar administrador de Balto', async ({ page }) => {
   assertCredentialsConfigured();
@@ -36,5 +37,13 @@ setup('autenticar administrador de Balto', async ({ page }) => {
   // Sin esto, el setup podía guardar solo session_key y todos los CRUD fallaban
   // en menos de un segundo al intentar validar el tenant.
   await assertExpectedTenant(page);
+
+  // Antes de cada corrida elimina restos PW de una ejecución anterior. Esto
+  // cubre el único caso donde un teardown no puede ejecutarse: terminal/PC
+  // cerrados a la fuerza durante la corrida.
+  if (ENV.cleanup && ENV.allowMutations) {
+    await cleanupE2EWithPage(page, { scope: 'all', phase: 'inicio de corrida' });
+  }
+
   await page.context().storageState({ path: AUTH_FILE });
 });

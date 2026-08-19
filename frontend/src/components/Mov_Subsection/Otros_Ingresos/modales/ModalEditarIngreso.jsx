@@ -19,6 +19,7 @@ import "./ModalIngreso.css";
 import ModalVerComprobante from "../../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
 import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
+import useStockBarcodeScanner from "../../_shared/useStockBarcodeScanner.js";
 import ModalNuevaDescripcion from "./ModalNuevaDescripcion.jsx";
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
@@ -908,6 +909,42 @@ export default function ModalEditarIngreso({
       cantidad: stockDisponible !== null && stockDisponible <= 0 ? "" : 1,
     });
   }, [updateItem]);
+
+  const barcodePendingRef = useRef(null);
+
+  const handleBarcodeProductSelect = useCallback((producto) => {
+    const target = (form.items || []).find((item) =>
+      !Number(item?.id_stock_producto || 0) &&
+      !Number(item?.id_stock_variante || 0) &&
+      !String(item?.detalle || "").trim()
+    );
+
+    if (target) {
+      handleSelectProducto(producto, target.uid);
+      showToast("exito", `Producto leído: ${getProductoNombre(producto)}`);
+      return;
+    }
+
+    const nextItem = makeItem({ tipo_item: "producto", cantidad: 1, precio: 0, iva_pct: 0 });
+    barcodePendingRef.current = { uid: nextItem.uid, producto };
+    setForm((prev) => ({ ...prev, items: [...(prev.items || []), nextItem] }));
+  }, [form.items, handleSelectProducto, showToast]);
+
+  useEffect(() => {
+    const pending = barcodePendingRef.current;
+    if (!pending || !(form.items || []).some((item) => item.uid === pending.uid)) return;
+    barcodePendingRef.current = null;
+    handleSelectProducto(pending.producto, pending.uid);
+    showToast("exito", `Producto leído: ${getProductoNombre(pending.producto)}`);
+  }, [form.items, handleSelectProducto, showToast]);
+
+  useStockBarcodeScanner({
+    enabled: open && !saving && !openViewer && !openNuevaDescripcionModal,
+    options: productos,
+    allowOutOfStock: false,
+    onSelect: handleBarcodeProductSelect,
+    onError: (mensaje) => showToast("advertencia", mensaje),
+  });
 
   const handleTipoItemChange = useCallback(
     (uid, tipoItem) => {

@@ -16,6 +16,10 @@ function onlyDigits(value) {
   return String(value ?? "").replace(/\D/g, "");
 }
 
+function normalizeCuitInput(value) {
+  return onlyDigits(value).slice(0, 11);
+}
+
 function safeText(value) {
   const text = String(value ?? "").trim();
   return text || "—";
@@ -50,7 +54,7 @@ export default function ModalClienteFiscalArca({
 }) {
   const inputRef = useRef(null);
   const busy = loading || saving;
-  const cleanCuit = onlyDigits(cuit);
+  const cleanCuit = normalizeCuitInput(cuit);
   const cuitOk = cleanCuit.length === 11;
   const canConfirm = cuitOk && (!requireFiscalData || !!fiscalData) && !busy;
 
@@ -192,11 +196,10 @@ export default function ModalClienteFiscalArca({
                       className="fl-input"
                       placeholder=" "
                       value={cleanCuit}
-                      onChange={(event) => onCuitChange?.(onlyDigits(event.target.value))}
+                      onChange={(event) => onCuitChange?.(normalizeCuitInput(event.target.value))}
                       disabled={busy}
                       autoComplete="off"
                       inputMode="numeric"
-                      maxLength={11}
                     />
                     <label className="fl-label">
                       <FontAwesomeIcon icon={faIdCard} className="gcf-modal__label-icon" />

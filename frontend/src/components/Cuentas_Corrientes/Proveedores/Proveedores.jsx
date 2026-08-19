@@ -1371,10 +1371,11 @@ export default function ProveedoresCC() {
               detailRows.map((r, i) => {
                 const verHabilitado = canPreviewComprobante(r);
                 const puedeEliminar = !isHistorialTab && canDeleteCobro(r);
+                const isSaldoInicial = r?.tipo_registro === "saldo_inicial";
                 const isNotaCredito = !isHistorialTab && r?.tipo_registro === "nota_credito";
-                const isCobro = !isHistorialTab && !isNotaCredito && Number(r.credito || 0) > 0;
+                const isCobro = !isHistorialTab && !isNotaCredito && !isSaldoInicial && Number(r.credito || 0) > 0;
                 const puedeVerDetalle =
-                  isHistorialTab || isNotaCredito || (!isCobro && Number(r.debito || 0) > 0);
+                  !isSaldoInicial && (isHistorialTab || isNotaCredito || (!isCobro && Number(r.debito || 0) > 0));
 
                 return (
                   <div

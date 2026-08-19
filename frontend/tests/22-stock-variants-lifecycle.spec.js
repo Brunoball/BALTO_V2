@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './support/test.js';
 import { uniqueName, uniqueSku } from './support/data.js';
 import { deleteUnusedStockProduct } from './support/flows.js';
 import { requireMutations, searchRow, waitDialog, waitForBusyToFinish } from './support/ui.js';
@@ -45,6 +45,8 @@ test('@stock @crud variantes: alta, atributos, baja, reactivación y eliminació
   const variantName = uniqueName('VARIANTE-M', 40);
   const variantEditedName = `${variantName}-EDITADA`.slice(0, 55);
   const variantSku = uniqueSku('VARM');
+  const attributeName = uniqueName('ATRIBUTO', 32);
+  const attributeValue = uniqueName('VALOR', 32);
 
   await page.goto('/panel/stock');
   await waitForBusyToFinish(page);
@@ -64,8 +66,8 @@ test('@stock @crud variantes: alta, atributos, baja, reactivación y eliminació
   await salePriceField.locator('input').fill('250');
   await salePriceField.locator('input').blur();
 
-  await variantCard.getByPlaceholder(/TALLE \/ COLOR \/ MEDIDA/i).fill('TALLE');
-  await variantCard.getByPlaceholder(/M \/ NEGRO \/ 80X200/i).fill('M');
+  await variantCard.getByPlaceholder(/TALLE \/ COLOR \/ MEDIDA/i).fill(attributeName);
+  await variantCard.getByPlaceholder(/M \/ NEGRO \/ 80X200/i).fill(attributeValue);
 
   await waitAction(page, 'stock_productos_crear', async () => {
     await dialog.getByRole('button', { name: /Guardar producto/i }).click();
@@ -74,7 +76,8 @@ test('@stock @crud variantes: alta, atributos, baja, reactivación y eliminació
 
   let variantRow = await openVariants(page, parentSku, variantSku);
   await expect(variantRow).toContainText(variantName);
-  await expect(variantRow).toContainText(/Talle:\s*M/i);
+  await expect(variantRow).toContainText(attributeName);
+  await expect(variantRow).toContainText(attributeValue);
 
   // Edición real desde el mismo botón que usa el usuario en Stock.
   await page.goto('/panel/stock');

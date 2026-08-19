@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import ModalVerComprobante from "../../Global/Ver_Comprobantes/ModalVerComprobante";
+import StockBarcodePanel from "./StockBarcodePanel";
 import "./ModalCargaIndividualProducto.css";
 import { isTopStockModal } from "./modalStackUtils";
 
@@ -813,6 +814,8 @@ export default function ModalCargaIndividualProducto({
   const [previewTitle, setPreviewTitle] = useState("Archivo");
   const [form, setForm] = useState(buildEmptyForm);
   const [cargaActiva, setCargaActiva] = useState("producto");
+  const [barcodeProductoGuardado, setBarcodeProductoGuardado] = useState(null);
+  const [barcodeGuardadoContexto, setBarcodeGuardadoContexto] = useState(null);
   const [errores, setErrores] = useState({});
   const [imagenFile, setImagenFile] = useState(null);
 
@@ -910,13 +913,18 @@ export default function ModalCargaIndividualProducto({
   );
 
   useEffect(() => {
-    onLoadingChange?.(guardando);
-  }, [guardando, onLoadingChange]);
+    // Después de crear desde la pestaña Código de barra el registro ya existe,
+    // pero mantenemos bloqueado el cierre del modal padre hasta que el usuario
+    // termine de imprimir/escanear y pulse Finalizar.
+    onLoadingChange?.(guardando || !!barcodeProductoGuardado);
+  }, [guardando, barcodeProductoGuardado, onLoadingChange]);
 
   useEffect(() => {
     if (!open) {
       setForm(buildEmptyForm());
       setCargaActiva("producto");
+      setBarcodeProductoGuardado(null);
+      setBarcodeGuardadoContexto(null);
       setErrores({});
       setGuardando(false);
       setImagenFile(null);
@@ -1696,15 +1704,46 @@ export default function ModalCargaIndividualProducto({
         variantesPayload
       );
 
-      await onGuardado?.(productoGuardado, {
+      const continuarConCodigos = cargaActiva === "codigo_barra";
+      const opcionesGuardado = {
         response: data,
         tiendanube_sync: data?.tiendanube_sync ?? data?.data?.tiendanube_sync ?? null,
         imagen_actualizada: !!imagenFile,
         imagen_file: imagenFile || null,
         producto_optimista: productoGuardado,
-      });
+      };
+
+      if (continuarConCodigos) {
+        setBarcodeProductoGuardado(productoGuardado);
+        setBarcodeGuardadoContexto({ productoGuardado, opcionesGuardado });
+        setCargaActiva("codigo_barra");
+        mostrarToast("Producto guardado. Ya podés imprimir o asociar sus códigos de barra.", "exito");
+      } else {
+        await onGuardado?.(productoGuardado, opcionesGuardado);
+      }
     } catch (err) {
       mostrarToast(errorToText(err, "Error al guardar el producto"), "error");
+    } finally {
+      guardandoRef.current = false;
+      setGuardando(false);
+    }
+  };
+
+  const handleFinalizarCodigos = async () => {
+    if (!barcodeGuardadoContexto || guardandoRef.current) {
+      if (!barcodeGuardadoContexto) onRequestClose?.();
+      return;
+    }
+
+    guardandoRef.current = true;
+    setGuardando(true);
+    try {
+      await onGuardado?.(
+        barcodeGuardadoContexto.productoGuardado,
+        barcodeGuardadoContexto.opcionesGuardado
+      );
+    } catch (err) {
+      mostrarToast(errorToText(err, "El producto está guardado, pero no se pudo finalizar el modal."), "error");
     } finally {
       guardandoRef.current = false;
       setGuardando(false);
@@ -1733,6 +1772,8 @@ export default function ModalCargaIndividualProducto({
               onClick={() => setCargaActiva("producto")}
               role="tab"
               aria-selected={cargaActiva === "producto"}
+              disabled={!!barcodeProductoGuardado}
+              title={barcodeProductoGuardado ? "El producto ya fue guardado. Finalizá la gestión de códigos para editar otros datos." : undefined}
             >
               <FontAwesomeIcon icon={faBoxOpen} /> Producto original
             </button>
@@ -1742,10 +1783,29 @@ export default function ModalCargaIndividualProducto({
               onClick={() => setCargaActiva("variantes")}
               role="tab"
               aria-selected={cargaActiva === "variantes"}
+              disabled={!!barcodeProductoGuardado}
+              title={barcodeProductoGuardado ? "El producto ya fue guardado. Finalizá la gestión de códigos para editar variantes." : undefined}
             >
               <FontAwesomeIcon icon={faCubesStacked} /> Variantes
             </button>
+            <button
+              type="button"
+              className={`cmi-v2-mainTab ${cargaActiva === "codigo_barra" ? "is-active" : ""}`}
+              onClick={() => setCargaActiva("codigo_barra")}
+              role="tab"
+              aria-selected={cargaActiva === "codigo_barra"}
+            >
+              <FontAwesomeIcon icon={faBarcode} /> Código de barra
+            </button>
           </div>
+
+          <StockBarcodePanel
+            productoId={barcodeProductoGuardado?.id_stock_producto ?? barcodeProductoGuardado?.id ?? 0}
+            nombreProducto={barcodeProductoGuardado?.nombre || form.nombre}
+            tieneVariantes={barcodeProductoGuardado ? !!barcodeProductoGuardado?.tiene_variantes : !!form.tiene_variantes}
+            variantes={barcodeProductoGuardado?.variantes || form.variantes}
+            onToast={mostrarToast}
+          />
           <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <SectionTitle label="Datos del producto" />
 
@@ -2486,27 +2546,39 @@ export default function ModalCargaIndividualProducto({
 
       <div className="cmi-footer">
         <span className="mi-card__hint cmi-footer__hint">
-          Completá los datos del producto y guardá.
+          {barcodeProductoGuardado
+            ? "Los códigos ya están disponibles. Finalizá cuando termines de imprimir o escanear."
+            : cargaActiva === "codigo_barra"
+              ? "Guardá primero para obtener los IDs definitivos y generar los códigos."
+              : "Completá los datos del producto y guardá."}
         </span>
 
         <div className="cmi-footer__btns">
-          <button
-            type="button"
-            className="mit-btn mit-btn--ghost"
-            onClick={() => !guardando && onRequestClose?.()}
-            disabled={guardando}
-          >
-            Cancelar
-          </button>
+          {!barcodeProductoGuardado && (
+            <button
+              type="button"
+              className="mit-btn mit-btn--ghost"
+              onClick={() => !guardando && onRequestClose?.()}
+              disabled={guardando}
+            >
+              Cancelar
+            </button>
+          )}
 
           <button
             type="button"
             className="mit-btn mit-btn--solid"
-            onClick={handleGuardar}
+            onClick={barcodeProductoGuardado ? handleFinalizarCodigos : handleGuardar}
             disabled={guardando}
           >
-            {!guardando && <FontAwesomeIcon icon={faFloppyDisk} style={{ fontSize: 13 }} />}
-            {guardando ? "Guardando..." : "Guardar producto"}
+            {!guardando && <FontAwesomeIcon icon={barcodeProductoGuardado ? faCheck : faFloppyDisk} style={{ fontSize: 13 }} />}
+            {guardando
+              ? "Guardando..."
+              : barcodeProductoGuardado
+                ? "Finalizar"
+                : cargaActiva === "codigo_barra"
+                  ? "Guardar y generar códigos"
+                  : "Guardar producto"}
           </button>
         </div>
       </div>

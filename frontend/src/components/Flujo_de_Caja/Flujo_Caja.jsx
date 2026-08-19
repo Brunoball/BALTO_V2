@@ -553,8 +553,8 @@ export default function Flujo_Caja() {
                         <div className={`fc-payCard__amount ${saldoNeg ? "is-negative" : "is-positive"}`}>
                           {moneyARSAbs(card.saldo)}
                         </div>
-                        <div className="fc-payCard__subtitle" title={paymentCardSubtitle(card)}>
-                          {paymentCardSubtitle(card)}
+                        <div className="fc-payCard__subtitle" title={`Saldo acumulado · ${paymentCardSubtitle(card)}`}>
+                          Saldo acumulado · {paymentCardSubtitle(card)}
                         </div>
                       </div>
                     </div>

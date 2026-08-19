@@ -1,0 +1,375 @@
+.stock-barcode {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.stock-barcode__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--nv-action, #0055bb) 18%, var(--nv-border, #d8e0ea));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--nv-action, #0055bb) 4%, var(--nv-card, #fff));
+}
+
+.stock-barcode__header h3 {
+  margin: 2px 0 5px;
+  color: var(--nv-text, #0f172a);
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.stock-barcode__header p,
+.stock-barcode__pending p,
+.stock-barcode__emptyExternal p,
+.stock-barcode__help {
+  margin: 0;
+  color: var(--nv-muted, #64748b);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.stock-barcode__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--nv-action, #0055bb);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.stock-barcode__headerActions,
+.stock-barcode__externalActions,
+.stock-barcode__scanActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stock-barcode__pending,
+.stock-barcode__error,
+.stock-barcode__loading,
+.stock-barcode__emptyState {
+  border: 1px dashed var(--nv-border, #cbd5e1);
+  border-radius: 15px;
+  background: var(--nv-card, #fff);
+  padding: 16px;
+}
+
+.stock-barcode__pending {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.stock-barcode__pending strong {
+  display: block;
+  color: var(--nv-text, #0f172a);
+  margin-bottom: 4px;
+}
+
+.stock-barcode__pendingIcon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--nv-action, #0055bb);
+  background: color-mix(in srgb, var(--nv-action, #0055bb) 10%, transparent);
+}
+
+.stock-barcode__error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, .28);
+  background: rgba(239, 68, 68, .05);
+  font-size: 12.5px;
+}
+
+.stock-barcode__loading,
+.stock-barcode__emptyState {
+  text-align: center;
+  color: var(--nv-muted, #64748b);
+  font-size: 13px;
+}
+
+.stock-barcode__loading svg {
+  margin-right: 7px;
+  color: var(--nv-action, #0055bb);
+}
+
+.stock-barcode__list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.stock-barcode__card {
+  border: 1px solid var(--nv-border, rgba(15, 23, 42, .13));
+  border-radius: 16px;
+  background: var(--nv-card, #fff);
+  padding: 15px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, .035);
+}
+
+.stock-barcode__card.is-provisional {
+  opacity: .82;
+}
+
+.stock-barcode__cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.stock-barcode__cardHead > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stock-barcode__cardHead strong {
+  color: var(--nv-text, #0f172a);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.stock-barcode__cardHead span:not(.stock-barcode__inactive) {
+  color: var(--nv-muted, #64748b);
+  font-size: 11.5px;
+}
+
+.stock-barcode__itemType {
+  color: var(--nv-action, #0055bb);
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.stock-barcode__inactive {
+  border-radius: 999px;
+  background: rgba(245, 158, 11, .12);
+  color: #b45309;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.stock-barcode__sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stock-barcode__section {
+  min-width: 0;
+  border-radius: 13px;
+  border: 1px solid var(--nv-border, rgba(15, 23, 42, .1));
+  padding: 12px;
+  background: color-mix(in srgb, var(--nv-card, #fff) 94%, var(--nv-bg, #f8fafc));
+}
+
+.stock-barcode__section--internal {
+  border-color: color-mix(in srgb, var(--nv-action, #0055bb) 22%, var(--nv-border, #d8e0ea));
+}
+
+.stock-barcode__sectionHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.stock-barcode__sectionHead > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stock-barcode__label {
+  color: var(--nv-text, #0f172a);
+  font-size: 12.5px;
+  font-weight: 850;
+}
+
+.stock-barcode__sectionHead small,
+.stock-barcode__scannerHint {
+  color: var(--nv-muted, #64748b);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.stock-barcode__badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--nv-action, #0055bb) 10%, transparent);
+  color: var(--nv-action, #0055bb);
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.stock-barcode__badge--saved {
+  background: rgba(16, 185, 129, .12);
+  color: #047857;
+}
+
+.stock-barcode__previewWrap,
+.stock-barcode__livePreview {
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, .11);
+  background: #fff;
+  padding: 9px 10px 7px;
+  overflow: hidden;
+}
+
+.stock-barcode__previewWrap code,
+.stock-barcode__livePreview code {
+  display: block;
+  margin-top: 6px;
+  color: #111827;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .5px;
+  overflow-wrap: anywhere;
+}
+
+.stock-barcode__svg {
+  display: block;
+  width: 100%;
+  height: 64px;
+  background: #fff;
+}
+
+.stock-barcode__invalid {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #b91c1c;
+  font-size: 11px;
+  text-align: center;
+}
+
+.stock-barcode__printOne {
+  width: 100%;
+  margin-top: 8px;
+  justify-content: center;
+}
+
+.stock-barcode__placeholderCode {
+  min-height: 88px;
+  border: 1px dashed var(--nv-border, #cbd5e1);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--nv-muted, #64748b);
+}
+
+.stock-barcode__placeholderCode svg {
+  font-size: 24px;
+  opacity: .55;
+}
+
+.stock-barcode__placeholderCode code {
+  font-weight: 850;
+}
+
+.stock-barcode__emptyExternal {
+  min-height: 118px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.stock-barcode__scanBox {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.stock-barcode__scanStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--nv-text, #0f172a);
+  font-size: 11.5px;
+}
+
+.stock-barcode__scanPulse {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, .38);
+  animation: stock-barcode-pulse 1.3s infinite;
+}
+
+.stock-barcode__scanInput {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: .2px;
+}
+
+.stock-barcode__livePreview .stock-barcode__svg {
+  height: 48px;
+}
+
+.stock-barcode__dangerBtn {
+  color: #dc2626 !important;
+  border-color: rgba(220, 38, 38, .2) !important;
+}
+
+@keyframes stock-barcode-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, .38); }
+  70% { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@media (max-width: 760px) {
+  .stock-barcode__header,
+  .stock-barcode__cardHead {
+    flex-direction: column;
+  }
+
+  .stock-barcode__headerActions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .stock-barcode__headerActions > button {
+    flex: 1 1 auto;
+  }
+
+  .stock-barcode__sections {
+    grid-template-columns: 1fr;
+  }
+}

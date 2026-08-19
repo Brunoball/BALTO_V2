@@ -33,6 +33,7 @@ import ConfigTiendaNube from "./components/Configuracion/ConfiguracionTiendaNube
 import ConfiguracionCalendario from "./components/Configuracion/ConfiguracionCalendario/ConfiguracionCalendario";
 import ConfiguracionUsuarios from "./components/Configuracion/ConfiguracionUsuarios/ConfiguracionUsuarios";
 import ConfiguracionDatosLegales from "./components/Configuracion/ConfiguracionDatosLegales/ConfiguracionDatosLegales";
+import ConfiguracionSaldosIniciales from "./components/Configuracion/ConfiguracionSaldosIniciales/ConfiguracionSaldosIniciales";
 
 /* Análisis financiero */
 import * as AnalisisFinancieroModule from "./components/Analisis_Financiero/Analisis_Financiero";
@@ -606,6 +607,19 @@ export default function App() {
             }
           />
 
+
+          <Route
+            path="configuracion/saldos-iniciales"
+            element={
+              <RutaModulo modulo="configuracion">
+                <RutaAdmin>
+                  <RutaNoDemoConfig>
+                    <ConfiguracionSaldosIniciales />
+                  </RutaNoDemoConfig>
+                </RutaAdmin>
+              </RutaModulo>
+            }
+          />
           <Route
             path="configuracion/datos-legales"
             element={

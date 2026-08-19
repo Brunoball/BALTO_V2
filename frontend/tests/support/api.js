@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import { ENV } from './env.js';
+import { RUN_PREFIX } from './data.js';
 
 function apiUrl(action, query = {}) {
   const base = ENV.apiURL.replace(/\/$/, '');
@@ -15,7 +16,11 @@ function apiUrl(action, query = {}) {
 
 export async function authenticatedApi(page, action, options = {}) {
   const method = String(options.method || (options.body ? 'POST' : 'GET')).toUpperCase();
-  const url = apiUrl(action, options.query || {});
+  const query = { ...(options.query || {}) };
+  if (ENV.allowMutations && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    query.e2e_run = RUN_PREFIX;
+  }
+  const url = apiUrl(action, query);
 
   return page.evaluate(async ({ requestUrl, requestMethod, requestBody }) => {
     const sessionKey =

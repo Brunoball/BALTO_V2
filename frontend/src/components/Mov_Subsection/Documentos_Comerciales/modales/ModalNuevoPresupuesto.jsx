@@ -8,6 +8,7 @@ import "./ModalPresupuestosChecklist.css";
 import BASE_URL from "../../../../config/config";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
 import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
+import useStockBarcodeScanner from "../../_shared/useStockBarcodeScanner.js";
 import ModalClienteFiscalArca from "../../../Global/Modales/ModalClienteFiscalArca.jsx";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -1149,6 +1150,42 @@ export default function ModalNuevoPresupuesto({ open, lists, initialModel = null
       onToast?.("advertencia", `El producto "${nombreDetalle}" no tiene stock disponible. Activá Presupuesto personalizado para usarlo sin descontar stock.`, 3200);
     }
   }, [onToast, presupuestoPersonalizado, updateRow]);
+
+  const barcodePendingRef = useRef(null);
+
+  const handleBarcodeProductSelect = useCallback((producto) => {
+    const target = rows.find((row) =>
+      !Number(row?.id_stock_producto || 0) &&
+      !Number(row?.id_stock_variante || 0) &&
+      !String(row?.detalleText || "").trim()
+    );
+
+    if (target) {
+      handleSelectDetalle(target.id, producto);
+      onToast?.("exito", `Producto leído: ${getDetalleNombre(producto)}`, 1800);
+      return;
+    }
+
+    const nextRow = buildEmptyRow();
+    barcodePendingRef.current = { rowId: nextRow.id, producto };
+    setRows((prev) => [...prev, nextRow]);
+  }, [rows, handleSelectDetalle, onToast]);
+
+  useEffect(() => {
+    const pending = barcodePendingRef.current;
+    if (!pending || !rows.some((row) => row.id === pending.rowId)) return;
+    barcodePendingRef.current = null;
+    handleSelectDetalle(pending.rowId, pending.producto);
+    onToast?.("exito", `Producto leído: ${getDetalleNombre(pending.producto)}`, 1800);
+  }, [rows, handleSelectDetalle, onToast]);
+
+  useStockBarcodeScanner({
+    enabled: open && !saving && !addUI.open && !modelsOpen,
+    options: detallesList,
+    allowOutOfStock: presupuestoPersonalizado,
+    onSelect: handleBarcodeProductSelect,
+    onError: (mensaje) => onToast?.("advertencia", mensaje, 3200),
+  });
 
   const handleDetalleInputChange = useCallback((rowId, value) => {
     updateRow(rowId, {

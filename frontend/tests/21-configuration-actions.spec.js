@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './support/test.js';
 import { uniqueName } from './support/data.js';
 import { authenticatedApi, expectApiSuccess } from './support/api.js';
 import { requireMutations, waitForBusyToFinish } from './support/ui.js';
@@ -77,6 +77,7 @@ test('@configuracion @crud calendario: guardar, persistir y restaurar', async ({
 
 
 test('@configuracion tema: cambia, persiste y restaura', async ({ page }) => {
+  await requireMutations(test, page);
   await page.goto('/panel/dashboard');
   await waitForBusyToFinish(page);
 

@@ -1,7 +1,16 @@
 import { ENV } from './env.js';
 
 const seed = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`.toUpperCase();
-const runPrefix = `PW-${ENV.runLabel ? `${ENV.runLabel}-` : ''}${seed}`.replace(/[^A-Z0-9-]/g, '').slice(0, 34);
+const runLabel = String(ENV.runLabel || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^A-Z0-9]+/gi, '-')
+  .replace(/^-+|-+$/g, '')
+  .toUpperCase()
+  .slice(0, 6);
+// Máximo 24 caracteres: incluso los campos E2E más cortos (32) conservan el
+// prefijo COMPLETO, imprescindible para que el teardown por worker sea exacto.
+const runPrefix = `PW-${seed}${runLabel ? `-${runLabel}` : ''}`.slice(0, 24);
 
 export function uniqueName(kind, maxLength = 70) {
   const normalized = String(kind || 'DATO')
