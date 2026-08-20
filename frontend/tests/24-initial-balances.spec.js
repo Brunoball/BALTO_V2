@@ -2,10 +2,13 @@ import { test, expect } from './support/test.js';
 import { authenticatedApi, expectApiSuccess } from './support/api.js';
 import { uniqueName, uniqueChequeNumber, todayISO } from './support/data.js';
 import { requireMutations, waitForBusyToFinish } from './support/ui.js';
+import { cleanupTestUser, createEmployeeTestUser, loginTestUserInNewContext } from './support/users.js';
 import {
   createEntity,
   openEntityAdmin,
   deleteEntity,
+  deactivateEntity,
+  reactivateEntity,
 } from './support/entity-lifecycle.js';
 
 const CONFIG_ROUTE = '/panel/configuracion/saldos-iniciales';
@@ -121,7 +124,7 @@ async function setCurrentAccountInitialBalance(page, {
     await page.getByRole('main').getByRole('button', { name: 'Clientes', exact: true }).click();
   }
 
-  const search = page.getByPlaceholder(kind === 'cliente' ? /Buscar cliente/i : /Buscar proveedor/i);
+  const search = page.getByLabel(kind === 'cliente' ? /Buscar cliente/i : /Buscar proveedor/i);
   await search.fill(name);
 
   const row = page.locator('.cfg-si-ccRow').filter({ hasText: name }).first();
@@ -132,10 +135,18 @@ async function setCurrentAccountInitialBalance(page, {
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText(name);
 
-  await dialog.getByLabel('Fecha de apertura').fill(todayISO());
-  await dialog.getByLabel('Situación').selectOption(situation);
-  await dialog.getByLabel('Importe').fill(String(amount).replace('.', ','));
-  await dialog.getByLabel('Observación').fill(observation);
+  // El rediseño usa spans visuales (.gm-label) en este modal, no <label for=...>.
+  // Localizamos cada control dentro de su .gm-field para probar la UI real sin
+  // exigir cambios de accesibilidad al frontend.
+  const dateField = dialog.locator('.gm-field').filter({ hasText: 'Fecha de apertura' }).locator('input[type="date"]');
+  const situationField = dialog.locator('.gm-field').filter({ hasText: 'Situación' }).locator('select');
+  const amountField = dialog.locator('.gm-field').filter({ hasText: 'Importe' }).locator('input');
+  const observationField = dialog.locator('.gm-field').filter({ hasText: 'Observación' }).locator('textarea');
+
+  await dateField.fill(todayISO());
+  await situationField.selectOption(situation);
+  await amountField.fill(String(amount).replace('.', ','));
+  await observationField.fill(observation);
 
   const responsePromise = page.waitForResponse(
     (response) =>
@@ -160,7 +171,7 @@ async function deleteCurrentAccountInitialBalance(page, kind, name) {
     await page.getByRole('main').getByRole('button', { name: 'Proveedores', exact: true }).click();
   }
 
-  const search = page.getByPlaceholder(kind === 'cliente' ? /Buscar cliente/i : /Buscar proveedor/i);
+  const search = page.getByLabel(kind === 'cliente' ? /Buscar cliente/i : /Buscar proveedor/i);
   await search.fill(name);
   const row = page.locator('.cfg-si-ccRow').filter({ hasText: name }).first();
   await expect(row).toBeVisible({ timeout: 30_000 });
@@ -275,17 +286,26 @@ async function deleteInitialCheque(page, number) {
   const row = page.locator('.cfg-si-table tbody tr').filter({ hasText: number }).first();
   await expect(row).toBeVisible({ timeout: 30_000 });
 
+  // El rediseño actual pide confirmación antes de ejecutar el POST.
+  await row.getByTitle('Eliminar carga inicial').click();
+  const confirmDialog = page
+    .getByRole('dialog')
+    .filter({ has: page.getByRole('heading', { name: /Eliminar cheque\/eCheq/i }) })
+    .last();
+  await expect(confirmDialog).toBeVisible({ timeout: 15_000 });
+
   const responsePromise = page.waitForResponse(
     (response) =>
       response.request().method() === 'POST' &&
       new URL(response.url()).searchParams.get('action') === 'config_saldos_iniciales_cheque_eliminar',
     { timeout: 90_000 },
   );
-  await row.getByTitle('Eliminar carga inicial').click();
+  await confirmDialog.getByRole('button', { name: /^Eliminar$/i }).click();
   const response = await responsePromise;
   const body = await response.json().catch(() => ({}));
   expect(response.status(), JSON.stringify(body)).toBeLessThan(400);
   expect(body?.exito, body?.mensaje || 'El cheque inicial debe eliminarse').toBe(true);
+  await expect(confirmDialog).toBeHidden({ timeout: 30_000 });
   await expect(page.locator('.cfg-si-table tbody tr').filter({ hasText: number })).toHaveCount(0, {
     timeout: 30_000,
   });
@@ -431,6 +451,150 @@ test('@configuracion @saldos-iniciales tesorería: UI arma el guardado y backend
   }
 });
 
+
+
+test('@configuracion @saldos-iniciales @guards validaciones finales: importes inválidos, CC inexistente/inactiva y cheque con fechas o monto imposibles', async ({ page }) => {
+  await requireMutations(test, page);
+
+  // Frontend: un texto no numérico jamás debe transformarse silenciosamente en 0
+  // ni llegar al backend de tesorería.
+  await openInitialBalances(page, /Caja y cuentas/i);
+  const snapshot = await getInitialBalances(page);
+  expect(snapshot?.medios_pago?.length).toBeGreaterThan(0);
+  const firstCard = page.locator('.cfg-si-accountCard').first();
+  await expect(firstCard).toBeVisible();
+
+  let treasuryWrites = 0;
+  const countTreasuryWrite = (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).searchParams.get('action') === 'config_saldos_iniciales_tesoreria_guardar'
+    ) treasuryWrites += 1;
+  };
+  page.on('request', countTreasuryWrite);
+  try {
+    await firstCard.getByLabel('Saldo inicial').fill('importe-invalido');
+    await page.getByRole('button', { name: /Guardar saldos/i }).click();
+    await expect(page.locator('body')).toContainText(/importe no es válido/i);
+    await page.waitForTimeout(250);
+    expect(treasuryWrites, 'Un importe inválido no debe disparar ningún POST de tesorería').toBe(0);
+  } finally {
+    page.off('request', countTreasuryWrite);
+  }
+
+  // Backend CC: cero no es un saldo válido, eliminar algo inexistente no debe
+  // fingir éxito/auditar una baja, y una entidad inactiva no puede recibir apertura.
+  const name = uniqueName('SALDO-GUARDS-CLIENTE', 65);
+  let entityId = 0;
+  let inactive = false;
+  try {
+    await createEntity(page, 'cliente', name);
+    let config = await getInitialBalances(page);
+    const entity = configEntity(config, 'cliente', name);
+    entityId = Number(entity?.id_cliente || 0);
+    expect(entityId).toBeGreaterThan(0);
+
+    const zero = await authenticatedApi(page, 'config_saldos_iniciales_cc_guardar', {
+      method: 'POST',
+      body: {
+        tipo_entidad: 'CLIENTE', id_entidad: entityId, fecha_saldo: todayISO(),
+        sentido: 'DEUDA', importe: 0, observaciones: uniqueName('NO-CERO', 50),
+      },
+    });
+    expect(zero.status).toBe(400);
+    expect(String(zero.body?.mensaje || '')).toMatch(/mayor a cero/i);
+
+    const missingDelete = await authenticatedApi(page, 'config_saldos_iniciales_cc_eliminar', {
+      method: 'POST',
+      body: { tipo_entidad: 'CLIENTE', id_entidad: entityId },
+    });
+    expect(missingDelete.status).toBe(400);
+    expect(String(missingDelete.body?.mensaje || '')).toMatch(/ya no existe/i);
+
+    await deactivateEntity(page, 'cliente', name);
+    inactive = true;
+    const inactiveSave = await authenticatedApi(page, 'config_saldos_iniciales_cc_guardar', {
+      method: 'POST',
+      body: {
+        tipo_entidad: 'CLIENTE', id_entidad: entityId, fecha_saldo: todayISO(),
+        sentido: 'DEUDA', importe: 10, observaciones: uniqueName('NO-INACTIVO', 50),
+      },
+    });
+    expect(inactiveSave.status).toBe(400);
+    expect(String(inactiveSave.body?.mensaje || '')).toMatch(/dada de baja/i);
+
+    await reactivateEntity(page, 'cliente', name);
+    inactive = false;
+    config = await getInitialBalances(page);
+    expect(configEntity(config, 'cliente', name)?.id_saldo_inicial).toBeNull();
+  } finally {
+    if (inactive) await reactivateEntity(page, 'cliente', name).catch(() => null);
+    await cleanupCurrentAccountFixture(page, 'cliente', name, entityId);
+  }
+
+  // Backend cheque: vencimiento anterior a emisión y overflow DECIMAL se
+  // rechazan antes de INSERT, por lo que no alteran la cartera real.
+  const invalidDue = await authenticatedApi(page, 'config_saldos_iniciales_cheque_crear', {
+    method: 'POST',
+    body: {
+      tipo: 'CHEQUE',
+      fecha_saldo: todayISO(),
+      fecha_emision: todayISO(),
+      fecha_pago: addDaysISO(todayISO(), -1),
+      emisor: uniqueName('SALDO-CHEQUE-FECHA', 60),
+      numero_cheque: uniqueChequeNumber(),
+      importe: 10,
+    },
+  });
+  expect(invalidDue.status).toBe(400);
+  expect(String(invalidDue.body?.mensaje || '')).toMatch(/fecha de pago\/vencimiento.*no puede ser anterior.*fecha de emisión/i);
+
+  const tooLarge = await authenticatedApi(page, 'config_saldos_iniciales_cheque_crear', {
+    method: 'POST',
+    body: {
+      tipo: 'ECHEQ',
+      fecha_saldo: todayISO(),
+      fecha_emision: todayISO(),
+      fecha_pago: addDaysISO(todayISO(), 1),
+      emisor: uniqueName('SALDO-CHEQUE-MAX', 60),
+      numero_cheque: uniqueChequeNumber(),
+      importe: 10_000_000_000,
+    },
+  });
+  expect(tooLarge.status).toBe(400);
+  expect(String(tooLarge.body?.mensaje || '')).toMatch(/máximo permitido/i);
+});
+
+test('@configuracion @saldos-iniciales @security empleado básico no puede leer ni modificar aperturas por API', async ({ page, browser }) => {
+  await requireMutations(test, page);
+  const username = uniqueName('SALDO-EMPLEADO', 36);
+  const password = 'Pw!123456';
+  let context = null;
+
+  try {
+    await createEmployeeTestUser(page, username, password);
+    const employeeSession = await loginTestUserInNewContext(browser, username, password);
+    context = employeeSession.context;
+    const employeePage = employeeSession.page;
+
+    const forbiddenRead = await authenticatedApi(employeePage, 'config_saldos_iniciales_get');
+    expect(forbiddenRead.status).toBe(403);
+    expect(String(forbiddenRead.body?.mensaje || forbiddenRead.body?.message || '')).toMatch(/administrador|permiso|acceso/i);
+
+    // Payload vacío a propósito: incluso si hubiera una regresión de permisos no
+    // alteraría dinero real, pero debe ser rechazado antes de entrar al servicio.
+    const forbiddenWrite = await authenticatedApi(employeePage, 'config_saldos_iniciales_tesoreria_guardar', {
+      method: 'POST',
+      body: { saldos: [] },
+    });
+    expect(forbiddenWrite.status).toBe(403);
+    expect(String(forbiddenWrite.body?.mensaje || forbiddenWrite.body?.message || '')).toMatch(/administrador|permiso|acceso/i);
+  } finally {
+    if (context) await context.close().catch(() => null);
+    await cleanupTestUser(page, username);
+  }
+});
+
 test('@flujo @saldos-iniciales aplica aperturas existentes al saldo pero no las informa como ingresos del día', async ({ page }, testInfo) => {
   const payload = await getInitialBalances(page);
   const expectedByDate = new Map();
@@ -557,7 +721,7 @@ for (const type of ['CHEQUE', 'ECHEQ']) {
     try {
       await openInitialBalances(page, /Cheques/i);
 
-      // Fecha de emisión posterior a la apertura: el backend debe rechazarla.
+      // Fecha de emisión posterior a la apertura: la UI debe frenarla antes de llamar al backend.
       await fillInitialChequeForm(page, {
         type,
         openingDate: yesterday,
@@ -567,17 +731,24 @@ for (const type of ['CHEQUE', 'ECHEQ']) {
         number: invalidNumber,
         amount: 10,
       });
-      let responsePromise = page.waitForResponse(
-        (response) =>
-          response.request().method() === 'POST' &&
-          new URL(response.url()).searchParams.get('action') === 'config_saldos_iniciales_cheque_crear',
-        { timeout: 90_000 },
-      );
+      // El formulario ya blinda esta regla antes de llamar al backend. El test viejo
+      // esperaba un POST 400 y por eso agotaba 90 s aunque la UI estuviera funcionando bien.
+      let invalidCreateRequests = 0;
+      const countInvalidCreate = (request) => {
+        if (
+          request.method() === 'POST' &&
+          new URL(request.url()).searchParams.get('action') === 'config_saldos_iniciales_cheque_crear'
+        ) invalidCreateRequests += 1;
+      };
+      page.on('request', countInvalidCreate);
       await page.getByRole('button', { name: /Cargar en cartera/i }).click();
-      let response = await responsePromise;
-      let body = await response.json().catch(() => ({}));
-      expect(response.status()).toBe(400);
-      expect(String(body?.mensaje || '')).toMatch(/fecha de emisión.*no puede ser posterior.*fecha de apertura/i);
+      await expect(page.locator('body')).toContainText(
+        /fecha de emisión.*no puede ser posterior.*fecha de apertura/i,
+        { timeout: 10_000 },
+      );
+      await page.waitForTimeout(250);
+      page.off('request', countInvalidCreate);
+      expect(invalidCreateRequests, 'La validación de fechas debe cortar el alta antes del POST').toBe(0);
 
       const beforeFlow = await flowDay(page, today);
 
@@ -638,15 +809,15 @@ for (const type of ['CHEQUE', 'ECHEQ']) {
         number,
         amount,
       });
-      responsePromise = page.waitForResponse(
+      let responsePromise = page.waitForResponse(
         (res) =>
           res.request().method() === 'POST' &&
           new URL(res.url()).searchParams.get('action') === 'config_saldos_iniciales_cheque_crear',
         { timeout: 90_000 },
       );
       await page.getByRole('button', { name: /Cargar en cartera/i }).click();
-      response = await responsePromise;
-      body = await response.json().catch(() => ({}));
+      let response = await responsePromise;
+      let body = await response.json().catch(() => ({}));
       expect(response.status()).toBe(400);
       expect(String(body?.mensaje || '')).toMatch(/Ya existe un cheque\/eCheq con ese número/i);
 
@@ -674,3 +845,53 @@ for (const type of ['CHEQUE', 'ECHEQ']) {
     }
   });
 }
+
+test('@cheques @saldos-iniciales @critical un cheque inicial usado queda protegido contra eliminación', async ({ page }) => {
+  await requireMutations(test, page);
+  const number = uniqueChequeNumber();
+  const issuer = uniqueName('SALDO-CHEQUE-USADO', 60);
+  const today = todayISO();
+
+  await openInitialBalances(page, /Cheques/i);
+  await fillInitialChequeForm(page, {
+    type: 'CHEQUE',
+    openingDate: today,
+    emissionDate: today,
+    dueDate: addDaysISO(today, 15),
+    issuer,
+    number,
+    amount: 96.75,
+    observation: uniqueName('APERTURA-USADA', 65),
+  });
+  const cheque = await createInitialCheque(page, { number });
+  const idCheque = Number(cheque?.id_cheque || 0);
+  expect(idCheque).toBeGreaterThan(0);
+
+  // Lo usamos mediante la misma acción real de cartera. A partir de este punto
+  // ya existe historia posterior a la apertura y Configuración jamás debe poder
+  // borrar el documento para "hacer desaparecer" ese recorrido.
+  const deposit = await authenticatedApi(page, 'cheques_cartera_depositar', {
+    method: 'POST',
+    body: { id_cheque: idCheque, fecha_deposito: today },
+  });
+  const depositBody = expectApiSuccess(deposit, 'No se pudo depositar el cheque inicial de prueba');
+  expect(String(depositBody?.estado || '')).toBe('DEPOSITADO_BANCO');
+
+  const blockedDelete = await authenticatedApi(page, 'config_saldos_iniciales_cheque_eliminar', {
+    method: 'POST',
+    body: { id_cheque: idCheque },
+  });
+  expect(blockedDelete.status).toBe(400);
+  expect(String(blockedDelete.body?.mensaje || '')).toMatch(/movimientos posteriores|relacionado a un movimiento|historial posterior/i);
+
+  const config = await getInitialBalances(page);
+  const stillPresent = (Array.isArray(config?.cheques) ? config.cheques : []).find(
+    (row) => Number(row?.id_cheque || 0) === idCheque,
+  );
+  expect(stillPresent, 'El intento de borrado rechazado no debe quitar el saldo inicial').toBeTruthy();
+  expect(String(stillPresent?.estado || '')).toBe('DEPOSITADO_BANCO');
+
+  // No lo revertimos/borramos manualmente: justamente el servicio de saldos
+  // debe negarse. El cleanup E2E identifica el cheque por el emisor PW-* y
+  // elimina de forma controlada flujo, historial, saldo inicial y documento.
+});

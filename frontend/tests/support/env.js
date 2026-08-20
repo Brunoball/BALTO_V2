@@ -26,14 +26,14 @@ function parseEnvFile(filePath) {
   return out;
 }
 
-function applyValues(values, externalValues) {
+function applyValues(values) {
+  // Los archivos .env.playwright son la fuente de verdad de la corrida.
+  // Esto evita que una variable PW_* vieja de PowerShell (por ejemplo
+  // PW_SKIP_WEBSERVER=1) cambie silenciosamente el comportamiento al ejecutar
+  // solamente `npx playwright test ...`. Las variables no declaradas en estos
+  // archivos conservan normalmente el valor heredado del proceso.
   for (const [key, value] of Object.entries(values)) {
     process.env[key] = value;
-  }
-
-  // Las variables indicadas expresamente desde PowerShell siempre tienen prioridad.
-  for (const [key, value] of Object.entries(externalValues)) {
-    if (value !== undefined) process.env[key] = value;
   }
 }
 
@@ -51,12 +51,11 @@ function resolveTarget(apiURL) {
 }
 
 const root = process.cwd();
-const externalValues = { ...process.env };
 const commonFile = path.join(root, '.env.playwright');
 const commonValues = parseEnvFile(commonFile);
 
 // Primero se lee la URL común. Esa URL decide automáticamente qué cuenta usar.
-applyValues(commonValues, externalValues);
+applyValues(commonValues);
 
 const preliminaryApiURL =
   process.env.PW_API_URL || commonValues.PW_API_URL || 'https://balto.3devsnet.com/api/routes';
@@ -64,8 +63,8 @@ const selectedTarget = resolveTarget(preliminaryApiURL);
 const profileFile = path.join(root, `.env.playwright.${selectedTarget}.local`);
 const profileValues = parseEnvFile(profileFile);
 
-// El perfil aporta usuario, contraseña y tenant. PowerShell sigue teniendo prioridad.
-applyValues({ ...commonValues, ...profileValues }, externalValues);
+// El perfil aporta usuario, contraseña y tenant y prevalece sobre el archivo común.
+applyValues({ ...commonValues, ...profileValues });
 
 function bool(value, fallback = false) {
   if (value === undefined || value === null || value === '') return fallback;
