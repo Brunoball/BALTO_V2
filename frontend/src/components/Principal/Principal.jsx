@@ -232,57 +232,6 @@ function getLastActivityTs() {
 }
 
 /* =========================
-   Cache listas
-========================= */
-const LISTAS_CACHE_KEY = "balto_listas_cache_v1";
-const LISTAS_TTL_MS = 30 * 60 * 1000;
-
-function getCachedListas() {
-  const raw = sessionStorage.getItem(LISTAS_CACHE_KEY);
-  const parsed = safeJsonParse(raw);
-  if (!parsed?.ts || !parsed?.data) return null;
-  if (Date.now() - Number(parsed.ts) > LISTAS_TTL_MS) return null;
-  return parsed.data;
-}
-
-function setCachedListas(data) {
-  try {
-    sessionStorage.setItem(
-      LISTAS_CACHE_KEY,
-      JSON.stringify({ ts: Date.now(), data })
-    );
-  } catch {}
-}
-
-async function prefetchGlobalListas(onUnauthorized) {
-  try {
-    const cached = getCachedListas();
-    if (cached) return cached;
-
-    const r = await apiFetch(
-      { action: "global_obtener_listas" },
-      { method: "GET" }
-    );
-
-    if (r.status === 401) {
-      try {
-        onUnauthorized?.();
-      } catch {}
-      return null;
-    }
-
-    const txt = await r.text();
-    const data = safeJsonParse(txt);
-    if (!r.ok || !data?.exito) return null;
-
-    setCachedListas(data);
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-/* =========================
    Modal cierre sesión
 ========================= */
 const ConfirmLogoutModal = memo(function ConfirmLogoutModal({
@@ -893,17 +842,6 @@ const Principal = () => {
 
     setLastActivityNow();
 
-    try {
-      const onUnauthorized = () => doLogout({ silent: true });
-
-      if (typeof window.requestIdleCallback === "function") {
-        window.requestIdleCallback(() => prefetchGlobalListas(onUnauthorized), {
-          timeout: 1200,
-        });
-      } else {
-        setTimeout(() => prefetchGlobalListas(onUnauthorized), 200);
-      }
-    } catch {}
   }, [doLogout, navigate]);
 
   useEffect(() => {
