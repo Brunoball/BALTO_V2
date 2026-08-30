@@ -5,10 +5,11 @@ import "../../Global/Global_css/roots.css";
 import "../../Global/Global_css/Global_oscuro.css";
 import "./DocumentosComerciales.css";
 import "./DocumentosComercialesResponsive.css";
-import BASE_URL from "../../../config/config.jsx";
 import ModalVerComprobante from "../../Global/Ver_Comprobantes/ModalVerComprobante.jsx";
 import useTableScrollGutter from "../../Global/useTableScrollGutter.jsx";
 import { readMovPerfCache, writeMovPerfCache, MOV_CACHE_LONG_TTL_MS } from "../_shared/performanceCache.js";
+import { buildDocumentosUrl, documentosRequest } from "./api/documentosComercialesApi.js";
+import { formatFecha, isDocumentosNetworkError, moneyARS, normalizeText, safeText } from "./utils/documentosComercialesUtils.js";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faBoxesStacked,
@@ -64,43 +65,8 @@ function DocumentosTabs({ activeKey }) {
   );
 }
 
-const API = `${BASE_URL}/api.php`;
 const CLIENTES_LIMIT = 120;
 const SKELETON_ROWS = 6;
-
-function safeText(value, fallback = "—") {
-  const s = String(value ?? "").trim();
-  return s || fallback;
-}
-
-function moneyARS(value) {
-  const n = Number(value || 0);
-  try {
-    return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" });
-  } catch {
-    return `$${n.toFixed(2)}`;
-  }
-}
-
-function formatFecha(value) {
-  const s = String(value ?? "").trim();
-  if (!s) return "—";
-  const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{1,2}))?/);
-  if (!m) return s;
-
-  const fecha = `${String(Number(m[3])).padStart(2, "0")}/${String(Number(m[2])).padStart(2, "0")}/${m[1]}`;
-  if (!m[4] || !m[5]) return fecha;
-  return `${fecha} ${String(Number(m[4])).padStart(2, "0")}:${String(Number(m[5])).padStart(2, "0")}`;
-}
-
-function normalizeText(value) {
-  return String(value ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function getAuthHeaders() {
   const headers = { Accept: "application/json" };
@@ -117,37 +83,9 @@ function getAuthHeaders() {
   return headers;
 }
 
-function buildUrl(action, params = {}) {
-  const qs = new URLSearchParams({ action });
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === "") return;
-    qs.set(key, String(value));
-  });
-  return `${API}?${qs.toString()}`;
-}
-
-function isNetworkError(err) {
-  if (err?.isNetworkError === true) return true;
-  const msg = String(err?.message || err || "").toLowerCase();
-  return (
-    err?.name === "NetworkError" ||
-    err?.name === "TimeoutError" ||
-    msg.includes("failed to fetch") ||
-    msg.includes("network") ||
-    msg.includes("timeout") ||
-    msg.includes("aborted") ||
-    msg.includes("abort") ||
-    msg.includes("sin conexión") ||
-    msg.includes("sin conexion") ||
-    msg.includes("no se pudo conectar") ||
-    msg.includes("tardó demasiado") ||
-    msg.includes("tardo demasiado")
-  );
-}
-
 async function apiGetJson(url) {
   try {
-    const res = await fetch(url, {
+    const res = await documentosRequest(url, {
       method: "GET",
       headers: getAuthHeaders(),
       cache: "no-store",
@@ -170,7 +108,7 @@ async function apiGetJson(url) {
   } catch (err) {
     if (err?.isCancelled) throw err;
 
-    if (isNetworkError(err)) {
+    if (isDocumentosNetworkError(err)) {
       const e = new Error("Sin conexión o servidor no disponible. Cuando vuelva Internet, los datos se actualizarán automáticamente.");
       e.isNetworkError = true;
       throw e;
@@ -392,7 +330,7 @@ function DocumentosClientePanel({
 
     try {
       const data = await apiGetJson(
-        buildUrl(documentActions.clientes, {
+        buildDocumentosUrl(documentActions.clientes, {
           ...(documentActions.includeGrupo ? { grupo } : {}),
           q: qClientes,
           limit: CLIENTES_LIMIT,
@@ -448,7 +386,7 @@ function DocumentosClientePanel({
 
     try {
       const data = await apiGetJson(
-        buildUrl(documentActions.documentos, {
+        buildDocumentosUrl(documentActions.documentos, {
           ...(documentActions.includeGrupo ? { grupo } : {}),
           id_cliente: idCliente,
         })
@@ -503,7 +441,7 @@ function DocumentosClientePanel({
       let url = signedUrlCacheRef.current.get(String(id)) || "";
       if (!url) {
         const data = await apiGetJson(
-          buildUrl("ventas_comprobantes_descargar", { id_comprobante: id })
+          buildDocumentosUrl("ventas_comprobantes_descargar", { id_comprobante: id })
         );
         url = data?.url || data?.archivo_url || data?.download_url || "";
         if (url) signedUrlCacheRef.current.set(String(id), url);
@@ -528,7 +466,7 @@ function DocumentosClientePanel({
       let url = signedUrlCacheRef.current.get(String(id)) || "";
       if (!url) {
         const data = await apiGetJson(
-          buildUrl("ventas_comprobantes_descargar", { id_comprobante: id })
+          buildDocumentosUrl("ventas_comprobantes_descargar", { id_comprobante: id })
         );
         url = data?.url || data?.archivo_url || data?.download_url || "";
         if (url) signedUrlCacheRef.current.set(String(id), url);

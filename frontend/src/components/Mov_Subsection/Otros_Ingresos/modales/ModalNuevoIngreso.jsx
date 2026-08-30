@@ -16,6 +16,7 @@ import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalIngreso.css";
+import { otrosIngresosFetch } from "../api/otrosIngresosApi.js";
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const NULL_OPTION = "";
@@ -419,20 +420,20 @@ async function parseJsonOrThrow(res) {
   return data;
 }
 async function apiPostForm(url, fd) {
-  return await parseJsonOrThrow(await fetch(url, {
+  return await parseJsonOrThrow(await otrosIngresosFetch(url, {
     method: "POST",
     headers: buildAuthHeaders(false),
     body: fd,
   }));
 }
 async function apiGetJson(url) {
-  return await parseJsonOrThrow(await fetch(url, {
+  return await parseJsonOrThrow(await otrosIngresosFetch(url, {
     method: "GET",
     headers: buildAuthHeaders(false),
   }));
 }
 async function apiPostJson(url, payload) {
-  return await parseJsonOrThrow(await fetch(url, {
+  return await parseJsonOrThrow(await otrosIngresosFetch(url, {
     method: "POST",
     headers: buildAuthHeaders(true),
     body: JSON.stringify(payload ?? {}),
@@ -728,7 +729,7 @@ function MedioPagoRow({
       if (Number.isFinite(idChequeActual) && idChequeActual > 0) {
         params.set("id_cheque", String(idChequeActual));
       }
-      const res = await fetch(`${apiCheckNumero}&${params.toString()}`, {
+      const res = await otrosIngresosFetch(`${apiCheckNumero}&${params.toString()}`, {
         method: "GET",
         headers: buildAuthHeaders(false),
       });
@@ -1428,7 +1429,7 @@ export default function ModalNuevoIngreso({
         const headers = { "Content-Type": "application/json" };
         if (sessionKey) headers["X-Session"] = sessionKey;
         if (token) headers.Authorization = `Bearer ${token}`;
-        const response = await fetch(API_DETALLES_CREAR, {
+        const response = await otrosIngresosFetch(API_DETALLES_CREAR, {
           method: "POST",
           headers,
           body: JSON.stringify({ nombre: nombreDescripcion, idUsuario, idUsuarioMaster }),
@@ -1966,7 +1967,7 @@ export default function ModalNuevoIngreso({
       if (sessionKey) headers["X-Session"] = sessionKey;
       if (token) headers.Authorization = `Bearer ${token}`;
       return await parseJsonOrThrow(
-        await fetch(API_CHEQUES_ACTUALIZAR, { method: "POST", headers, body: fd })
+        await otrosIngresosFetch(API_CHEQUES_ACTUALIZAR, { method: "POST", headers, body: fd })
       );
     },
     [API_CHEQUES_ACTUALIZAR]
@@ -2097,7 +2098,7 @@ export default function ModalNuevoIngreso({
         })
       );
 
-      const response = await fetch(API_VINCULAR_FACTURA, {
+      const response = await otrosIngresosFetch(API_VINCULAR_FACTURA, {
         method: "POST",
         headers: buildAuthHeaders(false),
         body: fd,

@@ -15,6 +15,7 @@ import { getDetalleMovimiento } from "../../_shared/detalleMovimiento.js";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
+import { otrosEgresosFetch } from "../api/otrosEgresosApi.js";
 
 function moneyARS(v) {
   const n = Number(v || 0);
@@ -175,7 +176,7 @@ function getAuthInfo() {
 }
 
 async function fetchJsonOrThrow(url, opts = {}) {
-  const res = await fetch(url, opts);
+  const res = await otrosEgresosFetch(url, opts);
   const text = await res.text();
   if (!text) throw new Error("Respuesta vacía del servidor.");
   let data;

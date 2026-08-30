@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import BASE_URL from "../../../config/config.jsx";
 import "../../Global/Global_css/Global_Section.css";
 import "../../Global/Global_css/roots.css";
 import "../../Global/Global_css/Global_oscuro.css";
@@ -38,6 +37,8 @@ import { useDateRange } from "../../../context/DateRangeContext";
 import { readMovPerfCache, writeMovPerfCache, clearMovPerfCache } from "../_shared/performanceCache.js";
 import { saveVentaNoFacturadaPdf } from "../../../utils/VentaNoFacturadaPdfBuilder";
 import { saveRemitoPdf } from "../../../utils/RemitoPdfBuilder";
+import { DOCUMENTOS_API, documentosRequest } from "./api/documentosComercialesApi.js";
+import useDocumentosToast from "./hooks/useDocumentosToast.js";
 
 const DOCUMENTOS_TABS = [
   { key: "presupuesto", label: "Presupuestos", path: "/panel/presupuesto" },
@@ -544,7 +545,7 @@ function documentLabel(tipo) {
 }
 
 export default function Presupuestos() {
-  const API = `${BASE_URL}/api.php`;
+  const API = DOCUMENTOS_API;
   const [tableWrapRef, hasTableScroll] = useTableScrollGutter();
   const { lists: listasCtx, loadingLists, error: errorLists, ensureListsLoaded } = useListas();
   const { dateRange, setDateRange } = useDateRange();
@@ -554,7 +555,7 @@ export default function Presupuestos() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState("");
-  const [toast, setToast] = useState(null);
+  const { toast, showToast, closeToast } = useDocumentosToast();
   const [openAdd, setOpenAdd] = useState(false);
   const [openModels, setOpenModels] = useState(false);
   const [selectedModelForNew, setSelectedModelForNew] = useState(null);
@@ -578,9 +579,6 @@ export default function Presupuestos() {
   const liveTokenRef = useRef("");
   const signedUrlCacheRef = useRef(new Map());
   const cacheRef = useRef(new Map());
-
-  const showToast = useCallback((tipo, mensaje, duracion = 3200) => setToast({ tipo, mensaje, duracion }), []);
-  const closeToast = useCallback(() => setToast(null), []);
 
   const buildHeadersGET = useCallback(() => {
     const { token, sessionKey } = getAuthInfo();
@@ -621,12 +619,12 @@ export default function Presupuestos() {
   }, []);
 
   const apiGet = useCallback(async (url) => {
-    const res = await fetch(url, { method: "GET", headers: buildHeadersGET() });
+    const res = await documentosRequest(url, { method: "GET", headers: buildHeadersGET() });
     return await parseJsonOrThrow(res);
   }, [buildHeadersGET, parseJsonOrThrow]);
 
   const apiPostJson = useCallback(async (url, payload) => {
-    const res = await fetch(url, { method: "POST", headers: buildHeadersPOST(), body: JSON.stringify(payload ?? {}) });
+    const res = await documentosRequest(url, { method: "POST", headers: buildHeadersPOST(), body: JSON.stringify(payload ?? {}) });
     return await parseJsonOrThrow(res);
   }, [buildHeadersPOST, parseJsonOrThrow]);
 
@@ -1039,7 +1037,7 @@ export default function Presupuestos() {
       },
     }));
 
-    const res = await fetch(`${API}?action=ventas_comprobantes_vincular_movimiento`, {
+    const res = await documentosRequest(`${API}?action=ventas_comprobantes_vincular_movimiento`, {
       method: "POST",
       headers: buildHeadersForm(),
       body: fd,

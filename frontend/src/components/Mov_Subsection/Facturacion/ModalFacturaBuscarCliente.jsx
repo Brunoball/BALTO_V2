@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { facturacionFetch } from "./api/facturacionApi.js";
 import { FaSearch, FaCheck, FaTimes } from "react-icons/fa";
 import BASE_URL from "../../../config/config";
 
@@ -135,7 +136,7 @@ export default function ModalFacturaBuscarCliente({
     const incoming = new Headers(opts.headers || {});
     incoming.forEach((v, k) => headers.set(k, v));
 
-    const res = await fetch(url, { ...opts, headers });
+    const res = await facturacionFetch(url, { ...opts, headers });
     const raw = await res.text();
     const trimmed = (raw || "").trim();
 

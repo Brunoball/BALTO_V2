@@ -22,6 +22,8 @@ import ModalNuevoCheque from "../../../Global/Modales/ModalNuevoCheque.jsx";
 import ModalDetalleMovimiento from "../../../Global/Modales/ModalDetalleMovimiento.jsx";
 import { buildReciboHTML } from "../../../../utils/reciboTemplate";
 import { getResumenProductosMovimiento } from "../../_shared/detalleMovimiento.js";
+import { recibosFetch } from "../api/recibosApi.js";
+
 
 const API_CHECK_NUMERO_CHEQUE = `${BASE_URL}/api.php?action=mov_global_cheques_obtener&modo=verificar_numero`;
 const API_CHEQUES_ACTUALIZAR = `${BASE_URL}/api.php?action=mov_global_cheques_actualizar`;
@@ -218,7 +220,7 @@ async function parseJsonOrThrow(res) {
 }
 
 async function fetchJsonOrThrow(url, opts = {}) {
-  const res = await fetch(url, opts);
+  const res = await recibosFetch(url, opts);
   const text = await res.text();
   if (!text) throw new Error("Respuesta vacía del servidor.");
   let data;
@@ -1006,7 +1008,7 @@ export default function ModalPagarRecibos({
         params.set("id_cheque", String(idChequeActual));
       }
 
-      const res = await fetch(`${API_CHECK_NUMERO_CHEQUE}&${params.toString()}`, {
+      const res = await recibosFetch(`${API_CHECK_NUMERO_CHEQUE}&${params.toString()}`, {
         method: "GET",
         headers: buildAuthHeaders(false),
       });
@@ -1257,7 +1259,7 @@ export default function ModalPagarRecibos({
       fd.append("observaciones", String(cheque?.observaciones || "").trim());
       fd.append("archivo", cheque.archivo, cheque.archivo_nombre || cheque.archivo.name || "adjunto");
 
-      const res = await fetch(API_CHEQUES_ACTUALIZAR, {
+      const res = await recibosFetch(API_CHEQUES_ACTUALIZAR, {
         method: "POST",
         headers: buildAuthHeaders(false),
         body: fd,

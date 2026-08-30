@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { facturacionFetch } from "./api/facturacionApi.js";
 import { FaSearch, FaCheck, FaTimes } from "react-icons/fa";
 import "./ModalFacturaBalto.css";
 import ModalFacturaDatos from "./ModalFacturaDatos.jsx";
 import ModalFacturaBaltoResumen from "./ModalFacturaBaltoResumen.jsx";
 import BASE_URL from "../../../config/config";
+import { safeStr, safeJsonParse, todayISO } from "./utils/facturacionUtils.js";
 
 const DOC_TIPOS = [
   { id: 80, label: "CUIT (80)" },
@@ -26,18 +28,6 @@ const IVA_OPTIONS = [
 
 function onlyDigits(s) {
   return String(s || "").replace(/\D/g, "");
-}
-
-function safeStr(x) {
-  return String(x ?? "").trim();
-}
-
-function safeJsonParse(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
 }
 
 function normalizeApiBase(apiBaseProp) {
@@ -166,14 +156,6 @@ function mergeConfigsFacturacion(...lists) {
   });
 
   return out;
-}
-
-function todayISO() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
 }
 
 function plusDaysISO(days = 10) {
@@ -331,7 +313,7 @@ export default function ModalFacturaBalto({
     const incoming = new Headers(opts.headers || {});
     incoming.forEach((v, k) => headers.set(k, v));
 
-    const res = await fetch(url, { ...opts, headers });
+    const res = await facturacionFetch(url, { ...opts, headers });
     const raw = await res.text();
     const trimmed = (raw || "").trim();
 

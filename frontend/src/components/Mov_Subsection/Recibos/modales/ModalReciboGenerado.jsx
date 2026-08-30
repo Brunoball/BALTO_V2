@@ -15,6 +15,8 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 import html2pdf from "html2pdf.js/dist/html2pdf.min";
+import { recibosFetch } from "../api/recibosApi.js";
+
 
 /* =========================
    Helpers
@@ -123,7 +125,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
   const id = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(url, {
+    return await recibosFetch(url, {
       ...options,
       signal: controller.signal,
     });

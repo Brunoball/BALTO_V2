@@ -5,7 +5,6 @@ import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalPresupuesto.css";
 import "./ModalPresupuestosChecklist.css";
-import BASE_URL from "../../../../config/config";
 import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocomplete.jsx";
 import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
 import useStockBarcodeScanner from "../../_shared/useStockBarcodeScanner.js";
@@ -18,6 +17,7 @@ import {
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { savePresupuestoPdf } from "../../../../utils/PresupuestoPdfBuilder";
+import { DOCUMENTOS_API, documentosRequest } from "../api/documentosComercialesApi.js";
 
 const NULL_OPTION = "";
 const ADD_CLIENTE_OPTION = { __action: "add_cliente", id: "__add_cliente__", nombre: "➕ Agregar cliente" };
@@ -818,12 +818,12 @@ async function parseJsonOrThrow(res) {
 }
 
 async function apiGetJson(url) {
-  const res = await fetch(url, { method: "GET", headers: buildAuthHeaders(false) });
+  const res = await documentosRequest(url, { method: "GET", headers: buildAuthHeaders(false) });
   return await parseJsonOrThrow(res);
 }
 
 async function apiPostJson(url, payload) {
-  const res = await fetch(url, {
+  const res = await documentosRequest(url, {
     method: "POST",
     headers: buildAuthHeaders(true),
     body: JSON.stringify(payload ?? {}),
@@ -833,12 +833,12 @@ async function apiPostJson(url, payload) {
 
 async function apiPostForm(url, formData) {
   const headers = buildAuthHeaders(false);
-  const res = await fetch(url, { method: "POST", headers, body: formData });
+  const res = await documentosRequest(url, { method: "POST", headers, body: formData });
   return await parseJsonOrThrow(res);
 }
 
 export default function ModalNuevoPresupuesto({ open, lists, initialModel = null, modelsOpen = false, onOpenModels, onClose, onToast, onSaved }) {
-  const API = `${BASE_URL}/api.php`;
+  const API = DOCUMENTOS_API;
   const API_PADRON_CUIT = `${API}?action=padron_cuit&op=padron_cuit`;
   const API_SAVE_CLIENTE_DESDE_ARCA = `${API}?action=cliente_fiscal_crear_desde_arca`;
   const normalizedLists = useMemo(() => normalizeLists(lists), [lists]);

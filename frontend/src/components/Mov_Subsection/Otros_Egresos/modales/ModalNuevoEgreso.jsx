@@ -22,6 +22,7 @@ import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 // Estilos específicos compartidos por Nuevo Egreso y Editar Egreso
 import "./ModalEgreso.css";
+import { otrosEgresosFetch } from "../api/otrosEgresosApi.js";
 
 /* ─────────────────────────────────────────
    CONSTANTES Y HELPERS  (idénticos a NuevaCompra)
@@ -296,11 +297,11 @@ async function parseJsonOrThrow(res) {
   return data;
 }
 async function apiGet(url) {
-  const r = await fetch(url, { method: "GET", headers: buildAuthHeaders(false) });
+  const r = await otrosEgresosFetch(url, { method: "GET", headers: buildAuthHeaders(false) });
   return await parseJsonOrThrow(r);
 }
 async function apiPostForm(url, fd) {
-  const r = await fetch(url, { method: "POST", headers: buildAuthHeaders(false), body: fd });
+  const r = await otrosEgresosFetch(url, { method: "POST", headers: buildAuthHeaders(false), body: fd });
   return await parseJsonOrThrow(r);
 }
 
@@ -1000,7 +1001,7 @@ export default function ModalNuevoEgreso({
         const h = { "Content-Type": "application/json" };
         if (sessionKey) h["X-Session"] = sessionKey;
         if (token) h.Authorization = `Bearer ${token}`;
-        const response = await fetch(API_DETALLES_CREAR, {
+        const response = await otrosEgresosFetch(API_DETALLES_CREAR, {
           method: "POST",
           headers: h,
           body: JSON.stringify({ nombre: nombreDescripcion, idUsuario }),

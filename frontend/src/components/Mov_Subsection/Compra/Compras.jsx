@@ -40,6 +40,9 @@ import { useListas } from "../../../context/ListasContext.jsx";
 import { useDateRange } from "../../../context/DateRangeContext.jsx";
 import { readMovPerfCache, writeMovPerfCache, clearMovPerfCache } from "../_shared/performanceCache.js";
 import { getResumenProductosMovimiento } from "../_shared/detalleMovimiento.js";
+import { getComprasAuthInfo as getAuthInfo, comprasApiGet as apiGet, comprasApiPostJson as apiPostJson } from "./api/comprasApi.js";
+import useComprasToast from "./hooks/useComprasToast.js";
+import { moneyARS, safeText, numOrZero } from "./utils/comprasUtils.js";
 
 /* =========================
    PERF: paginado
@@ -51,59 +54,12 @@ const PAGE_LIMIT_API = PAGE_SIZE + 1;
 /* =========================
    Auth Helper MEJORADO
 ========================= */
-function getAuthInfo() {
-  const token = (localStorage.getItem("token") || "").trim();
-  const sessionKey = (
-    localStorage.getItem("session_key") ||
-    localStorage.getItem("sessionKey") ||
-    localStorage.getItem("X-Session") ||
-    localStorage.getItem("x_session") ||
-    ""
-  ).trim();
-
-  let idUsuario = 0;
-  let idUsuarioMaster = 0;
-  try {
-    const u = JSON.parse(localStorage.getItem("usuario") || "null");
-    // Prioridad: idUsuarioMaster > idUsuario > id_usuario > id > user_id
-    const candMaster = u?.idUsuarioMaster ?? 0;
-    const candNormal = u?.idUsuario ?? u?.id_usuario ?? u?.id ?? u?.user_id ?? 0;
-    
-    if (Number.isFinite(Number(candMaster)) && Number(candMaster) > 0) {
-      idUsuarioMaster = Number(candMaster);
-      idUsuario = Number(candMaster); // Para compatibilidad, usamos el mismo
-    } else if (Number.isFinite(Number(candNormal)) && Number(candNormal) > 0) {
-      idUsuario = Number(candNormal);
-      idUsuarioMaster = Number(candNormal);
-    }
-  } catch {}
-
-  return { token, sessionKey, idUsuario, idUsuarioMaster };
-}
 
 /* =========================
    Helpers generales
 ========================= */
-function moneyARS(v) {
-  const n = Number(v || 0);
-  try {
-    return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" });
-  } catch {
-    return `$${Number(n).toFixed(2)}`;
-  }
-}
-
-function safeText(v) {
-  const s = String(v ?? "").trim();
-  return s ? s : "—";
-}
 function productosLabel(row) {
   return getResumenProductosMovimiento(row);
-}
-
-function numOrZero(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
 }
 
 function pick(obj, keys, fallback = "") {
@@ -578,11 +534,7 @@ export default function Compras() {
   const [selectedRow, setSelectedRow] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
-  const [toast, setToast] = useState(null);
-  const showToast = useCallback((tipo, mensaje, duracion = 2800) => {
-    setToast({ tipo, mensaje, duracion });
-  }, []);
-  const closeToast = useCallback(() => setToast(null), []);
+  const { toast, showToast, closeToast } = useComprasToast();
 
   const cacheRef = useRef(new Map());
   const reqIdRef = useRef(0);
@@ -612,56 +564,6 @@ export default function Compras() {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
   }, []);
-
-  /* =========================
-     Headers con autenticación mejorada
-  ========================= */
-  const buildHeaders = useCallback(() => {
-    const { token, sessionKey } = getAuthInfo();
-    const h = { "Content-Type": "application/json" };
-    if (sessionKey) h["X-Session"] = sessionKey;
-    if (token) h["Authorization"] = `Bearer ${token}`;
-    return h;
-  }, []);
-
-  const buildHeadersGET = useCallback(() => {
-    const { token, sessionKey } = getAuthInfo();
-    const h = {};
-    if (sessionKey) h["X-Session"] = sessionKey;
-    if (token) h["Authorization"] = `Bearer ${token}`;
-    return h;
-  }, []);
-
-  const parseJsonOrThrow = useCallback(async (res) => {
-    const text = await res.text();
-    if (!text) throw new Error("Respuesta vacia del servidor.");
-    try {
-      return JSON.parse(text);
-    } catch {
-      const preview = text.length > 600 ? text.slice(0, 600) + "..." : text;
-      throw new Error(`Respuesta invalida (no es JSON). HTTP ${res.status}\n${preview}`);
-    }
-  }, []);
-
-  const apiGet = useCallback(
-    async (url) => {
-      const res = await fetch(url, { method: "GET", headers: buildHeadersGET() });
-      return await parseJsonOrThrow(res);
-    },
-    [buildHeadersGET, parseJsonOrThrow]
-  );
-
-  const apiPostJson = useCallback(
-    async (url, payload) => {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: buildHeaders(),
-        body: JSON.stringify(payload ?? {}),
-      });
-      return await parseJsonOrThrow(res);
-    },
-    [buildHeaders, parseJsonOrThrow]
-  );
 
   const refreshPeriodos = useCallback(async () => {
     try {

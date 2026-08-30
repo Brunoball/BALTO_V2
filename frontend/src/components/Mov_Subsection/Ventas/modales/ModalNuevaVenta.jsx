@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ventasFetch } from "../api/ventasApi.js";
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
@@ -345,7 +346,7 @@ function buildAuthHeaders(isJson = true) {
 }
 
 async function apiPostJson(url, payload) {
-  const res = await fetch(url, {
+  const res = await ventasFetch(url, {
     method: "POST",
     headers: buildAuthHeaders(true),
     body: JSON.stringify(payload ?? {}),
@@ -358,7 +359,7 @@ async function apiPostJsonConReintentoSeguro(url, payload, maxIntentos = 3) {
 
   for (let intento = 1; intento <= maxIntentos; intento += 1) {
     try {
-      const res = await fetch(url, {
+      const res = await ventasFetch(url, {
         method: "POST",
         headers: buildAuthHeaders(true),
         body: JSON.stringify(payload ?? {}),
@@ -403,7 +404,7 @@ async function fetchFormDataConReintentoSeguro(url, formData, maxIntentos = 3) {
 
   for (let intento = 1; intento <= maxIntentos; intento += 1) {
     try {
-      const res = await fetch(url, {
+      const res = await ventasFetch(url, {
         method: "POST",
         body: formData,
         headers: buildAuthHeaders(false),
@@ -444,7 +445,7 @@ async function fetchFormDataConReintentoSeguro(url, formData, maxIntentos = 3) {
 }
 
 async function apiGetJson(url) {
-  const res = await fetch(url, {
+  const res = await ventasFetch(url, {
     method: "GET",
     headers: buildAuthHeaders(false),
   });
@@ -1249,7 +1250,7 @@ function MpRowVenta({ row, mediosFilas = [], mediosPagoList, totalCompra, sumaMe
         params.set("id_cheque", String(idChequeActual));
       }
 
-      const res = await fetch(`${API_CHECK_NUMERO}&${params.toString()}`, {
+      const res = await ventasFetch(`${API_CHECK_NUMERO}&${params.toString()}`, {
         method: "GET",
         headers: buildAuthHeaders(false),
       });
@@ -2795,7 +2796,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
       fd.append("observaciones", String(cheque?.observaciones || "").trim());
       fd.append("archivo", cheque.archivo, cheque.archivo_nombre || cheque.archivo.name || "adjunto");
 
-      const res = await fetch(API_CHEQUES_ACTUALIZAR, {
+      const res = await ventasFetch(API_CHEQUES_ACTUALIZAR, {
         method: "POST",
         headers: buildAuthHeaders(false),
         body: fd,
@@ -3081,7 +3082,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
 
       fd.append("meta", JSON.stringify(meta));
 
-      const res = await fetch(API_VINCULAR_COMPROBANTE, {
+      const res = await ventasFetch(API_VINCULAR_COMPROBANTE, {
         method: "POST",
         body: fd,
         headers: buildAuthHeaders(false),
@@ -3143,7 +3144,7 @@ export default function ModalNuevaVenta({ open, lists, onClose, onToast, onSaved
 
       fd.append("meta", JSON.stringify(meta));
 
-      const res = await fetch(API_VINCULAR_COMPROBANTE, {
+      const res = await ventasFetch(API_VINCULAR_COMPROBANTE, {
         method: "POST",
         body: fd,
         headers: buildAuthHeaders(false),

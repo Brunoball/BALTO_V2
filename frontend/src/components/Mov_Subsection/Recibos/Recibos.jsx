@@ -34,6 +34,10 @@ import * as XLSX from "xlsx";
 import { useListas } from "../../../context/ListasContext.jsx";
 import { useDateRange } from "../../../context/DateRangeContext.jsx";
 import { getResumenProductosMovimiento } from "../_shared/detalleMovimiento.js";
+import { apiGet, apiPostJson, getAuthInfo } from "./api/recibosApi.js";
+import useRecibosToast from "./hooks/useRecibosToast.js";
+import { moneyARS, safeText, formatFechaDMY, dateToAPI, todayISO, formatDateUI, slugifySheetName, escapeCSV, downloadBlob, isAccionNoValidaErrorMessage } from "./utils/recibosUtils.js";
+
 
 /* =========================
    PERF
@@ -43,23 +47,6 @@ const PROBE_LIMIT = PAGE_SIZE + 1;
 const MIN_LOADING_MS = 0;
 const FORCE_SHOW_LOADER_DEV = false;
 const SKELETON_ROWS = 10;
-
-/* =========================
-   Helpers
-========================= */
-function moneyARS(v) {
-  const n = Number(v || 0);
-  try {
-    return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" });
-  } catch {
-    return `$${Number(n).toFixed(2)}`;
-  }
-}
-
-function safeText(v) {
-  const s = String(v ?? "").trim();
-  return s ? s : "—";
-}
 
 function getMontoTotalRow(row) {
   const n = Number(row?.monto_total ?? row?.total ?? 0);
@@ -164,81 +151,6 @@ function enriquecerDeudaConRowCompleta(deuda, rowCompleta) {
   };
 }
 
-function formatFechaDMY(v) {
-  const s = String(v ?? "").trim();
-  if (!s) return "—";
-
-  const m1 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m1) {
-    const yyyy = m1[1];
-    const mm = String(Number(m1[2])).padStart(2, "0");
-    const dd = String(Number(m1[3])).padStart(2, "0");
-    return `${dd}/${mm}/${yyyy}`;
-  }
-
-  const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m2) {
-    const dd = String(Number(m2[1])).padStart(2, "0");
-    const mm = String(Number(m2[2])).padStart(2, "0");
-    const yyyy = m2[3];
-    return `${dd}/${mm}/${yyyy}`;
-  }
-
-  return s;
-}
-
-function dateToAPI(d) {
-  if (!d) return "";
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function todayISO() {
-  return dateToAPI(new Date());
-}
-
-function formatDateUI(d) {
-  if (!d) return "—";
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-}
-
-/* =========================
-   Auth helpers
-========================= */
-function getAuthInfo() {
-  const token = (localStorage.getItem("token") || "").trim();
-
-  const sessionKey = (
-    localStorage.getItem("session_key") ||
-    localStorage.getItem("sessionKey") ||
-    localStorage.getItem("X-Session") ||
-    localStorage.getItem("x_session") ||
-    ""
-  ).trim();
-
-  let idUsuario = 0;
-  let idUsuarioMaster = 0;
-
-  try {
-    const u = JSON.parse(localStorage.getItem("usuario") || "null");
-
-    const candMaster = u?.idUsuarioMaster ?? 0;
-    const candNormal = u?.idUsuario ?? u?.id_usuario ?? u?.id ?? u?.user_id ?? 0;
-
-    if (Number.isFinite(Number(candMaster)) && Number(candMaster) > 0) {
-      idUsuarioMaster = Number(candMaster);
-      idUsuario = Number(candMaster);
-    } else if (Number.isFinite(Number(candNormal)) && Number(candNormal) > 0) {
-      idUsuario = Number(candNormal);
-      idUsuarioMaster = Number(candNormal);
-    }
-  } catch {}
-
-  return { token, sessionKey, idUsuario, idUsuarioMaster };
-}
-
 /* =========================
    Row key robusto
 ========================= */
@@ -252,17 +164,6 @@ function getRowKey(r) {
   return `fx:${f}|${c}|${d}|${m}`;
 }
 
-/* =========================
-   Export helpers
-========================= */
-function slugifySheetName(name) {
-  const s = String(name || "Recibos")
-    .replace(/[\[\]\*\/\\\?\:]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return (s || "Recibos").slice(0, 31);
-}
-
 function buildExportRows(rows) {
   return (Array.isArray(rows) ? rows : []).map((r) => ({
     FECHA: safeText(formatFechaDMY(r?.fecha)),
@@ -273,34 +174,6 @@ function buildExportRows(rows) {
     MONTO_ORIGINAL: getMontoTotalRow(r),
     COBRADO: getCobradoTotalRow(r),
   }));
-}
-
-function escapeCSV(value) {
-  const s = String(value ?? "");
-  if (/[",;\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-
-function downloadBlob(content, fileName, mimeType) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.URL.revokeObjectURL(url);
-}
-
-function isAccionNoValidaErrorMessage(msg) {
-  const s = String(msg || "").toLowerCase();
-  return (
-    s.includes("acción no válida") ||
-    s.includes("accion no valida") ||
-    s.includes("action no válida") ||
-    s.includes("action no valida")
-  );
 }
 
 export default function Recibos() {
@@ -345,32 +218,7 @@ export default function Recibos() {
   const [detalleRow, setDetalleRow] = useState(null);
   const [loadingClienteDeudas, setLoadingClienteDeudas] = useState(false);
 
-  const [toast, setToast] = useState(null);
-  const toastRafRef = useRef(null);
-
-  const showToast = useCallback((tipo, mensaje) => {
-    if (toastRafRef.current) {
-      cancelAnimationFrame(toastRafRef.current);
-      toastRafRef.current = null;
-    }
-
-    const nextId = Date.now() + Math.random();
-
-    setToast(null);
-
-    toastRafRef.current = window.requestAnimationFrame(() => {
-      setToast({ id: nextId, tipo, mensaje });
-      toastRafRef.current = null;
-    });
-  }, []);
-
-  const closeToast = useCallback(() => {
-    if (toastRafRef.current) {
-      cancelAnimationFrame(toastRafRef.current);
-      toastRafRef.current = null;
-    }
-    setToast(null);
-  }, []);
+  const { toast, showToast, closeToast } = useRecibosToast();
 
   const cacheRef = useRef(new Map());
   const reqIdRef = useRef(0);
@@ -384,62 +232,6 @@ export default function Recibos() {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
   }, []);
-
-  useEffect(() => {
-    return () => {
-      if (toastRafRef.current) cancelAnimationFrame(toastRafRef.current);
-    };
-  }, []);
-
-  /* =========================
-     API helpers
-  ========================= */
-  const buildHeadersGET = useCallback(() => {
-    const { token, sessionKey } = getAuthInfo();
-    const h = {};
-    if (sessionKey) h["X-Session"] = sessionKey;
-    if (token) h["Authorization"] = `Bearer ${token}`;
-    return h;
-  }, []);
-
-  const buildHeaders = useCallback(() => {
-    const { token, sessionKey } = getAuthInfo();
-    const h = { "Content-Type": "application/json" };
-    if (sessionKey) h["X-Session"] = sessionKey;
-    if (token) h["Authorization"] = `Bearer ${token}`;
-    return h;
-  }, []);
-
-  const parseJsonOrThrow = useCallback(async (res) => {
-    const text = await res.text();
-    if (!text) throw new Error("Respuesta vacía del servidor.");
-    try {
-      return JSON.parse(text);
-    } catch {
-      const preview = text.length > 600 ? text.slice(0, 600) + "..." : text;
-      throw new Error(`Respuesta inválida (no es JSON). HTTP ${res.status}\n${preview}`);
-    }
-  }, []);
-
-  const apiGet = useCallback(
-    async (url) => {
-      const res = await fetch(url, { method: "GET", headers: buildHeadersGET() });
-      return await parseJsonOrThrow(res);
-    },
-    [buildHeadersGET, parseJsonOrThrow]
-  );
-
-  const apiPostJson = useCallback(
-    async (url, payload) => {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: buildHeaders(),
-        body: JSON.stringify(payload ?? {}),
-      });
-      return await parseJsonOrThrow(res);
-    },
-    [buildHeaders, parseJsonOrThrow]
-  );
 
   /* =========================
      Comprobante helpers

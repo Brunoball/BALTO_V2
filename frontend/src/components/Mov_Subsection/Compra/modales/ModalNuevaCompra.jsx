@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { comprasFetch } from "../api/comprasApi.js";
 import { filtrarMediosPagoPorPlan } from "../../_shared/planMediosPago";
 import { createPortal } from "react-dom";
 import "../../../Global/Global_css/GlobalsModalsV2.css";
@@ -897,7 +898,7 @@ function buildAuthHeaders(isJson = true) {
 }
 
 async function apiGet(url) {
-  const res = await fetch(url, { method: "GET", headers: buildAuthHeaders(false) });
+  const res = await comprasFetch(url, { method: "GET", headers: buildAuthHeaders(false) });
   return await parseJsonOrThrow(res);
 }
 
@@ -905,7 +906,7 @@ async function fetchComprasListasFresh() {
   const base = String(BASE_URL || "").replace(/\/+$/, "");
   const sep = base.includes("?") ? "&" : "?";
   const url = `${base}/api.php${sep}action=global_obtener_listas&contexto=compras&include_sin_stock=1&_=${Date.now()}`;
-  const res = await fetch(url, {
+  const res = await comprasFetch(url, {
     method: "GET",
     headers: buildAuthHeaders(false),
     cache: "no-store",
@@ -914,7 +915,7 @@ async function fetchComprasListasFresh() {
 }
 
 async function apiPostJson(url, payload) {
-  const res = await fetch(url, {
+  const res = await comprasFetch(url, {
     method: "POST",
     headers: buildAuthHeaders(true),
     body: JSON.stringify(payload ?? {}),
@@ -922,7 +923,7 @@ async function apiPostJson(url, payload) {
   return await parseJsonOrThrow(res);
 }
 async function apiPostForm(url, fd) {
-  const res = await fetch(url, {
+  const res = await comprasFetch(url, {
     method: "POST",
     headers: buildAuthHeaders(false),
     body: fd,

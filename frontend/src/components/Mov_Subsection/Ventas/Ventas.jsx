@@ -39,6 +39,9 @@ import { useListas } from "../../../context/ListasContext.jsx";
 import { useDateRange } from "../../../context/DateRangeContext";
 import { readMovPerfCache, writeMovPerfCache, clearMovPerfCache } from "../_shared/performanceCache.js";
 import { getResumenProductosMovimiento } from "../_shared/detalleMovimiento.js";
+import { getVentasAuthInfo as getAuthInfo, ventasApiGet as apiGet, ventasApiPostJson as apiPostJson } from "./api/ventasApi.js";
+import useVentasToast from "./hooks/useVentasToast.js";
+import { moneyARS } from "./utils/ventasUtils.js";
 
 const MIN_LOADING_MS = 0;
 const FORCE_SHOW_LOADER_DEV = false;
@@ -50,7 +53,6 @@ const PREWARM_BATCH_SIZE = 8;
 const PREWARM_DELAY_MS = 60;
 const VENTAS_LIST_CACHE_KEY = "ventas:listar:cc-medios-r2-v12-nc-trazabilidad";
 
-function moneyARS(v) { const n = Number(v || 0); try { return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" }); } catch { return `$${n.toFixed(2)}`; } }
 function safeText(v) { const s = String(v ?? "").trim(); return s ? s : "—"; }
 function productosLabel(row) {
   const base = getResumenProductosMovimiento(row);
@@ -76,17 +78,6 @@ function parseRowFecha(v) {
 }
 function dateToAPI(d) { if (!d) return ""; return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function formatDateUI(d) { if (!d) return "—"; return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`; }
-function getAuthInfo() {
-  const token = (localStorage.getItem("token") || "").trim();
-  const sessionKey = (localStorage.getItem("session_key") || localStorage.getItem("sessionKey") || localStorage.getItem("X-Session") || "").trim();
-  let idUsuario = 0;
-  try {
-    const u = JSON.parse(localStorage.getItem("usuario") || "null");
-    const cand = u?.idUsuarioMaster ?? u?.idUsuario ?? u?.id_usuario ?? u?.id ?? u?.user_id ?? 0;
-    if (Number.isFinite(Number(cand))) idUsuario = Number(cand);
-  } catch {}
-  return { token, sessionKey, idUsuario };
-}
 function getMovimientoId(r) {
   const cand = r?.id_movimiento ?? r?.idMovimiento ?? r?.id_mov ?? r?.id ?? r?.id_venta ?? r?.idVenta ?? r?.venta_id ?? r?.movimiento_id ?? r?.id_movimiento_fk ?? null;
   const n = Number(cand);
@@ -350,9 +341,7 @@ export default function Ventas() {
   const signedUrlCacheRef = useRef(new Map());
   const signedUrlInFlightRef = useRef(new Set());
   const prewarmCancelRef = useRef(false);
-  const [toast, setToast] = useState(null);
-  const showToast = useCallback((tipo, mensaje, duracion = 2800) => setToast({ tipo, mensaje, duracion }), []);
-  const closeToast = useCallback(() => setToast(null), []);
+  const { toast, showToast, closeToast } = useVentasToast();
   const cacheRef = useRef(new Map());
   const reqIdRef = useRef(0);
   const rowsReqIdRef = useRef(0);
@@ -367,11 +356,6 @@ export default function Ventas() {
   useEffect(() => {
     ["ventas:listar:cc-medios-v2", "ventas:listar:cc-medios-v3", "ventas:listar:cc-medios-r2-v4", "ventas:listar:cc-medios-r2-v5", "ventas:listar:cc-medios-r2-v6", "ventas:listar:cc-medios-r2-v7", "ventas:listar:cc-medios-r2-v8-tn"].forEach((key) => clearMovPerfCache(key));
   }, []);
-  const buildHeadersGET = useCallback(() => { const { token, sessionKey } = getAuthInfo(); const h = {}; if (sessionKey) h["X-Session"] = sessionKey; if (token) h.Authorization = `Bearer ${token}`; return h; }, []);
-  const buildHeadersPOST = useCallback(() => { const { token, sessionKey } = getAuthInfo(); const h = { "Content-Type": "application/json" }; if (sessionKey) h["X-Session"] = sessionKey; if (token) h.Authorization = `Bearer ${token}`; return h; }, []);
-  const parseJsonOrThrow = useCallback(async (res) => { const text = await res.text(); if (!text) throw new Error("Respuesta vacía del servidor."); try { return JSON.parse(text); } catch { const preview = text.length > 600 ? text.slice(0, 600) + "..." : text; throw new Error(`Respuesta inválida (no es JSON). HTTP ${res.status}\n${preview}`); } }, []);
-  const apiGet = useCallback(async (url) => { const res = await fetch(url, { method: "GET", headers: buildHeadersGET() }); return await parseJsonOrThrow(res); }, [buildHeadersGET, parseJsonOrThrow]);
-  const apiPostJson = useCallback(async (url, payload) => { const res = await fetch(url, { method: "POST", headers: buildHeadersPOST(), body: JSON.stringify(payload ?? {}) }); return await parseJsonOrThrow(res); }, [buildHeadersPOST, parseJsonOrThrow]);
   const getComprobanteSignedUrl = useCallback(async (idComprobante, cacheSalt = "") => {
     const id = Number(idComprobante || 0); if (!id) return "";
     const cacheKey = `${id}:${String(cacheSalt || "")}`;

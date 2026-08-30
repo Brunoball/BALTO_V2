@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCheck, faPen, faTrashCan } from "@fortawesome/free-solid-svg-icons";
-import BASE_URL from "../../../../config/config";
 import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
 import useStockBarcodeScanner from "../../_shared/useStockBarcodeScanner.js";
 import ModalEliminar from "../../../Global/Modales/ModalEliminar.jsx";
@@ -11,6 +10,7 @@ import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalModelosPresupuesto.css";
 import "./ModalPresupuestosChecklist.css";
+import { DOCUMENTOS_API, documentosRequest } from "../api/documentosComercialesApi.js";
 
 const IVA_OPTIONS = [0, 10.5, 21, 27];
 
@@ -147,7 +147,7 @@ async function parseJson(res) {
 }
 
 export default function ModalModelosPresupuesto({ open, lists, onClose, onToast, onUseModel }) {
-  const API = `${BASE_URL}/api.php`;
+  const API = DOCUMENTOS_API;
   const stockOptions = useMemo(() => normalizeLists(lists), [lists]);
   const [modelos, setModelos] = useState([]);
   const [q, setQ] = useState("");
@@ -175,7 +175,7 @@ export default function ModalModelosPresupuesto({ open, lists, onClose, onToast,
     if (!open) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}?action=presupuestos_modelos_listar&limit=200`, {
+      const res = await documentosRequest(`${API}?action=presupuestos_modelos_listar&limit=200`, {
         method: "GET",
         headers: buildHeaders(false),
       });
@@ -366,7 +366,7 @@ export default function ModalModelosPresupuesto({ open, lists, onClose, onToast,
         },
         items: itemsPayload,
       };
-      const res = await fetch(`${API}?action=presupuestos_modelos_guardar`, {
+      const res = await documentosRequest(`${API}?action=presupuestos_modelos_guardar`, {
         method: "POST",
         headers: buildHeaders(true),
         body: JSON.stringify(payload),
@@ -388,7 +388,7 @@ export default function ModalModelosPresupuesto({ open, lists, onClose, onToast,
 
     setDeletingId(id);
     try {
-      const res = await fetch(`${API}?action=presupuestos_modelos_eliminar`, {
+      const res = await documentosRequest(`${API}?action=presupuestos_modelos_eliminar`, {
         method: "POST",
         headers: buildHeaders(true),
         body: JSON.stringify({ id_modelo: id }),

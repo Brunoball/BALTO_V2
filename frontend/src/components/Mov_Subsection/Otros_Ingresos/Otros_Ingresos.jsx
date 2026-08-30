@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { otrosIngresosFetch, getOtrosIngresosAuthInfo } from "./api/otrosIngresosApi.js";
+import useOtrosIngresosToast from "./hooks/useOtrosIngresosToast.js";
+import { moneyARS, safeText, cleanText, normalizeSearchText, formatFechaDMY, startOfDay, parseRowFecha, dateToAPI, formatDateUI } from "./utils/otrosIngresosUtils.js";
 import BASE_URL from "../../../config/config.jsx";
 import "../../Global/Global_css/Global_Section.css";
 import "../../Global/Global_css/roots.css";
@@ -48,23 +51,8 @@ const PAGE_SIZE = 100;
 const PROBE_LIMIT = PAGE_SIZE + 1;
 const SKELETON_ROWS = 10;
 
-function moneyARS(v) {
-  const n = Number(v || 0);
-  try {
-    return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" });
-  } catch {
-    return `$${n.toFixed(2)}`;
-  }
-}
 
-function safeText(v) {
-  const s = String(v ?? "").trim();
-  return s ? s : "—";
-}
 
-function cleanText(v) {
-  return String(v ?? "").trim();
-}
 function cantidadDetallesMovimiento(row) {
   const arrays = [row?.items_detalle, row?.itemsDetalle, row?.items, row?.detalles];
   for (const arr of arrays) {
@@ -90,94 +78,12 @@ function productosLabel(row) {
   return n === 1 ? "1 DETALLE" : `${n} DETALLES`;
 }
 
-function normalizeSearchText(v) {
-  return String(v ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
-function formatFechaDMY(v) {
-  const s = String(v ?? "").trim();
-  if (!s) return "—";
 
-  const m1 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m1) {
-    return `${String(Number(m1[3])).padStart(2, "0")}/${String(Number(m1[2])).padStart(
-      2,
-      "0"
-    )}/${m1[1]}`;
-  }
 
-  const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m2) {
-    return `${String(Number(m2[1])).padStart(2, "0")}/${String(Number(m2[2])).padStart(
-      2,
-      "0"
-    )}/${m2[3]}`;
-  }
 
-  return s;
-}
 
-function startOfDay(d) {
-  if (!d) return null;
-  const c = new Date(d);
-  c.setHours(0, 0, 0, 0);
-  return c;
-}
 
-function parseRowFecha(v) {
-  const s = String(v ?? "").trim();
-  if (!s) return null;
-
-  const m1 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m1) return startOfDay(new Date(Number(m1[1]), Number(m1[2]) - 1, Number(m1[3])));
-
-  const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m2) return startOfDay(new Date(Number(m2[3]), Number(m2[2]) - 1, Number(m2[1])));
-
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : startOfDay(d);
-}
-
-function dateToAPI(d) {
-  if (!d) return "";
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
-}
-
-function formatDateUI(d) {
-  if (!d) return "—";
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(
-    2,
-    "0"
-  )}/${d.getFullYear()}`;
-}
-
-function getAuthInfo() {
-  const token = (localStorage.getItem("token") || "").trim();
-  const sessionKey = (
-    localStorage.getItem("session_key") ||
-    localStorage.getItem("sessionKey") ||
-    localStorage.getItem("X-Session") ||
-    localStorage.getItem("x_session") ||
-    ""
-  ).trim();
-
-  let idUsuario = 0;
-  try {
-    const u = JSON.parse(localStorage.getItem("usuario") || "null");
-    const cand =
-      u?.idUsuarioMaster ?? u?.idUsuario ?? u?.id_usuario ?? u?.id ?? u?.user_id ?? 0;
-    if (Number.isFinite(Number(cand))) idUsuario = Number(cand);
-  } catch {}
-
-  return { token, sessionKey, idUsuario };
-}
 
 function getMovimientoId(r) {
   const cand =
@@ -499,11 +405,7 @@ export default function OtrosIngresos() {
   const [openMediosPago, setOpenMediosPago] = useState(false);
   const [selectedMediosRow, setSelectedMediosRow] = useState(null);
 
-  const [toast, setToast] = useState(null);
-  const showToast = useCallback((tipo, mensaje, duracion = 2800) => {
-    setToast({ tipo, mensaje, duracion });
-  }, []);
-  const closeToast = useCallback(() => setToast(null), []);
+  const { toast, showToast, closeToast } = useOtrosIngresosToast();
 
   const signedUrlCacheRef = useRef(new Map());
   const signedUrlInFlightRef = useRef(new Set());
@@ -532,7 +434,7 @@ export default function OtrosIngresos() {
   }, []);
 
   const buildHeadersGET = useCallback(() => {
-    const { token, sessionKey } = getAuthInfo();
+    const { token, sessionKey } = getOtrosIngresosAuthInfo();
     const h = {};
     if (sessionKey) h["X-Session"] = sessionKey;
     if (token) h.Authorization = `Bearer ${token}`;
@@ -540,7 +442,7 @@ export default function OtrosIngresos() {
   }, []);
 
   const buildHeadersPOST = useCallback(() => {
-    const { token, sessionKey } = getAuthInfo();
+    const { token, sessionKey } = getOtrosIngresosAuthInfo();
     const h = { "Content-Type": "application/json" };
     if (sessionKey) h["X-Session"] = sessionKey;
     if (token) h.Authorization = `Bearer ${token}`;
@@ -561,7 +463,7 @@ export default function OtrosIngresos() {
 
   const apiGet = useCallback(
     async (url) => {
-      const res = await fetch(url, { method: "GET", headers: buildHeadersGET() });
+      const res = await otrosIngresosFetch(url, { method: "GET", headers: buildHeadersGET() });
       return await parseJsonOrThrow(res);
     },
     [buildHeadersGET, parseJsonOrThrow]
@@ -569,7 +471,7 @@ export default function OtrosIngresos() {
 
   const apiPostJson = useCallback(
     async (url, payload) => {
-      const res = await fetch(url, {
+      const res = await otrosIngresosFetch(url, {
         method: "POST",
         headers: buildHeadersPOST(),
         body: JSON.stringify(payload ?? {}),
@@ -1072,7 +974,7 @@ export default function OtrosIngresos() {
   const apiPostSave = useCallback(
     async (payload, isEdit) => {
       setError("");
-      const { idUsuario } = getAuthInfo();
+      const { idUsuario } = getOtrosIngresosAuthInfo();
       const idUsuarioMaster = idUsuario;
       const action = isEdit ? "otros_ingresos_actualizar" : "otros_ingresos_crear";
 
@@ -1131,7 +1033,7 @@ export default function OtrosIngresos() {
     setError("");
 
     try {
-      const { idUsuario } = getAuthInfo();
+      const { idUsuario } = getOtrosIngresosAuthInfo();
       const idUsuarioMaster = idUsuario;
       const sp = new URLSearchParams();
       sp.set("action", "otros_ingresos_eliminar");

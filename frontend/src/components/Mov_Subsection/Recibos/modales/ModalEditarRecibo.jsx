@@ -13,6 +13,8 @@ import {
   faBoxOpen,
   faDollarSign,
 } from "@fortawesome/free-solid-svg-icons";
+import { recibosFetch } from "../api/recibosApi.js";
+
 
 const NULL_OPTION = "";
 const IVA_OPTIONS = [
@@ -163,7 +165,7 @@ async function apiGetJson(url) {
   if (sessionKey) headers["X-Session"] = sessionKey;
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(url, { method: "GET", headers });
+  const res = await recibosFetch(url, { method: "GET", headers });
   return await parseJsonOrThrow(res);
 }
 

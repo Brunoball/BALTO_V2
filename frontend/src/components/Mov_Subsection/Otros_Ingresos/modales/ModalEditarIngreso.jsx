@@ -21,6 +21,7 @@ import GlobalAutocomplete from "../../../Global/GlobalAutocomplete/GlobalAutocom
 import ProductStockAutocomplete from "../../_shared/ProductStockAutocomplete.jsx";
 import useStockBarcodeScanner from "../../_shared/useStockBarcodeScanner.js";
 import ModalNuevaDescripcion from "./ModalNuevaDescripcion.jsx";
+import { otrosIngresosFetch } from "../api/otrosIngresosApi.js";
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const NULL_OPTION = "";
@@ -806,7 +807,7 @@ export default function ModalEditarIngreso({
     if (!open || !(idMovimiento > 0)) { setComprobanteActual(null); return; }
     setLoadingComprobante(true);
     try {
-      const res = await fetch(
+      const res = await otrosIngresosFetch(
         `${API}?action=otros_ingresos_comprobantes_info&id_movimiento=${idMovimiento}`,
         { method: "GET", headers: buildHeadersGET() }
       );
@@ -1094,7 +1095,7 @@ export default function ModalEditarIngreso({
       if (idComprobante > 0) sp.set("id_comprobante", String(idComprobante));
       sp.set("id_movimiento", String(idMovimiento));
 
-      const res = await fetch(`${API}?${sp.toString()}`, {
+      const res = await otrosIngresosFetch(`${API}?${sp.toString()}`, {
         method: "GET",
         headers: buildHeadersGET(),
       });
@@ -1190,7 +1191,7 @@ export default function ModalEditarIngreso({
   const eliminarComprobanteExistente = useCallback(
     async (idMovimiento) => {
       const { idUsuario } = getAuthInfo();
-      const res = await fetch(`${API}?action=otros_ingresos_comprobantes_eliminar`, {
+      const res = await otrosIngresosFetch(`${API}?action=otros_ingresos_comprobantes_eliminar`, {
         method: "POST",
         headers: buildHeadersJSON(),
         body: JSON.stringify({
@@ -1214,7 +1215,7 @@ export default function ModalEditarIngreso({
       fd.append("archivo", archivo);
       fd.append("idUsuario", String(idUsuario || 0));
       fd.append("idUsuarioMaster", String(idUsuario || 0));
-      const res = await fetch(
+      const res = await otrosIngresosFetch(
         `${API}?action=otros_ingresos_comprobantes_vincular_movimiento_upload`,
         { method: "POST", headers: buildHeadersFormData(), body: fd }
       );
@@ -1395,7 +1396,7 @@ export default function ModalEditarIngreso({
         const headers = { "Content-Type": "application/json" };
         if (sessionKey) headers["X-Session"] = sessionKey;
         if (token) headers.Authorization = `Bearer ${token}`;
-        const res = await fetch(`${API}?action=otros_ingresos_detalles_crear`, {
+        const res = await otrosIngresosFetch(`${API}?action=otros_ingresos_detalles_crear`, {
           method: "POST",
           headers,
           body: JSON.stringify({ nombre, idUsuario, idUsuarioMaster: idUsuario }),

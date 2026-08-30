@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { comprasFetch } from "../api/comprasApi.js";
 import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -198,7 +199,7 @@ export default function ModalNotaCreditoProveedor({
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(
+      const response = await comprasFetch(
         `${API}?action=compras_nota_credito_contexto&id_movimiento=${idOrigen}`,
         { headers: headers() },
       );
@@ -385,7 +386,7 @@ export default function ModalNotaCreditoProveedor({
         descripcion_ajuste: descripcionAjuste || "DESCUENTO / BONIFICACIÓN",
       };
 
-      const response = await fetch(`${API}?action=compras_nota_credito_crear`, {
+      const response = await comprasFetch(`${API}?action=compras_nota_credito_crear`, {
         method: "POST",
         headers: headers(true),
         body: JSON.stringify(body),
@@ -405,7 +406,7 @@ export default function ModalNotaCreditoProveedor({
           formData.append("tipo", "NOTA_CREDITO_PROVEEDOR");
           formData.append("force", "0");
           formData.append("ids_movimiento", JSON.stringify([idNc]));
-          const uploadResponse = await fetch(
+          const uploadResponse = await comprasFetch(
             `${API}?action=compras_comprobantes_vincular_movimientos_lote_upload`,
             { method: "POST", headers: headers(), body: formData },
           );

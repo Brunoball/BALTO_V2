@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { facturacionFetch } from "./api/facturacionApi.js";
 import { FaCheck } from "react-icons/fa";
 import "./ModalFacturaBaltoResumen.css";
 import "../../Global/Global_css/Global_oscuro.css";
@@ -500,7 +501,7 @@ export default function ModalFacturaBaltoResumen({
         setConfigLoading(true);
         setConfigError("");
         try {
-          const res = await fetch(apiUrl({ action: "config_facturacion_get" }), {
+          const res = await facturacionFetch(apiUrl({ action: "config_facturacion_get" }), {
             method: "GET",
             headers: getAuthHeaders(),
           });
@@ -560,7 +561,7 @@ export default function ModalFacturaBaltoResumen({
       setConfigError("");
       try {
         const url = apiUrl({ action: "config_facturacion_get" });
-        const res = await fetch(url, {
+        const res = await facturacionFetch(url, {
           method: "GET",
           headers: getAuthHeaders(),
         });
@@ -712,7 +713,7 @@ export default function ModalFacturaBaltoResumen({
       return Number(cbteNoEmitidoRef.current || 0);
     }
 
-    const res = await fetch(
+    const res = await facturacionFetch(
       apiUrl({ action: "comprobantes_proximo_numero_no_emitido", tipo: "FACTURA" }),
       {
         method: "GET",
@@ -927,7 +928,7 @@ useEffect(() => {
   const fetchJSON = useCallback(
     async (url, opts) => {
       const headers = getAuthHeaders(opts?.headers || {});
-      const res = await fetch(url, { ...opts, headers });
+      const res = await facturacionFetch(url, { ...opts, headers });
       const raw = await res.text();
       const trimmed = (raw || "").trim();
 
@@ -1244,7 +1245,7 @@ useEffect(() => {
 
       fd.append("meta", JSON.stringify(meta));
 
-      const res = await fetch(apiUrl({ action: "comprobantes_vincular_movimiento" }), {
+      const res = await facturacionFetch(apiUrl({ action: "comprobantes_vincular_movimiento" }), {
         method: "POST",
         body: fd,
         headers: getAuthHeaders(),

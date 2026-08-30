@@ -34,6 +34,10 @@ import * as XLSX from "xlsx";
 import { useListas } from "../../../context/ListasContext.jsx";
 import { useDateRange } from "../../../context/DateRangeContext.jsx";
 import { getResumenProductosMovimiento } from "../_shared/detalleMovimiento.js";
+import { apiGet, apiPostJson, getAuthInfo, buildHeadersGET, ordenesPagoFetch } from "./api/ordenesPagoApi.js";
+import useOrdenesPagoToast from "./hooks/useOrdenesPagoToast.js";
+import { moneyARS, safeText, normalizeSearchText, formatFechaDMY, startOfDay, parseRowFecha, dateToAPI, todayISO, formatDateUI, rowInDateRange, slugifySheetName, escapeCSV, downloadBlob } from "./utils/ordenesPagoUtils.js";
+
 
 /* =========================
    PERF
@@ -41,22 +45,6 @@ import { getResumenProductosMovimiento } from "../_shared/detalleMovimiento.js";
 const PAGE_SIZE = 100;
 const SKELETON_ROWS = 10;
 const FORCE_SHOW_LOADER_DEV = false;
-
-/* =========================
-   Helpers generales
-========================= */
-function moneyARS(v) {
-  const n = Number(v || 0);
-  try {
-    return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" });
-  } catch {
-    return `$${Number(n).toFixed(2)}`;
-  }
-}
-function safeText(v) {
-  const s = String(v ?? "").trim();
-  return s ? s : "—";
-}
 function productosLabel(row) {
   return getResumenProductosMovimiento(row);
 }
@@ -119,118 +107,6 @@ function getEstadoOrdenPagoChipClass(row) {
   if (isParcialRow(row)) return "mov-chip mov-chip--warn mov-chip--partial";
   return "mov-chip mov-chip--warn";
 }
-function normalizeSearchText(v) {
-  return String(v ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-function formatFechaDMY(v) {
-  const s = String(v ?? "").trim();
-  if (!s) return "—";
-  const m1 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m1) {
-    const yyyy = m1[1];
-    const mm = String(Number(m1[2])).padStart(2, "0");
-    const dd = String(Number(m1[3])).padStart(2, "0");
-    return `${dd}/${mm}/${yyyy}`;
-  }
-  const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m2) {
-    const dd = String(Number(m2[1])).padStart(2, "0");
-    const mm = String(Number(m2[2])).padStart(2, "0");
-    const yyyy = m2[3];
-    return `${dd}/${mm}/${yyyy}`;
-  }
-  return s;
-}
-
-/* =========================
-   Fecha helpers para rango
-========================= */
-function startOfDay(d) {
-  if (!d) return null;
-  const c = new Date(d);
-  c.setHours(0, 0, 0, 0);
-  return c;
-}
-
-function parseRowFecha(v) {
-  const s = String(v ?? "").trim();
-  if (!s) return null;
-  const m1 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m1) return startOfDay(new Date(Number(m1[1]), Number(m1[2]) - 1, Number(m1[3])));
-  const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m2) return startOfDay(new Date(Number(m2[3]), Number(m2[2]) - 1, Number(m2[1])));
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? null : startOfDay(d);
-}
-
-function dateToAPI(d) {
-  if (!d) return "";
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function todayISO() {
-  return dateToAPI(new Date());
-}
-
-function formatDateUI(d) {
-  if (!d) return "—";
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-}
-
-function rowInDateRange(row, from, to) {
-  if (!from && !to) return true;
-  const fecha = parseRowFecha(row?.fecha);
-  if (!fecha) return true;
-  if (from && fecha < startOfDay(from)) return false;
-  if (to) {
-    const toEnd = startOfDay(to);
-    toEnd.setHours(23, 59, 59, 999);
-    if (fecha > toEnd) return false;
-  }
-  return true;
-}
-
-/* =========================
-   Auth helpers (ACTUALIZADO)
-========================= */
-function getAuthInfo() {
-  const token = (localStorage.getItem("token") || "").trim();
-  const sessionKey = (
-    localStorage.getItem("session_key") ||
-    localStorage.getItem("sessionKey") ||
-    localStorage.getItem("X-Session") ||
-    localStorage.getItem("x_session") ||
-    ""
-  ).trim();
-
-  let idUsuario = 0;
-  let idUsuarioMaster = 0;
-
-  try {
-    const u = JSON.parse(localStorage.getItem("usuario") || "null");
-
-    const candMaster = u?.idUsuarioMaster ?? 0;
-    const candNormal = u?.idUsuario ?? u?.id_usuario ?? u?.id ?? u?.user_id ?? 0;
-
-    if (Number.isFinite(Number(candMaster)) && Number(candMaster) > 0) {
-      idUsuarioMaster = Number(candMaster);
-      idUsuario = Number(candMaster);
-    } else if (Number.isFinite(Number(candNormal)) && Number(candNormal) > 0) {
-      idUsuario = Number(candNormal);
-      idUsuarioMaster = Number(candNormal);
-    }
-  } catch {}
-
-  return { token, sessionKey, idUsuario, idUsuarioMaster };
-}
 
 /* =========================
    ORDENES PAGO = COMPRAS CC
@@ -273,17 +149,6 @@ function rowMatchesQuery(row, query) {
   return hay.includes(qq);
 }
 
-/* =========================
-   Export helpers
-========================= */
-function slugifySheetName(name) {
-  const s = String(name || "OrdenesPago")
-    .replace(/[\[\]\*\/\\\?\:]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return (s || "OrdenesPago").slice(0, 31);
-}
-
 function buildExportRows(rows) {
   return (Array.isArray(rows) ? rows : []).map((r) => ({
     FECHA: safeText(formatFechaDMY(r?.fecha)),
@@ -292,24 +157,6 @@ function buildExportRows(rows) {
     ESTADO: getEstadoOrdenPagoLabel(r),
     MONTO: getSaldoPendienteRow(r),
   }));
-}
-
-function escapeCSV(value) {
-  const s = String(value ?? "");
-  if (/[",;\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-
-function downloadBlob(content, fileName, mimeType) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.URL.revokeObjectURL(url);
 }
 
 export default function OrdenesPago() {
@@ -344,31 +191,7 @@ export default function OrdenesPago() {
   const [hasMore, setHasMore] = useState(false);
   const [nextOffset, setNextOffset] = useState(null);
 
-  const [toast, setToast] = useState(null);
-  const toastRafRef = useRef(null);
-
-  const showToast = useCallback((tipo, mensaje) => {
-    if (toastRafRef.current) {
-      cancelAnimationFrame(toastRafRef.current);
-      toastRafRef.current = null;
-    }
-
-    const nextId = Date.now() + Math.random();
-
-    setToast(null);
-
-    toastRafRef.current = window.requestAnimationFrame(() => {
-      setToast({ id: nextId, tipo, mensaje });
-    });
-  }, []);
-
-  const closeToast = useCallback(() => {
-    if (toastRafRef.current) {
-      cancelAnimationFrame(toastRafRef.current);
-      toastRafRef.current = null;
-    }
-    setToast(null);
-  }, []);
+  const { toast, showToast, closeToast } = useOrdenesPagoToast();
 
   const cacheRef = useRef(new Map());
   const reqIdRef = useRef(0);
@@ -386,62 +209,6 @@ export default function OrdenesPago() {
     };
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (toastRafRef.current) cancelAnimationFrame(toastRafRef.current);
-    };
-  }, []);
-
-  /* =========================
-     API helpers
-  ========================= */
-  const buildHeadersGET = useCallback(() => {
-    const { token, sessionKey } = getAuthInfo();
-    const h = {};
-    if (sessionKey) h["X-Session"] = sessionKey;
-    if (token) h.Authorization = `Bearer ${token}`;
-    return h;
-  }, []);
-
-  const buildHeadersPOST = useCallback(() => {
-    const { token, sessionKey } = getAuthInfo();
-    const h = { "Content-Type": "application/json" };
-    if (sessionKey) h["X-Session"] = sessionKey;
-    if (token) h.Authorization = `Bearer ${token}`;
-    return h;
-  }, []);
-
-  const parseJsonOrThrow = useCallback(async (res) => {
-    const text = await res.text();
-    if (!text) throw new Error("Respuesta vacía del servidor.");
-    try {
-      return JSON.parse(text);
-    } catch {
-      const preview = text.length > 600 ? text.slice(0, 600) + "..." : text;
-      throw new Error(`Respuesta inválida (no es JSON). HTTP ${res.status}\n${preview}`);
-    }
-  }, []);
-
-  const apiGet = useCallback(
-    async (url) => {
-      const res = await fetch(url, { method: "GET", headers: buildHeadersGET() });
-      return await parseJsonOrThrow(res);
-    },
-    [buildHeadersGET, parseJsonOrThrow]
-  );
-
-  const apiPostJson = useCallback(
-    async (url, payload) => {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: buildHeadersPOST(),
-        body: JSON.stringify(payload ?? {}),
-      });
-      return await parseJsonOrThrow(res);
-    },
-    [buildHeadersPOST, parseJsonOrThrow]
-  );
-
   /* =========================
      GET COMPROBANTE SIGNED URL
   ========================= */
@@ -453,7 +220,7 @@ export default function OrdenesPago() {
     sp.set("action", "ordenes_pago_comprobante_descargar");
     sp.set("id_comprobante", String(id));
 
-    const res = await fetch(`${BASE_URL}/api.php?${sp.toString()}`, {
+    const res = await ordenesPagoFetch(`${BASE_URL}/api.php?${sp.toString()}`, {
       method: "GET",
       headers: buildHeadersGET(),
     });

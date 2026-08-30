@@ -4,7 +4,6 @@ import "../../../Global/Global_css/GlobalsModalsV2.css";
 import "../../../Global/Global_css/Global_responsive.css";
 import "../../../Global/Global_css/roots.css";
 import "./ModalPresupuesto.css";
-import BASE_URL from "../../../../config/config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCheckCircle,
@@ -16,9 +15,10 @@ import { PanelMediosPagoInlineVenta } from "../../Ventas/modales/ModalNuevaVenta
 import { saveVentaNoFacturadaPdf } from "../../../../utils/VentaNoFacturadaPdfBuilder";
 import { saveRemitoPdf } from "../../../../utils/RemitoPdfBuilder";
 import { DEMO_BLOCK_MESSAGE, isBaltoDemoMode } from "../../../../utils/demoMode";
+import { DOCUMENTOS_API, documentosRequest } from "../api/documentosComercialesApi.js";
 
 const NULL_OPTION = "";
-const API = `${BASE_URL}/api.php`;
+const API = DOCUMENTOS_API;
 const API_PRESUPUESTO_GET = `${API}?action=presupuestos_obtener`;
 const API_VENTA_GET = `${API}?action=ventas_obtener`;
 const API_CONVERTIR = `${API}?action=presupuestos_convertir_venta`;
@@ -205,12 +205,12 @@ async function parseJsonOrThrow(res) {
 }
 
 async function apiGetJson(url) {
-  const res = await fetch(url, { method: "GET", headers: buildAuthHeaders(false) });
+  const res = await documentosRequest(url, { method: "GET", headers: buildAuthHeaders(false) });
   return await parseJsonOrThrow(res);
 }
 
 async function apiPostJson(url, payload) {
-  const res = await fetch(url, {
+  const res = await documentosRequest(url, {
     method: "POST",
     headers: buildAuthHeaders(true),
     body: JSON.stringify(payload ?? {}),
@@ -1206,7 +1206,7 @@ export default function ModalAsignarPresupuestoVenta({
       },
     }));
 
-    const data = await fetch(API_VINCULAR_COMPROBANTE, {
+    const data = await documentosRequest(API_VINCULAR_COMPROBANTE, {
       method: "POST",
       headers: buildFormHeaders(),
       body: fd,
@@ -1259,7 +1259,7 @@ export default function ModalAsignarPresupuestoVenta({
     fd.append("observaciones", String(cheque?.observaciones || "").trim());
     fd.append("archivo", cheque.archivo, cheque.archivo_nombre || cheque.archivo.name || "cheque.pdf");
 
-    const data = await fetch(API_CHEQUES_ACTUALIZAR, {
+    const data = await documentosRequest(API_CHEQUES_ACTUALIZAR, {
       method: "POST",
       headers: buildFormHeaders(),
       body: fd,

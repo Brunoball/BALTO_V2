@@ -20,6 +20,7 @@ import {
   faMoneyCheckDollar,
   faCircleNotch,
 } from "@fortawesome/free-solid-svg-icons";
+import { otrosEgresosFetch } from "../api/otrosEgresosApi.js";
 
 /* ─── IVA options ─── */
 const IVA_OPTIONS = [
@@ -1213,7 +1214,7 @@ export default function ModalEditarEgreso({
     if (!open || !(idMovimiento > 0)) { setComprobanteActual(null); return; }
     setLoadingComprobante(true);
     try {
-      const res = await fetch(
+      const res = await otrosEgresosFetch(
         `${API}?action=otros_egresos_comprobantes_info&id_movimiento=${idMovimiento}`,
         { method: "GET", headers: buildHeadersGET() }
       );
@@ -1231,7 +1232,7 @@ export default function ModalEditarEgreso({
   useEffect(() => { if (open) cargarInfoComprobante(); }, [open, cargarInfoComprobante]);
 
   const apiGet = useCallback(async (url) => {
-    const res = await fetch(url, { method: "GET", headers: buildHeadersGET() });
+    const res = await otrosEgresosFetch(url, { method: "GET", headers: buildHeadersGET() });
     const data = await parseJsonOrThrow(res);
     if (!data?.exito) throw new Error(data?.mensaje || "No se pudo obtener la información.");
     return data;
@@ -1404,7 +1405,7 @@ export default function ModalEditarEgreso({
         sp.set("id_movimiento", String(idMovimiento));
       }
 
-      const res = await fetch(`${API}?${sp.toString()}`, {
+      const res = await otrosEgresosFetch(`${API}?${sp.toString()}`, {
         method: "GET",
         headers: buildHeadersGET(),
       });
@@ -1487,7 +1488,7 @@ export default function ModalEditarEgreso({
   }, []);
 
   const eliminarComprobanteExistente = useCallback(async (idMovimiento) => {
-    const res = await fetch(`${API}?action=otros_egresos_comprobantes_eliminar`, {
+    const res = await otrosEgresosFetch(`${API}?action=otros_egresos_comprobantes_eliminar`, {
       method: "POST",
       headers: buildHeadersJSON(),
       body: JSON.stringify({ id_movimiento: idMovimiento }),
@@ -1501,7 +1502,7 @@ export default function ModalEditarEgreso({
     const fd = new FormData();
     fd.append("id_movimiento", String(idMovimiento));
     fd.append("archivo", archivo);
-    const res = await fetch(`${API}?action=otros_egresos_comprobantes_vincular_movimiento_upload`, {
+    const res = await otrosEgresosFetch(`${API}?action=otros_egresos_comprobantes_vincular_movimiento_upload`, {
       method: "POST",
       headers: buildHeadersFormData(),
       body: fd,

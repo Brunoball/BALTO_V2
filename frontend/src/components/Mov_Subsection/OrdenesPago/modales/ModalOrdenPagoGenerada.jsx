@@ -16,6 +16,8 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 import html2pdf from "html2pdf.js/dist/html2pdf.min";
+import { ordenesPagoFetch } from "../api/ordenesPagoApi.js";
+
 
 /* =========================
    Helpers
@@ -106,7 +108,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    return await ordenesPagoFetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(id);
   }

@@ -22,6 +22,8 @@ import ModalOrdenPagoGenerada from "./ModalOrdenPagoGenerada";
 import ModalDetalleMovimiento from "../../../Global/Modales/ModalDetalleMovimiento.jsx";
 import { buildOrdenPagoHTML } from "../../../../utils/ordenPagoTemplate";
 import { getResumenProductosMovimiento } from "../../_shared/detalleMovimiento.js";
+import { ordenesPagoFetch } from "../api/ordenesPagoApi.js";
+
 
 /* =========================
    Helpers
@@ -184,7 +186,7 @@ function isParcialRow(row) {
 }
 
 async function fetchJsonOrThrow(url, opts = {}) {
-  const res = await fetch(url, opts);
+  const res = await ordenesPagoFetch(url, opts);
   const text = await res.text();
   if (!text) throw new Error("Respuesta vacía del servidor.");
   let data;

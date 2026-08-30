@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ventasFetch } from "../api/ventasApi.js";
 import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -243,7 +244,7 @@ export default function ModalEmitirNotaCreditoVenta({
     if (!id) return;
     setLoading(true); setError("");
     try {
-      const res = await fetch(creditActionUrl("contexto", { id_movimiento: id }), { headers: headers() });
+      const res = await ventasFetch(creditActionUrl("contexto", { id_movimiento: id }), { headers: headers() });
       const data = await parseJsonOrThrow(res);
       const ctx = data.contexto || data.data?.contexto || null;
       setContexto(ctx);
@@ -411,14 +412,14 @@ export default function ModalEmitirNotaCreditoVenta({
   const uploadPdf = useCallback(async (idMovimientoDestino, pdfBlob, filename, tipo, meta) => {
     const fd = new FormData(); fd.append("tipo", tipo); fd.append("id_movimiento", String(idMovimientoDestino));
     fd.append("pdf", pdfBlob, filename); fd.append("meta", JSON.stringify(meta || {}));
-    const res = await fetch(`${API}?action=${actionScope}_comprobantes_vincular_movimiento`, { method: "POST", headers: headers(), body: fd });
+    const res = await ventasFetch(`${API}?action=${actionScope}_comprobantes_vincular_movimiento`, { method: "POST", headers: headers(), body: fd });
     return parseJsonOrThrow(res);
   }, [API, actionScope]);
 
   const crearInterna = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const res = await fetch(creditActionUrl("crear"), {
+      const res = await ventasFetch(creditActionUrl("crear"), {
         method: "POST",
         headers: headers(true),
         body: JSON.stringify(creditPayload("crear", payloadBase())),
@@ -487,7 +488,7 @@ export default function ModalEmitirNotaCreditoVenta({
         cbtes_asoc: resumenData.cbtes_asoc,
         importe_fiscal: Number(fiscal.imp_total || totalSeleccionado)
       };
-      const res = await fetch(creditActionUrl("aplicar"), {
+      const res = await ventasFetch(creditActionUrl("aplicar"), {
         method: "POST",
         headers: headers(true),
         body: JSON.stringify(creditPayload("aplicar", body)),
