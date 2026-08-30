@@ -1,6 +1,5 @@
 // src/components/Dashboard/Dashboard.jsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import BASE_URL from "../../config/config";
+import React, { useCallback, useMemo, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faArrowDown,
@@ -20,158 +19,15 @@ import Toast from "../Global/Toast.jsx";
 import "./dashboard.css";
 import "../Global/Global_css/Global_responsive.css";
 import { useListas } from "../../context/ListasContext";
-
-const EMPTY_DASHBOARD = {
-  rango: null,
-  kpis: {},
-  series_diaria: [],
-};
-
-function normalizeRol(value) {
-  if (value == null) return "empleado_basico";
-  const v = String(value).trim().toLowerCase();
-  if (["1", "admin", "administrator", "administrador", "superadmin"].includes(v)) {
-    return "admin";
-  }
-  return "empleado_basico";
-}
-
-function normalizePlanNivel(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 1;
-  if (n <= 1) return 1;
-  if (n === 2) return 2;
-  return 3;
-}
-
-function getUsuarioFromStorage() {
-  try {
-    const raw = localStorage.getItem("usuario");
-    if (!raw) return null;
-    const u = JSON.parse(raw);
-    if (u) u.rol = normalizeRol(u.rol ?? u.tipo_rol ?? u.id_rol);
-    return u || null;
-  } catch {
-    return null;
-  }
-}
-
-function getSessionKey(usuario) {
-  return (
-    localStorage.getItem("session_key") ||
-    localStorage.getItem("sessionKey") ||
-    localStorage.getItem("x-session") ||
-    usuario?.session_key ||
-    usuario?.sessionKey ||
-    usuario?.token ||
-    ""
-  );
-}
-
-function getApiEndpoint() {
-  const base = String(BASE_URL || "").trim().replace(/\/+$/, "");
-  if (!base) return "api.php";
-  if (base.endsWith("/api.php") || base.endsWith(".php")) return base;
-  return `${base}/api.php`;
-}
-
-function buildApiUrl(action, params = {}) {
-  const api = getApiEndpoint();
-  const query = new URLSearchParams({ action, ...params });
-  const separator = api.includes("?") ? "&" : "?";
-  return `${api}${separator}${query.toString()}`;
-}
-
-function formatMoney(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "$ 0,00";
-  return new Intl.NumberFormat("es-AR", {
-    style: "currency",
-    currency: "ARS",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
-}
-
-function formatNumber(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "0";
-  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(
-    Math.round(n)
-  );
-}
-
-
-function toFiniteNumber(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function useCountUp(value, { duration = 850 } = {}) {
-  const target = toFiniteNumber(value);
-  const [displayValue, setDisplayValue] = useState(0);
-  const displayRef = useRef(0);
-  const frameRef = useRef(null);
-
-  useEffect(() => {
-    const getNow = () =>
-      typeof performance !== "undefined" && typeof performance.now === "function"
-        ? performance.now()
-        : Date.now();
-
-    const requestFrame =
-      typeof requestAnimationFrame === "function"
-        ? requestAnimationFrame
-        : (callback) => setTimeout(() => callback(getNow()), 16);
-
-    const cancelFrame =
-      typeof cancelAnimationFrame === "function" ? cancelAnimationFrame : clearTimeout;
-
-    const reduceMotion =
-      typeof window !== "undefined" &&
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    if (frameRef.current) cancelFrame(frameRef.current);
-
-    const startValue = displayRef.current;
-    const endValue = target;
-
-    if (reduceMotion || startValue === endValue) {
-      displayRef.current = endValue;
-      setDisplayValue(endValue);
-      return undefined;
-    }
-
-    const startedAt = getNow();
-    const distance = endValue - startValue;
-
-    const tick = (now) => {
-      const elapsed = now - startedAt;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const nextValue = startValue + distance * eased;
-
-      displayRef.current = nextValue;
-      setDisplayValue(nextValue);
-
-      if (progress < 1) {
-        frameRef.current = requestFrame(tick);
-      } else {
-        displayRef.current = endValue;
-        setDisplayValue(endValue);
-      }
-    };
-
-    frameRef.current = requestFrame(tick);
-
-    return () => {
-      if (frameRef.current) cancelFrame(frameRef.current);
-    };
-  }, [target, duration]);
-
-  return displayValue;
-}
+import useCountUp from "./hooks/useCountUp";
+import useDashboardDatos from "./hooks/useDashboardDatos";
+import {
+  formatDateES,
+  formatMoney,
+  formatMonthLabel,
+  formatNumber,
+  moneyClass,
+} from "./utils/dashboardUtils";
 
 function AnimatedValue({
   value,
@@ -183,50 +39,6 @@ function AnimatedValue({
   const animatedValue = useCountUp(value, { duration });
 
   return <Tag className={className}>{formatter(animatedValue)}</Tag>;
-}
-
-function moneyClass(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n === 0) return "";
-  return n < 0 ? "is-negative" : "is-positive";
-}
-
-function formatDateES(iso) {
-  if (!iso) return "";
-  const [y, m, d] = String(iso).split("-");
-  if (!y || !m || !d) return String(iso);
-  return `${d}/${m}/${y}`;
-}
-
-function formatMonthLabel(iso) {
-  let date = null;
-
-  if (iso) {
-    const [y, m] = String(iso).split("-");
-    if (y && m) date = new Date(Number(y), Number(m) - 1, 1);
-  }
-
-  if (!date || Number.isNaN(date.getTime())) {
-    const now = new Date();
-    date = new Date(now.getFullYear(), now.getMonth(), 1);
-  }
-
-  const label = new Intl.DateTimeFormat("es-AR", {
-    month: "long",
-    year: "numeric",
-  }).format(date);
-
-  return label.charAt(0).toUpperCase() + label.slice(1);
-}
-
-function normalizePayload(payload) {
-  const data = payload?.data ?? payload ?? {};
-
-  return {
-    rango: data.rango ?? null,
-    kpis: data.kpis ?? {},
-    series_diaria: Array.isArray(data.series_diaria) ? data.series_diaria : [],
-  };
 }
 
 function DashboardBarChart({ rows }) {
@@ -401,14 +213,7 @@ function SideIndicators({ kpis }) {
 export default function Dashboard() {
   const { ensureListsLoaded } = useListas();
 
-  const [loadingInicial, setLoadingInicial] = useState(true);
-  const [loadingDashboard, setLoadingDashboard] = useState(true);
-  const [dashboard, setDashboard] = useState(EMPTY_DASHBOARD);
   const [toast, setToast] = useState(null);
-
-  const didWarmupRef = useRef(false);
-  const mountedRef = useRef(false);
-  const dashboardRequestSeqRef = useRef(0);
 
   const showToast = useCallback((tipo, mensaje, duracion = 3200) => {
     setToast({ tipo, mensaje, duracion });
@@ -416,93 +221,10 @@ export default function Dashboard() {
 
   const closeToast = useCallback(() => setToast(null), []);
 
-  const usuario = useMemo(() => getUsuarioFromStorage(), []);
-
-  const fetchDashboard = useCallback(async () => {
-    const requestId = dashboardRequestSeqRef.current + 1;
-    dashboardRequestSeqRef.current = requestId;
-
-    setLoadingDashboard(true);
-
-    try {
-      const sessionKey = getSessionKey(usuario);
-      const headers = { Accept: "application/json" };
-
-      if (sessionKey) headers["X-Session"] = sessionKey;
-
-      const res = await fetch(buildApiUrl("dashboard_resumen"), {
-        method: "GET",
-        headers,
-      });
-
-      const text = await res.text();
-
-      let json = null;
-
-      try {
-        json = text ? JSON.parse(text) : null;
-      } catch {
-        throw new Error(text?.slice(0, 180) || "La API no devolvió JSON válido.");
-      }
-
-      if (!res.ok || json?.exito === false) {
-        throw new Error(json?.mensaje || `Error HTTP ${res.status}`);
-      }
-
-      if (!mountedRef.current || requestId !== dashboardRequestSeqRef.current) return;
-
-      setDashboard(normalizePayload(json));
-    } catch (error) {
-      if (!mountedRef.current || requestId !== dashboardRequestSeqRef.current) return;
-
-      const mensaje = error?.message || "No se pudo cargar el dashboard.";
-      setDashboard(EMPTY_DASHBOARD);
-      showToast("error", mensaje, 5200);
-    } finally {
-      if (mountedRef.current && requestId === dashboardRequestSeqRef.current) {
-        setLoadingDashboard(false);
-      }
-    }
-  }, [usuario, showToast]);
-
-  useEffect(() => {
-    if (didWarmupRef.current) return;
-
-    didWarmupRef.current = true;
-
-    let alive = true;
-
-    const fallback = setTimeout(() => {
-      if (!alive) return;
-      setLoadingInicial(false);
-    }, 8000);
-
-    (async () => {
-      try {
-        await ensureListsLoaded({ force: true, background: true });
-      } catch {
-        // El provider ya maneja el error general de listas.
-      } finally {
-        if (!alive) return;
-        clearTimeout(fallback);
-        setLoadingInicial(false);
-      }
-    })();
-
-    return () => {
-      alive = false;
-      clearTimeout(fallback);
-    };
-  }, [ensureListsLoaded]);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    fetchDashboard();
-
-    return () => {
-      mountedRef.current = false;
-    };
-  }, [fetchDashboard]);
+  const { loadingInicial, loadingDashboard, dashboard } = useDashboardDatos({
+    ensureListsLoaded,
+    showToast,
+  });
 
   const kpis = dashboard.kpis || {};
 

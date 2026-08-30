@@ -11,40 +11,13 @@ import {
   faUsers,
 } from "@fortawesome/free-solid-svg-icons";
 
-import BASE_URL from "../../../config/config";
 import Toast from "../../Global/Toast";
+import { apiFetch, safeJsonParse } from "../api/configuracionApi";
+import useConfiguracionToast from "../hooks/useConfiguracionToast";
 import ModalEliminar from "../../Global/Modales/ModalEliminar";
 import ModalUsuario from "./modales/ModalUsuario";
 import "./ConfiguracionUsuarios.css";
 
-const API_RELATIVE = "api.php";
-
-function buildApiUrl(paramsObj = {}) {
-  const baseRaw = String(BASE_URL || "").trim();
-  const base = baseRaw.replace(/\/+$/, "") + "/";
-  const url = new URL(API_RELATIVE, base);
-  const qs = new URLSearchParams();
-
-  Object.entries(paramsObj || {}).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    qs.set(k, String(v));
-  });
-
-  url.search = qs.toString();
-  return url.toString();
-}
-
-function getSessionKey() {
-  return String(localStorage.getItem("session_key") || "").trim();
-}
-
-function safeJsonParse(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
 
 function normalizarMensajeError(mensaje) {
   const msg = String(mensaje || "").trim();
@@ -74,19 +47,6 @@ function normalizarMensajeError(mensaje) {
   }
 
   return msg;
-}
-
-async function apiFetch(paramsObj = {}, options = {}) {
-  const headers = new Headers(options.headers || {});
-  const sessionKey = getSessionKey();
-
-  if (sessionKey) headers.set("X-Session", sessionKey);
-
-  if (options.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  return fetch(buildApiUrl(paramsObj), { ...options, headers });
 }
 
 function normalizeRolCodigo(value) {
@@ -292,18 +252,13 @@ export default function ConfiguracionUsuarios() {
   const [usuarioACambiarEstado, setUsuarioACambiarEstado] = useState(null);
 
   const [editandoUsuarioActualFijo, setEditandoUsuarioActualFijo] = useState(false);
-  const [toast, setToast] = useState(null);
+  const { toast, setToast, mostrarToast } = useConfiguracionToast({
+    defaultDuration: 2800,
+    fallbackMessage: "Ocurrió un error inesperado.",
+    normalizeMessage: normalizarMensajeError,
+  });
 
   const esEdicion = Number(form.idUsuarioMaster || 0) > 0;
-
-  const mostrarToast = useCallback((tipo, mensaje, duracion = 2800) => {
-    setToast({
-      tipo,
-      mensaje: normalizarMensajeError(mensaje),
-      duracion,
-      key: Date.now(),
-    });
-  }, []);
 
   const rolEmpleadoDefault = useMemo(() => {
     return roles.find((r) => normalizeRolCodigo(r.codigo || r.tipo_rol) === "empleado_basico") || roles[0] || null;

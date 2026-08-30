@@ -16,16 +16,13 @@ import {
   faTimes,
 } from "@fortawesome/free-solid-svg-icons";
 import {
-  API_URL,
-  buildHeadersGET,
-  buildHeadersJSON,
   getUsuarioAuditData,
   moneyToApi,
   moneyToInput,
-  parseJsonOrThrow,
-} from "./stockFormUtils";
+} from "../utils/stockFormUtils";
 import "./ModalAjustePrecios.css";
 import { isTopStockModal } from "./modalStackUtils";
+import { stockGet, stockPost } from "../api/stockApi";
 
 const TOAST_LOADING_DURATION = 600000;
 const DEFAULT_BULK_LOADING_THRESHOLD = 10;
@@ -92,21 +89,11 @@ function targetLabel(row) {
 
 async function apiGet(paramsObj) {
   const params = new URLSearchParams(paramsObj);
-  const res = await fetch(`${API_URL}?${params.toString()}`, {
-    method: "GET",
-    headers: buildHeadersGET(),
-    cache: "no-store",
-  });
-  return await parseJsonOrThrow(res);
+  return stockGet(String(params.get("action") || ""), params);
 }
 
 async function apiPost(action, body) {
-  const res = await fetch(`${API_URL}?action=${encodeURIComponent(action)}`, {
-    method: "POST",
-    headers: buildHeadersJSON(),
-    body: JSON.stringify(body || {}),
-  });
-  return await parseJsonOrThrow(res);
+  return stockPost(action, body || {});
 }
 
 function delay(ms) {

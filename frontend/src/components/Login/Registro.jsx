@@ -1,9 +1,9 @@
 // src/components/Auth/Registro.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import BASE_URL from "../../config/config";
 import "./registro.css";
 import Toast from "../Global/Toast";
+import { registrarUsuario } from "./api/loginApi";
 
 const ROLES = [
   { value: "vista", label: "Rol: Vista (solo lectura)" },
@@ -58,19 +58,11 @@ const Registro = () => {
       setCargando(true);
       mostrarToast("cargando", "Registrando usuario...", 10000);
 
-      const respuesta = await fetch(`${BASE_URL}/api.php?action=registro`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: nombreTrim, contrasena, rol }),
+      const { data } = await registrarUsuario({
+        nombre: nombreTrim,
+        contrasena,
+        rol,
       });
-
-      const txt = await respuesta.text();
-      let data = null;
-      try {
-        data = JSON.parse(txt);
-      } catch {
-        throw new Error(`Respuesta inválida: ${txt.slice(0, 200)}`);
-      }
 
       setCargando(false);
 

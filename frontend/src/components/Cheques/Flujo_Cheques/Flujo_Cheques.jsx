@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import BASE_URL from "../../../config/config";
 import "../../Global/Global_css/Global_Section.css";
 import "../../Global/Global_css/Global_responsive.css";
 import Toast from "../../Global/Toast.jsx";
@@ -15,274 +14,25 @@ import {
   faEye,
   faRotateLeft,
 } from "@fortawesome/free-solid-svg-icons";
-
-/* ═══════════════════════════════════════════
-   Auth helpers
-═══════════════════════════════════════════ */
-function getAuthHeaders() {
-  const sessionKey = (localStorage.getItem("session_key") || "").trim();
-  const token = (localStorage.getItem("token") || "").trim();
-
-  const headers = {};
-  if (sessionKey) headers["X-Session"] = sessionKey;
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-
-  return headers;
-}
-
-function usuarioActualEsAdmin() {
-  try {
-    const usuario = JSON.parse(localStorage.getItem("usuario") || "null");
-    const idRol = Number(
-      usuario?.id_rol ??
-        usuario?.idRol ??
-        usuario?.idRolMaster ??
-        usuario?.id_rol_master ??
-        0
-    );
-    const rol = String(
-      usuario?.tipo_rol ??
-        usuario?.rol ??
-        usuario?.nombre_rol ??
-        usuario?.nombreRol ??
-        ""
-    )
-      .trim()
-      .toLowerCase()
-      .replace(/[\s-]+/g, "_");
-
-    return (
-      idRol === 1 ||
-      ["1", "admin", "administrator", "administrador", "superadmin", "super_admin"].includes(rol)
-    );
-  } catch {
-    return false;
-  }
-}
-
-function notifyReversionDeposito() {
-  try {
-    if (typeof window === "undefined") return;
-
-    const storage = window.sessionStorage || null;
-    const prefix = "balto_movimientos_perf_v2:";
-    if (storage) {
-      const scopes = [":otros_egresos:listar", ":movimientos:listar", ":flujo_caja"];
-      const keys = [];
-      for (let i = 0; i < storage.length; i += 1) {
-        const key = storage.key(i);
-        if (key?.startsWith(prefix) && scopes.some((scope) => key.includes(scope))) {
-          keys.push(key);
-        }
-      }
-      keys.forEach((key) => storage.removeItem(key));
-    }
-
-    window.dispatchEvent(
-      new CustomEvent("balto:movimientos-mutados", {
-        detail: {
-          origen: "reversion_deposito_cheque_banco",
-          modulos: ["otros_egresos", "movimientos", "flujo_caja", "cheques"],
-          ts: Date.now(),
-        },
-      })
-    );
-  } catch {
-    // La actualización visual nunca debe bloquear una reversión ya confirmada.
-  }
-}
-
-function withSessionKey(url) {
-  const base = String(url || "").trim();
-  if (!base) return "";
-
-  try {
-    const sessionKey = (localStorage.getItem("session_key") || "").trim();
-    const token = (localStorage.getItem("token") || "").trim();
-    const u = new URL(base, window.location.origin);
-
-    if (sessionKey && !u.searchParams.has("session_key")) {
-      u.searchParams.set("session_key", sessionKey);
-    }
-
-    if (token && !u.searchParams.has("token")) {
-      u.searchParams.set("token", token);
-    }
-
-    return u.toString();
-  } catch {
-    return base;
-  }
-}
-
-async function parseJsonOrThrow(res) {
-  const text = await res.text();
-
-  if (!text) {
-    throw new Error("Respuesta vacía del servidor.");
-  }
-
-  let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error(`Respuesta inválida. HTTP ${res.status}`);
-  }
-
-  if (!res.ok || data?.exito === false) {
-    throw new Error(data?.mensaje || `Error HTTP ${res.status}`);
-  }
-
-  return data;
-}
-
-/* ═══════════════════════════════════════════
-   Format helpers
-═══════════════════════════════════════════ */
-function formatFecha(fecha) {
-  const s = String(fecha || "").trim();
-
-  if (!s) return "—";
-
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
-}
-
-function moneyARS(valor) {
-  const n = Number(valor || 0);
-
-  try {
-    return n.toLocaleString("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    });
-  } catch {
-    return `$${n.toFixed(2)}`;
-  }
-}
-
-function safeText(v) {
-  const s = String(v ?? "").trim();
-  return s !== "" ? s : "—";
-}
-
-function boolish(value, fallback = false) {
-  if (value === null || typeof value === "undefined") return fallback;
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value === 1;
-
-  const s = String(value).trim().toLowerCase();
-
-  if (["1", "true", "sí", "si", "yes"].includes(s)) return true;
-  if (["0", "false", "no", ""].includes(s)) return false;
-
-  return fallback;
-}
-
-/**
- * Detecta MIME por ruta/nombre.
- * Si no puede detectar, devuelve "".
- * No fuerza PDF acá para no pisar imágenes reales.
- */
-function inferMime(path) {
-  const p = String(path || "").trim().toLowerCase();
-
-  if (!p) return "";
-
-  if (p.includes(".png")) return "image/png";
-  if (p.includes(".jpg") || p.includes(".jpeg")) return "image/jpeg";
-  if (p.includes(".webp")) return "image/webp";
-  if (p.includes(".gif")) return "image/gif";
-  if (p.includes(".bmp")) return "image/bmp";
-  if (p.includes(".svg")) return "image/svg+xml";
-  if (p.includes(".pdf")) return "application/pdf";
-
-  return "";
-}
-
-function getArchivoRef(row) {
-  return (
-    row?.archivo_path ??
-    row?.archivoPath ??
-    row?.archivo_url ??
-    row?.archivoUrl ??
-    row?.comprobante_url ??
-    row?.comprobanteUrl ??
-    row?.url ??
-    ""
-  );
-}
-
-function normalizeFlujo(row) {
-  const idCheque = Number(row?.id_cheque ?? row?.idCheque ?? 0);
-
-  const rawTieneComp =
-    row?.tiene_comprobante ??
-    row?.tieneComprobante ??
-    row?.has_comprobante ??
-    row?.hasComprobante ??
-    row?.id_comprobante ??
-    row?.idComprobante;
-
-  const archivoRef = getArchivoRef(row);
-
-  const archivoMime =
-    inferMime(archivoRef) ||
-    String(row?.archivo_mime ?? row?.mime ?? "").trim() ||
-    "application/pdf";
-
-  return {
-    ...row,
-    id_flujo: Number(row?.id_flujo ?? row?.idFlujo ?? row?.id ?? 0),
-    id_cheque: idCheque,
-    tipo_cheque: String(row?.tipo_cheque ?? row?.tipoCheque ?? "")
-      .trim()
-      .toLowerCase(),
-    numero_cheque: row?.numero_cheque ?? row?.numeroCheque ?? "",
-    emisor: row?.emisor ?? "",
-    importe: row?.importe ?? 0,
-    evento: normalizarEvento(row?.evento ?? ""),
-    descripcion: row?.descripcion ?? "",
-    fecha_evento: row?.fecha_evento ?? row?.fechaEvento ?? "",
-    fecha_emision: row?.fecha_emision ?? row?.fechaEmision ?? "",
-    fecha_pago: row?.fecha_pago ?? row?.fechaPago ?? "",
-    id_comprobante: Number(row?.id_comprobante ?? row?.idComprobante ?? 0),
-    archivo_path: row?.archivo_path ?? row?.archivoPath ?? "",
-    archivo_url: row?.archivo_url ?? row?.archivoUrl ?? "",
-    archivo_mime: archivoMime,
-    tiene_comprobante: boolish(rawTieneComp, idCheque > 0),
-  };
-}
-
-/* ═══════════════════════════════════════════
-   Configuración de eventos
-═══════════════════════════════════════════ */
-const EVENTO_CANONICO = {
-  INGRESO_CARTERA: "INGRESO_CARTERA",
-  DEPOSITADO_BANCO: "DEPOSITADO_BANCO",
-  EGRESO_CARTERA: "EGRESO_CARTERA",
-};
-
-const EVENTO_ALIAS = {
-  INGRESO_CARTERA: EVENTO_CANONICO.INGRESO_CARTERA,
-  INGRESO: EVENTO_CANONICO.INGRESO_CARTERA,
-  NUEVO: EVENTO_CANONICO.INGRESO_CARTERA,
-  ALTA: EVENTO_CANONICO.INGRESO_CARTERA,
-
-  DEPOSITADO_BANCO: EVENTO_CANONICO.DEPOSITADO_BANCO,
-  DEPOSITO_BANCO: EVENTO_CANONICO.DEPOSITADO_BANCO,
-  DEPOSITO: EVENTO_CANONICO.DEPOSITADO_BANCO,
-  DEPOSITADO: EVENTO_CANONICO.DEPOSITADO_BANCO,
-
-  EGRESO_CARTERA: EVENTO_CANONICO.EGRESO_CARTERA,
-  EGRESO: EVENTO_CANONICO.EGRESO_CARTERA,
-  BAJA: EVENTO_CANONICO.EGRESO_CARTERA,
-  PAGO: EVENTO_CANONICO.EGRESO_CARTERA,
-  USADO_COMO_PAGO: EVENTO_CANONICO.EGRESO_CARTERA,
-  ANULACION: EVENTO_CANONICO.EGRESO_CARTERA,
-};
+import {
+  construirUrlComprobante,
+  listarFlujoCheques,
+  revertirDepositoCheque,
+} from "../api/chequesApi";
+import useChequesToast from "../hooks/useChequesToast";
+import {
+  EVENTO_CANONICO,
+  formatFecha,
+  getArchivoRef,
+  humanizarEventoDesconocido,
+  inferMime,
+  moneyARS,
+  normalizeFlujo,
+  normalizarEvento,
+  notifyReversionDeposito,
+  safeText,
+  usuarioActualEsAdmin,
+} from "../utils/chequesUtils";
 
 const EVENTO_CONFIG = {
   [EVENTO_CANONICO.INGRESO_CARTERA]: {
@@ -302,20 +52,6 @@ const EVENTO_CONFIG = {
   },
 };
 
-function normalizarEvento(evento) {
-  const key = String(evento || "")
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, "_");
-
-  return EVENTO_ALIAS[key] || key;
-}
-
-function humanizarEventoDesconocido(evento) {
-  const texto = safeText(evento).replace(/_/g, " ").toLowerCase();
-  return texto.replace(/(^|\s)\S/g, (m) => m.toUpperCase());
-}
-
 function eventoConfig(evento) {
   const key = normalizarEvento(evento);
 
@@ -328,9 +64,6 @@ function eventoConfig(evento) {
   );
 }
 
-/* ═══════════════════════════════════════════
-   Constantes
-═══════════════════════════════════════════ */
 const PAGE_SIZE = 100;
 const SKELETON_ROWS = 8;
 
@@ -338,13 +71,10 @@ const SKELETON_ROWS = 8;
    Componente principal
 ═══════════════════════════════════════════ */
 const Flujo_Cheques = () => {
-  const API_URL = `${String(BASE_URL || "").replace(/\/+$/, "")}/api.php`;
-
   const [allRows, setAllRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
-  const [toast, setToast] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [nextOffset, setNextOffset] = useState(0);
 
@@ -365,13 +95,7 @@ const Flujo_Cheques = () => {
   const [revirtiendo, setRevirtiendo] = useState(false);
   const esAdmin = useMemo(() => usuarioActualEsAdmin(), []);
 
-  const showToast = useCallback((tipo, mensaje, duracion = 2600) => {
-    setToast({ tipo, mensaje, duracion });
-  }, []);
-
-  const closeToast = useCallback(() => {
-    setToast(null);
-  }, []);
+  const { toast, showToast, closeToast } = useChequesToast();
 
   const closeModalComprobante = useCallback(() => {
     setModalComprobanteOpen(false);
@@ -397,11 +121,7 @@ const Flujo_Cheques = () => {
           ? "echeq_cartera_comprobante_ver"
           : "cheques_cartera_comprobante_ver";
 
-      const params = new URLSearchParams();
-      params.set("action", action);
-      params.set("id_cheque", String(idCheque));
-
-      const finalUrl = withSessionKey(`${API_URL}?${params.toString()}`);
+      const finalUrl = construirUrlComprobante(action, idCheque);
 
       const archivoRef = getArchivoRef(row);
 
@@ -417,27 +137,17 @@ const Flujo_Cheques = () => {
       );
       setModalComprobanteOpen(true);
     },
-    [API_URL, showToast]
+    [showToast]
   );
 
   /* ── Fetch ── */
   const fetchFlujo = useCallback(
     async ({ offset = 0, append = false, qValue = "" } = {}) => {
-      const params = new URLSearchParams();
-      params.set("action", "flujo_cheques_listar");
-      params.set("limit", String(PAGE_SIZE));
-      params.set("offset", String(offset));
-
-      if (qValue.trim()) {
-        params.set("q", qValue.trim());
-      }
-
-      const data = await parseJsonOrThrow(
-        await fetch(`${API_URL}?${params.toString()}`, {
-          method: "GET",
-          headers: getAuthHeaders(),
-        })
-      );
+      const data = await listarFlujoCheques({
+        limit: PAGE_SIZE,
+        offset,
+        q: qValue,
+      });
 
       const lista = Array.isArray(data?.flujo)
         ? data.flujo.map(normalizeFlujo)
@@ -459,7 +169,7 @@ const Flujo_Cheques = () => {
 
       return { ...data, flujo: lista };
     },
-    [API_URL]
+    []
   );
 
   const closeModalReversion = useCallback(() => {
@@ -498,28 +208,15 @@ const Flujo_Cheques = () => {
 
       setRevirtiendo(true);
       try {
-        const params = new URLSearchParams();
-        params.set("action", "cheques_deposito_revertir");
-
-        const data = await parseJsonOrThrow(
-          await fetch(`${API_URL}?${params.toString()}`, {
-            method: "POST",
-            headers: {
-              ...getAuthHeaders(),
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              id_cheque: idCheque,
-              fecha_reversion: payload?.fecha_reversion,
-              motivo: payload?.motivo,
-              confirmacion: true,
-            }),
-          })
-        );
+        const data = await revertirDepositoCheque({
+          idCheque,
+          fechaReversion: payload?.fecha_reversion,
+          motivo: payload?.motivo,
+        });
 
         setModalReversionOpen(false);
         setReversionRow(null);
-        notifyReversionDeposito();
+        notifyReversionDeposito("cheque");
         await fetchFlujo({ offset: 0, append: false, qValue: debouncedQ });
         showToast(
           "exito",
@@ -536,7 +233,7 @@ const Flujo_Cheques = () => {
         setRevirtiendo(false);
       }
     },
-    [API_URL, debouncedQ, fetchFlujo, reversionRow, revirtiendo, showToast]
+    [debouncedQ, fetchFlujo, reversionRow, revirtiendo, showToast]
   );
 
   /* Debounce para la búsqueda */

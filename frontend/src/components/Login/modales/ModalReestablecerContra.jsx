@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import BASE_URL from "../../../config/config";
 import "./ModalRecuperar.css";
+import { restablecerContrasena, validarTokenReset } from "../api/loginApi";
+import { getPasswordStrength } from "../utils/loginUtils";
 
 const ModalReestablecerContra = ({ token, onClose }) => {
   const [step, setStep] = useState("validando");
@@ -23,29 +24,16 @@ const ModalReestablecerContra = ({ token, onClose }) => {
 
     const validarToken = async () => {
       try {
-        const res = await fetch(`${BASE_URL}/api.php?action=validar_token_reset`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token }),
-        });
-
-        const text = await res.text();
-        let data = null;
-
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = null;
-        }
+        const { ok, status, data, rawText: text } = await validarTokenReset({ token });
 
         console.log("VALIDAR TOKEN RESPONSE:", {
-          status: res.status,
-          ok: res.ok,
+          status,
+          ok,
           raw: text,
           data,
         });
 
-        if (!res.ok || !data?.exito) {
+        if (!ok || !data?.exito) {
           let msg = data?.mensaje || "El enlace no es válido o ya expiró.";
 
           if (data?.debug?.error) {
@@ -88,21 +76,6 @@ const ModalReestablecerContra = ({ token, onClose }) => {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const getPasswordStrength = (pass) => {
-    if (!pass) return null;
-
-    let score = 0;
-    if (pass.length >= 8) score++;
-    if (/[A-Z]/.test(pass)) score++;
-    if (/[0-9]/.test(pass)) score++;
-    if (/[^A-Za-z0-9]/.test(pass)) score++;
-
-    if (score <= 1) return { label: "Débil", color: "#ef4444", width: "25%" };
-    if (score === 2) return { label: "Regular", color: "#f59e0b", width: "50%" };
-    if (score === 3) return { label: "Buena", color: "#3b82f6", width: "75%" };
-    return { label: "Fuerte", color: "#22c55e", width: "100%" };
-  };
-
   const strength = getPasswordStrength(nuevaContra);
 
   const handleSubmit = async (e) => {
@@ -124,29 +97,19 @@ const ModalReestablecerContra = ({ token, onClose }) => {
     setCargando(true);
 
     try {
-      const res = await fetch(`${BASE_URL}/api.php?action=reset_contrasena`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, nueva_contrasena: nuevaContra }),
+      const { ok, status, data, rawText: text } = await restablecerContrasena({
+        token,
+        nuevaContrasena: nuevaContra,
       });
 
-      const text = await res.text();
-      let data = null;
-
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = null;
-      }
-
       console.log("RESET PASSWORD RESPONSE:", {
-        status: res.status,
-        ok: res.ok,
+        status,
+        ok,
         raw: text,
         data,
       });
 
-      if (!res.ok || !data?.exito) {
+      if (!ok || !data?.exito) {
         let msg = data?.mensaje || "No se pudo restablecer la contraseña.";
 
         if (data?.debug?.error) {

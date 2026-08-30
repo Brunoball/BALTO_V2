@@ -1,69 +1,23 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import BASE_URL from "../../config/config";
 import "./inicio.css";
 
 import logoBalto from "../../imagenes/Logo_Balto_Azul.png";
 import Toast from "../Global/Toast";
 import ModalRecuperarContra from "./modales/ModalRecuperarContra";
-
-const STORAGE_KEYS = {
-  rememberFlag: "rememberLogin",
-  user: "remember_nombre",
-  pass: "remember_contrasena",
-};
-
-function normalizeRol(value, idRol = null) {
-  const id = Number(idRol);
-  const v = String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-
-  if (
-    id === 1 ||
-    ["1", "admin", "administrator", "administrador", "superadmin"].includes(v)
-  ) {
-    return "admin";
-  }
-
-  return "empleado_basico";
-}
-
-function normalizePlanNivel(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 1;
-  if (n <= 1) return 1;
-  if (n === 2) return 2;
-  return 3;
-}
-
-function normalizePlanId(value) {
-  const n = Number(value);
-  return n === 2 ? 2 : 1;
-}
-
-function withTimeout(ms) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), ms);
-
-  return {
-    controller,
-    clear: () => clearTimeout(id),
-  };
-}
-
-function safeJsonParse(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
+import { iniciarSesion } from "./api/loginApi";
+import useRememberLogin from "./hooks/useRememberLogin";
+import {
+  normalizeLoginPlanId,
+  normalizeLoginPlanNivel,
+  normalizeLoginRol,
+} from "./utils/loginUtils";
 
 const Inicio = () => {
   const [nombre, setNombre] = useState("");
   const [contrasena, setContrasena] = useState("");
   const [cargando, setCargando] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(false);
 
   const [toast, setToast] = useState(null);
   const [showRecuperar, setShowRecuperar] = useState(false);
@@ -74,68 +28,12 @@ const Inicio = () => {
     setToast({ tipo, mensaje, duracion });
   };
 
-  const LOGIN_ENDPOINT = useMemo(() => {
-    return `${BASE_URL}/api.php?action=inicio`;
-  }, []);
-
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.rememberFlag) === "1";
-    if (!saved) return;
-
-    const savedUser = localStorage.getItem(STORAGE_KEYS.user) || "";
-    const savedPass = localStorage.getItem(STORAGE_KEYS.pass) || "";
-
-    setRemember(true);
-    setNombre(savedUser);
-    setContrasena(savedPass);
-  }, []);
-
-  const persistRemember = (user, pass, flag) => {
-    if (flag) {
-      localStorage.setItem(STORAGE_KEYS.rememberFlag, "1");
-      localStorage.setItem(STORAGE_KEYS.user, user ?? "");
-      localStorage.setItem(STORAGE_KEYS.pass, pass ?? "");
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.rememberFlag);
-      localStorage.removeItem(STORAGE_KEYS.user);
-      localStorage.removeItem(STORAGE_KEYS.pass);
-    }
-  };
-
-  useEffect(() => {
-    if (remember) {
-      persistRemember(nombre, contrasena, true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nombre, contrasena, remember]);
-
-  const postLogin = async (url, payload) => {
-    const { controller, clear } = withTimeout(12000);
-
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-
-      const text = await res.text();
-      const data = safeJsonParse(text);
-
-      return {
-        ok: res.ok,
-        status: res.status,
-        data,
-        rawText: text,
-      };
-    } finally {
-      clear();
-    }
-  };
+  const { remember, setRemember, persistRemember } = useRememberLogin({
+    nombre,
+    contrasena,
+    setNombre,
+    setContrasena,
+  });
 
   const manejarEnvio = async (e) => {
     e.preventDefault();
@@ -152,7 +50,7 @@ const Inicio = () => {
     setCargando(true);
 
     try {
-      const r = await postLogin(LOGIN_ENDPOINT, {
+      const r = await iniciarSesion({
         nombre: user,
         contrasena: pass,
       });
@@ -196,10 +94,10 @@ const Inicio = () => {
       localStorage.setItem("session_key", sessionKey);
 
       const usuarioResp = data.usuario || {};
-      const idPlan = normalizePlanId(
+      const idPlan = normalizeLoginPlanId(
         usuarioResp.idPlan ?? usuarioResp.id_plan ?? usuarioResp.plan_id ?? data.idPlan ?? data.id_plan ?? 1
       );
-      const planNivel = normalizePlanNivel(
+      const planNivel = normalizeLoginPlanNivel(
         usuarioResp.plan_nivel ?? usuarioResp.planNivel ?? data.plan_nivel ?? idPlan
       );
 
@@ -209,7 +107,7 @@ const Inicio = () => {
         id_plan: idPlan,
         id_rol: Number(usuarioResp.id_rol ?? data.id_rol ?? 2),
         tipo_rol: usuarioResp.tipo_rol ?? data.tipo_rol ?? "empleado_basico",
-        rol: normalizeRol(
+        rol: normalizeLoginRol(
           usuarioResp.rol ?? usuarioResp.tipo_rol ?? data.rol ?? data.tipo_rol,
           usuarioResp.id_rol ?? data.id_rol
         ),

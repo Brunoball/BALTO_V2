@@ -8,6 +8,13 @@ import { useListas } from "../../../context/ListasContext";
 import Toast from "../../Global/Toast.jsx";
 import { isBaltoDemoMode } from "../../../utils/demoMode";
 import { isTopStockModal } from "./modalStackUtils";
+import {
+  clasificarTextoStock,
+  crearCategoriaStock,
+  crearProductoStock,
+  crearTipoPrecioStock,
+  importarArchivoStock,
+} from "../api/stockApi";
 
 import {
   faBoxOpen,
@@ -35,9 +42,6 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 import {
-  API_URL,
-  buildHeadersJSON,
-  buildHeadersMultipart,
   emptyExtraPriceRow,
   formatMoneyFocus,
   getUsuarioAuditData,
@@ -45,10 +49,9 @@ import {
   moneyToInput,
   normalizeMoneyInput,
   onlyNumbers,
-  parseJsonOrThrow,
   recalculatePricingGroup,
   toUpperCaseValue,
-} from "./stockFormUtils";
+} from "../utils/stockFormUtils";
 
 const EXTENSIONES_IMAGEN = ["jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "tif"];
 const DEMO_CARGA_MASIVA_MESSAGE = "La carga masiva está disponible únicamente en cuentas activas con plan avanzado.";
@@ -1421,12 +1424,7 @@ export default function ModalCargaMasiva({
   };
 
   async function clasificarTextoDetectado(textoDetectado) {
-    const res = await fetch(`${API_URL}?action=stock_productos_clasificar_texto`, {
-      method: "POST",
-      headers: buildHeadersJSON(),
-      body: JSON.stringify({ texto: textoDetectado }),
-    });
-    return parseJsonOrThrow(res);
+    return clasificarTextoStock(textoDetectado);
   }
 
   const registrarCategoriaCreadaLocal = async (nueva) => {
@@ -1460,12 +1458,7 @@ export default function ModalCargaMasiva({
   };
 
   const crearCategoriaRapida = async (nombre) => {
-    const res = await fetch(`${API_URL}?action=stock_categorias_crear`, {
-      method: "POST",
-      headers: buildHeadersJSON(),
-      body: JSON.stringify({ nombre }),
-    });
-    const data = await parseJsonOrThrow(res);
+    const data = await crearCategoriaStock({ nombre });
     const nueva = data.categoria || { id: data.id_stock_categoria, id_stock_categoria: data.id_stock_categoria, nombre };
     setCategoriasLocal((prev) => {
       const existe = prev.some((x) => String(x.id ?? x.id_stock_categoria) === String(nueva.id ?? nueva.id_stock_categoria));
@@ -1479,12 +1472,7 @@ export default function ModalCargaMasiva({
   const crearTipoPrecioRapido = async (nombre) => {
     const nombreLimpio = String(nombre ?? "").trim().toUpperCase();
     if (!nombreLimpio) throw new Error("El nombre del tipo de precio es obligatorio.");
-    const res = await fetch(`${API_URL}?action=stock_tipos_precio_crear`, {
-      method: "POST",
-      headers: buildHeadersJSON(),
-      body: JSON.stringify({ nombre: nombreLimpio }),
-    });
-    const data = await parseJsonOrThrow(res);
+    const data = await crearTipoPrecioStock({ nombre: nombreLimpio });
     const nuevo = data.tipo_precio || { id: data.id_tipo_precio_stock, id_tipo_precio_stock: data.id_tipo_precio_stock, nombre: nombreLimpio };
     setLists((prev) => {
       const actuales = Array.isArray(prev?.stock_tipos_precio) ? prev.stock_tipos_precio : [];
@@ -1516,13 +1504,7 @@ export default function ModalCargaMasiva({
       if (tipoArchivo === "pdf") { action = "stock_productos_importar_pdf"; formData.append("archivo_pdf", archivo); }
       if (tipoArchivo === "imagen") { action = "stock_productos_ocr_imagen"; formData.append("archivo_imagen", archivo); }
 
-      const res = await fetch(`${API_URL}?action=${encodeURIComponent(action)}`, {
-        method: "POST",
-        headers: buildHeadersMultipart(),
-        body: formData,
-      });
-
-      const data = await parseJsonOrThrow(res);
+      const data = await importarArchivoStock(action, formData);
       setResultado(data);
 
       if (tipoArchivo === "csv") {
@@ -1798,8 +1780,7 @@ export default function ModalCargaMasiva({
             }));
             fd.append("tipos_precio", JSON.stringify(tiposPrecioPayload));
             if (item.imagen) fd.append("imagen", item.imagen);
-            const res = await fetch(`${API_URL}?action=stock_productos_crear`, { method: "POST", headers: buildHeadersMultipart(), body: fd });
-            const data = await parseJsonOrThrow(res);
+            const data = await crearProductoStock(fd);
             return { success: true, idx: globalIdx, sync: data?.tiendanube_sync ?? data?.data?.tiendanube_sync ?? null };
           } catch (err) {
             return { success: false, idx: globalIdx, error: `Producto ${globalIdx + 1} (${item.nombre || "sin nombre"}): ${err.message || "Error al guardar"}` };

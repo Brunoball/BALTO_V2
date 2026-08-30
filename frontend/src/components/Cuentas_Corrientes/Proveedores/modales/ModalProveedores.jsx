@@ -1,6 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import BASE_URL from "../../../../config/config";
+import {
+  CC_API_URL as API_URL,
+  ccApiGetStrict as apiGet,
+  ccApiPostActionStrict as apiPost,
+} from "../../api/cuentasCorrientesApi";
+import {
+  buildEmptyForm,
+  isTemaOscuro,
+  normalizeCuitInput,
+  normalizeProveedorFiscalData as normalizeFiscalData,
+  normalizeSearch,
+  notifyGlobalListasUpdated,
+  onlyDigits,
+  proveedorFiscalHasAnyData as fiscalHasAnyData,
+  proveedorFiscalIsUsable as fiscalIsUsable,
+  safeStr,
+  toUpperValue,
+} from "../../utils/cuentasCorrientesFormUtils";
 import "../../../Global/Global_css/Global_Modals.css";
 import "../../cuentas_corrientes.css";
 import "../../cuentas_corrientes_modales.css";
@@ -26,96 +43,12 @@ import {
 import ModalEliminar from "../../../Global/Modales/ModalEliminar";
 import "../../../Global/Global_css/Global_oscuro.css";
 
-const API_URL = `${String(BASE_URL || "").replace(/\/+$/, "")}/api.php`;
-
-function notifyGlobalListasUpdated(kind = "listas") {
-  try {
-    window.dispatchEvent(new CustomEvent("balto:listas-updated", { detail: { kind } }));
-    if (kind === "clientes") window.dispatchEvent(new CustomEvent("balto:clientes-updated"));
-    if (kind === "proveedores") window.dispatchEvent(new CustomEvent("balto:proveedores-updated"));
-  } catch {
-    try { window.dispatchEvent(new Event("balto:listas-updated")); } catch {}
-  }
-}
-
-function isTemaOscuro() {
-  return (
-    document.documentElement.getAttribute("data-theme") === "oscuro" ||
-    document.body?.classList?.contains("dark")
-  );
-}
-
-function buildHeadersGET() {
-  const sessionKey = (localStorage.getItem("session_key") || "").trim();
-  const token = (localStorage.getItem("token") || "").trim();
-  const h = {};
-  if (sessionKey) h["X-Session"] = sessionKey;
-  if (token) h["Authorization"] = `Bearer ${token}`;
-  return h;
-}
-
-function buildHeadersJSON() {
-  return { ...buildHeadersGET(), "Content-Type": "application/json" };
-}
-
-function toUpperValue(value) {
-  return String(value || "").toUpperCase();
-}
-
-function safeStr(value) {
-  return String(value ?? "").trim();
-}
-
-function onlyDigits(value) {
-  return String(value ?? "").replace(/\D/g, "");
-}
-
-function normalizeCuitInput(value) {
-  return onlyDigits(value).slice(0, 11);
-}
-
 function getProveedorId(row) {
   return Number(row?.id_proveedor ?? row?.id ?? 0);
 }
 
 function getProveedorFiscalId(row) {
   return Number(row?.id_cliente_fiscal ?? row?.cliente_fiscal?.id_cliente_fiscal ?? 0);
-}
-
-function normalizeSearch(value) {
-  return String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
-function normalizeFiscalData(data) {
-  const src = data && typeof data === "object" ? data : {};
-  const cuit = onlyDigits(src.fiscal_cuit || src.cuit || src.doc_nro || src.CUIT || "");
-  const razonSocial = safeStr(
-    src.razon_social ||
-      src.razonSocial ||
-      src.nombre ||
-      src.apellidoNombre ||
-      src.denominacion ||
-      ""
-  );
-  const condicionIva = safeStr(src.condicion_iva || src.cond_iva || src.iva || src.descripcionImpuesto || "");
-  const domicilio = safeStr(src.domicilio || src.direccion || src.domicilioFiscal || "");
-
-  return {
-    id_cliente_fiscal: Number(src.id_cliente_fiscal || 0) || null,
-    id_proveedor: Number(src.id_proveedor || 0) || null,
-    doc_tipo: Number(src.doc_tipo || 80) || 80,
-    doc_nro: safeStr(src.doc_nro || cuit),
-    cuit,
-    razon_social: razonSocial,
-    condicion_iva: condicionIva,
-    domicilio,
-    origen: safeStr(src.origen || "arca_cuit"),
-    activo: Number(src.activo ?? 1) === 0 ? 0 : 1,
-  };
 }
 
 function fiscalFromProveedorRow(row) {
@@ -125,85 +58,6 @@ function fiscalFromProveedorRow(row) {
   if (!fiscal.cuit && !fiscal.razon_social && !fiscal.id_cliente_fiscal) return null;
   fiscal.id_proveedor = fiscal.id_proveedor || getProveedorId(row) || null;
   return fiscal;
-}
-
-function fiscalIsUsable(fiscal) {
-  const f = normalizeFiscalData(fiscal);
-  return f.cuit.length === 11 && !!f.razon_social;
-}
-
-function fiscalHasAnyData(fiscal) {
-  const f = normalizeFiscalData(fiscal);
-  return !!(
-    f.id_cliente_fiscal ||
-    f.cuit ||
-    f.razon_social ||
-    f.condicion_iva ||
-    f.domicilio
-  );
-}
-
-function buildEmptyForm(activo = 1) {
-  return {
-    nombre: "",
-    activo,
-    cuit: "",
-    fiscalData: null,
-    fiscalError: "",
-    fiscalLoading: false,
-    fiscalConsultado: false,
-    cargaManual: true,
-  };
-}
-
-async function parseJsonOrThrow(res) {
-  if (res.status === 401 || res.status === 403) {
-    throw new Error("Sesión vencida o no autorizada. Volvé a iniciar sesión.");
-  }
-
-  const text = await res.text();
-  if (!text) throw new Error("Respuesta vacía del servidor.");
-
-  try {
-    const data = JSON.parse(text);
-    if (!res.ok || data?.exito === false) {
-      throw new Error(data?.mensaje || `Error HTTP ${res.status}`);
-    }
-    return data;
-  } catch (e) {
-    if (
-      e instanceof Error &&
-      e.message &&
-      !e.message.startsWith("Unexpected token")
-    ) {
-      throw e;
-    }
-
-    const preview = text.length > 400 ? `${text.slice(0, 400)}...` : text;
-
-    throw new Error(
-      text.startsWith("<!DOCTYPE") || text.startsWith("<")
-        ? "La API devolvió HTML en vez de JSON. Revisá la ruta del backend."
-        : `Respuesta inválida del servidor. HTTP ${res.status}\n${preview}`
-    );
-  }
-}
-
-async function apiGet(url) {
-  const res = await fetch(url, {
-    method: "GET",
-    headers: buildHeadersGET(),
-  });
-  return parseJsonOrThrow(res);
-}
-
-async function apiPost(action, body) {
-  const res = await fetch(`${API_URL}?action=${encodeURIComponent(action)}`, {
-    method: "POST",
-    headers: buildHeadersJSON(),
-    body: JSON.stringify(body || {}),
-  });
-  return parseJsonOrThrow(res);
 }
 
 function FiscalResumen({ fiscal }) {

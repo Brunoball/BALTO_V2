@@ -1,7 +1,6 @@
 // src/components/Flujo_de_Caja/Flujo_Caja.jsx
 
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import BASE_URL from "../../config/config";
 import "./flujo_caja.css";
 import "../Global/Global_css/Global_oscuro.css";
 
@@ -25,127 +24,18 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
 import { useDateRange } from "../../context/DateRangeContext.jsx";
-
-/* =========================
-   Helpers
-========================= */
-function moneyARS(v) {
-  if (v == null || v === "") return "—";
-  const n = Number(v || 0);
-  try {
-    return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" });
-  } catch {
-    return `$${n.toFixed(2)}`;
-  }
-}
-function moneyARSAbs(v) {
-  if (v == null || v === "") return "—";
-  const n = Math.abs(Number(v || 0));
-  try {
-    return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" });
-  } catch {
-    return `$${n.toFixed(2)}`;
-  }
-}
-function fmtDateES(iso) {
-  if (!iso) return "—";
-  const [y, m, d] = String(iso).split("-");
-  if (!y || !m || !d) return String(iso);
-  return `${d}/${m}/${y}`;
-}
-function formatDateISO(d) {
-  if (!d) return "";
-  const yyyy = d.getFullYear();
-  const mm   = String(d.getMonth() + 1).padStart(2, "0");
-  const dd   = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-function formatDateUI(d) {
-  if (!d) return "—";
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-}
-function normalizePaymentCards(rawCards) {
-  const cards = Array.isArray(rawCards) ? rawCards : [];
-
-  return cards.map((card) => ({
-    key: String(card?.key ?? card?.label ?? ""),
-    label: String(card?.label ?? "MEDIO DE PAGO"),
-    ingresos: Number(card?.ingresos || 0),
-    egresos: Number(card?.egresos || 0),
-    saldo: Number(card?.saldo || 0),
-    medios: Array.isArray(card?.medios)
-      ? card.medios.map((m) => ({
-          id_medio_pago: Number(m?.id_medio_pago || 0),
-          nombre: String(m?.nombre ?? ""),
-        }))
-      : [],
-  }));
-}
-function normalizeRows(rawRows) {
-  const rr = Array.isArray(rawRows) ? rawRows : [];
-  return rr.map((r) => ({
-    fecha:    String(r?.fecha ?? ""),
-    ingresos: r?.ingresos == null ? null : Number(r.ingresos || 0),
-    egresos:  r?.egresos  == null ? null : Number(r.egresos  || 0),
-    saldo:    r?.saldo    == null ? null : Number(r.saldo    || 0),
-    medios_pago: normalizePaymentCards(r?.medios_pago),
-  }));
-}
-async function parseJsonOrThrow(res) {
-  const text = await res.text();
-  if (!text) throw new Error("Respuesta vacía del servidor.");
-  try {
-    return JSON.parse(text);
-  } catch {
-    const preview = text.length > 600 ? text.slice(0, 600) + "..." : text;
-    throw new Error(`Respuesta inválida (no es JSON). HTTP ${res.status}\n${preview}`);
-  }
-}
-function getSessionKey() {
-  return (localStorage.getItem("session_key") || "").toString().trim();
-}
-function authHeaders(extra = {}) {
-  const sessionKey = getSessionKey();
-  const h = { ...extra };
-  if (sessionKey) h["X-Session"] = sessionKey;
-  return h;
-}
-function escapeCSV(value) {
-  const s = String(value ?? "");
-  if (/[",;\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-function downloadBlob(content, fileName, mimeType) {
-  const blob = new Blob([content], { type: mimeType });
-  const url  = window.URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href     = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.URL.revokeObjectURL(url);
-}
-function paymentCardSubtitle(card) {
-  const medios = Array.isArray(card?.medios) ? card.medios : [];
-  const names = medios.map((m) => String(m?.nombre || "").trim()).filter(Boolean);
-
-  if (!names.length) return "Sin medios vinculados";
-  if (names.length === 1) return names[0];
-  return names.join(" + ");
-}
-function pickDefaultSelectedDate(items) {
-  if (!items.length) return "";
-
-  const todayIso = formatDateISO(new Date());
-  const todayRow = items.find((r) => r.fecha === todayIso);
-  if (todayRow) return todayRow.fecha;
-
-  const latestNotFuture = items.find((r) => r.fecha && r.fecha <= todayIso);
-  if (latestNotFuture) return latestNotFuture.fecha;
-
-  return items[0]?.fecha || "";
-}
+import useFlujoCajaResumen from "./hooks/useFlujoCajaResumen";
+import {
+  downloadBlob,
+  escapeCSV,
+  fmtDateES,
+  formatDateISO,
+  formatDateUI,
+  moneyARSAbs,
+  normalizeRows,
+  paymentCardSubtitle,
+  pickDefaultSelectedDate,
+} from "./utils/flujoCajaUtils";
 
 /* =========================
    Skeleton config
@@ -153,14 +43,9 @@ function pickDefaultSelectedDate(items) {
 const SKELETON_ROWS = 10;
 
 export default function Flujo_Caja() {
-  const API = `${BASE_URL}/api.php`;
-
   const { dateRange, setDateRange } = useDateRange();
   const [showCalendario, setShowCalendario] = useState(false);
 
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
-  const [data, setData]         = useState(null);
   const [selectedDate, setSelectedDate] = useState("");
 
   const [toast, setToast] = useState(null);
@@ -170,51 +55,10 @@ export default function Flujo_Caja() {
   const paymentCardsRef = useRef(null);
   const [activePaymentCardIndex, setActivePaymentCardIndex] = useState(0);
 
-  // Skeleton anti-parpadeo
-  const skelTimerRef             = useRef(null);
-  const [showSkeleton, setShowSkeleton] = useState(false);
-  const beginSkeleton = useCallback(() => {
-    if (skelTimerRef.current) clearTimeout(skelTimerRef.current);
-    setShowSkeleton(false);
-    skelTimerRef.current = setTimeout(() => setShowSkeleton(true), 120);
-  }, []);
-  const endSkeleton = useCallback(() => {
-    if (skelTimerRef.current) clearTimeout(skelTimerRef.current);
-    setShowSkeleton(false);
-  }, []);
-  useEffect(() => {
-    return () => { if (skelTimerRef.current) clearTimeout(skelTimerRef.current); };
-  }, []);
-
-  /* =========================
-     Fetch
-  ========================= */
-  const fetchResumen = useCallback(async () => {
-    if (!dateRange?.from) return;
-    setLoading(true);
-    setError("");
-    beginSkeleton();
-    try {
-      const sp = new URLSearchParams();
-      sp.set("action",      "flujo_caja_resumen");
-      sp.set("fecha_desde", formatDateISO(dateRange.from));
-      sp.set("fecha_hasta", formatDateISO(dateRange.to || dateRange.from));
-      const res  = await fetch(`${API}?${sp.toString()}`, { method: "GET", headers: authHeaders() });
-      const json = await parseJsonOrThrow(res);
-      if (!res.ok || !json?.exito) throw new Error(json?.mensaje || `Error desconocido (HTTP ${res.status})`);
-      setData(json);
-    } catch (e) {
-      setData(null);
-      const msg = e?.message || "Error cargando flujo de caja";
-      setError(msg);
-      showToast("error", msg, 4200);
-    } finally {
-      setLoading(false);
-      endSkeleton();
-    }
-  }, [API, dateRange, showToast, beginSkeleton, endSkeleton]);
-
-  useEffect(() => { fetchResumen(); }, [fetchResumen]);
+  const { data, error, loading, showSkeleton } = useFlujoCajaResumen(
+    dateRange,
+    showToast
+  );
 
   const bloque  = data?.tiendas?.[0] || null;
   const rowsRaw = bloque?.rows || [];

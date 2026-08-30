@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import BASE_URL from "../../../config/config";
 import "../../Global/Global_css/Global_Section.css";
 import "../../Global/Global_css/Global_responsive.css";
 import Toast from "../../Global/Toast.jsx";
@@ -12,228 +11,30 @@ import {
   faEye,
   faBuildingColumns,
 } from "@fortawesome/free-solid-svg-icons";
+import {
+  construirUrlComprobante,
+  depositarChequeCartera,
+  listarChequesCartera,
+} from "../api/chequesApi";
+import useChequesToast from "../hooks/useChequesToast";
+import {
+  clearMovimientosAfterDepositoCheque,
+  formatFecha,
+  isValidISODate,
+  moneyARS,
+  normalizeCheque,
+  safeText,
+  toISODate,
+} from "../utils/chequesUtils";
 
-
-function clearMovimientosAfterDepositoCheque() {
-  try {
-    if (typeof window === "undefined") return;
-
-    const storage = window.sessionStorage || null;
-    const prefix = "balto_movimientos_perf_v2:";
-
-    if (storage) {
-      const scopesToClear = [
-        ":otros_egresos:listar",
-        ":movimientos:listar",
-        ":flujo_caja",
-        ":compras:listar",
-        ":ventas:listar",
-      ];
-      const keys = [];
-
-      for (let i = 0; i < storage.length; i += 1) {
-        const key = storage.key(i);
-        if (!key || !key.startsWith(prefix)) continue;
-
-        if (scopesToClear.some((scope) => key.includes(scope))) {
-          keys.push(key);
-        }
-      }
-
-      keys.forEach((key) => storage.removeItem(key));
-    }
-
-    window.dispatchEvent(
-      new CustomEvent("balto:movimientos-mutados", {
-        detail: {
-          origen: "deposito_cheque_banco",
-          modulos: ["otros_egresos", "movimientos", "flujo_caja"],
-          ts: Date.now(),
-        },
-      })
-    );
-  } catch {
-    // La limpieza de caché nunca debe bloquear el depósito.
-  }
-}
-
-/* =========================
-   Auth helpers
-========================= */
-function getAuthInfo() {
-  const token = (localStorage.getItem("token") || "").trim();
-  const sessionKey = (
-    localStorage.getItem("session_key") ||
-    localStorage.getItem("sessionKey") ||
-    localStorage.getItem("X-Session") ||
-    localStorage.getItem("x_session") ||
-    ""
-  ).trim();
-
-  let idUsuario = 0;
-  try {
-    const u = JSON.parse(localStorage.getItem("usuario") || "null");
-    const cand =
-      u?.idUsuarioMaster ??
-      u?.idUsuario ??
-      u?.id_usuario ??
-      u?.id ??
-      u?.user_id ??
-      0;
-
-    if (Number.isFinite(Number(cand))) {
-      idUsuario = Number(cand);
-    }
-  } catch {}
-
-  return { token, sessionKey, idUsuario };
-}
-
-function getAuthHeaders(json = false) {
-  const { sessionKey, token } = getAuthInfo();
-  const headers = {};
-
-  if (sessionKey) headers["X-Session"] = sessionKey;
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  if (json) headers["Content-Type"] = "application/json";
-
-  return headers;
-}
-
-function withSessionKey(url) {
-  const base = String(url || "").trim();
-  if (!base) return "";
-
-  try {
-    const { sessionKey, token } = getAuthInfo();
-    const u = new URL(base, window.location.origin);
-
-    if (sessionKey && !u.searchParams.has("session_key")) {
-      u.searchParams.set("session_key", sessionKey);
-    }
-    if (token && !u.searchParams.has("token")) {
-      u.searchParams.set("token", token);
-    }
-
-    return u.toString();
-  } catch {
-    return base;
-  }
-}
-
-function buildAuditUserPayload(extra = {}) {
-  const { idUsuario } = getAuthInfo();
-  const payload = { ...extra };
-
-  if (Number.isFinite(Number(idUsuario)) && Number(idUsuario) > 0) {
-    payload.idUsuarioMaster = Number(idUsuario);
-    payload.idUsuario = Number(idUsuario);
-  }
-
-  return payload;
-}
-
-async function parseJsonOrThrow(res) {
-  const text = await res.text();
-  if (!text) throw new Error("Respuesta vacía del servidor.");
-
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error(`La API devolvió una respuesta inválida. HTTP ${res.status}`);
-  }
-
-  if (!res.ok || data?.exito === false) {
-    throw new Error(data?.mensaje || `Error HTTP ${res.status}`);
-  }
-
-  return data;
-}
-
-/* =========================
-   Format helpers
-========================= */
-function formatFecha(fecha) {
-  const s = String(fecha || "").trim();
-  if (!s) return "—";
-
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
-
-  return s;
-}
-
-function moneyARS(valor) {
-  const n = Number(valor || 0);
-  try {
-    return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" });
-  } catch {
-    return `$${n.toFixed(2)}`;
-  }
-}
-
-function safeText(v) {
-  const s = String(v ?? "").trim();
-  return s !== "" ? s : "—";
-}
-
-function normalizeCheque(row) {
-  return {
-    ...row,
-    id_cheque: Number(row?.id_cheque ?? row?.idCheque ?? row?.id ?? 0),
-    fecha_emision: row?.fecha_emision ?? row?.fechaEmision ?? "",
-    emisor: row?.emisor ?? row?.librador ?? "",
-    numero_cheque: row?.numero_cheque ?? row?.numeroCheque ?? row?.numero ?? "",
-    importe: row?.importe ?? 0,
-    fecha_pago: row?.fecha_pago ?? row?.fechaPago ?? "",
-    archivo_mime: row?.archivo_mime ?? row?.mime ?? "application/pdf",
-    tiene_comprobante:
-      row?.tiene_comprobante ?? row?.tieneComprobante ?? !!row?.archivo_path,
-  };
-}
-
-
-function toISODate(fecha) {
-  const s = String(fecha || "").trim();
-  if (!s) return "";
-
-  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (iso) {
-    return `${String(iso[1]).padStart(4, "0")}-${String(iso[2]).padStart(2, "0")}-${String(iso[3]).padStart(2, "0")}`;
-  }
-
-  const visual = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
-  if (visual) {
-    return `${String(visual[3]).padStart(4, "0")}-${String(visual[2]).padStart(2, "0")}-${String(visual[1]).padStart(2, "0")}`;
-  }
-
-  return "";
-}
-
-function isValidISODate(fecha) {
-  const s = String(fecha || "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-
-  const [y, m, d] = s.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
-}
-
-/* =========================
-   Constants
-========================= */
 const PAGE_SIZE = 100;
 const SKELETON_ROWS = 8;
 
 const Cheques_Cartera = () => {
-  const API_URL = `${String(BASE_URL || "").replace(/\/+$/, "")}/api.php`;
-
   const [allRows, setAllRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
-  const [toast, setToast] = useState(null);
 
   const [q, setQ] = useState("");
   const [hasMore, setHasMore] = useState(false);
@@ -249,10 +50,7 @@ const Cheques_Cartera = () => {
   const [depositando, setDepositando] = useState(false);
 
   /* Toast */
-  const showToast = useCallback((tipo, mensaje, duracion = 2600) => {
-    setToast({ tipo, mensaje, duracion });
-  }, []);
-  const closeToast = useCallback(() => setToast(null), []);
+  const { toast, showToast, closeToast } = useChequesToast();
 
   /* Modal comprobante */
   const closeModalComprobante = useCallback(() => {
@@ -272,17 +70,16 @@ const Cheques_Cartera = () => {
         return;
       }
 
-      const params = new URLSearchParams();
-      params.set("action", "cheques_cartera_comprobante_ver");
-      params.set("id_cheque", String(idCheque));
-
-      const finalUrl = withSessionKey(`${API_URL}?${params.toString()}`);
+      const finalUrl = construirUrlComprobante(
+        "cheques_cartera_comprobante_ver",
+        idCheque
+      );
       setModalComprobanteUrl(finalUrl);
       setModalComprobanteMime(String(cheque?.archivo_mime || "").trim() || "application/pdf");
       setModalComprobanteTitle("Comprobante de Cheque");
       setModalComprobanteOpen(true);
     },
-    [API_URL, showToast]
+    [showToast]
   );
 
   /* Modal depositar */
@@ -302,18 +99,11 @@ const Cheques_Cartera = () => {
   ========================= */
   const fetchCheques = useCallback(
     async ({ offset = 0, append = false, qValue = "" } = {}) => {
-      const params = new URLSearchParams();
-      params.set("action", "cheques_cartera_listar");
-      params.set("limit", String(PAGE_SIZE));
-      params.set("offset", String(offset));
-      if (String(qValue || "").trim()) params.set("q", String(qValue || "").trim());
-
-      const data = await parseJsonOrThrow(
-        await fetch(`${API_URL}?${params.toString()}`, {
-          method: "GET",
-          headers: getAuthHeaders(),
-        })
-      );
+      const data = await listarChequesCartera({
+        limit: PAGE_SIZE,
+        offset,
+        q: qValue,
+      });
 
       const lista = Array.isArray(data?.cheques)
         ? data.cheques.map(normalizeCheque)
@@ -334,7 +124,7 @@ const Cheques_Cartera = () => {
 
       return { ...data, cheques: lista };
     },
-    [API_URL]
+    []
   );
 
   /* Initial load */
@@ -425,23 +215,10 @@ const Cheques_Cartera = () => {
     setDepositando(true);
 
     try {
-      const params = new URLSearchParams();
-      params.set("action", "cheques_cartera_depositar");
-
-      const body = buildAuditUserPayload({
-        id_cheque: idCheque,
-        fecha_deposito: fechaDeposito,
-        fecha_operacion: fechaDeposito,
-        fecha: fechaDeposito,
+      const data = await depositarChequeCartera({
+        idCheque,
+        fechaDeposito,
       });
-
-      const data = await parseJsonOrThrow(
-        await fetch(`${API_URL}?${params.toString()}`, {
-          method: "POST",
-          headers: getAuthHeaders(true),
-          body: JSON.stringify(body),
-        })
-      );
 
       clearMovimientosAfterDepositoCheque();
 
@@ -463,7 +240,7 @@ const Cheques_Cartera = () => {
     } finally {
       setDepositando(false);
     }
-  }, [API_URL, chequeSeleccionado, showToast]);
+  }, [chequeSeleccionado, showToast]);
 
   /* =========================
      Columns

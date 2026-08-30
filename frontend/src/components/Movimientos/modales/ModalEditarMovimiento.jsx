@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { createPortal } from "react-dom";
 import "../../Global/Global_css/Global_Modals.css";
 import "../../Global/Global_css/Global_responsive.css";
-import BASE_URL from "../../../config/config";
+import { crearCatalogoMovimiento } from "../api/movimientosApi";
 
 const NULL_OPTION = "";
 const ADD_OPTION = "__ADD__";
@@ -189,27 +189,6 @@ function periodoFromISODate(iso) {
    ✅ Auth helpers (JWT + X-Session)
    FIX: antes faltaba X-Session y backend multi-tenant te tira error
 ========================= */
-function getAuthInfo() {
-  const token = localStorage.getItem("token") || "";
-
-  const sessionKey =
-    localStorage.getItem("session_key") ||
-    localStorage.getItem("sessionKey") ||
-    localStorage.getItem("X-Session") ||
-    "";
-
-  let idUsuario = 0;
-  try {
-    const u = JSON.parse(localStorage.getItem("usuario") || "null");
-    const cand = u?.idUsuario ?? u?.id_usuario ?? u?.id ?? u?.user_id ?? 0;
-    if (Number.isFinite(Number(cand))) idUsuario = Number(cand);
-  } catch {
-    // ignore
-  }
-
-  return { token, sessionKey, idUsuario };
-}
-
 function isTemaOscuro() {
   return document.documentElement.getAttribute("data-theme") === "oscuro";
 }
@@ -402,8 +381,6 @@ export default function ModalEditarMovimiento({
   onCatalogCreated,
   onToast,
 }) {
-  const API = `${BASE_URL}/api.php`;
-
   // ✅ dark automático
   const [dark, setDark] = useState(isTemaOscuro());
 
@@ -651,47 +628,6 @@ export default function ModalEditarMovimiento({
   }, []);
 
   /* =========================
-     ✅ API helper (con X-Session + res.ok check)
-========================= */
-  const parseJsonOrThrow = useCallback(async (res) => {
-    const text = await res.text();
-    if (!text) throw new Error("Respuesta vacía del servidor.");
-    try {
-      return JSON.parse(text);
-    } catch {
-      const preview = text.length > 600 ? text.slice(0, 600) + "..." : text;
-      throw new Error(`Respuesta inválida del servidor (no es JSON). HTTP ${res.status}\n${preview}`);
-    }
-  }, []);
-
-  const apiPostJson = useCallback(
-    async (url, payload) => {
-      const { token, sessionKey } = getAuthInfo();
-
-      const headers = { "Content-Type": "application/json" };
-      if (sessionKey) headers["X-Session"] = sessionKey; // ✅ FIX
-      if (token) headers.Authorization = `Bearer ${token}`;
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload ?? {}),
-      });
-
-      const data = await parseJsonOrThrow(res);
-
-      // ✅ si backend devuelve 401/403/500, antes igual seguía y terminaba en errores raros
-      if (!res.ok) {
-        const msg = data?.mensaje || data?.error || `HTTP ${res.status}`;
-        throw new Error(msg);
-      }
-
-      return data;
-    },
-    [parseJsonOrThrow]
-  );
-
-  /* =========================
      Alta rápida catálogo
   ========================= */
   const closeAddMini = useCallback(() => {
@@ -715,12 +651,9 @@ export default function ModalEditarMovimiento({
     showToast("cargando", `Creando ${meta.label}…`, 12000);
 
     try {
-      const { idUsuario } = getAuthInfo();
-
-      const data = await apiPostJson(`${API}?action=catalogo_crear`, {
+      const data = await crearCatalogoMovimiento({
         catalogo: meta.catalogo,
         nombre,
-        idUsuario,
       });
 
       if (!data?.exito) throw new Error(data?.mensaje || "No se pudo crear el registro.");
@@ -771,7 +704,7 @@ export default function ModalEditarMovimiento({
       setAddUI((p) => ({ ...p, saving: false }));
       showToast("error", msg, 4200);
     }
-  }, [API, addUI, apiPostJson, onCatalogCreated, showToast]);
+  }, [addUI, onCatalogCreated, showToast]);
 
   const cerrar = useCallback(() => {
     if (saving) return;

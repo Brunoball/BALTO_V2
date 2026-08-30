@@ -5,15 +5,9 @@ import {
   faXmark,
   faPaperPlane,
 } from "@fortawesome/free-solid-svg-icons";
-import BASE_URL from "../../../config/config";
 import "./ModalRecuperar.css";
-
-function maskEmail(email) {
-  if (!email || !email.includes("@")) return null;
-  const [local, domain] = email.split("@");
-  if (local.length <= 2) return `${local[0]}***@${domain}`;
-  return `${local.slice(0, 2)}${"*".repeat(Math.min(local.length - 2, 4))}@${domain}`;
-}
+import { solicitarRecuperacionContrasena } from "../api/loginApi";
+import { maskEmail } from "../utils/loginUtils";
 
 const ModalRecuperarContra = ({ onClose, usuarioPrefill = "" }) => {
   const [step, setStep] = useState("form");
@@ -54,26 +48,12 @@ const ModalRecuperarContra = ({ onClose, usuarioPrefill = "" }) => {
     setCargando(true);
 
     try {
-      const res = await fetch(`${BASE_URL}/api.php?action=recuperar_contrasena`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ nombre: user }),
-      });
+      const { ok, status, data, rawText: text } =
+        await solicitarRecuperacionContrasena({ nombre: user });
 
-      const text = await res.text();
-      let data = null;
-
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = null;
-      }
-
-      if (!res.ok || !data?.exito) {
+      if (!ok || !data?.exito) {
         console.error("RECUPERAR CONTRA ERROR:", {
-          status: res.status,
+          status,
           data,
           raw: text,
         });

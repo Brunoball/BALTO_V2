@@ -13,50 +13,13 @@ import {
   faWallet,
 } from "@fortawesome/free-solid-svg-icons";
 
-import BASE_URL from "../../../config/config";
 import Toast from "../../Global/Toast";
+import { apiFetchActionJson as apiFetch } from "../api/configuracionApi";
+import { todayISO } from "../utils/configuracionUtils";
 import ModalEliminar from "../../Global/Modales/ModalEliminar";
 import "../../Global/Global_css/GlobalsModalsV2.css";
 import "./ConfiguracionSaldosIniciales.css";
 
-const API_RELATIVE = "api.php";
-
-function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function buildApiUrl(paramsObj = {}) {
-  const baseRaw = String(BASE_URL || "").trim();
-  const base = baseRaw.replace(/\/+$/, "") + "/";
-  const url = new URL(API_RELATIVE, base);
-  const qs = new URLSearchParams();
-  Object.entries(paramsObj || {}).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    qs.set(k, String(v));
-  });
-  url.search = qs.toString();
-  return url.toString();
-}
-
-function getSessionKey() {
-  return String(localStorage.getItem("session_key") || "").trim();
-}
-
-async function apiFetch(action, options = {}) {
-  const headers = new Headers(options.headers || {});
-  const session = getSessionKey();
-  if (session) headers.set("X-Session", session);
-  if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  const res = await fetch(buildApiUrl({ action }), { ...options, headers });
-  const text = await res.text();
-  let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch {}
-  if (!res.ok || !data?.exito) {
-    throw new Error(data?.mensaje || `Error HTTP ${res.status}`);
-  }
-  return data;
-}
 
 function parseMoney(value) {
   let s = String(value ?? "").trim().replace(/\$/g, "").replace(/\s+/g, "");

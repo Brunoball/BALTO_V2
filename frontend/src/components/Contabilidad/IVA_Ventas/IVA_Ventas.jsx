@@ -17,14 +17,8 @@ import BotonExportar from "../../Global/Boton_Exportar/BotonExportar.jsx";
 import Toast from "../../Global/Toast.jsx";
 import { useDateRange } from "../../../context/DateRangeContext";
 import "../contabilidad.css";
-import { fetchContabilidadJson } from "../apiClient";
-
-const formatCurrency = (value) =>
-  new Intl.NumberFormat("es-AR", {
-    style: "currency",
-    currency: "ARS",
-    minimumFractionDigits: 2,
-  }).format(Number(value) || 0);
+import useIvaRegistros from "../hooks/useIvaRegistros";
+import { formatCurrency } from "../utils/contabilidadUtils";
 
 const columnas = [
   { key: "fecha", label: "Fecha" },
@@ -35,6 +29,7 @@ const columnas = [
 ];
 
 const gridCols = "0.9fr minmax(190px, 1.8fr) 1fr 0.9fr 1fr";
+const IVA_VENTAS_ALIASES = ["iva_ventas"];
 
 function normalizeSearchText(value) {
   return String(value ?? "")
@@ -248,43 +243,16 @@ function buildExportRows(rows) {
 
 export default function IVAVentas() {
   const { dateRange, setDateRange } = useDateRange();
-  const [registros, setRegistros] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { registros, loading, error } = useIvaRegistros({
+    action: "contabilidad_iva_ventas",
+    aliases: IVA_VENTAS_ALIASES,
+    errorMessage: "Error cargando IVA ventas.",
+  });
   const [showCalendario, setShowCalendario] = useState(false);
   const [q, setQ] = useState("");
   const [toast, setToast] = useState(null);
 
   const range = dateRange || { from: null, to: null };
-
-  useEffect(() => {
-    let mounted = true;
-
-    const cargar = async () => {
-      try {
-        if (!mounted) return;
-        setLoading(true);
-        setError("");
-
-        const data = await fetchContabilidadJson("contabilidad_iva_ventas", {}, ["iva_ventas"]);
-
-        if (!mounted) return;
-        setRegistros(Array.isArray(data?.registros) ? data.registros : []);
-      } catch (err) {
-        if (!mounted) return;
-        setError(err?.message || "Error cargando IVA ventas.");
-        setRegistros([]);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    cargar();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   const filteredRegistros = useMemo(() => {
     return registros.filter((row) => rowInDateRange(row, range.from, range.to) && rowMatchesQuery(row, q));

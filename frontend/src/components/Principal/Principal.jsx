@@ -9,7 +9,6 @@ import React, {
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import LogoBalto from "../../imagenes/Logo_Blanco_Principal.png";
-import BASE_URL from "../../config/config";
 
 import {
   faChartLine,
@@ -30,206 +29,29 @@ import {
 
 import "./principal.css";
 import ModalPerfil from "../Perfil/ModalPerfil";
-
-/* =========================================================
-   API
-========================================================= */
-const API_RELATIVE = "api.php";
-
-function buildApiUrl(paramsObj) {
-  const baseRaw = String(BASE_URL || "").trim();
-  const base = baseRaw.replace(/\/+$/, "") + "/";
-  const url = new URL(API_RELATIVE, base);
-
-  const qs = new URLSearchParams();
-  Object.entries(paramsObj || {}).forEach(([k, v]) => {
-    if (v === undefined || v === null) return;
-    qs.set(k, String(v));
-  });
-
-  url.search = qs.toString();
-  return url.toString();
-}
-
-function isLocalApiBase() {
-  try {
-    const base = String(BASE_URL || "").toLowerCase().trim();
-    return base.includes("localhost") || base.includes("127.0.0.1");
-  } catch {
-    return false;
-  }
-}
-
-function safeJsonParse(s) {
-  try {
-    return JSON.parse(s);
-  } catch {
-    return null;
-  }
-}
-
-function looksLikeUnauthorizedPayload(text, contentType = "") {
-  const raw = String(text || "").trim();
-  if (!raw) return false;
-
-  let msg = raw;
-
-  if (String(contentType || "").toLowerCase().includes("application/json")) {
-    const data = safeJsonParse(raw);
-    if (data && typeof data === "object") {
-      msg = [data.mensaje, data.error, data.detalle, raw]
-        .filter(Boolean)
-        .join(" | ");
-    }
-  }
-
-  const s = String(msg).toLowerCase();
-
-  return (
-    s.includes("sesión expirada") ||
-    s.includes("sesion expirada") ||
-    s.includes("sesión no autorizada") ||
-    s.includes("sesion no autorizada") ||
-    s.includes("session_key inválida") ||
-    s.includes("session_key invalida") ||
-    s.includes("falta x-session") ||
-    s.includes("error en api: sesión expirada") ||
-    s.includes("error en api: sesion expirada") ||
-    s.includes("sesión inválida") ||
-    s.includes("sesion invalida")
-  );
-}
-
-function isSessionExpiredResponse(status, text = "", contentType = "") {
-  if (Number(status) === 401) return true;
-  if (Number(status) !== 403) return false;
-  return looksLikeUnauthorizedPayload(text, contentType);
-}
-
-async function apiFetch(paramsObj, options = {}) {
-  const sessionKey = (localStorage.getItem("session_key") || "").trim();
-
-  const headers = new Headers(options.headers || {});
-  if (sessionKey) headers.set("X-Session", sessionKey);
-
-  if (options.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  const url = buildApiUrl(paramsObj);
-
-  const res = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  try {
-    const clone = res.clone();
-    const text = await clone.text();
-    const ct = clone.headers.get("content-type") || "";
-
-    if (isSessionExpiredResponse(res.status, text, ct)) {
-      try {
-        window.dispatchEvent(
-          new CustomEvent("auth:unauthorized", {
-            detail: { status: res.status },
-          })
-        );
-      } catch {}
-      return res;
-    }
-
-    if (looksLikeUnauthorizedPayload(text, ct)) {
-      try {
-        window.dispatchEvent(
-          new CustomEvent("auth:unauthorized", {
-            detail: { status: 401, reason: "payload-session-expired" },
-          })
-        );
-      } catch {}
-
-      return new Response(
-        JSON.stringify({ exito: false, mensaje: "Sesión expirada." }),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json; charset=utf-8" },
-        }
-      );
-    }
-  } catch {}
-
-  return res;
-}
-
-/* =========================================================
-   PREFETCH
-========================================================= */
-const ROUTE_PREFETCH = {
-  "/panel/movimientos": () => import("../Movimientos/Movimientos"),
-  "/panel/ventas": () => import("../Mov_Subsection/Ventas/Ventas"),
-  "/panel/documentos_comerciales": () =>
-    import("../Mov_Subsection/Documentos_Comerciales/Presupuestos"),
-  "/panel/presupuesto": () =>
-    import("../Mov_Subsection/Documentos_Comerciales/Presupuestos"),
-  "/panel/compras": () => import("../Mov_Subsection/Compra/Compras"),
-  "/panel/recibos": () => import("../Mov_Subsection/Recibos/Recibos"),
-  "/panel/OrdenesPago": () =>
-    import("../Mov_Subsection/OrdenesPago/OrdenesPago"),
-  "/panel/flujo-de-caja": () => import("../Flujo_de_Caja/Flujo_Caja"),
-  "/panel/cuentas-corrientes/clientes": () =>
-    import("../Cuentas_Corrientes/Clientes/Clientes"),
-  "/panel/cuentas-corrientes/proveedores": () =>
-    import("../Cuentas_Corrientes/Proveedores/Proveedores"),
-  "/panel/stock": () => import("../Stock/Stock"),
-  "/panel/contabilidad": () =>
-    import("../Contabilidad/IVA_Ventas/IVA_Ventas"),
-  "/panel/contabilidad/iva-compras": () =>
-    import("../Contabilidad/IVA_Compras/IVA_Compras"),
-  "/panel/contabilidad/iva-ventas": () =>
-    import("../Contabilidad/IVA_Ventas/IVA_Ventas"),
-  "/panel/analisis-financiero": () =>
-    import("../Analisis_Financiero/Analisis_Financiero"),
-  "/panel/configuracion": () => import("../Configuracion/Configuracion"),
-  "/panel/configuracion/tiendanube": () =>
-    import("../Configuracion/ConfiguracionTiendaNube/ConfigTiendaNube"),
-  "/panel/cheques/cartera": () =>
-    import("../Cheques/Cheques_Cartera/Cheques_Cartera"),
-  "/panel/cheques/flujo": () =>
-    import("../Cheques/Flujo_Cheques/Flujo_Cheques"),
-  "/panel/cheques/echeqs-cartera": () =>
-    import("../Cheques/Echeqs_Cartera/Echeqs_Cartera"),
-  "/panel/cheques/flujo-echeqs": () =>
-    import("../Cheques/Flujo_Echeqs/Flujo_Echeqs"),
-};
-
-function prefetchRoute(ruta) {
-  try {
-    const fn = ROUTE_PREFETCH[ruta];
-    if (fn) fn();
-  } catch {}
-}
-
-/* =========================================================
-   IDLE
-========================================================= */
-const LAST_ACTIVITY_KEY = "balto_last_activity_ts";
-const IDLE_MS = 2 * 60 * 60 * 1000;
-
-function setLastActivityNow() {
-  try {
-    sessionStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
-  } catch {}
-}
-
-function getLastActivityTs() {
-  try {
-    const v = sessionStorage.getItem(LAST_ACTIVITY_KEY);
-    const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
-  } catch {
-    return 0;
-  }
-}
+import {
+  actualizarTemaBackend,
+  cerrarSesionBackend,
+  obtenerTenantLogo,
+} from "./api/principalApi";
+import usePrincipalIdleLogout from "./hooks/usePrincipalIdleLogout";
+import usePrincipalSessionGuard from "./hooks/usePrincipalSessionGuard";
+import { prefetchRoute } from "./utils/principalPrefetch";
+import {
+  applyTheme,
+  getLogoToneFromImageSrc,
+  getModuleKeyByPath,
+  getSessionKey,
+  hardClientLogoutCleanup,
+  normalizePlanId,
+  normalizePlanNivel,
+  normalizeRol,
+  normalizeTema,
+  planAllowsNavKey,
+  safeJsonParse,
+  setLastActivityNow,
+  slugify,
+} from "./utils/principalUtils";
 
 /* =========================
    Modal cierre sesión
@@ -297,99 +119,6 @@ const ConfirmLogoutModal = memo(function ConfirmLogoutModal({
 /* =========================
    Helpers
 ========================= */
-function normalizeRol(value, idRol = null) {
-  const id = Number(idRol);
-  const v = String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-
-  if (
-    id === 1 ||
-    ["1", "admin", "administrator", "administrador", "superadmin"].includes(v)
-  ) {
-    return "admin";
-  }
-
-  return "empleado_basico";
-}
-
-function normalizePlanNivel(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 1;
-  if (n <= 1) return 1;
-  if (n === 2) return 2;
-  return 3;
-}
-
-function normalizePlanId(value, planName = "") {
-  const n = Number(value);
-  const name = String(planName || "").trim().toLowerCase();
-  if (n === 3 || name.includes("demo")) return 3;
-  return n === 2 ? 2 : 1;
-}
-
-const PLAN_BASICO_NAV_KEYS = new Set([
-  "dashboard",
-  "movimientos",
-  "flujo-de-caja",
-  "cuentas-corrientes",
-  "stock",
-  "contabilidad",
-  "configuracion",
-]);
-
-function planAllowsNavKey(planId, key) {
-  const id = normalizePlanId(planId);
-
-  // Plan 2 = PRO y Plan 3 = DEMO: todo visible en navegación.
-  if (id === 2 || id === 3) return true;
-
-  // Plan 1 = BÁSICO: solo módulos principales.
-  return PLAN_BASICO_NAV_KEYS.has(String(key || ""));
-}
-
-function getModuleKeyByPath(pathname) {
-  const path = String(pathname || "");
-
-  if (path === "/panel" || path === "/panel/" || path.startsWith("/panel/dashboard")) {
-    return "dashboard";
-  }
-
-  if (
-    path.startsWith("/panel/movimientos") ||
-    path.startsWith("/panel/ventas") ||
-    path.startsWith("/panel/compras") ||
-    path.startsWith("/panel/recibos") ||
-    path.startsWith("/panel/OrdenesPago") ||
-    path.startsWith("/panel/Otrosingresos") ||
-    path.startsWith("/panel/Otrosegresos") ||
-    path.startsWith("/panel/documentos_comerciales") ||
-    path.startsWith("/panel/presupuesto")
-  ) {
-    return "movimientos";
-  }
-
-  if (path.startsWith("/panel/flujo-de-caja")) return "flujo-de-caja";
-  if (path.startsWith("/panel/cuentas-corrientes")) return "cuentas-corrientes";
-  if (path.startsWith("/panel/stock")) return "stock";
-  if (path.startsWith("/panel/contabilidad")) return "contabilidad";
-  if (path.startsWith("/panel/cheques")) return "cheques";
-  if (path.startsWith("/panel/analisis-financiero")) return "analisis-financiero";
-  if (path.startsWith("/panel/configuracion")) return "configuracion";
-
-  return "dashboard";
-}
-
-function slugify(name) {
-  return (
-    String(name ?? "")
-      .trim()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "seccion"
-  );
-}
-
 function pickIcon(label) {
   const s = String(label ?? "").toLowerCase();
 
@@ -403,90 +132,6 @@ function pickIcon(label) {
   if (s.includes("contabilidad")) return faBookOpen;
 
   return faChartLine;
-}
-
-function normalizeTema(value) {
-  const t = String(value ?? "claro").trim().toLowerCase();
-  return t === "oscuro" ? "oscuro" : "claro";
-}
-
-function applyTheme(tema) {
-  document.documentElement.setAttribute("data-theme", tema);
-  document.body.classList.toggle("dark", tema === "oscuro");
-}
-
-function getSessionKey() {
-  return String(localStorage.getItem("session_key") || "").trim();
-}
-
-function hardClientLogoutCleanup() {
-  try {
-    sessionStorage.clear();
-    localStorage.removeItem("token");
-    localStorage.removeItem("session_key");
-    localStorage.removeItem("usuario");
-  } catch {}
-}
-
-function getLogoToneFromImageSrc(src) {
-  return new Promise((resolve) => {
-    if (!src) {
-      resolve("dark");
-      return;
-    }
-
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-
-    img.onload = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        const size = 56;
-
-        canvas.width = size;
-        canvas.height = size;
-
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        if (!ctx) {
-          resolve("dark");
-          return;
-        }
-
-        ctx.clearRect(0, 0, size, size);
-        ctx.drawImage(img, 0, 0, size, size);
-
-        const { data } = ctx.getImageData(0, 0, size, size);
-
-        let brightnessTotal = 0;
-        let visiblePixels = 0;
-
-        for (let i = 0; i < data.length; i += 4) {
-          const alpha = data[i + 3];
-          if (alpha < 45) continue;
-
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-          const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-
-          brightnessTotal += brightness;
-          visiblePixels += 1;
-        }
-
-        if (!visiblePixels) {
-          resolve("dark");
-          return;
-        }
-
-        resolve(brightnessTotal / visiblePixels >= 155 ? "light" : "dark");
-      } catch {
-        resolve("dark");
-      }
-    };
-
-    img.onerror = () => resolve("dark");
-    img.src = src;
-  });
 }
 
 /* =========================
@@ -565,43 +210,13 @@ const Principal = () => {
     } catch {}
   }, []);
 
-  const buildTenantLogoUrl = useCallback((tipo = "principal") => {
-    const baseRaw = String(BASE_URL || "").trim();
-    const base = baseRaw.replace(/\/+$/, "") + "/";
-    const url = new URL("api.php", base);
-
-    url.searchParams.set("action", "tenant_logo_ver");
-    url.searchParams.set("tipo", tipo);
-
-    return url.toString();
-  }, []);
-
   const loadSingleLogo = useCallback(
     async ({ tipo, setSrc, setLoaded, objectUrlRef, revokeFn, dbRef }) => {
       try {
-        const sessionKey = getSessionKey();
-        if (!sessionKey) return;
-
-        if (isLocalApiBase()) return;
-
-        const logoUrl = buildTenantLogoUrl(tipo);
-
-        const res = await fetch(logoUrl, {
-          method: "GET",
-          headers: {
-            "X-Session": sessionKey,
-          },
-          cache: "no-store",
-        });
+        const res = await obtenerTenantLogo(tipo);
+        if (!res) return;
 
         if (res.status === 401) {
-          try {
-            window.dispatchEvent(
-              new CustomEvent("auth:unauthorized", {
-                detail: { status: res.status },
-              })
-            );
-          } catch {}
           return;
         }
 
@@ -638,7 +253,7 @@ const Principal = () => {
         // No limpiar en caso de error
       }
     },
-    [buildTenantLogoUrl]
+    []
   );
 
   const loadTenantLogos = useCallback(async () => {
@@ -683,10 +298,7 @@ const Principal = () => {
 
       try {
         if (sessionKey) {
-          const r = await apiFetch(
-            { action: "logout" },
-            { method: "POST", body: JSON.stringify({}) }
-          );
+          const r = await cerrarSesionBackend();
 
           if (!r.ok && r.status !== 401 && r.status !== 403) {
             const txt = await r.text().catch(() => "");
@@ -739,71 +351,7 @@ const Principal = () => {
     ]
   );
 
-  useEffect(() => {
-    const onUnauthorized = () => doLogout({ silent: true });
-
-    window.addEventListener("auth:unauthorized", onUnauthorized);
-
-    return () => {
-      window.removeEventListener("auth:unauthorized", onUnauthorized);
-    };
-  }, [doLogout]);
-
-  useEffect(() => {
-    const originalFetch = window.fetch.bind(window);
-
-    window.fetch = async (...args) => {
-      const response = await originalFetch(...args);
-
-      try {
-        const clone = response.clone();
-        const ct = clone.headers.get("content-type") || "";
-        let txt = "";
-
-        if (ct.includes("application/json") || ct.includes("text/plain")) {
-          txt = await clone.text();
-        }
-
-        if (isSessionExpiredResponse(response.status, txt, ct)) {
-          try {
-            window.dispatchEvent(
-              new CustomEvent("auth:unauthorized", {
-                detail: { status: response.status, reason: "http-status" },
-              })
-            );
-          } catch {}
-
-          return response;
-        }
-
-        if (ct.includes("application/json") || ct.includes("text/plain")) {
-          if (looksLikeUnauthorizedPayload(txt, ct)) {
-            try {
-              window.dispatchEvent(
-                new CustomEvent("auth:unauthorized", {
-                  detail: { status: 401, reason: "body-message" },
-                })
-              );
-            } catch {}
-
-            return new Response(
-              JSON.stringify({ exito: false, mensaje: "Sesión expirada." }),
-              {
-                status: 401,
-                headers: { "Content-Type": "application/json; charset=utf-8" },
-              }
-            );
-          }
-        }
-      } catch {}
-
-      return response;
-    };
-
-    return () => {
-      window.fetch = originalFetch;
-    };
-  }, []);
+  usePrincipalSessionGuard(doLogout);
 
   useEffect(() => {
     const sk = getSessionKey();
@@ -908,58 +456,7 @@ const Principal = () => {
     };
   }, [drawerOpen]);
 
-  useEffect(() => {
-    const resetIdle = () => {
-      setLastActivityNow();
-
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-
-      idleTimerRef.current = setTimeout(
-        () => doLogout({ silent: true }),
-        IDLE_MS
-      );
-    };
-
-    const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"];
-
-    events.forEach((ev) =>
-      window.addEventListener(ev, resetIdle, { passive: true })
-    );
-
-    resetIdle();
-
-    return () => {
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-
-      events.forEach((ev) => window.removeEventListener(ev, resetIdle));
-    };
-  }, [doLogout]);
-
-  useEffect(() => {
-    const checkExpiredOnWake = () => {
-      const last = getLastActivityTs();
-
-      if (!last) return;
-
-      if (Date.now() - last >= IDLE_MS) {
-        doLogout({ silent: true });
-      }
-    };
-
-    const onFocus = () => checkExpiredOnWake();
-
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") checkExpiredOnWake();
-    };
-
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisibility);
-
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [doLogout]);
+  usePrincipalIdleLogout({ doLogout, idleTimerRef });
 
   const rolUsuario = normalizeRol(
     usuario?.rol ?? usuario?.tipo_rol,
@@ -1218,10 +715,7 @@ const Principal = () => {
     } catch {}
 
     try {
-      const r = await apiFetch(
-        { action: "usuario_tema_actualizar" },
-        { method: "POST", body: JSON.stringify({ tema: nuevo }) }
-      );
+      const r = await actualizarTemaBackend(nuevo);
 
       if (r.status === 401) {
         await doLogout({ silent: true });

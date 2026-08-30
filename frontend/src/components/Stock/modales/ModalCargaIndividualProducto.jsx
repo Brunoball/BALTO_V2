@@ -4,6 +4,11 @@ import ModalVerComprobante from "../../Global/Ver_Comprobantes/ModalVerComproban
 import StockBarcodePanel from "./StockBarcodePanel";
 import "./ModalCargaIndividualProducto.css";
 import { isTopStockModal } from "./modalStackUtils";
+import {
+  crearCategoriaStock,
+  crearProductoStock,
+  crearTipoPrecioStock,
+} from "../api/stockApi";
 
 import {
   faBarcode,
@@ -24,9 +29,6 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 import {
-  API_URL,
-  buildHeadersJSON,
-  buildHeadersMultipart,
   emptyExtraPriceRow,
   formatMoneyBlur,
   formatMoneyFocus,
@@ -34,10 +36,9 @@ import {
   moneyToApi,
   normalizeMoneyInput,
   onlyNumbers,
-  parseJsonOrThrow,
   recalculatePricingGroup,
   toUpperCaseValue,
-} from "./stockFormUtils";
+} from "../utils/stockFormUtils";
 
 /* ── Utilidades ── */
 function normalizeIdValue(value) {
@@ -1436,13 +1437,10 @@ export default function ModalCargaIndividualProducto({
     setGuardandoMiniCategoria(true);
 
     try {
-      const res = await fetch(`${API_URL}?action=stock_categorias_crear`, {
-        method: "POST",
-        headers: buildHeadersJSON(),
-        body: JSON.stringify({ nombre: nombreLimpio, id_categoria_padre: miniCategoriaPadreId || null }),
+      const data = await crearCategoriaStock({
+        nombre: nombreLimpio,
+        id_categoria_padre: miniCategoriaPadreId || null,
       });
-
-      const data = await parseJsonOrThrow(res);
 
       const nueva = data.categoria || data.nueva || {
         id: data.id_stock_categoria,
@@ -1489,13 +1487,10 @@ export default function ModalCargaIndividualProducto({
     setGuardandoSubCategoria(true);
 
     try {
-      const res = await fetch(`${API_URL}?action=stock_categorias_crear`, {
-        method: "POST",
-        headers: buildHeadersJSON(),
-        body: JSON.stringify({ nombre: nombreLimpio, id_categoria_padre: idPadre }),
+      const data = await crearCategoriaStock({
+        nombre: nombreLimpio,
+        id_categoria_padre: idPadre,
       });
-
-      const data = await parseJsonOrThrow(res);
       const nivelPadre = Number(categoriaPrincipal?.nivel || 0);
       const nueva = normalizeCategoriaRegistro(data.categoria || data.nueva || {}, {
         id: data.id_stock_categoria,
@@ -1533,13 +1528,7 @@ export default function ModalCargaIndividualProducto({
     setGuardandoMiniTipo(true);
 
     try {
-      const res = await fetch(`${API_URL}?action=stock_tipos_precio_crear`, {
-        method: "POST",
-        headers: buildHeadersJSON(),
-        body: JSON.stringify({ nombre: nombreLimpio }),
-      });
-
-      const data = await parseJsonOrThrow(res);
+      const data = await crearTipoPrecioStock({ nombre: nombreLimpio });
 
       const nuevo = data.tipo_precio || {
         id: data.id_tipo_precio_stock,
@@ -1690,13 +1679,7 @@ export default function ModalCargaIndividualProducto({
         fd.append("imagen", imagenFile);
       }
 
-      const res = await fetch(`${API_URL}?action=stock_productos_crear`, {
-        method: "POST",
-        headers: buildHeadersMultipart(),
-        body: fd,
-      });
-
-      const data = await parseJsonOrThrow(res);
+      const data = await crearProductoStock(fd);
       const productoGuardadoBase = data?.producto ?? data?.data?.producto ?? data?.data ?? null;
       const productoGuardado = buildOptimisticProduct(
         productoGuardadoBase,

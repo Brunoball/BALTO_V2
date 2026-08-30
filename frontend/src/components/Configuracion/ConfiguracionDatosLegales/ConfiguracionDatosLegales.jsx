@@ -11,11 +11,10 @@ import {
   faReceipt,
 } from "@fortawesome/free-solid-svg-icons";
 
-import BASE_URL from "../../../config/config";
 import Toast from "../../Global/Toast";
+import { apiFetch, safeJsonParse } from "../api/configuracionApi";
 import "./ConfiguracionDatosLegales.css";
 
-const API_RELATIVE = "api.php";
 
 const emptyForm = {
   idConfigFacturacion: 0,
@@ -48,46 +47,6 @@ const comprobantes = [
   { tipo: "RECIBO B", codigo: "009" },
   { tipo: "RECIBO C", codigo: "015" },
 ];
-
-function buildApiUrl(paramsObj = {}) {
-  const baseRaw = String(BASE_URL || "").trim();
-  const base = baseRaw.replace(/\/+$/, "") + "/";
-  const url = new URL(API_RELATIVE, base);
-  const qs = new URLSearchParams();
-
-  Object.entries(paramsObj || {}).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    qs.set(k, String(v));
-  });
-
-  url.search = qs.toString();
-  return url.toString();
-}
-
-function getSessionKey() {
-  return String(localStorage.getItem("session_key") || "").trim();
-}
-
-function safeJsonParse(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-async function apiFetch(paramsObj = {}, options = {}) {
-  const headers = new Headers(options.headers || {});
-  const sessionKey = getSessionKey();
-
-  if (sessionKey) headers.set("X-Session", sessionKey);
-
-  if (options.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  return fetch(buildApiUrl(paramsObj), { ...options, headers });
-}
 
 function toMayus(value) {
   return String(value || "").toLocaleUpperCase("es-AR");

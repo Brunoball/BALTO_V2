@@ -26,58 +26,18 @@ import {
   faImage,
   faPlus,
 } from "@fortawesome/free-solid-svg-icons";
-import BASE_URL from "../../../config/config";
-
-const API_URL = `${String(BASE_URL || "").replace(/\/+$/, "")}/api.php`;
-
-function buildHeadersGET() {
-  const sessionKey = (localStorage.getItem("session_key") || "").trim();
-  const token = (localStorage.getItem("token") || "").trim();
-  const h = {};
-  if (sessionKey) h["X-Session"] = sessionKey;
-  if (token) h["Authorization"] = `Bearer ${token}`;
-  return h;
-}
-
-function buildHeadersJSON() {
-  const sessionKey = (localStorage.getItem("session_key") || "").trim();
-  const token = (localStorage.getItem("token") || "").trim();
-  const h = { "Content-Type": "application/json" };
-  if (sessionKey) h["X-Session"] = sessionKey;
-  if (token) h["Authorization"] = `Bearer ${token}`;
-  return h;
-}
-
-function buildHeadersMultipart() {
-  const sessionKey = (localStorage.getItem("session_key") || "").trim();
-  const token = (localStorage.getItem("token") || "").trim();
-  const h = {};
-  if (sessionKey) h["X-Session"] = sessionKey;
-  if (token) h["Authorization"] = `Bearer ${token}`;
-  return h;
-}
-
-function withSessionKey(url) {
-  const base = String(url || "").trim();
-  if (!base) return "";
-  try {
-    const sessionKey = (localStorage.getItem("session_key") || "").trim();
-    const token = (localStorage.getItem("token") || "").trim();
-    const u = new URL(base, window.location.origin);
-
-    if (sessionKey && !u.searchParams.has("session_key")) {
-      u.searchParams.set("session_key", sessionKey);
-    }
-
-    if (token && !u.searchParams.has("token")) {
-      u.searchParams.set("token", token);
-    }
-
-    return u.toString();
-  } catch {
-    return base;
-  }
-}
+import {
+  API_URL,
+  actualizarProductoStock,
+  crearCategoriaStock,
+  crearTipoPrecioStock,
+  getUsuarioAuditData,
+  listarCategoriasStock,
+  listarTiposPrecioStock,
+  obtenerProductoStock,
+  stockBarcodeGet,
+  withSessionKey,
+} from "../api/stockApi";
 
 function getProductoImageUrlByArchivoId(archivoId) {
   const id = Number(archivoId || 0);
@@ -100,77 +60,6 @@ function inferImageMimeFromUrl(url = "") {
   if (s.endsWith(".gif")) return "image/gif";
 
   return "image/jpeg";
-}
-
-function getUsuarioAuditData() {
-  let idUsuarioMaster = 0;
-  let idTenant = null;
-
-  try {
-    const u = JSON.parse(localStorage.getItem("usuario") || "null");
-
-    const cand =
-      u?.idUsuarioMaster ??
-      u?.id_usuario_master ??
-      u?.idUsuario ??
-      u?.id_usuario ??
-      u?.id ??
-      0;
-
-    if (Number.isFinite(Number(cand))) {
-      idUsuarioMaster = Number(cand);
-    }
-
-    const tenantCand =
-      u?.idTenant ??
-      u?.id_tenant ??
-      u?.tenant_id ??
-      u?.tenant?.idTenant ??
-      null;
-
-    if (
-      tenantCand !== null &&
-      tenantCand !== undefined &&
-      tenantCand !== "" &&
-      Number(tenantCand) > 0
-    ) {
-      idTenant = Number(tenantCand);
-    }
-  } catch {}
-
-  return { idUsuarioMaster, idTenant };
-}
-
-async function parseJsonOrThrow(res) {
-  if (res.status === 401 || res.status === 403) {
-    throw new Error("Sesión vencida o no autorizada. Volvé a iniciar sesión.");
-  }
-
-  const text = await res.text();
-
-  if (!text) {
-    throw new Error("Respuesta vacía del servidor.");
-  }
-
-  let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch {
-    const preview = text.length > 400 ? text.slice(0, 400) + "..." : text;
-
-    throw new Error(
-      text.startsWith("<!DOCTYPE") || text.startsWith("<")
-        ? "La API devolvió HTML en vez de JSON. Revisá la ruta del backend."
-        : `Respuesta inválida del servidor. HTTP ${res.status}\n${preview}`
-    );
-  }
-
-  if (!res.ok || data?.exito === false) {
-    throw new Error(data?.mensaje || `Error HTTP ${res.status}`);
-  }
-
-  return data;
 }
 
 function isTemaOscuro() {
@@ -1286,20 +1175,14 @@ export default function ModalEditarProducto({
 
       try {
         const [resListas, resTipos] = await Promise.allSettled([
-          fetch(`${API_URL}?action=stock_categorias_listar`, {
-            method: "GET",
-            headers: buildHeadersGET(),
-          }),
-          fetch(`${API_URL}?action=stock_tipos_precio_listar`, {
-            method: "GET",
-            headers: buildHeadersGET(),
-          }),
+          listarCategoriasStock(),
+          listarTiposPrecioStock(),
         ]);
 
         if (!cancelado) {
           if (resListas.status === "fulfilled") {
             try {
-              const dataListas = await parseJsonOrThrow(resListas.value);
+              const dataListas = resListas.value;
               const rawCategorias = Array.isArray(dataListas?.categorias)
                 ? dataListas.categorias
                 : Array.isArray(dataListas?.listas?.stock_categorias)
@@ -1333,7 +1216,7 @@ export default function ModalEditarProducto({
 
           if (resTipos.status === "fulfilled") {
             try {
-              const dataTipos = await parseJsonOrThrow(resTipos.value);
+              const dataTipos = resTipos.value;
               const rawTipos = Array.isArray(dataTipos?.tipos_precio)
                 ? dataTipos.tipos_precio
                 : [];
@@ -1461,16 +1344,7 @@ export default function ModalEditarProducto({
       variantesAntesDeDesactivarRef.current = null;
 
       try {
-        const url = `${API_URL}?action=stock_producto_obtener&id=${encodeURIComponent(
-          productoId
-        )}`;
-
-        const res = await fetch(url, {
-          method: "GET",
-          headers: buildHeadersGET(),
-        });
-
-        const data = await parseJsonOrThrow(res);
+        const data = await obtenerProductoStock(productoId);
 
         if (mounted) {
           setForm(hydratePricingFormValues(normalizarProducto(data)));
@@ -1988,13 +1862,10 @@ export default function ModalEditarProducto({
     setGuardandoMiniCategoria(true);
 
     try {
-      const res = await fetch(`${API_URL}?action=stock_categorias_crear`, {
-        method: "POST",
-        headers: buildHeadersJSON(),
-        body: JSON.stringify({ nombre: nombreLimpio, id_categoria_padre: miniCategoriaPadreId || null }),
+      const data = await crearCategoriaStock({
+        nombre: nombreLimpio,
+        id_categoria_padre: miniCategoriaPadreId || null,
       });
-
-      const data = await parseJsonOrThrow(res);
 
       const nueva =
         data.categoria ||
@@ -2063,13 +1934,10 @@ export default function ModalEditarProducto({
     setGuardandoSubCategoria(true);
 
     try {
-      const res = await fetch(`${API_URL}?action=stock_categorias_crear`, {
-        method: "POST",
-        headers: buildHeadersJSON(),
-        body: JSON.stringify({ nombre: nombreLimpio, id_categoria_padre: idPadre }),
+      const data = await crearCategoriaStock({
+        nombre: nombreLimpio,
+        id_categoria_padre: idPadre,
       });
-
-      const data = await parseJsonOrThrow(res);
       const nivelPadre = Number(categoriaPrincipal?.nivel || 0);
       const normalizada = normalizeCategoriaRegistro(data.categoria || data.nueva || {}, {
         id: data.id_stock_categoria,
@@ -2117,13 +1985,7 @@ export default function ModalEditarProducto({
     setGuardandoMiniTipo(true);
 
     try {
-      const res = await fetch(`${API_URL}?action=stock_tipos_precio_crear`, {
-        method: "POST",
-        headers: buildHeadersJSON(),
-        body: JSON.stringify({ nombre: nombreLimpio }),
-      });
-
-      const data = await parseJsonOrThrow(res);
+      const data = await crearTipoPrecioStock({ nombre: nombreLimpio });
 
       const nuevo =
         data.tipo_precio || {
@@ -2468,13 +2330,7 @@ export default function ModalEditarProducto({
         fd.append("imagen", nuevaImagenFile);
       }
 
-      const res = await fetch(`${API_URL}?action=stock_productos_actualizar`, {
-        method: "POST",
-        headers: buildHeadersMultipart(),
-        body: fd,
-      });
-
-      const data = await parseJsonOrThrow(res);
+      const data = await actualizarProductoStock(fd);
 
       const productoGuardadoBase =
         data?.producto ?? data?.data?.producto ?? data?.data ?? null;
@@ -2501,11 +2357,9 @@ export default function ModalEditarProducto({
         let formRefrescado = null;
 
         try {
-          const detalleRes = await fetch(
-            `${API_URL}?action=stock_producto_obtener&id=${encodeURIComponent(Number(formNormalizado.id || productoId || 0))}`,
-            { method: "GET", headers: buildHeadersGET(), cache: "no-store" }
+          const detalleData = await obtenerProductoStock(
+            Number(formNormalizado.id || productoId || 0)
           );
-          const detalleData = await parseJsonOrThrow(detalleRes);
           formRefrescado = hydratePricingFormValues(normalizarProducto(detalleData));
           productoParaRefresco =
             detalleData?.producto ?? detalleData?.data?.producto ?? detalleData?.data ?? productoGuardado;
@@ -2513,15 +2367,10 @@ export default function ModalEditarProducto({
           // Fallback seguro: si la recarga completa falla después del COMMIT, recuperamos
           // al menos los IDs definitivos desde el endpoint aislado de códigos. Así una
           // segunda pulsación nunca vuelve a insertar las variantes recién creadas.
-          const endpoint = new URL("../modules/stock/codigos_barra/endpoint.php", API_URL);
-          endpoint.searchParams.set("op", "obtener");
-          endpoint.searchParams.set("id_stock_producto", String(Number(formNormalizado.id || productoId || 0)));
-          const barcodeRes = await fetch(endpoint.toString(), {
-            method: "GET",
-            headers: buildHeadersGET(),
-            cache: "no-store",
+          const barcodeData = await stockBarcodeGet({
+            op: "obtener",
+            id_stock_producto: Number(formNormalizado.id || productoId || 0),
           });
-          const barcodeData = await parseJsonOrThrow(barcodeRes);
           const variantesDb = Array.isArray(barcodeData?.variantes) ? barcodeData.variantes : [];
           const porSku = new Map(
             variantesDb

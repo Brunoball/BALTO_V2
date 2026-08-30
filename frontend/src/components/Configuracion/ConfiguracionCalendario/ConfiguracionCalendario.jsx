@@ -1,7 +1,6 @@
 // src/components/Configuracion/ConfiguracionCalendario/ConfiguracionCalendario.jsx
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import BASE_URL from "../../../config/config";
 import { useDateRange } from "../../../context/DateRangeContext";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -17,17 +16,10 @@ import {
   faChevronRight,
 } from "@fortawesome/free-solid-svg-icons";
 import Toast from "../../Global/Toast";
+import { apiFetchJson as apiFetch } from "../api/configuracionApi";
 import "./configuracion_calendario.css";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-
-function getSessionKey() {
-  return (
-    localStorage.getItem("session_key") ||
-    localStorage.getItem("sessionKey") ||
-    ""
-  ).trim();
-}
 
 function getTenantId() {
   try {
@@ -41,34 +33,6 @@ function getTenantId() {
     );
   } catch {
     return "";
-  }
-}
-
-async function apiFetch(params = {}, options = {}) {
-  const base = String(BASE_URL || "").replace(/\/+$/, "");
-  const url = new URL(`${base}/api.php`);
-
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== "") {
-      url.searchParams.set(k, String(v));
-    }
-  });
-
-  const sessionKey = getSessionKey();
-  const headers = new Headers(options.headers || {});
-
-  if (sessionKey) headers.set("X-Session", sessionKey);
-  if (options.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  const res = await fetch(url.toString(), { ...options, headers });
-  const txt = await res.text();
-
-  try {
-    return JSON.parse(txt);
-  } catch {
-    throw new Error("Respuesta inválida del servidor.");
   }
 }
 

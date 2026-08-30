@@ -7,14 +7,10 @@ import {
   faClockRotateLeft,
   faTimes,
 } from "@fortawesome/free-solid-svg-icons";
-import {
-  API_URL,
-  buildHeadersGET,
-  parseJsonOrThrow,
-} from "./stockFormUtils";
 import "./ModalAjustePrecios.css";
 import "./ModalHistorialPreciosProducto.css";
 import { isTopStockModal } from "./modalStackUtils";
+import { stockGet } from "../api/stockApi";
 
 function formatMoney(value) {
   if (value === null || value === undefined || value === "") return "—";
@@ -32,12 +28,7 @@ function formatSignedMoney(value) {
 
 async function apiGet(paramsObj) {
   const params = new URLSearchParams(paramsObj);
-  const res = await fetch(`${API_URL}?${params.toString()}`, {
-    method: "GET",
-    headers: buildHeadersGET(),
-    cache: "no-store",
-  });
-  return await parseJsonOrThrow(res);
+  return stockGet(String(params.get("action") || ""), params);
 }
 
 const ModalHistorialPreciosProducto = ({ open, producto, onClose, onToast }) => {

@@ -11,28 +11,13 @@ import {
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import {
-  API_URL,
-  buildHeadersGET,
-  buildHeadersJSON,
-  parseJsonOrThrow,
-} from "./stockFormUtils";
-import {
   buildCode128Geometry,
   isCode128BText,
   normalizeBarcodeText,
   renderCode128SvgMarkup,
 } from "./barcodeCode128";
+import { stockBarcodeGet, stockBarcodePost } from "../api/stockApi";
 import "./StockBarcodePanel.css";
-
-function barcodeEndpointUrl(params = {}) {
-  const endpoint = new URL("../modules/stock/codigos_barra/endpoint.php", API_URL);
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== null && value !== undefined && value !== "") {
-      endpoint.searchParams.set(key, String(value));
-    }
-  });
-  return endpoint.toString();
-}
 
 function Code128Preview({ value, className = "" }) {
   const text = normalizeBarcodeText(value);
@@ -270,11 +255,10 @@ export default function StockBarcodePanel({
     setError("");
 
     try {
-      const res = await fetch(
-        barcodeEndpointUrl({ op: "obtener", id_stock_producto: idProducto }),
-        { method: "GET", headers: buildHeadersGET(), cache: "no-store" }
-      );
-      const data = await parseJsonOrThrow(res);
+      const data = await stockBarcodeGet({
+        op: "obtener",
+        id_stock_producto: idProducto,
+      });
       setItems(normalizeServerItems(data));
       setIntegrityWarning(data?.requiere_variantes ? String(data?.advertencia || "El producto está marcado con variantes pero todavía no tiene variantes guardadas.") : "");
       setLoadedProductId(idProducto);
@@ -436,18 +420,13 @@ export default function StockBarcodePanel({
 
     setSaving(true);
     try {
-      const res = await fetch(barcodeEndpointUrl(), {
-        method: "POST",
-        headers: buildHeadersJSON(),
-        body: JSON.stringify({
-          op: "guardar",
-          tipo_entidad: scanTarget.tipo_entidad,
-          id_stock_producto: scanTarget.id_stock_producto,
-          id_stock_variante: scanTarget.id_stock_variante || null,
-          codigo_barra: code,
-        }),
+      const data = await stockBarcodePost({}, {
+        op: "guardar",
+        tipo_entidad: scanTarget.tipo_entidad,
+        id_stock_producto: scanTarget.id_stock_producto,
+        id_stock_variante: scanTarget.id_stock_variante || null,
+        codigo_barra: code,
       });
-      const data = await parseJsonOrThrow(res);
       const saved = normalizeBarcodeText(data?.codigo_barra || code);
       setItems((prev) => prev.map((item) => {
         const same = item.tipo_entidad === scanTarget.tipo_entidad &&

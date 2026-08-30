@@ -8,8 +8,6 @@ import ModalReportesStock from "./modales/ModalReportesStock";
 import ModalDarBajaStock from "./modales/ModalDarBajaStock";
 import ModalEliminarStock from "./modales/ModalEliminarStock";
 import Toast from "../Global/Toast";
-import { tiendaNubeFeedback } from "../../utils/tiendaNubeSync";
-import BASE_URL from "../../config/config";
 import BaltoCargaGif from "../../imagenes/Balto_Carga.gif";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -31,457 +29,49 @@ import {
 import "./Stock.css";
 import "../Global/Global_css/Global_Section.css";
 
-const API_URL = `${String(BASE_URL || "").replace(/\/+$/, "")}/api.php`;
-const TOAST_LOADING_DURATION = 300000;
+import {
+  API_URL,
+  getUsuarioAuditData,
+  notifyStockListsUpdated,
+  stockGetParams,
+  stockPostPayload,
+} from "./api/stockApi";
+import useStockCategoriasDatos from "./hooks/useStockCategoriasDatos";
+import useStockToast from "./hooks/useStockToast";
+import {
+  COLUMNS,
+  GRID_COLS,
+  SKELETON_ROWS,
+  SKEL_WIDTHS,
+  aplicarProteccionMutacionVariantes,
+  esToastCarga,
+  esperarSincronizacionTiendaNube,
+  extractProductoFromApiResponse,
+  formatMoney,
+  getProductoId,
+  getProductoImageUrl,
+  getVarianteId,
+  mergeProductoEnLista,
+  mergeProductoPreferenciaLocal,
+  mergeVariantesPreferenciaLocal,
+  normalizeCategoria,
+  normalizeProductoListItem,
+  normalizeProductosCollection,
+  normalizeText,
+  normalizeVarianteListItem,
+  normalizeVariantesCollection,
+  pluralize,
+  preservarVariantesInactivasOmitidas,
+  productoTieneCategoria,
+  toNonNegativeInt,
+  variantAttributesLabel,
+  variantCategoriasLabel,
+} from "./utils/stockUtils";
+
 const PRECIOS_MASIVOS_LOADING_THRESHOLD = 10;
 const STOCK_CHANGE_CHECK_MS = 2500;
 const OPTIMISTIC_PRODUCT_GRACE_MS = 20000;
 const VARIANT_MUTATION_GRACE_MS = 180000;
-
-
-function buildHeadersGET() {
-  const sessionKey = (localStorage.getItem("session_key") || "").trim();
-  const token = (localStorage.getItem("token") || "").trim();
-  const h = {};
-  if (sessionKey) h["X-Session"] = sessionKey;
-  if (token) h["Authorization"] = `Bearer ${token}`;
-  return h;
-}
-
-function buildHeadersJSON() {
-  const sessionKey = (localStorage.getItem("session_key") || "").trim();
-  const token = (localStorage.getItem("token") || "").trim();
-  const h = { "Content-Type": "application/json" };
-  if (sessionKey) h["X-Session"] = sessionKey;
-  if (token) h["Authorization"] = `Bearer ${token}`;
-  return h;
-}
-
-function withSessionKey(url) {
-  const base = String(url || "").trim();
-  if (!base) return "";
-
-  try {
-    const sessionKey = (localStorage.getItem("session_key") || "").trim();
-    const token = (localStorage.getItem("token") || "").trim();
-    const u = new URL(base, window.location.origin);
-
-    if (sessionKey && !u.searchParams.has("session_key")) {
-      u.searchParams.set("session_key", sessionKey);
-    }
-
-    if (token && !u.searchParams.has("token")) {
-      u.searchParams.set("token", token);
-    }
-
-    return u.toString();
-  } catch {
-    return base;
-  }
-}
-
-function notifyListsUpdated() {
-  try {
-    window.dispatchEvent(new CustomEvent("balto:listas-updated"));
-  } catch {}
-}
-
-async function parseJsonOrThrow(res) {
-  if (res.status === 401 || res.status === 403) {
-    throw new Error(`${res.status}: Sesión vencida o no autorizada. Volvé a iniciar sesión.`);
-  }
-
-  const text = await res.text();
-  if (!text) throw new Error("Respuesta vacía del servidor.");
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    const preview = text.length > 400 ? `${text.slice(0, 400)}...` : text;
-    throw new Error(
-      text.startsWith("<!DOCTYPE") || text.startsWith("<")
-        ? "La API devolvió HTML en vez de JSON. Revisá la ruta del backend."
-        : `Respuesta inválida del servidor. HTTP ${res.status}\n${preview}`
-    );
-  }
-}
-
-async function apiGet(url) {
-  const res = await fetch(url, {
-    method: "GET",
-    headers: buildHeadersGET(),
-    cache: "no-store",
-  });
-  return await parseJsonOrThrow(res);
-}
-
-async function apiPost(url, body) {
-  const { action, ...rest } = body ?? {};
-  const finalUrl = action ? `${url}?action=${encodeURIComponent(action)}` : url;
-
-  const res = await fetch(finalUrl, {
-    method: "POST",
-    headers: buildHeadersJSON(),
-    body: JSON.stringify(rest),
-  });
-
-  return await parseJsonOrThrow(res);
-}
-
-function extraerIdsJobsTiendaNube(response) {
-  const ids = new Set();
-  const visitados = new WeakSet();
-
-  const recorrer = (value) => {
-    if (!value || typeof value !== "object") return;
-    if (visitados.has(value)) return;
-    visitados.add(value);
-
-    if (Array.isArray(value)) {
-      value.forEach(recorrer);
-      return;
-    }
-
-    const id = Number(value.id_job ?? value.job_id ?? value.idJob ?? 0);
-    if (id > 0) ids.add(id);
-
-    Object.entries(value).forEach(([key, nested]) => {
-      if (
-        key === "tiendanube_sync" ||
-        key === "tiendanube_reintento" ||
-        key === "job_reintento" ||
-        key === "resultados" ||
-        key === "resultados_proceso" ||
-        key === "data"
-      ) {
-        recorrer(nested);
-      }
-    });
-  };
-
-  recorrer(response?.tiendanube_sync ?? response?.data?.tiendanube_sync ?? response);
-  return Array.from(ids);
-}
-
-
-function tiendaNubeNoConectada(response) {
-  const sync = response?.tiendanube_sync ?? response?.data?.tiendanube_sync ?? null;
-  const motivo = String(sync?.motivo || "").trim().toLowerCase();
-  return motivo === "sin_conexion_tiendanube_activa" || motivo === "tiendanube_no_conectada";
-}
-
-async function esperarSincronizacionTiendaNube(response) {
-  const idsJobs = extraerIdsJobsTiendaNube(response);
-  if (idsJobs.length === 0) {
-    return { esperado: false, finalizado: true, exitoso: true, estado: null, error: "" };
-  }
-
-  // El guardado local ya terminó y la cola durable aceptó la sincronización.
-  // A partir de acá el worker/cron es el único responsable de Tienda Nube:
-  // el navegador no procesa jobs ni espera llamadas externas que podrían activar
-  // el aviso global de conexión aunque Balto ya haya guardado correctamente.
-  return {
-    esperado: true,
-    finalizado: false,
-    exitoso: true,
-    diferido: true,
-    ids_jobs: idsJobs,
-    estado: null,
-    error: "",
-  };
-}
-
-function formatMoney(value) {
-  if (value === null || value === undefined || value === "") return "—";
-
-  const raw = typeof value === "string" ? value.replace(",", ".") : value;
-  const n = Number(raw);
-
-  if (!Number.isFinite(n)) return "—";
-
-  return `$${n.toLocaleString("es-AR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-function toNonNegativeInt(value) {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
-}
-
-function pluralize(count, singular, plural = `${singular}s`) {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
-
-function esToastCarga(tipo) {
-  const t = String(tipo || "").toLowerCase().trim();
-  return t === "loading" || t === "cargando" || t === "carga" || t === "loader";
-}
-
-function normalizeText(value) {
-  return String(value ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-}
-
-function compareValues(a, b, campo) {
-  const va = a?.[campo];
-  const vb = b?.[campo];
-
-  if (campo === "stock" || campo === "precio_costo" || campo === "precio" || campo === "precio_promo") {
-    const na = Number(String(va ?? 0).replace(",", "."));
-    const nb = Number(String(vb ?? 0).replace(",", "."));
-    return na - nb;
-  }
-
-  return String(va ?? "").localeCompare(String(vb ?? ""), "es", {
-    numeric: true,
-    sensitivity: "base",
-  });
-}
-
-function getProductoId(prod) {
-  return Number(prod?.id ?? prod?.id_stock_producto ?? 0);
-}
-
-function getProductoCategoriaId(prod) {
-  return Number(
-    prod?.id_stock_categoria ??
-      prod?.stock_categoria_id ??
-      prod?.id_categoria_stock ??
-      prod?.id_categoria ??
-      0
-  );
-}
-
-function productoTieneCategoria(prod, categoriaId) {
-  const id = Number(categoriaId || 0);
-  if (!id) return true;
-  if (getProductoCategoriaId(prod) === id) return true;
-  const cats = Array.isArray(prod?.categorias) ? prod.categorias : [];
-  return cats.some((cat) => Number(cat?.id_stock_categoria ?? cat?.id ?? 0) === id);
-}
-
-function productoTieneCategoriaEnSet(prod, categoriaIds) {
-  if (!(categoriaIds instanceof Set) || categoriaIds.size === 0) return true;
-
-  const principal = getProductoCategoriaId(prod);
-  if (principal > 0 && categoriaIds.has(principal)) return true;
-
-  const cats = Array.isArray(prod?.categorias) ? prod.categorias : [];
-  return cats.some((cat) => {
-    const id = Number(cat?.id_stock_categoria ?? cat?.id ?? cat?.id_categoria_stock ?? 0);
-    return id > 0 && categoriaIds.has(id);
-  });
-}
-
-function normalizeCategoria(cat = {}) {
-  const id = Number(cat?.id ?? cat?.id_stock_categoria ?? 0);
-  return {
-    ...cat,
-    id,
-    id_stock_categoria: id,
-    id_categoria_padre: Number(cat?.id_categoria_padre || 0) || null,
-    nivel: Number(cat?.nivel || 0),
-    nombre: String(cat?.nombre ?? cat?.label ?? ""),
-    nombre_mostrar: String(cat?.nombre_mostrar ?? `${"— ".repeat(Number(cat?.nivel || 0))}${cat?.nombre ?? cat?.label ?? ""}`),
-  };
-}
-
-function normalizeProductoListItem(prod = {}) {
-  const id = getProductoId(prod);
-  if (!id) return null;
-
-  const categoriaId = Number(
-    prod?.id_stock_categoria ??
-      prod?.stock_categoria_id ??
-      prod?.id_categoria_stock ??
-      prod?.id_categoria ??
-      0
-  );
-  const totalVariantes = Number(prod?.cantidad_variantes_total ?? prod?.cantidad_variantes ?? 0);
-  const tieneVariantes = Number(prod?.tiene_variantes || 0) === 1 || totalVariantes > 0;
-  const stockResumen = tieneVariantes
-    ? (prod?.stock_variantes ?? prod?.stock ?? 0)
-    : (prod?.stock ?? 0);
-
-  return {
-    ...prod,
-    id,
-    id_stock_producto: Number(prod?.id_stock_producto ?? id),
-    nombre: String(prod?.nombre ?? ""),
-    sku: String(prod?.sku ?? ""),
-    // En productos con variantes `stock_productos.stock` es deliberadamente 0.
-    // La fila padre debe mostrar la suma calculada de variantes activas, también
-    // después de una recarga cuando todavía no se abrió el detalle.
-    stock: stockResumen,
-    precio_costo: prod?.precio_costo ?? null,
-    precio: prod?.precio ?? null,
-    precio_promo: prod?.precio_promo ?? null,
-    descripcion: prod?.descripcion ?? "",
-    imagen_archivo_id:
-      Number(prod?.imagen_archivo_id ?? prod?.id_archivo_imagen ?? prod?.archivo_id ?? prod?.id_archivo ?? 0) || 0,
-    id_archivo_imagen:
-      Number(prod?.id_archivo_imagen ?? prod?.imagen_archivo_id ?? prod?.archivo_id ?? prod?.id_archivo ?? 0) || 0,
-    archivo_id:
-      Number(prod?.archivo_id ?? prod?.imagen_archivo_id ?? prod?.id_archivo_imagen ?? prod?.id_archivo ?? 0) || 0,
-    imagen_path: String(prod?.imagen_path ?? prod?.archivo_path ?? prod?.path_imagen ?? ""),
-    archivo_path: String(prod?.archivo_path ?? prod?.imagen_path ?? prod?.path_imagen ?? ""),
-    imagen_actualizada_en: prod?.imagen_actualizada_en ?? prod?.updated_at ?? prod?.fecha_actualizacion ?? "",
-    id_stock_categoria: categoriaId || null,
-    id_categoria_stock: categoriaId || null,
-    activo: Number(prod?.activo ?? 1),
-    tiene_variantes: tieneVariantes,
-    cantidad_variantes: Number(prod?.cantidad_variantes || 0),
-    cantidad_variantes_total: totalVariantes,
-    cantidad_variantes_activas: Number(prod?.cantidad_variantes_activas ?? prod?.cantidad_variantes ?? 0),
-    cantidad_variantes_inactivas: Number(prod?.cantidad_variantes_inactivas ?? 0),
-    categorias: Array.isArray(prod?.categorias) ? prod.categorias : [],
-    updated_at:
-      prod?.updated_at ??
-      prod?.updatedAt ??
-      prod?.fecha_actualizacion ??
-      prod?.fecha_modificacion ??
-      prod?.modificado_en ??
-      prod?.imagen_actualizada_en ??
-      prod?.ultima_actualizacion ??
-      "",
-  };
-}
-
-
-function getVarianteId(variante) {
-  return Number(variante?.id ?? variante?.id_stock_variante ?? 0);
-}
-
-function getPrecioVariante(variante = {}, idTipo) {
-  const precios = Array.isArray(variante?.precios) ? variante.precios : [];
-  const item = precios.find((p) => Number(p?.id_tipo_precio_stock ?? p?.id_tipo ?? 0) === Number(idTipo));
-  const value = item?.monto ?? item?.precio ?? item?.importe ?? null;
-  return value === null || value === undefined || value === "" ? null : value;
-}
-
-function normalizeVarianteListItem(variante = {}) {
-  const id = getVarianteId(variante);
-  if (!id) return null;
-
-  return {
-    ...variante,
-    id,
-    id_stock_variante: Number(variante?.id_stock_variante ?? id),
-    nombre_variante: String(variante?.nombre_variante ?? variante?.nombre ?? ""),
-    sku: String(variante?.sku ?? ""),
-    stock: variante?.stock ?? 0,
-    activo: Number(variante?.activo ?? 1),
-    precio_costo: variante?.precio_costo ?? getPrecioVariante(variante, 1),
-    precio: variante?.precio ?? getPrecioVariante(variante, 2),
-    precio_promo: variante?.precio_promo ?? getPrecioVariante(variante, 3),
-    precios_extra: (Array.isArray(variante?.precios) ? variante.precios : [])
-      .filter((p) => {
-        const idTipo = Number(p?.id_tipo_precio_stock ?? p?.id_tipo ?? 0);
-        return idTipo > 3;
-      })
-      .map((p) => ({
-        id_tipo_precio_stock: Number(p?.id_tipo_precio_stock ?? p?.id_tipo ?? 0),
-        tipo_nombre: String(p?.tipo_nombre ?? p?.nombre ?? ""),
-        precio: p?.monto ?? p?.precio ?? p?.importe ?? null,
-      })),
-    atributos: Array.isArray(variante?.atributos) ? variante.atributos : [],
-    categorias: Array.isArray(variante?.categorias) ? variante.categorias : [],
-    categorias_heredadas: !!variante?.categorias_heredadas,
-  };
-}
-
-function normalizeVariantesCollection(items = []) {
-  return (Array.isArray(items) ? items : [])
-    .map((item) => normalizeVarianteListItem(item))
-    .filter(Boolean);
-}
-
-function mergeVariantesPreferenciaLocal(variantesServidor = [], variantesLocales = []) {
-  const servidor = normalizeVariantesCollection(variantesServidor);
-  const locales = normalizeVariantesCollection(variantesLocales);
-  if (locales.length === 0) return servidor;
-  if (servidor.length === 0) return locales;
-
-  // El snapshot optimista conserva los valores recién guardados en Balto, pero no
-  // debe ocultar una variante nueva que ya ingresó a la DB desde Tienda Nube.
-  // Los IDs compartidos mantienen la copia local; sólo se anexan filas realmente
-  // nuevas informadas por el servidor.
-  const idsLocales = new Set(locales.map((variante) => getVarianteId(variante)).filter((id) => id > 0));
-  const nuevasDelServidor = servidor.filter((variante) => {
-    const id = getVarianteId(variante);
-    return id > 0 && !idsLocales.has(id);
-  });
-
-  return [...locales, ...nuevasDelServidor];
-}
-
-function preservarVariantesInactivasOmitidas(variantesServidor = [], variantesConocidas = []) {
-  const servidor = normalizeVariantesCollection(variantesServidor);
-  const conocidas = normalizeVariantesCollection(variantesConocidas);
-  if (conocidas.length === 0) return servidor;
-
-  const idsServidor = new Set(
-    servidor.map((variante) => getVarianteId(variante)).filter((id) => id > 0)
-  );
-  const bajasOmitidas = conocidas.filter((variante) => {
-    const id = getVarianteId(variante);
-    return id > 0 && Number(variante?.activo ?? 1) === 0 && !idsServidor.has(id);
-  });
-
-  if (bajasOmitidas.length === 0) return servidor;
-  return [...servidor, ...bajasOmitidas].sort(
-    (a, b) => getVarianteId(a) - getVarianteId(b)
-  );
-}
-
-function aplicarProteccionMutacionVariantes(variantes = [], proteccion = null) {
-  const normalizadas = normalizeVariantesCollection(variantes);
-  if (!proteccion || Number(proteccion?.expiresAt || 0) <= Date.now()) return normalizadas;
-  if (proteccion?.forceNoVariants === true) return [];
-
-  const eliminadas = new Set(
-    Object.keys(proteccion?.deletedIds || {}).map((id) => Number(id)).filter((id) => id > 0)
-  );
-  const estados = proteccion?.desiredActive || {};
-
-  return normalizadas
-    .filter((variante) => !eliminadas.has(getVarianteId(variante)))
-    .map((variante) => {
-      const id = getVarianteId(variante);
-      if (!id || !Object.prototype.hasOwnProperty.call(estados, id)) return variante;
-      return { ...variante, activo: Number(estados[id]) === 1 ? 1 : 0 };
-    });
-}
-
-function variantAttributesLabel(variante = {}) {
-  const attrs = Array.isArray(variante?.atributos) ? variante.atributos : [];
-  const label = attrs
-    .map((attr) => {
-      const nombre = String(attr?.atributo ?? attr?.nombre_atributo ?? attr?.nombre ?? "").trim();
-      const valor = String(attr?.valor ?? attr?.nombre_valor ?? "").trim();
-      if (nombre && valor) return `${nombre}: ${valor}`;
-      return nombre || valor;
-    })
-    .filter(Boolean)
-    .join(" · ");
-
-  return label || "Sin atributos";
-}
-
-function variantCategoriasLabel(variante = {}) {
-  const cats = Array.isArray(variante?.categorias) ? variante.categorias : [];
-  const label = cats
-    .map((cat) => String(cat?.nombre_mostrar ?? cat?.nombre ?? cat?.label ?? "").replace(/^—\s*/, "").trim())
-    .filter(Boolean)
-    .join(" · ");
-
-  return label || "Hereda categorías del producto";
-}
 
 function renderStockChip(value) {
   const stockNum = Number(value || 0);
@@ -498,150 +88,6 @@ function renderStockChip(value) {
 
   return <span className={stockClass}>{stockLabel}</span>;
 }
-
-function mergeProductoEnLista(lista = [], producto = null) {
-  const normalizado = normalizeProductoListItem(producto);
-  if (!normalizado) return Array.isArray(lista) ? lista : [];
-
-  const base = Array.isArray(lista) ? [...lista] : [];
-  const idx = base.findIndex((item) => getProductoId(item) === getProductoId(normalizado));
-
-  if (idx === -1) {
-    return [normalizado, ...base];
-  }
-
-  base[idx] = {
-    ...base[idx],
-    ...normalizado,
-  };
-
-  return base;
-}
-
-function normalizeProductosCollection(items = []) {
-  return (Array.isArray(items) ? items : [])
-    .map((item) => normalizeProductoListItem(item))
-    .filter(Boolean);
-}
-
-function mergeProductoPreferenciaLocal(productoServidor = null, productoLocal = null) {
-  const servidor = normalizeProductoListItem(productoServidor);
-  const local = normalizeProductoListItem(productoLocal);
-
-  if (!servidor) return local;
-  if (!local) return servidor;
-
-  const categoriasLocal = Array.isArray(local?.categorias) ? local.categorias : [];
-  const categoriasServidor = Array.isArray(servidor?.categorias) ? servidor.categorias : [];
-
-  return normalizeProductoListItem({
-    ...servidor,
-    ...local,
-    categorias: categoriasLocal.length > 0 ? categoriasLocal : categoriasServidor,
-    precios:
-      Array.isArray(local?.precios) && local.precios.length > 0
-        ? local.precios
-        : servidor?.precios,
-    variantes: mergeVariantesPreferenciaLocal(servidor?.variantes, local?.variantes),
-  });
-}
-
-function getProductoImageRefreshToken(prod, refreshKey = 0, intento = 0) {
-  const archivoId = Number(prod?.imagen_archivo_id || 0);
-  const estadoToken = Number(prod?.activo ?? 1) === 0 ? "baja" : "activo";
-  const pathToken = String(prod?.imagen_path ?? prod?.archivo_path ?? "");
-
-  // No usar updated_at del producto: cambiar nombre, precio o stock no debe
-  // cambiar la URL de la imagen ni forzar que el navegador la descargue otra vez.
-  return `${archivoId}-${estadoToken}-${pathToken}-${String(refreshKey)}-${String(intento)}`;
-}
-
-function getProductoImageUrl(prod, apiUrl, refreshKey = 0, intento = 0) {
-  const archivoId = Number(prod?.imagen_archivo_id || 0);
-  if (!archivoId) return "";
-
-  const params = new URLSearchParams({
-    action: "stock_producto_imagen_ver",
-    id_archivo: String(archivoId),
-    _imgv: getProductoImageRefreshToken(prod, refreshKey, intento),
-  });
-
-  return withSessionKey(`${apiUrl}?${params.toString()}`);
-}
-
-function extractProductoFromApiResponse(data) {
-  const candidates = [
-    data?.producto,
-    data?.data?.producto,
-    data?.data,
-    data?.resultado?.producto,
-    data?.resultado,
-  ];
-
-  return candidates.find((item) => item && typeof item === "object" && getProductoId(item) > 0) || null;
-}
-
-function getUsuarioAuditData() {
-  let idUsuarioMaster = 0;
-  let idTenant = null;
-
-  try {
-    const u = JSON.parse(localStorage.getItem("usuario") || "null");
-    const cand =
-      u?.idUsuarioMaster ??
-      u?.id_usuario_master ??
-      u?.idUsuario ??
-      u?.id_usuario ??
-      u?.id ??
-      0;
-
-    if (Number.isFinite(Number(cand))) {
-      idUsuarioMaster = Number(cand);
-    }
-
-    const tenantCand =
-      u?.idTenant ??
-      u?.id_tenant ??
-      u?.tenant_id ??
-      u?.tenant?.idTenant ??
-      null;
-
-    if (
-      tenantCand !== null &&
-      tenantCand !== undefined &&
-      tenantCand !== "" &&
-      Number(tenantCand) > 0
-    ) {
-      idTenant = Number(tenantCand);
-    }
-  } catch {}
-
-  return { idUsuarioMaster, idTenant };
-}
-
-const COLUMNS = [
-  { key: "nombre", label: "PRODUCTO", fr: 2.2, align: "left", sortable: true },
-  { key: "sku", label: "SKU", fr: 0.95, align: "center", sortable: true },
-  { key: "stock", label: "STOCK", fr: 0.7, align: "center", sortable: true },
-  { key: "precio_costo", label: "PRECIO COSTO", fr: 1.0, align: "right", sortable: true },
-  { key: "precio", label: "PRECIO VENTA", fr: 1.0, align: "right", sortable: true },
-  { key: "precio_promo", label: "PRECIO PROMO", fr: 1.0, align: "right", sortable: true },
-  { key: "acciones", label: "ACCIONES", fr: 1, align: "center", sortable: false },
-];
-
-const GRID_COLS = COLUMNS.map((c) => `${c.fr}fr`).join(" ");
-const SKELETON_ROWS = 10;
-
-const SKEL_WIDTHS = {
-  nombre: ["68%", "52%", "60%", "48%"],
-  sku: ["44%", "36%", "40%", "32%"],
-  stock: ["38%", "30%", "34%", "28%"],
-  precio_costo: ["48%", "40%", "44%", "36%"],
-  precio: ["50%", "42%", "46%", "38%"],
-  precio_promo: ["46%", "38%", "42%", "34%"],
-};
-
-
 
 const Stock = () => {
   const [productosRaw, setProductosRaw] = useState([]);
@@ -689,7 +135,14 @@ const Stock = () => {
   const [cargandoImpactoEliminarVariante, setCargandoImpactoEliminarVariante] = useState(false);
   const [errorImpactoEliminarVariante, setErrorImpactoEliminarVariante] = useState("");
 
-  const [toast, setToast] = useState(null);
+  const {
+    toast,
+    cerrarToast,
+    mostrarResultadoTiendaNube,
+    mostrarResultadoTiendaNubeConfirmado,
+    mostrarToast,
+    mostrarToastCarga,
+  } = useStockToast();
   const [cargaPreciosMasivos, setCargaPreciosMasivos] = useState(null);
   const [versionImagenPorProducto, setVersionImagenPorProducto] = useState({});
   const [erroresImagenes, setErroresImagenes] = useState({});
@@ -897,82 +350,6 @@ const Stock = () => {
   }, [cancelarRestauracionScrollTabla, loading, productosRaw, programarRestauracionScrollTabla]);
 
   useEffect(() => cancelarRestauracionScrollTabla, [cancelarRestauracionScrollTabla]);
-
-  const mostrarToast = useCallback((tipo, mensaje, duracion = 2500) => {
-    setToast({ tipo, mensaje, duracion, id: Date.now() + Math.random() });
-  }, []);
-
-  const mostrarToastCarga = useCallback((mensaje) => {
-    mostrarToast("loading", mensaje, TOAST_LOADING_DURATION);
-  }, [mostrarToast]);
-
-  const mostrarResultadoTiendaNube = useCallback((response, mensajeLocal) => {
-    const sync =
-      response?.tiendanube_sync ??
-      response?.tiendanube_delete ??
-      response?.tiendanube_sync_producto ??
-      response?.data?.tiendanube_sync ??
-      response?.data?.tiendanube_delete ??
-      response?.data?.tiendanube_sync_producto ??
-      response?.data ??
-      response ??
-      null;
-
-    // Si el tenant no usa Tienda Nube, la acción terminó correctamente en Balto y no
-    // corresponde mostrar avisos de sincronización ni advertencias de conexión externa.
-    if (tiendaNubeNoConectada(response)) {
-      mostrarToast("exito", mensajeLocal, 2500);
-      return;
-    }
-
-    const encolados = Number(sync?.encolados ?? sync?.pendientes ?? 0);
-    const erroresCola = Number(sync?.errores ?? 0);
-    const colaAceptada =
-      encolados > 0 &&
-      erroresCola === 0 &&
-      (sync?.procesamiento_segundo_plano === true ||
-        sync?.requiere_procesamiento_cliente === true ||
-        Array.isArray(sync?.resultados));
-
-    // Una cola aceptada no es un error ni un reintento por falla: el producto ya quedó
-    // guardado y la llamada a Tienda Nube se ejecuta después de responder al navegador.
-    if (colaAceptada) {
-      mostrarToast("exito", mensajeLocal, 2500);
-      return;
-    }
-
-    const feedback = tiendaNubeFeedback(response, mensajeLocal);
-    mostrarToast(feedback.tipo, feedback.mensaje, feedback.tipo === "advertencia" ? 5000 : 2500);
-  }, [mostrarToast]);
-
-  const mostrarResultadoTiendaNubeConfirmado = useCallback((response, mensajeLocal, confirmacion) => {
-    if (!confirmacion?.esperado) {
-      mostrarResultadoTiendaNube(response, mensajeLocal);
-      return;
-    }
-
-    if (confirmacion.exitoso) {
-      mostrarToast("exito", mensajeLocal, 2500);
-      return;
-    }
-
-    const detalle = String(confirmacion?.error || "").trim();
-    mostrarToast(
-      "advertencia",
-      confirmacion?.finalizado
-        ? `${mensajeLocal} Tienda Nube no pudo completar el cambio: ${detalle || "revisá la sincronización."}`
-        : `${mensajeLocal} Tienda Nube sigue procesando el cambio y quedó protegido en la cola.`,
-      8000
-    );
-  }, [mostrarResultadoTiendaNube, mostrarToast]);
-
-  const cerrarToast = useCallback(() => setToast(null), []);
-
-  useEffect(() => {
-    if (!toast || !esToastCarga(toast.tipo) || !Number(toast.duracion || 0)) return undefined;
-    const timer = window.setTimeout(() => setToast(null), Number(toast.duracion));
-    return () => window.clearTimeout(timer);
-  }, [toast]);
 
   useEffect(() => {
     const valorNormalizado = busqueda.trim();
@@ -1393,7 +770,7 @@ const Stock = () => {
           if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
           if (busquedaConsulta) params.set("buscar", busquedaConsulta);
 
-          const data = await apiGet(`${API_URL}?${params.toString()}`);
+          const data = await stockGetParams(params, { strict: false });
           if (data?.exito === false) {
             throw new Error(data?.mensaje || "Error al obtener productos");
           }
@@ -1410,7 +787,7 @@ const Stock = () => {
             action: "stock_categorias_listar",
             _r: String(seed),
           });
-          const data = await apiGet(`${API_URL}?${params.toString()}`);
+          const data = await stockGetParams(params, { strict: false });
           const lista = (Array.isArray(data?.categorias) ? data.categorias : [])
             .map((cat) => normalizeCategoria(cat))
             .filter((cat) => Number(cat.id_stock_categoria) > 0);
@@ -1461,7 +838,7 @@ const Stock = () => {
       _r: String(opciones?.seed || Date.now()),
     });
 
-    const data = await apiGet(`${API_URL}?${params.toString()}`);
+    const data = await stockGetParams(params, { strict: false });
     if (data?.exito === false) {
       throw new Error(data?.mensaje || "No se pudo refrescar el producto editado.");
     }
@@ -1681,7 +1058,7 @@ const Stock = () => {
 
     try {
       const params = new URLSearchParams({ action: "stock_categorias_listar" });
-      const data = await apiGet(`${API_URL}?${params.toString()}`);
+      const data = await stockGetParams(params, { strict: false });
       const lista = (Array.isArray(data?.categorias) ? data.categorias : [])
         .map((cat) => normalizeCategoria(cat))
         .filter((cat) => Number(cat.id_stock_categoria) > 0);
@@ -1729,7 +1106,7 @@ const Stock = () => {
       if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
       if (busquedaConsulta) params.set("buscar", busquedaConsulta);
 
-      const data = await apiGet(`${API_URL}?${params.toString()}`);
+      const data = await stockGetParams(params, { strict: false });
       if (productosRequestRef.current !== requestId) return;
 
       if (data.exito === false) {
@@ -1790,7 +1167,7 @@ const Stock = () => {
       });
       if (categoriaFiltro) params.set("id_categoria", String(categoriaFiltro));
 
-      const data = await apiGet(`${API_URL}?${params.toString()}`);
+      const data = await stockGetParams(params, { strict: false });
       if (data?.exito === false) {
         throw new Error(data?.mensaje || "No se pudieron cargar las variantes.");
       }
@@ -1927,7 +1304,7 @@ const Stock = () => {
         if (anterior.imagenes) params.set("imagenes_version", anterior.imagenes);
         if (anterior.categorias) params.set("categorias_version", anterior.categorias);
 
-        const data = await apiGet(`${API_URL}?${params.toString()}`);
+        const data = await stockGetParams(params, { strict: false });
         if (desmontado || data?.exito === false) return;
 
         const primeraConsulta = !anterior.catalogo && !anterior.imagenes && !anterior.categorias;
@@ -2020,68 +1397,12 @@ const Stock = () => {
     };
   }, [fetchCategorias]);
 
-  const categoriasPorId = useMemo(() => {
-    const map = {};
-    categorias.forEach((cat) => {
-      const id = Number(cat?.id_stock_categoria ?? cat?.id ?? 0);
-      if (id > 0) map[id] = cat;
-    });
-    return map;
-  }, [categorias]);
-
-  const categoriasPorPadre = useMemo(() => {
-    const map = {};
-    categorias.forEach((cat) => {
-      const padre = Number(cat?.id_categoria_padre || 0);
-      if (!map[padre]) map[padre] = [];
-      map[padre].push(cat);
-    });
-
-    Object.keys(map).forEach((key) => {
-      map[key].sort((a, b) =>
-        String(a?.nombre ?? "").localeCompare(String(b?.nombre ?? ""), "es", {
-          numeric: true,
-          sensitivity: "base",
-        })
-      );
-    });
-
-    return map;
-  }, [categorias]);
-
-  const categoriaFiltroIds = useMemo(() => {
-    const id = Number(categoriaFiltro || 0);
-    const ids = new Set();
-    if (!id) return ids;
-
-    const agregarConHijas = (categoriaId) => {
-      const n = Number(categoriaId || 0);
-      if (!n || ids.has(n)) return;
-      ids.add(n);
-      (categoriasPorPadre[n] || []).forEach((hija) =>
-        agregarConHijas(hija?.id_stock_categoria ?? hija?.id)
-      );
-    };
-
-    agregarConHijas(id);
-    return ids;
-  }, [categoriaFiltro, categoriasPorPadre]);
-
-  const categoriaFiltroLabel = useMemo(() => {
-    const id = Number(categoriaFiltro || 0);
-    if (!id) return "Todas";
-
-    const partes = [];
-    let cursor = id;
-    let guard = 0;
-    while (cursor > 0 && categoriasPorId[cursor] && guard++ < 12) {
-      const cat = categoriasPorId[cursor];
-      partes.unshift(String(cat?.nombre ?? cat?.nombre_mostrar ?? "").replace(/^—\s*/g, "").trim());
-      cursor = Number(cat?.id_categoria_padre || 0);
-    }
-
-    return partes.filter(Boolean).join(" / ") || "Todas";
-  }, [categoriaFiltro, categoriasPorId]);
+  const {
+    categoriasPorId,
+    categoriasPorPadre,
+    categoriaFiltroIds,
+    categoriaFiltroLabel,
+  } = useStockCategoriasDatos({ categorias, categoriaFiltro });
 
   useEffect(() => {
     if (!categoriaDropdownAbierto) return;
@@ -2266,7 +1587,7 @@ const Stock = () => {
         id: String(id),
       });
 
-      const data = await apiGet(`${API_URL}?${params.toString()}`);
+      const data = await stockGetParams(params, { strict: false });
       if (data?.exito === false) {
         throw new Error(data?.mensaje || "No se pudo revisar si este producto está usado en ventas, compras o presupuestos.");
       }
@@ -2406,7 +1727,7 @@ const Stock = () => {
         payload.tenant_id = idTenant;
       }
 
-      const data = await apiPost(API_URL, payload);
+      const data = await stockPostPayload(payload, { strict: false });
 
       if (data.exito === false) {
         throw new Error(data.mensaje || (permanente ? "Error al eliminar el producto" : "Error al dar de baja el producto"));
@@ -2422,7 +1743,7 @@ const Stock = () => {
 
       limpiarEstadoVisualProducto(productoId);
       await refrescarDespuesDeGuardar();
-      notifyListsUpdated();
+      notifyStockListsUpdated();
       mostrarResultadoTiendaNubeConfirmado(
         data,
         permanente ? "Producto eliminado permanentemente." : "Producto dado de baja correctamente.",
@@ -2458,7 +1779,7 @@ const Stock = () => {
       };
       if (idTenant) payload.tenant_id = idTenant;
 
-      const data = await apiPost(API_URL, payload);
+      const data = await stockPostPayload(payload, { strict: false });
       if (data?.exito === false) {
         throw new Error(data?.mensaje || "No se pudo reactivar el producto.");
       }
@@ -2473,7 +1794,7 @@ const Stock = () => {
 
       limpiarEstadoVisualProducto(productoId);
       await refrescarDespuesDeGuardar();
-      notifyListsUpdated();
+      notifyStockListsUpdated();
       mostrarResultadoTiendaNubeConfirmado(data, "Producto dado de alta correctamente.", confirmacionTiendaNube);
     } catch (error) {
       mostrarToast("error", error?.message || "No se pudo dar de alta el producto.");
@@ -2547,7 +1868,7 @@ const Stock = () => {
         action: "stock_variante_impacto_eliminacion",
         id: String(id),
       });
-      const data = await apiGet(`${API_URL}?${params.toString()}`);
+      const data = await stockGetParams(params, { strict: false });
       if (data?.exito === false) {
         throw new Error(data?.mensaje || "No se pudo revisar si esta variante está usada en movimientos.");
       }
@@ -2599,7 +1920,7 @@ const Stock = () => {
       };
       if (idTenant) payload.tenant_id = idTenant;
 
-      const data = await apiPost(API_URL, payload);
+      const data = await stockPostPayload(payload, { strict: false });
       if (data?.exito === false) {
         throw new Error(data?.mensaje || (permanente ? "No se pudo eliminar la variante." : "No se pudo dar de baja la variante."));
       }
@@ -2638,7 +1959,7 @@ const Stock = () => {
         permitirOmitidas: permanente,
       });
       programarRestauracionScrollTabla({ reactivar: true });
-      notifyListsUpdated();
+      notifyStockListsUpdated();
       mostrarResultadoTiendaNubeConfirmado(
         data,
         permanente ? "Variante eliminada permanentemente." : "Variante dada de baja correctamente.",
@@ -2674,7 +1995,7 @@ const Stock = () => {
       };
       if (idTenant) payload.tenant_id = idTenant;
 
-      const data = await apiPost(API_URL, payload);
+      const data = await stockPostPayload(payload, { strict: false });
       if (data?.exito === false) {
         throw new Error(data?.mensaje || "No se pudo reactivar la variante.");
       }
@@ -2708,7 +2029,7 @@ const Stock = () => {
       await refrescarDespuesDeGuardar(null, { forzar_captura_scroll: false });
       await cargarVariantesProducto(productoId, { ignorarOptimista: true });
       programarRestauracionScrollTabla({ reactivar: true });
-      notifyListsUpdated();
+      notifyStockListsUpdated();
       mostrarResultadoTiendaNubeConfirmado(data, "Variante dada de alta correctamente.", confirmacionTiendaNube);
     } catch (error) {
       mostrarToast("error", error?.message || "No se pudo dar de alta la variante.");
@@ -3660,7 +2981,7 @@ const Stock = () => {
             if (esAltaIndividual) {
               const confirmacionTiendaNube = await esperarSincronizacionTiendaNube(response);
               setModalAbierto(false);
-              notifyListsUpdated();
+              notifyStockListsUpdated();
               mostrarResultadoTiendaNubeConfirmado(
                 response,
                 "Producto agregado correctamente.",
@@ -3682,7 +3003,7 @@ const Stock = () => {
           onImportado={async (mensaje) => {
             setModalAbierto(false);
             await refrescarDespuesDeGuardar();
-            notifyListsUpdated();
+            notifyStockListsUpdated();
             mostrarToast("exito", mensaje || "Importación finalizada correctamente.");
           }}
           categorias={categorias}
@@ -3707,7 +3028,7 @@ const Stock = () => {
                 productoId: productoIdEditado,
                 producto_optimista: opciones?.producto_optimista || productoGuardado,
               });
-              notifyListsUpdated();
+              notifyStockListsUpdated();
             } catch (refreshError) {
               console.warn("[Stock] El producto se guardó desde Código de barra, pero la grilla no pudo refrescarse en ese instante.", refreshError);
             }
@@ -3730,7 +3051,7 @@ const Stock = () => {
               ...opciones,
               productoId: productoIdEditado,
             });
-            notifyListsUpdated();
+            notifyStockListsUpdated();
           }}
         />
       )}

@@ -2,11 +2,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import BASE_URL from "../../config/config";
 import logoTiendaNube from "../../imagenes/logo_tienda_nube.png";
 import "./configuracion.css";
 import "../Global/Global_css/Global_oscuro.css";
 import Toast from "../Global/Toast";
+import { apiFetch, safeJsonParse } from "./api/configuracionApi";
+import useConfiguracionToast from "./hooks/useConfiguracionToast";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -20,35 +21,7 @@ import {
 import { useDateRange } from "../../context/DateRangeContext";
 import { DEMO_BLOCK_MESSAGE, isBaltoDemoMode, normalizeBaltoPlanId } from "../../utils/demoMode";
 
-const API_RELATIVE = "api.php";
 const DEMO_ADVANCED_MESSAGE = "Funcionalidad disponible únicamente en planes avanzados.";
-
-function buildApiUrl(paramsObj = {}) {
-  const baseRaw = String(BASE_URL || "").trim();
-  const base = baseRaw.replace(/\/+$/, "") + "/";
-  const url = new URL(API_RELATIVE, base);
-
-  const qs = new URLSearchParams();
-  Object.entries(paramsObj || {}).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    qs.set(k, String(v));
-  });
-
-  url.search = qs.toString();
-  return url.toString();
-}
-
-function safeJsonParse(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-function getSessionKey() {
-  return String(localStorage.getItem("session_key") || "").trim();
-}
 
 function getUsuario() {
   try {
@@ -60,18 +33,6 @@ function getUsuario() {
 
 function normalizePlanId(value, planName = "") {
   return normalizeBaltoPlanId(value, planName);
-}
-
-async function apiFetch(paramsObj = {}, options = {}) {
-  const sessionKey = getSessionKey();
-  const headers = new Headers(options.headers || {});
-  if (sessionKey) headers.set("X-Session", sessionKey);
-  if (options.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-  const url = buildApiUrl(paramsObj);
-  const res = await fetch(url, { ...options, headers });
-  return res;
 }
 
 function StatusPill({ type = "pending", children }) {
@@ -136,16 +97,9 @@ export default function Configuracion() {
   );
   const esPlanBasico = planIdUsuario === 1;
   const esPlanDemo = isBaltoDemoMode(usuario);
-  const [toast, setToast] = useState(null);
-
-  const mostrarToast = useCallback((tipo, mensaje, duracion = 3800) => {
-    setToast({
-      tipo,
-      mensaje: String(mensaje || "").trim() || "Aviso del sistema.",
-      duracion,
-      key: Date.now(),
-    });
-  }, []);
+  const { toast, setToast, mostrarToast } = useConfiguracionToast({
+    defaultDuration: 3800,
+  });
 
   // ── estado Tienda Nube ─────────────────────────────────────────────────
   const [tiendanube, setTiendanube] = useState({

@@ -17,41 +17,14 @@ import {
   faXmark,
   faListCheck,
 } from "@fortawesome/free-solid-svg-icons";
-import BASE_URL from "../../../config/config";
 import Toast from "../../Global/Toast";
+import { apiFetchTiendaNube as apiFetch, safeJsonParse } from "../api/configuracionApi";
+import useConfiguracionToast from "../hooks/useConfiguracionToast";
 import "./configTiendanube.css";
 
-const API_RELATIVE = "api.php";
 const IMPORT_BATCH_SIZE = 5;
 const IMPORT_TIMEOUT_MS = 90000;
 
-
-function buildApiUrl(paramsObj = {}) {
-  const baseRaw = String(BASE_URL || "").trim();
-  const base = baseRaw.replace(/\/+$/, "") + "/";
-  const url = new URL(API_RELATIVE, base);
-
-  const qs = new URLSearchParams();
-  Object.entries(paramsObj).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    qs.set(k, String(v));
-  });
-
-  url.search = qs.toString();
-  return url.toString();
-}
-
-function safeJsonParse(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-function getSessionKey() {
-  return String(localStorage.getItem("session_key") || "").trim();
-}
 
 function getUsuario() {
   try {
@@ -80,58 +53,6 @@ function formatearFecha(fecha) {
     dateStyle: "short",
     timeStyle: "short",
   });
-}
-
-async function apiFetch(paramsObj = {}, options = {}) {
-  const {
-    timeoutMs = 0,
-    dispatchUnauthorized = true,
-    ...fetchOptions
-  } = options || {};
-
-  const sessionKey = getSessionKey();
-  const headers = new Headers(fetchOptions.headers || {});
-  if (sessionKey) headers.set("X-Session", sessionKey);
-
-  if (fetchOptions.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  const url = buildApiUrl(paramsObj);
-  const controller = timeoutMs > 0 ? new AbortController() : null;
-  const externalSignal = fetchOptions.signal;
-  let timeoutId = null;
-
-  if (controller && externalSignal) {
-    if (externalSignal.aborted) controller.abort();
-    else externalSignal.addEventListener("abort", () => controller.abort(), { once: true });
-  }
-
-  if (controller) {
-    timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-  }
-
-  try {
-    const res = await fetch(url, {
-      ...fetchOptions,
-      headers,
-      signal: controller?.signal || externalSignal,
-    });
-
-    if (dispatchUnauthorized && (res.status === 401 || res.status === 403)) {
-      try {
-        window.dispatchEvent(
-          new CustomEvent("auth:unauthorized", {
-            detail: { status: res.status },
-          })
-        );
-      } catch {}
-    }
-
-    return res;
-  } finally {
-    if (timeoutId) window.clearTimeout(timeoutId);
-  }
 }
 
 const EstadoBadge = ({ connected }) => {
@@ -441,7 +362,9 @@ export default function ConfigTiendaNube() {
   const [importProgress, setImportProgress] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const [toast, setToast] = useState(null);
+  const { toast, setToast, mostrarToast } = useConfiguracionToast({
+    defaultDuration: 3000,
+  });
 
   const [conexion, setConexion] = useState({
     connected: false,
@@ -453,15 +376,6 @@ export default function ConfigTiendaNube() {
     webhooks_configured: false,
     updated_at: "",
   });
-
-  const mostrarToast = useCallback((tipo, mensaje, duracion = 3000) => {
-    setToast({
-      tipo,
-      mensaje: String(mensaje || "").trim() || "Aviso del sistema.",
-      duracion,
-      key: Date.now(),
-    });
-  }, []);
 
   const limpiarMensajes = () => {
     setToast(null);

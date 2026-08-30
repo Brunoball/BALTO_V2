@@ -14,8 +14,8 @@ import {
   faTriangleExclamation,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
-import { API_URL, buildHeadersGET, parseJsonOrThrow } from "./stockFormUtils";
 import { isTopStockModal } from "./modalStackUtils";
+import { generarReporteStock } from "../api/stockApi";
 import "./ModalReportesStock.css";
 
 const REPORT_TYPES = [
@@ -246,13 +246,7 @@ function flattenCategories(categories = []) {
 }
 
 async function fetchReport(params) {
-  const search = new URLSearchParams({ action: "stock_reportes_generar", ...params });
-  const res = await fetch(`${API_URL}?${search.toString()}`, {
-    method: "GET",
-    headers: buildHeadersGET(),
-    cache: "no-store",
-  });
-  return parseJsonOrThrow(res);
+  return generarReporteStock(params);
 }
 
 const ModalReportesStock = ({ open, onClose, onToast, categorias = [] }) => {
