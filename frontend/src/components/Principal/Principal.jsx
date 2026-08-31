@@ -129,6 +129,7 @@ function pickIcon(label) {
   if (s.includes("analisis")) return faChartLine;
   if (s.includes("config")) return faGear;
   if (s.includes("stock")) return faBoxesStacked;
+  if (s.includes("servicios")) return faGear;
   if (s.includes("contabilidad")) return faBookOpen;
 
   return faChartLine;
@@ -536,6 +537,10 @@ const Principal = () => {
         ruta: "/panel/stock",
       },
       {
+        label: "Servicios",
+        ruta: "/panel/servicios",
+      },
+      {
         label: "Contabilidad",
         ruta: "/panel/contabilidad",
         children: [
@@ -620,6 +625,7 @@ const Principal = () => {
 
     if (location.pathname.startsWith("/panel/cheques")) return "cheques";
     if (location.pathname.startsWith("/panel/stock")) return "stock";
+    if (location.pathname.startsWith("/panel/servicios")) return "servicios";
     if (location.pathname.startsWith("/panel/contabilidad")) return "contabilidad";
     if (location.pathname.startsWith("/panel/configuracion")) return "configuracion";
 
@@ -654,6 +660,7 @@ const Principal = () => {
 
     if (location.pathname === "/panel/stock") return "Stock";
     if (location.pathname.startsWith("/panel/stock")) return "Stock";
+    if (location.pathname.startsWith("/panel/servicios")) return "Servicios";
 
     if (location.pathname.startsWith("/panel/contabilidad")) return "Contabilidad";
 

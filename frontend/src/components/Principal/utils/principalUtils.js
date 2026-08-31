@@ -72,24 +72,18 @@ export function normalizePlanNivel(value) {
 export function normalizePlanId(value, planName = "") {
   const n = Number(value);
   const name = String(planName || "").trim().toLowerCase();
-  if (n === 3 || name.includes("demo")) return 3;
-  return n === 2 ? 2 : 1;
+  if (n === 10 || name.includes("demo")) return 10;
+  if (n === 3 || name.includes("pro") || name.includes("avanzado")) return 3;
+  if (n === 2 || name.includes("intermedio")) return 2;
+  return 1;
 }
 
-const PLAN_BASICO_NAV_KEYS = new Set([
-  "dashboard",
-  "movimientos",
-  "flujo-de-caja",
-  "cuentas-corrientes",
-  "stock",
-  "contabilidad",
-  "configuracion",
-]);
-
 export function planAllowsNavKey(planId, key) {
-  const id = normalizePlanId(planId);
-  if (id === 2 || id === 3) return true;
-  return PLAN_BASICO_NAV_KEYS.has(String(key || ""));
+  // Política temporal: BASICO, INTERMEDIO, PRO y DEMO ven todos los módulos.
+  // Se conservan los parámetros para volver a aplicar la matriz real más adelante.
+  void planId;
+  void key;
+  return true;
 }
 
 export function getModuleKeyByPath(pathname) {
@@ -116,6 +110,7 @@ export function getModuleKeyByPath(pathname) {
   if (path.startsWith("/panel/flujo-de-caja")) return "flujo-de-caja";
   if (path.startsWith("/panel/cuentas-corrientes")) return "cuentas-corrientes";
   if (path.startsWith("/panel/stock")) return "stock";
+  if (path.startsWith("/panel/servicios")) return "servicios";
   if (path.startsWith("/panel/contabilidad")) return "contabilidad";
   if (path.startsWith("/panel/cheques")) return "cheques";
   if (path.startsWith("/panel/analisis-financiero")) return "analisis-financiero";

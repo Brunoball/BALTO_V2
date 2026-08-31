@@ -20,6 +20,7 @@ const routes = [
   { route: '/panel/cuentas-corrientes/clientes', text: /Clientes/i },
   { route: '/panel/cuentas-corrientes/proveedores', text: /Proveedores/i },
   { route: '/panel/stock', text: /Stock · Productos/i },
+  { route: '/panel/servicios', text: /BALTO · SERVICIOS|Servicios/i },
   { route: '/panel/contabilidad', text: /IVA Ventas/i },
   { route: '/panel/contabilidad/iva-ventas', text: /IVA Ventas/i },
   { route: '/panel/contabilidad/iva-compras', text: /IVA Compras/i },

@@ -19,7 +19,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 import { useDateRange } from "../../context/DateRangeContext";
-import { DEMO_BLOCK_MESSAGE, isBaltoDemoMode, normalizeBaltoPlanId } from "../../utils/demoMode";
+import { DEMO_BLOCK_MESSAGE, isBaltoDemoMode } from "../../utils/demoMode";
 
 const DEMO_ADVANCED_MESSAGE = "Funcionalidad disponible únicamente en planes avanzados.";
 
@@ -29,10 +29,6 @@ function getUsuario() {
   } catch {
     return {};
   }
-}
-
-function normalizePlanId(value, planName = "") {
-  return normalizeBaltoPlanId(value, planName);
 }
 
 function StatusPill({ type = "pending", children }) {
@@ -91,11 +87,6 @@ export default function Configuracion() {
     usuario?.tenant?.idTenant ||
     "";
 
-  const planIdUsuario = normalizePlanId(
-    usuario?.idPlan ?? usuario?.id_plan ?? usuario?.plan_id ?? usuario?.plan_nivel ?? 1,
-    usuario?.plan_nombre ?? usuario?.plan ?? usuario?.nombre_plan ?? ""
-  );
-  const esPlanBasico = planIdUsuario === 1;
   const esPlanDemo = isBaltoDemoMode(usuario);
   const { toast, setToast, mostrarToast } = useConfiguracionToast({
     defaultDuration: 3800,
@@ -119,7 +110,7 @@ export default function Configuracion() {
   const { calendarConfig, configLoaded } = useDateRange();
 
   const cargarResumen = useCallback(async () => {
-    if (!esPlanBasico && tenantId) {
+    if (tenantId) {
       try {
         const res = await apiFetch({
           action: "tiendanube_status",
@@ -149,7 +140,7 @@ export default function Configuracion() {
         condicion_iva: c.condicion_iva || "",
       });
     } catch {}
-  }, [tenantId, esPlanBasico]);
+  }, [tenantId]);
 
   useEffect(() => {
     cargarResumen();
@@ -193,7 +184,7 @@ export default function Configuracion() {
     };
 
     return [
-      ...(!esPlanBasico ? [tiendaNubeCard] : []),
+      tiendaNubeCard,
       {
         id: "usuarios",
         title: "Usuarios del sistema",
@@ -235,11 +226,7 @@ export default function Configuracion() {
         title: "Saldos iniciales",
         description: "Cargá la apertura de caja, bancos, billeteras, cheques y cuentas corrientes.",
         route: "/panel/configuracion/saldos-iniciales",
-        demoBlocked: esPlanDemo,
-        demoMessage: DEMO_ADVANCED_MESSAGE,
-        status: esPlanDemo
-          ? { text: "Bloqueado demo", type: "warning" }
-          : { text: "Configurable", type: "success" },
+        status: { text: "Configurable", type: "success" },
         metaTop: "Puesta en marcha",
         metaBottom: "Caja · Cheques · Cuentas corrientes",
         icon: (
@@ -260,7 +247,7 @@ export default function Configuracion() {
         icon: <CalendarioIcon />,
       },
     ];
-  }, [tiendanube, datosLegales, calendarConfig, configLoaded, esPlanBasico, esPlanDemo]);
+  }, [tiendanube, datosLegales, calendarConfig, configLoaded, esPlanDemo]);
 
   return (
     <>

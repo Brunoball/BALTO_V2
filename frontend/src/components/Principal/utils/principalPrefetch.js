@@ -15,6 +15,7 @@ const ROUTE_PREFETCH = {
   "/panel/cuentas-corrientes/proveedores": () =>
     import("../../Cuentas_Corrientes/Proveedores/Proveedores"),
   "/panel/stock": () => import("../../Stock/Stock"),
+  "/panel/servicios": () => import("../../Servicios/Servicios"),
   "/panel/contabilidad": () =>
     import("../../Contabilidad/IVA_Ventas/IVA_Ventas"),
   "/panel/contabilidad/iva-compras": () =>

@@ -45,6 +45,9 @@ import ProveedoresCC from "./components/Cuentas_Corrientes/Proveedores/Proveedor
 /* STOCK */
 import Stock from "./components/Stock/Stock";
 
+/* SERVICIOS */
+import Servicios from "./components/Servicios/Servicios";
+
 /* CHEQUES */
 import Cheques_Cartera from "./components/Cheques/Cheques_Cartera/Cheques_Cartera";
 import Flujo_Cheques from "./components/Cheques/Flujo_Cheques/Flujo_Cheques";
@@ -153,15 +156,16 @@ function normalizePlanId(value, planName = "") {
   const n = Number(value);
   const nombre = normalizePlanText(planName);
 
-  if (n === 3 || nombre.includes("demo")) return 3;
+  if (n === 10 || nombre.includes("demo")) return 10;
   if (
-    n === 2 ||
+    n === 3 ||
     nombre.includes("pro") ||
     nombre.includes("avanzado") ||
     nombre.includes("advanced")
   ) {
-    return 2;
+    return 3;
   }
+  if (n === 2 || nombre.includes("intermedio")) return 2;
 
   return 1;
 }
@@ -205,43 +209,31 @@ function getPlanIdUsuario() {
     isTruthyDemoFlag(u.demo) ||
     isTruthyDemoFlag(u.is_demo) ||
     isTruthyDemoFlag(u.modo_demo) ||
-    numeros.includes(3) ||
+    numeros.includes(10) ||
     nombres.some((n) => n.includes("demo"))
   ) {
-    return 3;
+    return 10;
   }
 
   if (
-    numeros.includes(2) ||
+    numeros.includes(3) ||
     nombres.some(
       (n) => n.includes("pro") || n.includes("avanzado") || n.includes("advanced")
     )
   ) {
-    return 2;
+    return 3;
   }
+
+  if (numeros.includes(2) || nombres.some((n) => n.includes("intermedio"))) return 2;
 
   return 1;
 }
 
-const PLAN_BASICO_MODULES = new Set([
-  "dashboard",
-  "movimientos",
-  "flujo-caja",
-  "cuentas-corrientes",
-  "stock",
-  "contabilidad",
-  "configuracion",
-]);
-
 function planAllowsModule(modulo) {
-  const planId = getPlanIdUsuario();
-
-  // Plan 2 = PRO y Plan 3 = DEMO: acceso visual completo a módulos.
-  // Las restricciones reales del demo se aplican en botones sensibles y en backend.
-  if (planId === 2 || planId === 3) return true;
-
-  // Plan 1 = BÁSICO: solo módulos principales habilitados.
-  return PLAN_BASICO_MODULES.has(String(modulo || ""));
+  // Política temporal: los tres planes comerciales y DEMO ven todos los módulos.
+  // DEMO mantiene sus bloqueos de acciones sensibles en los controles específicos.
+  void modulo;
+  return true;
 }
 
 function RutaProtegida({ children }) {
@@ -264,22 +256,12 @@ function RutaAdmin({ children }) {
   return isAdminUser() ? children : <Navigate to="/panel/dashboard" replace />;
 }
 
-function RutaPlanPro({ children }) {
-  if (!isAuthenticated()) return <Navigate to="/" replace />;
-
-  return getPlanIdUsuario() === 2 ? (
-    children
-  ) : (
-    <Navigate to="/panel/configuracion" replace />
-  );
-}
-
 function RutaNoDemoConfig({ children }) {
   if (!isAuthenticated()) return <Navigate to="/" replace />;
 
   // En DEMO la configuración queda visible como vista previa,
   // pero solo Calendario global debe ser navegable/editable.
-  return getPlanIdUsuario() === 3 ? (
+  return getPlanIdUsuario() === 10 ? (
     <Navigate to="/panel/configuracion" replace />
   ) : (
     children
@@ -479,6 +461,18 @@ export default function App() {
             }
           />
 
+          {/* SERVICIOS */}
+          <Route
+            path="servicios"
+            element={
+              <RutaModulo modulo="servicios">
+                <RutaAdmin>
+                  <Servicios />
+                </RutaAdmin>
+              </RutaModulo>
+            }
+          />
+
           {/* CONTABILIDAD */}
           <Route
             path="contabilidad"
@@ -575,9 +569,9 @@ export default function App() {
             element={
               <RutaModulo modulo="configuracion">
                 <RutaAdmin>
-                  <RutaPlanPro>
+                  <RutaNoDemoConfig>
                     <ConfigTiendaNube />
-                  </RutaPlanPro>
+                  </RutaNoDemoConfig>
                 </RutaAdmin>
               </RutaModulo>
             }
@@ -613,9 +607,7 @@ export default function App() {
             element={
               <RutaModulo modulo="configuracion">
                 <RutaAdmin>
-                  <RutaNoDemoConfig>
-                    <ConfiguracionSaldosIniciales />
-                  </RutaNoDemoConfig>
+                  <ConfiguracionSaldosIniciales />
                 </RutaAdmin>
               </RutaModulo>
             }

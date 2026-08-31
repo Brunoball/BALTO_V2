@@ -17,6 +17,7 @@ const routes = [
   ['/panel/cuentas-corrientes/clientes', /Clientes/i],
   ['/panel/cuentas-corrientes/proveedores', /Proveedores/i],
   ['/panel/stock', /Stock · Productos/i],
+  ['/panel/servicios', /BALTO · SERVICIOS|Servicios/i],
   ['/panel/contabilidad/iva-ventas', /IVA Ventas/i],
   ['/panel/contabilidad/iva-compras', /IVA Compras/i],
   ['/panel/cheques/cartera', /Cheques en Cartera/i],

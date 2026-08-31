@@ -20,7 +20,8 @@ function planLabelFromBackend(u) {
 
   const n = Number(u?.plan_nivel ?? u?.planNivel ?? u?.plan_nivel ?? 1);
   if (n === 2) return "Plan Intermedio";
-  if (n === 3) return "Plan Avanzado";
+  if (Number(u?.idPlan ?? u?.id_plan) === 10) return "Plan Demo";
+  if (n === 3) return "Plan Pro";
   return "Plan Básico";
 }
 

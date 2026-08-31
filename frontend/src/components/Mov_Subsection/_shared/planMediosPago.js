@@ -1,14 +1,7 @@
 /* =========================================================
-   Restricciones de medios de pago por plan SaaS
-   - Plan 1 / Básico: no permite CHEQUE ni ECHEQ.
-   - Plan 2 / Pro/Avanzado: permite todos los medios.
-   - Plan 3 / Demo: permite todos los medios, igual que Pro.
-
-   Importante:
-   El modo demo NO restringe medios de pago. Solo restringe emisión fiscal
-   real y configuraciones sensibles. Esta función es defensiva porque en
-   algunas sesiones antiguas puede quedar idPlan=1 pero plan_nivel=3,
-   plan_nombre=DEMO o es_demo=1.
+   Política temporal de medios de pago por plan SaaS.
+   BASICO, INTERMEDIO, PRO y DEMO permiten todos los medios.
+   DEMO conserva únicamente sus bloqueos sensibles específicos.
 ========================================================= */
 
 function normalizeText(value) {
@@ -102,12 +95,10 @@ function normalizePlanFromUsuario(usuario) {
     isTruthyDemo(planObj.es_demo) ||
     isTruthyDemo(planObj.demo);
 
-  // DEMO siempre gana. Así, aunque el backend lo exponga como idPlan=2 operativo
-  // para compatibilidad, nunca se lo filtra como Básico en el frontend.
-  if (demoFlag || nums.includes(3) || names.some((n) => n.includes("DEMO"))) return 3;
+  if (demoFlag || nums.includes(10) || names.some((n) => n.includes("DEMO"))) return 10;
 
   if (
-    nums.includes(2) ||
+    nums.includes(3) ||
     names.some(
       (n) =>
         n.includes("PRO") ||
@@ -115,8 +106,10 @@ function normalizePlanFromUsuario(usuario) {
         n.includes("ADVANCED")
     )
   ) {
-    return 2;
+    return 3;
   }
+
+  if (nums.includes(2) || names.some((n) => n.includes("INTERMEDIO"))) return 2;
 
   return 1;
 }
@@ -130,16 +123,15 @@ export function esPlanBasicoSaas() {
 }
 
 export function esPlanProSaas() {
-  return getPlanSaasIdActual() === 2;
-}
-
-export function esPlanDemoSaas() {
   return getPlanSaasIdActual() === 3;
 }
 
+export function esPlanDemoSaas() {
+  return getPlanSaasIdActual() === 10;
+}
+
 export function esPlanConMediosCompletosSaas() {
-  const planId = getPlanSaasIdActual();
-  return planId === 2 || planId === 3;
+  return [1, 2, 3, 10].includes(getPlanSaasIdActual());
 }
 
 export function esMedioPagoChequeOEcheq(medio) {
@@ -162,19 +154,12 @@ export function esMedioPagoChequeOEcheq(medio) {
 }
 
 export function medioPagoPermitidoPorPlan(medio) {
-  // Demo y Pro/Avanzado permiten todos los medios de pago.
-  if (esPlanConMediosCompletosSaas()) return true;
-
-  // Solo el Básico mantiene el bloqueo de cheque/eCheq.
-  return !esMedioPagoChequeOEcheq(medio);
+  void medio;
+  return true;
 }
 
 export function filtrarMediosPagoPorPlan(mediosPago) {
   const lista = Array.isArray(mediosPago) ? mediosPago : [];
 
-  // Pro y Demo ven todos los medios, incluyendo cheque/eCheq.
-  if (esPlanConMediosCompletosSaas()) return lista;
-
-  // Básico mantiene la restricción original.
-  return lista.filter((medio) => medioPagoPermitidoPorPlan(medio));
+  return lista;
 }
