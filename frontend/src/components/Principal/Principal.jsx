@@ -169,6 +169,7 @@ const Principal = () => {
   const [openCCSub, setOpenCCSub] = useState(false);
   const [openChequesSub, setOpenChequesSub] = useState(false);
   const [openStockSub, setOpenStockSub] = useState(false);
+  const [openServiciosSub, setOpenServiciosSub] = useState(false);
   const [openContabilidadSub, setOpenContabilidadSub] = useState(false);
 
   const closingRef = useRef(false);
@@ -188,6 +189,7 @@ const Principal = () => {
       "cuentas-corrientes": "/panel/cuentas-corrientes/clientes",
       cheques: "/panel/cheques/cartera",
       stock: "/panel/stock",
+      servicios: "/panel/servicios",
       contabilidad: "/panel/contabilidad/iva-ventas",
     }),
     []
@@ -539,6 +541,13 @@ const Principal = () => {
       {
         label: "Servicios",
         ruta: "/panel/servicios",
+        children: [
+          { label: "Servicios", ruta: "/panel/servicios" },
+          {
+            label: "Inventario e insumos",
+            ruta: "/panel/servicios?seccion=inventario",
+          },
+        ],
       },
       {
         label: "Contabilidad",
@@ -684,6 +693,7 @@ const Principal = () => {
     setOpenCCSub(false);
     setOpenChequesSub(false);
     setOpenStockSub(false);
+    setOpenServiciosSub(false);
     setOpenContabilidadSub(false);
   }, []);
 
@@ -762,6 +772,7 @@ const Principal = () => {
   const isCCDropdown = (itemKey) => itemKey === "cuentas-corrientes";
   const isChequesDropdown = (itemKey) => itemKey === "cheques";
   const isStockDropdown = (itemKey) => itemKey === "stock";
+  const isServiciosDropdown = (itemKey) => itemKey === "servicios";
   const isContabilidadDropdown = (itemKey) => itemKey === "contabilidad";
 
   const getSubmenuKeyByPath = useCallback((pathname = "") => {
@@ -784,6 +795,7 @@ const Principal = () => {
     }
 
     if (pathname.startsWith("/panel/cheques")) return "cheques";
+    if (pathname.startsWith("/panel/servicios")) return "servicios";
     if (pathname.startsWith("/panel/contabilidad")) return "contabilidad";
 
     return "";
@@ -794,6 +806,7 @@ const Principal = () => {
     setOpenCCSub(itemKey === "cuentas-corrientes");
     setOpenChequesSub(itemKey === "cheques");
     setOpenStockSub(itemKey === "stock");
+    setOpenServiciosSub(itemKey === "servicios");
     setOpenContabilidadSub(itemKey === "contabilidad");
   }, []);
 
@@ -1026,6 +1039,7 @@ const Principal = () => {
             const isCC = isCCDropdown(item.key);
             const isCheques = isChequesDropdown(item.key);
             const isStock = isStockDropdown(item.key);
+            const isServicios = isServiciosDropdown(item.key);
             const isContabilidad = isContabilidadDropdown(item.key);
 
             const isActive =
@@ -1044,6 +1058,7 @@ const Principal = () => {
                 location.pathname.startsWith("/panel/cuentas-corrientes")) ||
               (isCheques && location.pathname.startsWith("/panel/cheques")) ||
               (isStock && location.pathname.startsWith("/panel/stock")) ||
+              (isServicios && location.pathname.startsWith("/panel/servicios")) ||
               (isContabilidad && location.pathname.startsWith("/panel/contabilidad"));
 
             const isOpen =
@@ -1051,6 +1066,7 @@ const Principal = () => {
               (isCC && openCCSub) ||
               (isCheques && openChequesSub) ||
               (isStock && openStockSub) ||
+              (isServicios && openServiciosSub) ||
               (isContabilidad && openContabilidadSub);
 
             return (
@@ -1081,26 +1097,32 @@ const Principal = () => {
 
                 {hasSub && (
                   <div className="pp-navSub">
-                    {item.children.map((sub) => (
-                      <button
-                        key={sub.ruta + sub.label}
-                        className={`pp-navSub__item ${
-                          location.pathname === sub.ruta ||
-                          location.pathname.startsWith(`${sub.ruta}/`)
-                            ? "is-active"
-                            : ""
-                        }`}
-                        onMouseEnter={() => prefetchRoute(sub.ruta)}
-                        onClick={() => {
-                          openOnlySubmenu(item.key);
-                          navigate(sub.ruta);
-                          setDrawerOpen(false);
-                        }}
-                      >
-                        <span className="pp-navSub__dot" />
-                        <span className="pp-navSub__label">{sub.label}</span>
-                      </button>
-                    ))}
+                    {item.children.map((sub) => {
+                      const [subPath, subQuery = ""] = sub.ruta.split("?");
+                      const isServiciosSub = item.key === "servicios";
+                      const isSubActive = isServiciosSub
+                        ? location.pathname === subPath && (subQuery
+                          ? location.search === `?${subQuery}`
+                          : !location.search.includes("seccion=inventario"))
+                        : location.pathname === sub.ruta ||
+                          location.pathname.startsWith(`${sub.ruta}/`);
+
+                      return (
+                        <button
+                          key={sub.ruta + sub.label}
+                          className={`pp-navSub__item ${isSubActive ? "is-active" : ""}`}
+                          onMouseEnter={() => prefetchRoute(sub.ruta)}
+                          onClick={() => {
+                            openOnlySubmenu(item.key);
+                            navigate(sub.ruta);
+                            setDrawerOpen(false);
+                          }}
+                        >
+                          <span className="pp-navSub__dot" />
+                          <span className="pp-navSub__label">{sub.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>

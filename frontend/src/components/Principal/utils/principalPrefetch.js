@@ -39,7 +39,8 @@ const ROUTE_PREFETCH = {
 
 export function prefetchRoute(ruta) {
   try {
-    const fn = ROUTE_PREFETCH[ruta];
+    const routeKey = String(ruta || "").split(/[?#]/)[0];
+    const fn = ROUTE_PREFETCH[routeKey];
     if (fn) fn();
   } catch {}
 }
