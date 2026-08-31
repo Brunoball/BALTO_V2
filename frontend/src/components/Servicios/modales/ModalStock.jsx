@@ -74,8 +74,8 @@ export default function ModalStock({
       <form className="servicios-modal" onSubmit={submit}>
         <div className="servicios-modal__head">
           <div>
-            <span>{item ? "EDITAR" : "NUEVO"}</span>
-            <h2>{item ? "Editar stock" : "Agregar a stock"}</h2>
+            <span>{item ? "EDITAR" : "AGREGAR"}</span>
+            <h2>{item ? "Editar producto" : "Agregar producto"}</h2>
           </div>
           <button type="button" className="servicios-icon-btn" onClick={onClose} aria-label="Cerrar">×</button>
         </div>
@@ -171,7 +171,7 @@ export default function ModalStock({
         <div className="servicios-modal__actions">
           <button type="button" className="servicios-btn servicios-btn--ghost" onClick={onClose} disabled={saving}>Cancelar</button>
           <button type="submit" className="servicios-btn" disabled={saving || form.stock_actual === ""}>
-            {saving ? "Guardando..." : item ? "Guardar cambios" : "Agregar a stock"}
+            {saving ? "Guardando..." : item ? "Guardar cambios" : "Agregar producto"}
           </button>
         </div>
       </form>

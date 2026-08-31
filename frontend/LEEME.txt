@@ -1,0 +1,12 @@
+BALTO - FIX REAL SELECTOR PLAYWRIGHT
+
+1) Extraer el contenido de este ZIP directamente dentro de frontend.
+2) Ejecutar UNA SOLA VEZ:
+   powershell -ExecutionPolicy Bypass -File .\APLICAR_FIX_SELECTOR.ps1
+3) Luego sólo cambiar .env.playwright.entorno.
+4) NO reemplaza .env.playwright ni sus contraseñas.
+
+Motivo del fix:
+- La suite actual valida credenciales desde tests/support/env.js.
+- El paquete anterior sólo tocaba tests/helpers/env.helper.js.
+- Este fix conecta tests/support/env.js al selector SIN reemplazar la lógica histórica del archivo.

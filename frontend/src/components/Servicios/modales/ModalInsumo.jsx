@@ -5,6 +5,16 @@ import {
   decimalText,
 } from "../utils/serviciosFormUtils";
 
+
+const IVA_OPTIONS = [
+  { value: "0", label: "0 %" },
+  { value: "10.5", label: "10,5 %" },
+  { value: "21", label: "21 %" },
+  { value: "27", label: "27 %" },
+];
+
+const isStandardIva = (value) => IVA_OPTIONS.some((option) => Number(option.value) === Number(value));
+
 const initialForm = {
   codigo: "",
   nombre: "",
@@ -76,8 +86,8 @@ export default function ModalInsumo({
       <form className="servicios-modal" onSubmit={submit}>
         <div className="servicios-modal__head">
           <div>
-            <span>{item ? "EDITAR" : "NUEVO"}</span>
-            <h2>{item ? "Editar insumo" : "Nuevo insumo"}</h2>
+            <span>{item ? "EDITAR" : "AGREGAR"}</span>
+            <h2>{item ? "Editar insumo" : "Agregar insumo"}</h2>
           </div>
           <button type="button" className="servicios-icon-btn" onClick={onClose} aria-label="Cerrar">×</button>
         </div>
@@ -164,15 +174,14 @@ export default function ModalInsumo({
 
           <label className="servicios-field">
             IVA %
-            <input
-              inputMode="decimal"
-              value={form.iva_pct}
-              onChange={(e) => {
-                const next = decimalText(e.target.value, 2, 3);
-                if (next === "" || Number(next) <= 100) set("iva_pct", next);
-              }}
-              placeholder="0"
-            />
+            <select value={form.iva_pct} onChange={(e) => set("iva_pct", e.target.value)}>
+              {!isStandardIva(form.iva_pct) && form.iva_pct !== "" && (
+                <option value={form.iva_pct}>{String(form.iva_pct).replace(".", ",")} % (ACTUAL)</option>
+              )}
+              {IVA_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
           </label>
         </div>
 
@@ -183,7 +192,7 @@ export default function ModalInsumo({
         <div className="servicios-modal__actions">
           <button type="button" className="servicios-btn servicios-btn--ghost" onClick={onClose} disabled={saving}>Cancelar</button>
           <button type="submit" className="servicios-btn" disabled={saving}>
-            {saving ? "Guardando..." : item ? "Guardar cambios" : "Crear insumo"}
+            {saving ? "Guardando..." : item ? "Guardar cambios" : "Agregar insumo"}
           </button>
         </div>
       </form>

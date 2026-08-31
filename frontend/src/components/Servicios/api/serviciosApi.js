@@ -68,6 +68,11 @@ export const darBajaServicioServicios = (id) => serviciosPost("servicios_servici
 export const reactivarServicioServicios = (id) => serviciosPost("servicios_servicio_reactivar", { id_servicio: id });
 export const eliminarServicioServicios = (id) => serviciosPost("servicios_servicio_eliminar", { id_servicio: id });
 export const guardarRecetaServicios = (id, receta) => serviciosPost("servicios_receta_guardar", { id_servicio: id, receta });
+export const guardarComposicionServicios = (id, insumos = [], productosStock = []) =>
+  serviciosPost("servicios_composicion_guardar", {
+    id_servicio: id,
+    composicion: { insumos, stock: productosStock },
+  });
 
 // INSUMOS: catálogo totalmente independiente de Stock.
 export const listarCategoriasInsumosServicios = (params = {}) => serviciosGet("servicios_insumos_categorias_listar", params);

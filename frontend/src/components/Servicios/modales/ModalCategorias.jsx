@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faBan, faPenToSquare, faRotateLeft, faTrashCan } from "@fortawesome/free-solid-svg-icons";
 import { clampText } from "../utils/serviciosFormUtils";
 
 const emptyForm = { nombre: "", descripcion: "" };
@@ -128,16 +130,20 @@ export default function ModalCategorias({
                       </td>
                       <td>
                         <div className="servicios-row-actions">
-                          <button type="button" onClick={() => edit(categoria)}>Editar</button>
-                          <button type="button" onClick={() => onToggle(categoria)}>
-                            {activo ? "Dar de baja" : "Reactivar"}
+                          <button type="button" className="servicios-action-icon" title="Editar" aria-label="Editar" onClick={() => edit(categoria)}>
+                            <FontAwesomeIcon icon={faPenToSquare} />
+                          </button>
+                          <button type="button" className="servicios-action-icon" title={activo ? "Dar de baja" : "Reactivar"} aria-label={activo ? "Dar de baja" : "Reactivar"} onClick={() => onToggle(categoria)}>
+                            <FontAwesomeIcon icon={activo ? faBan : faRotateLeft} />
                           </button>
                           <button
                             type="button"
-                            className="is-danger"
+                            className="servicios-action-icon is-danger"
+                            title="Eliminar"
+                            aria-label="Eliminar"
                             onClick={() => onDelete(categoria)}
                           >
-                            Eliminar
+                            <FontAwesomeIcon icon={faTrashCan} />
                           </button>
                         </div>
                       </td>

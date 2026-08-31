@@ -1,24 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
-import "../Global/Global_css/roots.css";
-import "../Global/Global_css/Global_Section.css";
-import "../Global/Global_css/Global_oscuro.css";
 import "./Servicios.css";
+import "../Global/Global_css/Global_Section.css";
 import BotonExportar from "../Global/Boton_Exportar/BotonExportar";
 import ModalEliminar from "../Global/Modales/ModalEliminar";
-import useTableScrollGutter from "../Global/useTableScrollGutter";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faBoxOpen,
-  faListCheck,
-  faMagnifyingGlass,
-  faPenToSquare,
-  faPlus,
-  faTimes,
-  faTrashCan,
-  faUndo,
-  faXmark,
-} from "@fortawesome/free-solid-svg-icons";
 import {
   actualizarCategoriaInsumoServicios,
   actualizarCategoriaServicios,
@@ -51,7 +35,7 @@ import {
   listarInsumosServicios,
   listarStockServicios,
   listarUnidadesServicios,
-  obtenerResumenServicios,
+  obtenerServicioServicios,
   reactivarCategoriaInsumoServicios,
   reactivarCategoriaServicios,
   reactivarCategoriaStockServicios,
@@ -65,24 +49,38 @@ import ModalServicio from "./modales/ModalServicio";
 import ModalStock from "./modales/ModalStock";
 import { integer, money, upper } from "./utils/serviciosFormUtils";
 import { exportServiciosExcel, exportServiciosPdf } from "./utils/serviciosExport";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faBan, faPenToSquare, faRotateLeft, faTrashCan } from "@fortawesome/free-solid-svg-icons";
 
 const EMPTY_FILTERS = { buscar: "", categoria: "", estado: "todos" };
 const includesText = (value, q) => upper(value).includes(q);
+const SECTION_META = {
+  servicios: {
+    title: "Servicios",
+    description: "Administrá los servicios y definí los insumos o productos de Stock que necesita cada uno.",
+    addLabel: "Agregar servicio",
+  },
+  insumos: {
+    title: "Insumos",
+    description: "Administrá los insumos utilizados por los servicios de manera independiente del Stock.",
+    addLabel: "Agregar insumo",
+  },
+  stock: {
+    title: "Stock",
+    description: "Administrá los productos y existencias de Stock de manera independiente de los Insumos.",
+    addLabel: "Agregar producto",
+  },
+};
+
+const formatIva = (value) => `${Number(value || 0).toLocaleString("es-AR", { maximumFractionDigits: 1 })} %`;
 
 export default function Servicios() {
-  const location = useLocation();
-  const section = useMemo(
-    () => new URLSearchParams(location.search).get("seccion") === "inventario" ? "inventario" : "servicios",
-    [location.search]
-  );
-  const [inventoryTab, setInventoryTab] = useState("insumos");
-  const tab = section === "servicios" ? "servicios" : inventoryTab;
+  const [tab, setTab] = useState("servicios");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const [resumen, setResumen] = useState({});
   const [unidades, setUnidades] = useState([]);
   const [categoriasServicios, setCategoriasServicios] = useState([]);
   const [categoriasInsumos, setCategoriasInsumos] = useState([]);
@@ -102,7 +100,6 @@ export default function Servicios() {
   const [stockModal, setStockModal] = useState({ open: false, item: null });
   const [categoryModal, setCategoryModal] = useState({ open: false, kind: "servicios" });
   const [deleteModal, setDeleteModal] = useState({ open: false, kind: null, item: null });
-  const [tableWrapRef, hasTableScroll] = useTableScrollGutter();
 
   const flash = useCallback((message) => {
     setNotice(message);
@@ -113,8 +110,7 @@ export default function Servicios() {
     setLoading(true);
     setError("");
     try {
-      const [r, u, cs, ci, cst, s, i, st] = await Promise.all([
-        obtenerResumenServicios(),
+      const [u, cs, ci, cst, s, i, st] = await Promise.all([
         listarUnidadesServicios(),
         listarCategoriasServicios({ activo: "todos" }),
         listarCategoriasInsumosServicios({ activo: "todos" }),
@@ -124,7 +120,6 @@ export default function Servicios() {
         listarStockServicios({ activo: "todos", limit: 1000 }),
       ]);
 
-      setResumen(r?.resumen || {});
       setUnidades(u?.unidades || []);
       setCategoriasServicios(cs?.categorias || []);
       setCategoriasInsumos(ci?.categorias || []);
@@ -203,6 +198,16 @@ export default function Servicios() {
       );
       setServiceModal({ open: false, item: null });
     } catch {}
+  };
+
+  const openEditServicio = async (item) => {
+    setError("");
+    try {
+      const result = await obtenerServicioServicios(item.id_servicio);
+      setServiceModal({ open: true, item: result?.servicio || item });
+    } catch (e) {
+      setError(e?.message || "No se pudo cargar el servicio.");
+    }
   };
 
   const saveInsumo = async (payload) => {
@@ -426,224 +431,193 @@ export default function Servicios() {
     if (tab === "stock") setStockModal({ open: true, item: null });
   };
 
-  const tableDefinition = useMemo(() => {
-    if (tab === "servicios") {
-      return {
-        entity: "servicios",
-        rows: serviciosFiltrados,
-        columns: [
-          { key: "nombre", label: "Servicio", width: "minmax(190px, 1.65fr)" },
-          { key: "categoria", label: "Categoría", width: "minmax(145px, 1.1fr)" },
-          { key: "costo_estimado", label: "Costo estimado", width: "minmax(115px, .8fr)", align: "right" },
-          { key: "precio_venta", label: "Precio", width: "minmax(110px, .8fr)", align: "right" },
-          { key: "iva", label: "IVA", width: "78px", align: "center" },
-          { key: "estado", label: "Estado", width: "92px", align: "center" },
-          { key: "acciones", label: "Acciones", width: "128px", align: "center" },
-        ],
-      };
-    }
-    if (tab === "insumos") {
-      return {
-        entity: "insumos",
-        rows: insumosFiltrados,
-        columns: [
-          { key: "nombre", label: "Insumo", width: "minmax(180px, 1.55fr)" },
-          { key: "categoria", label: "Categoría", width: "minmax(135px, 1fr)" },
-          { key: "unidad", label: "Unidad", width: "90px", align: "center" },
-          { key: "costo_unitario", label: "Costo", width: "minmax(105px, .75fr)", align: "right" },
-          { key: "precio_venta", label: "Precio", width: "minmax(105px, .75fr)", align: "right" },
-          { key: "iva", label: "IVA", width: "72px", align: "center" },
-          { key: "estado", label: "Estado", width: "88px", align: "center" },
-          { key: "acciones", label: "Acciones", width: "128px", align: "center" },
-        ],
-      };
-    }
-    return {
-      entity: "registros de stock",
-      rows: stockFiltrado,
-      columns: [
-        { key: "nombre", label: "Artículo", width: "minmax(190px, 1.65fr)" },
-        { key: "categoria", label: "Categoría", width: "minmax(145px, 1.1fr)" },
-        { key: "unidad", label: "Unidad", width: "90px", align: "center" },
-        { key: "stock_actual", label: "Cantidad", width: "100px", align: "right" },
-        { key: "costo_unitario", label: "Costo", width: "minmax(110px, .8fr)", align: "right" },
-        { key: "estado", label: "Estado", width: "92px", align: "center" },
-        { key: "acciones", label: "Acciones", width: "128px", align: "center" },
-      ],
-    };
-  }, [tab, serviciosFiltrados, insumosFiltrados, stockFiltrado]);
-
-  const gridColumns = tableDefinition.columns.map((column) => column.width).join(" ");
-  const newLabel = tab === "servicios" ? "Nuevo servicio" : tab === "insumos" ? "Nuevo insumo" : "Agregar a stock";
-  const searchLabel = tab === "servicios" ? "Buscar servicio" : tab === "insumos" ? "Buscar insumo" : "Buscar en stock";
-
-  const editItem = (item) => {
-    if (tab === "servicios") setServiceModal({ open: true, item });
-    if (tab === "insumos") setInsumoModal({ open: true, item });
-    if (tab === "stock") setStockModal({ open: true, item });
-  };
-
-  const toggleItem = (item) => {
-    if (tab === "servicios") toggleServicio(item);
-    if (tab === "insumos") toggleInsumo(item);
-    if (tab === "stock") toggleStock(item);
-  };
-
-  const requestDeleteItem = (item) => {
-    const kind = tab === "servicios" ? "servicio" : tab === "insumos" ? "insumo" : "stock";
-    setDeleteModal({ open: true, kind, item });
-  };
-
-  const renderCell = (item, key) => {
-    if (key === "nombre") return <div className="servicios-nameCell"><strong>{item.nombre}</strong><small>{item.codigo || "SIN CÓDIGO"}</small></div>;
-    if (key === "categoria") return item.categoria_nombre || "SIN CATEGORÍA";
-    if (key === "unidad") return item.unidad_simbolo || item.unidad_nombre || "—";
-    if (key === "costo_estimado") return money(item.costo_estimado);
-    if (key === "costo_unitario") return money(item.costo_unitario);
-    if (key === "precio_venta") return item.precio_venta == null ? "—" : money(item.precio_venta);
-    if (key === "stock_actual") return <strong className="servicios-stock-value">{integer(item.stock_actual)}</strong>;
-    if (key === "iva") return `${Number(item.iva_pct || 0).toFixed(2)}%`;
-    if (key === "estado") {
-      const active = Number(item.activo) === 1;
-      return <span className={`mov-chip ${active ? "mov-chip--ok" : "mov-chip--neutral"}`}>{active ? "ACTIVO" : "BAJA"}</span>;
-    }
-    return "—";
-  };
-
-  const renderSkeletonRow = (index) => (
-    <div key={`servicios-skeleton-${index}`} className="mov-gridTable mov-gridTable--row mov-row--skeleton" style={{ gridTemplateColumns: gridColumns }} role="row" aria-hidden="true">
-      {tableDefinition.columns.map((column) => (
-        <div key={column.key} className={`mov-gridCell ${column.align === "right" ? "is-right" : ""} ${column.align === "center" ? "is-center" : ""}`} role="cell">
-          {column.key === "acciones"
-            ? <div className="mov-skelActions"><span className="mov-skelIcon" /><span className="mov-skelIcon" /><span className="mov-skelIcon" /></div>
-            : <span className="mov-skeletonBar" style={{ width: `${48 + ((index + column.key.length) % 4) * 10}%` }} />}
-        </div>
-      ))}
-    </div>
-  );
-
-  const renderSecondaryActions = (className = "", compact = false) => (
-    <div className={`mov-card__actions servicios-secondaryActions ${className}`.trim()}>
-      <BotonExportar label={compact ? "Exportar datos" : "Exportar"} title="Exportar vista actual" opciones={exportOptions} disabled={loading || tableDefinition.rows.length === 0} align="right" />
-      <button type="button" className="mov-btn mov-btn--ghost" onClick={() => setCategoryModal({ open: true, kind: tab })} disabled={saving}><FontAwesomeIcon icon={faListCheck} /> {compact ? "Administrar categorías" : "Categorías"}</button>
-    </div>
-  );
-
   return (
-    <section className="mov-page servicios-page">
-      {error && <div className="mov-alert" role="alert">{error}</div>}
-      {notice && <div className="servicios-alert servicios-alert--ok" role="status">{notice}</div>}
-
-      <div className="servicios-summary">
-        <article><span>Servicios activos</span><strong>{resumen.servicios_activos ?? 0}</strong></article>
-        <article><span>Insumos activos</span><strong>{resumen.insumos_activos ?? 0}</strong></article>
-        <article><span>Registros de stock activos</span><strong>{resumen.stock_activos ?? 0}</strong></article>
-        <article><span>Unidades en stock</span><strong>{integer(resumen.stock_total_unidades ?? 0)}</strong></article>
+    <section className="servicios-page">
+      <div className="servicios-head">
+        <div>
+          <p className="servicios-kicker">BALTO · SERVICIOS</p>
+          <h1>{SECTION_META[tab].title}</h1>
+          <p>{SECTION_META[tab].description}</p>
+        </div>
+        <div className="servicios-head__actions">
+          <BotonExportar label="Exportar" title="Exportar vista actual" opciones={exportOptions} disabled={loading} />
+          <button type="button" className="servicios-btn" onClick={openNew} disabled={saving}>
+            {SECTION_META[tab].addLabel}
+          </button>
+        </div>
       </div>
 
-      <section className="mov-card mov-card--table servicios-table-card">
-        <div className="mov-card__head servicios-table-head">
-          <div className="mov-card__headLeft">
-            <div className="title-mov">
-              {section === "inventario" ? (
-                <div className="servicios-tabsRow">
-                  <div className="servicios-googleTabs" role="tablist" aria-label="Inventario e insumos">
-                    <button type="button" role="tab" aria-selected={inventoryTab === "insumos"} className={`servicios-googleTab ${inventoryTab === "insumos" ? "is-active" : ""}`} onClick={() => setInventoryTab("insumos")}>Insumos</button>
-                    <button type="button" role="tab" aria-selected={inventoryTab === "stock"} className={`servicios-googleTab ${inventoryTab === "stock" ? "is-active" : ""}`} onClick={() => setInventoryTab("stock")}>Stock</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="mov-card__title">Servicios</div>
-              )}
-              <div className="mov-card__hint">Mostrando <b>{tableDefinition.rows.length}</b> {tableDefinition.entity}</div>
+      {error && <div className="servicios-alert servicios-alert--error">{error}</div>}
+      {notice && <div className="servicios-alert servicios-alert--ok">{notice}</div>}
+
+      <div className="servicios-toolbar">
+        <label className="servicios-search">
+          <span>Buscar</span>
+          <input
+            maxLength={100}
+            value={currentFilters.buscar}
+            onChange={(e) => updateFilter("buscar", upper(e.target.value).slice(0, 100))}
+            placeholder={tab === "servicios" ? "BUSCAR SERVICIO, CÓDIGO O CATEGORÍA" : tab === "insumos" ? "BUSCAR INSUMO, CÓDIGO O CATEGORÍA" : "BUSCAR EN STOCK"}
+          />
+        </label>
+
+        <label className="servicios-filter">
+          <span>Categoría</span>
+          <select value={currentFilters.categoria} onChange={(e) => updateFilter("categoria", e.target.value)}>
+            <option value="">TODAS LAS CATEGORÍAS</option>
+            {activeCategoryList.map((category) => (
+              <option key={categoryId(category)} value={categoryId(category)}>{category.nombre}{Number(category.activo) === 1 ? "" : " (BAJA)"}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="servicios-filter">
+          <span>Estado</span>
+          <select value={currentFilters.estado} onChange={(e) => updateFilter("estado", e.target.value)}>
+            <option value="todos">TODOS</option>
+            <option value="1">ACTIVOS</option>
+            <option value="0">DADOS DE BAJA</option>
+          </select>
+        </label>
+
+        <button
+          type="button"
+          className="servicios-btn servicios-btn--ghost servicios-toolbar__categories"
+          onClick={() => setCategoryModal({ open: true, kind: tab })}
+        >
+          Gestionar categorías
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="servicios-loading">Cargando módulo Servicios…</div>
+      ) : (
+        <>
+          {tab === "servicios" && (
+            <div className="servicios-card servicios-table-card">
+              <div className="servicios-card-title"><div><h2>Servicios</h2><span>{serviciosFiltrados.length} registro(s)</span></div></div>
+              <div className="servicios-table-wrap">
+                <table>
+                  <thead><tr><th>Servicio</th><th>Categoría</th><th>Composición</th><th>Costo estimado</th><th>Precio</th><th>IVA</th><th>Estado</th><th className="servicios-actions-col">Acciones</th></tr></thead>
+                  <tbody>
+                    {serviciosFiltrados.length === 0 ? <tr><td colSpan="8" className="servicios-empty">NO HAY SERVICIOS PARA LOS FILTROS ACTUALES.</td></tr> : serviciosFiltrados.map((item) => {
+                      const activo = Number(item.activo) === 1;
+                      return (
+                        <tr key={item.id_servicio} className={activo ? "" : "is-row-inactive"}>
+                          <td><strong>{item.nombre}</strong><small>{item.codigo || "SIN CÓDIGO"}</small></td>
+                          <td>{item.categoria_nombre || "SIN CATEGORÍA"}</td>
+                          <td>
+                            <span className="servicios-composition-summary">
+                              {Number(item.cantidad_insumos || 0)} insumo(s) · {Number(item.cantidad_productos_stock || 0)} de Stock
+                            </span>
+                          </td>
+                          <td>{money(item.costo_estimado)}</td>
+                          <td>{money(item.precio_venta)}</td>
+                          <td>{formatIva(item.iva_pct)}</td>
+                          <td><span className={`servicios-status ${activo ? "is-active" : "is-inactive"}`}>{activo ? "ACTIVO" : "BAJA"}</span></td>
+                          <td><div className="servicios-row-actions">
+                            <button type="button" className="servicios-action-icon" title="Editar" aria-label="Editar" onClick={() => openEditServicio(item)}>
+                              <FontAwesomeIcon icon={faPenToSquare} />
+                            </button>
+                            <button type="button" className="servicios-action-icon" title={activo ? "Dar de baja" : "Reactivar"} aria-label={activo ? "Dar de baja" : "Reactivar"} onClick={() => toggleServicio(item)}>
+                              <FontAwesomeIcon icon={activo ? faBan : faRotateLeft} />
+                            </button>
+                            <button type="button" className="servicios-action-icon is-danger" title="Eliminar" aria-label="Eliminar" onClick={() => setDeleteModal({ open: true, kind: "servicio", item })}>
+                              <FontAwesomeIcon icon={faTrashCan} />
+                            </button>
+                          </div></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
+          )}
 
-            <div className="mov-headFilters servicios-headFilters">
-              <div className="cc-filter cc-filter--search servicios-searchGlobal">
-                <div className="cc-floatingField cc-floatingField--search is-active">
-                  <div className="cc-searchInput">
-                    <div className="cc-searchInput__fieldWrap">
-                      <input className="cc-input cc-input--floating" maxLength={100} value={currentFilters.buscar} onChange={(event) => updateFilter("buscar", upper(event.target.value).slice(0, 100))} placeholder=" " aria-label={searchLabel} />
-                      <span className="cc-floatingLabel"><FontAwesomeIcon icon={faMagnifyingGlass} /> {searchLabel}</span>
-                      {currentFilters.buscar && <button type="button" className="cc-clearSearch cc-clearSearch--inside" onClick={() => updateFilter("buscar", "")} title="Limpiar búsqueda"><FontAwesomeIcon icon={faXmark} /></button>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="cc-filter servicios-selectFilter">
-                <div className="cc-floatingField is-active">
-                  <select id="servicios-categoria" className="cc-input cc-input--floating" value={currentFilters.categoria} onChange={(event) => updateFilter("categoria", event.target.value)} aria-label="Categoría">
-                    <option value="">TODAS</option>
-                    {activeCategoryList.map((category) => <option key={categoryId(category)} value={categoryId(category)}>{category.nombre}{Number(category.activo) === 1 ? "" : " (BAJA)"}</option>)}
-                  </select>
-                  <span className="cc-floatingLabel">Categoría</span>
-                </div>
-              </div>
-
-              <div className="cc-filter servicios-selectFilter servicios-selectFilter--state">
-                <div className="cc-floatingField is-active">
-                  <select id="servicios-estado" className="cc-input cc-input--floating" value={currentFilters.estado} onChange={(event) => updateFilter("estado", event.target.value)} aria-label="Estado">
-                    <option value="todos">TODOS</option><option value="1">ACTIVOS</option><option value="0">BAJAS</option>
-                  </select>
-                  <span className="cc-floatingLabel">Estado</span>
-                </div>
+          {tab === "insumos" && (
+            <div className="servicios-card servicios-table-card">
+              <div className="servicios-card-title"><div><h2>Insumos</h2><span>{insumosFiltrados.length} registro(s) · independientes de Stock</span></div></div>
+              <div className="servicios-table-wrap">
+                <table>
+                  <thead><tr><th>Insumo</th><th>Categoría</th><th>Unidad</th><th>Costo</th><th>Precio</th><th>IVA</th><th>Estado</th><th className="servicios-actions-col">Acciones</th></tr></thead>
+                  <tbody>
+                    {insumosFiltrados.length === 0 ? <tr><td colSpan="8" className="servicios-empty">NO HAY INSUMOS PARA LOS FILTROS ACTUALES.</td></tr> : insumosFiltrados.map((item) => {
+                      const activo = Number(item.activo) === 1;
+                      return (
+                        <tr key={item.id_insumo} className={activo ? "" : "is-row-inactive"}>
+                          <td><strong>{item.nombre}</strong><small>{item.codigo || "SIN CÓDIGO"}</small></td>
+                          <td>{item.categoria_nombre || "SIN CATEGORÍA"}</td>
+                          <td>{item.unidad_simbolo || item.unidad_nombre}</td>
+                          <td>{money(item.costo_unitario)}</td>
+                          <td>{item.precio_venta == null ? "—" : money(item.precio_venta)}</td>
+                          <td>{formatIva(item.iva_pct)}</td>
+                          <td><span className={`servicios-status ${activo ? "is-active" : "is-inactive"}`}>{activo ? "ACTIVO" : "BAJA"}</span></td>
+                          <td><div className="servicios-row-actions">
+                            <button type="button" className="servicios-action-icon" title="Editar" aria-label="Editar" onClick={() => setInsumoModal({ open: true, item })}>
+                              <FontAwesomeIcon icon={faPenToSquare} />
+                            </button>
+                            <button type="button" className="servicios-action-icon" title={activo ? "Dar de baja" : "Reactivar"} aria-label={activo ? "Dar de baja" : "Reactivar"} onClick={() => toggleInsumo(item)}>
+                              <FontAwesomeIcon icon={activo ? faBan : faRotateLeft} />
+                            </button>
+                            <button type="button" className="servicios-action-icon is-danger" title="Eliminar" aria-label="Eliminar" onClick={() => setDeleteModal({ open: true, kind: "insumo", item })}>
+                              <FontAwesomeIcon icon={faTrashCan} />
+                            </button>
+                          </div></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
-          </div>
+          )}
 
-          {renderSecondaryActions("servicios-secondaryActions--desktop")}
-
-          <div className="mov-card__actions servicios-headActions servicios-headActions--primary">
-            <button type="button" className="mov-btn mov-btn--primary" onClick={openNew} disabled={saving}><FontAwesomeIcon icon={faPlus} /> {newLabel}</button>
-          </div>
-        </div>
-
-        <div className={`mov-gridTable mov-gridTable--head ${hasTableScroll ? "has-y-scroll" : ""}`} style={{ gridTemplateColumns: gridColumns }} role="row">
-          {tableDefinition.columns.map((column) => <div key={column.key} className={`mov-gridCell mov-gridCell--head ${column.align === "right" ? "is-right" : ""} ${column.align === "center" ? "is-center" : ""}`} role="columnheader">{column.label}</div>)}
-        </div>
-
-        <div className="mov-tableWrap servicios-globalTableWrap" role="rowgroup" ref={tableWrapRef}>
-          <div className={`mov-gridBody mov-gridBody--relative ${loading ? "mov-softLoading" : ""}`}>
-            {loading ? (
-              <div className="mov-skeletonWrap" aria-busy="true" aria-label="Cargando registros">{Array.from({ length: 10 }).map((_, index) => renderSkeletonRow(index))}</div>
-            ) : (
-              <>
-                {tableDefinition.rows.map((item) => {
-                  const active = Number(item.activo) === 1;
-                  const rowKey = item.id_servicio ?? item.id_insumo ?? item.id_stock;
-                  return (
-                    <div key={rowKey} className={`mov-gridTable mov-gridTable--row ${active ? "" : "is-row-inactive"}`} style={{ gridTemplateColumns: gridColumns }} role="row">
-                      {tableDefinition.columns.map((column) => column.key === "acciones" ? (
-                        <div key={column.key} className="mov-gridCell mov-gridCell--actions is-center" role="cell" data-label={column.label}>
-                          <div className="mov-actionsInline">
-                            <button type="button" className="mov-iconBtn" onClick={() => editItem(item)} disabled={saving} title="Editar"><FontAwesomeIcon icon={faPenToSquare} /></button>
-                            <button type="button" className="mov-iconBtn" onClick={() => toggleItem(item)} disabled={saving} title={active ? "Dar de baja" : "Reactivar"}><FontAwesomeIcon icon={active ? faTimes : faUndo} /></button>
-                            <button type="button" className="mov-iconBtn mov-iconBtn--danger" onClick={() => requestDeleteItem(item)} disabled={saving} title="Eliminar"><FontAwesomeIcon icon={faTrashCan} /></button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div key={column.key} className={`mov-gridCell ${column.align === "right" ? "is-right" : ""} ${column.align === "center" ? "is-center" : ""}`} role="cell" data-label={column.label}>{renderCell(item, column.key)}</div>
-                      ))}
-                    </div>
-                  );
-                })}
-
-                {tableDefinition.rows.length === 0 && <div className="servicios-emptyState"><FontAwesomeIcon icon={faBoxOpen} /><span>No hay {tableDefinition.entity} para los filtros actuales.</span></div>}
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="servicios-tableFooter">
-          {renderSecondaryActions("servicios-secondaryActions--mobile", true)}
-        </div>
-      </section>
+          {tab === "stock" && (
+            <div className="servicios-card servicios-table-card">
+              <div className="servicios-card-title"><div><h2>Stock</h2><span>{stockFiltrado.length} registro(s) · catálogo independiente de Insumos</span></div></div>
+              <div className="servicios-table-wrap">
+                <table>
+                  <thead><tr><th>Stock</th><th>Categoría</th><th>Unidad</th><th>Cantidad</th><th>Costo</th><th>Estado</th><th className="servicios-actions-col">Acciones</th></tr></thead>
+                  <tbody>
+                    {stockFiltrado.length === 0 ? <tr><td colSpan="7" className="servicios-empty">NO HAY REGISTROS DE STOCK PARA LOS FILTROS ACTUALES.</td></tr> : stockFiltrado.map((item) => {
+                      const activo = Number(item.activo) === 1;
+                      return (
+                        <tr key={item.id_stock} className={activo ? "" : "is-row-inactive"}>
+                          <td><strong>{item.nombre}</strong><small>{item.codigo || "SIN CÓDIGO"}</small></td>
+                          <td>{item.categoria_nombre || "SIN CATEGORÍA"}</td>
+                          <td>{item.unidad_simbolo || item.unidad_nombre}</td>
+                          <td><strong className="servicios-stock-value">{integer(item.stock_actual)}</strong></td>
+                          <td>{money(item.costo_unitario)}</td>
+                          <td><span className={`servicios-status ${activo ? "is-active" : "is-inactive"}`}>{activo ? "ACTIVO" : "BAJA"}</span></td>
+                          <td><div className="servicios-row-actions">
+                            <button type="button" className="servicios-action-icon" title="Editar" aria-label="Editar" onClick={() => setStockModal({ open: true, item })}>
+                              <FontAwesomeIcon icon={faPenToSquare} />
+                            </button>
+                            <button type="button" className="servicios-action-icon" title={activo ? "Dar de baja" : "Reactivar"} aria-label={activo ? "Dar de baja" : "Reactivar"} onClick={() => toggleStock(item)}>
+                              <FontAwesomeIcon icon={activo ? faBan : faRotateLeft} />
+                            </button>
+                            <button type="button" className="servicios-action-icon is-danger" title="Eliminar" aria-label="Eliminar" onClick={() => setDeleteModal({ open: true, kind: "stock", item })}>
+                              <FontAwesomeIcon icon={faTrashCan} />
+                            </button>
+                          </div></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       <ModalServicio
         open={serviceModal.open}
         item={serviceModal.item}
         categorias={categoriasServicios}
+        insumos={insumos}
+        stock={stock}
         saving={saving}
         onClose={() => setServiceModal({ open: false, item: null })}
         onSave={saveServicio}
