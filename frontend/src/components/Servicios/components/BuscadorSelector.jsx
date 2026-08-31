@@ -63,7 +63,7 @@ export default function BuscadorSelector({
     <div className={`servicios-searchable-select ${open ? "is-open" : ""}`} ref={rootRef}>
       <button
         type="button"
-        className="servicios-searchable-select__trigger"
+        className="gm-input gm-select servicios-searchable-select__trigger"
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -77,6 +77,7 @@ export default function BuscadorSelector({
         <div className="servicios-searchable-select__menu">
           <div className="servicios-searchable-select__search-wrap">
             <input
+              className="gm-input"
               ref={searchRef}
               type="search"
               maxLength={120}

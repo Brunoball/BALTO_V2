@@ -290,20 +290,21 @@ export default function ModalServicio({
   };
 
   return (
-    <div className="servicios-modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
-      <form className="servicios-modal servicios-modal--service" onSubmit={submit}>
-        <div className="servicios-modal__head">
+    <div className="gm-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
+      <form className="gm-modal-container gm-modal-v2 servicios-modal servicios-modal--service" onSubmit={submit}>
+        <div className="gm-modal-header servicios-modal__head">
           <div>
             <span>{item ? "EDITAR" : "AGREGAR"}</span>
             <h2>{item ? "Editar servicio" : "Agregar servicio"}</h2>
           </div>
-          <button type="button" className="servicios-icon-btn" onClick={onClose} aria-label="Cerrar">×</button>
+          <button type="button" className="gm-modal-close" onClick={onClose} aria-label="Cerrar">×</button>
         </div>
 
         <div className="servicios-form-grid">
           <label className="servicios-field servicios-field--wide">
             Nombre
             <input
+              className="gm-input"
               required
               autoFocus
               maxLength={150}
@@ -316,6 +317,7 @@ export default function ModalServicio({
           <label className="servicios-field">
             Código
             <input
+              className="gm-input"
               maxLength={60}
               value={form.codigo}
               onChange={(e) => set("codigo", cleanCode(e.target.value))}
@@ -325,7 +327,7 @@ export default function ModalServicio({
 
           <label className="servicios-field">
             Categoría
-            <select value={form.id_servicio_categoria} onChange={handleCategoria}>
+            <select className="gm-input gm-select" value={form.id_servicio_categoria} onChange={handleCategoria}>
               <option value="__ADD__">+ AGREGAR CATEGORÍA</option>
               <option value="">SIN CATEGORÍA</option>
               {categorias
@@ -341,6 +343,7 @@ export default function ModalServicio({
           <label className="servicios-field servicios-field--wide">
             Descripción
             <textarea
+              className="gm-input servicios-textarea"
               rows={3}
               maxLength={1000}
               value={form.descripcion}
@@ -353,6 +356,7 @@ export default function ModalServicio({
           <label className="servicios-field">
             Costo base
             <input
+              className="gm-input"
               inputMode="decimal"
               value={form.costo_base}
               onChange={(e) => set("costo_base", decimalText(e.target.value, 2))}
@@ -363,6 +367,7 @@ export default function ModalServicio({
           <label className="servicios-field">
             Precio de venta
             <input
+              className="gm-input"
               required
               inputMode="decimal"
               value={form.precio_venta}
@@ -373,7 +378,7 @@ export default function ModalServicio({
 
           <label className="servicios-field">
             IVA %
-            <select value={form.iva_pct} onChange={(e) => set("iva_pct", e.target.value)}>
+            <select className="gm-input gm-select" value={form.iva_pct} onChange={(e) => set("iva_pct", e.target.value)}>
               {!isStandardIva(form.iva_pct) && form.iva_pct !== "" && (
                 <option value={form.iva_pct}>{String(form.iva_pct).replace(".", ",")} % (ACTUAL)</option>
               )}
@@ -386,6 +391,7 @@ export default function ModalServicio({
           <label className="servicios-field">
             Duración estimada (min)
             <input
+              className="gm-input"
               inputMode="numeric"
               maxLength={6}
               value={form.duracion_estimada_minutos}
@@ -428,7 +434,7 @@ export default function ModalServicio({
                   searchPlaceholder="BUSCAR INSUMO..."
                   emptyText="NO HAY INSUMOS DISPONIBLES"
                 />
-                <button type="button" className="servicios-btn servicios-btn--ghost" onClick={addInsumo} disabled={!insumoToAdd}>
+                <button type="button" className="gm-action-btn gm-action-btn--cancel" onClick={addInsumo} disabled={!insumoToAdd}>
                   Agregar
                 </button>
               </div>
@@ -450,6 +456,7 @@ export default function ModalServicio({
                         <label>
                           Cantidad
                           <input
+                            className="gm-cell-input gm-cell-input--right"
                             required
                             inputMode="decimal"
                             value={row.cantidad_requerida}
@@ -493,7 +500,7 @@ export default function ModalServicio({
                   searchPlaceholder="BUSCAR PRODUCTO DE STOCK..."
                   emptyText="NO HAY PRODUCTOS DE STOCK DISPONIBLES"
                 />
-                <button type="button" className="servicios-btn servicios-btn--ghost" onClick={addStock} disabled={!stockToAdd}>
+                <button type="button" className="gm-action-btn gm-action-btn--cancel" onClick={addStock} disabled={!stockToAdd}>
                   Agregar
                 </button>
               </div>
@@ -516,6 +523,7 @@ export default function ModalServicio({
                         <label>
                           Usa por servicio
                           <input
+                            className="gm-cell-input gm-cell-input--right"
                             required
                             type="number"
                             inputMode="numeric"
@@ -563,10 +571,10 @@ export default function ModalServicio({
         </div>
 
         <div className="servicios-modal__actions">
-          <button type="button" className="servicios-btn servicios-btn--ghost" onClick={onClose} disabled={saving}>
+          <button type="button" className="gm-action-btn gm-action-btn--cancel" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
-          <button type="submit" className="servicios-btn" disabled={saving}>
+          <button type="submit" className="gm-action-btn gm-action-btn--save" disabled={saving}>
             {saving ? "Guardando..." : item ? "Guardar cambios" : "Agregar servicio"}
           </button>
         </div>

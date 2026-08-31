@@ -1,8 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import "./Servicios.css";
+import { useLocation } from "react-router-dom";
 import "../Global/Global_css/Global_Section.css";
+import "../Global/Global_css/GlobalResponsiveV2.css";
+import "../Global/Global_css/Global_responsive.css";
+import "../Global/Global_css/roots.css";
+import "../Global/Global_css/Global_oscuro.css";
+import "../Global/Global_css/GlobalsModalsV2.css";
+import "./Servicios.css";
 import BotonExportar from "../Global/Boton_Exportar/BotonExportar";
 import ModalEliminar from "../Global/Modales/ModalEliminar";
+import useTableScrollGutter from "../Global/useTableScrollGutter.jsx";
 import {
   actualizarCategoriaInsumoServicios,
   actualizarCategoriaServicios,
@@ -50,9 +57,20 @@ import ModalStock from "./modales/ModalStock";
 import { integer, money, upper } from "./utils/serviciosFormUtils";
 import { exportServiciosExcel, exportServiciosPdf } from "./utils/serviciosExport";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBan, faPenToSquare, faRotateLeft, faTrashCan } from "@fortawesome/free-solid-svg-icons";
+import {
+  faBan,
+  faBoxOpen,
+  faMagnifyingGlass,
+  faPenToSquare,
+  faPlus,
+  faRotateLeft,
+  faTags,
+  faTimes,
+  faTrashCan,
+} from "@fortawesome/free-solid-svg-icons";
 
 const EMPTY_FILTERS = { buscar: "", categoria: "", estado: "todos" };
+const SKELETON_ROWS = 10;
 const includesText = (value, q) => upper(value).includes(q);
 const SECTION_META = {
   servicios: {
@@ -75,7 +93,12 @@ const SECTION_META = {
 const formatIva = (value) => `${Number(value || 0).toLocaleString("es-AR", { maximumFractionDigits: 1 })} %`;
 
 export default function Servicios() {
-  const [tab, setTab] = useState("servicios");
+  const location = useLocation();
+  const inventoryMode = useMemo(
+    () => new URLSearchParams(location.search).get("seccion") === "inventario",
+    [location.search]
+  );
+  const [tab, setTab] = useState(() => inventoryMode ? "insumos" : "servicios");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -100,6 +123,7 @@ export default function Servicios() {
   const [stockModal, setStockModal] = useState({ open: false, item: null });
   const [categoryModal, setCategoryModal] = useState({ open: false, kind: "servicios" });
   const [deleteModal, setDeleteModal] = useState({ open: false, kind: null, item: null });
+  const [tableWrapRef, hasTableScroll] = useTableScrollGutter();
 
   const flash = useCallback((message) => {
     setNotice(message);
@@ -135,6 +159,13 @@ export default function Servicios() {
   }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  useEffect(() => {
+    setTab((current) => {
+      if (!inventoryMode) return "servicios";
+      return current === "stock" ? "stock" : "insumos";
+    });
+  }, [inventoryMode]);
 
   const currentFilters = filters[tab] || EMPTY_FILTERS;
   const updateFilter = (key, value) => {
@@ -431,186 +462,304 @@ export default function Servicios() {
     if (tab === "stock") setStockModal({ open: true, item: null });
   };
 
-  return (
-    <section className="servicios-page">
-      <div className="servicios-head">
-        <div>
-          <p className="servicios-kicker">BALTO · SERVICIOS</p>
-          <h1>{SECTION_META[tab].title}</h1>
-          <p>{SECTION_META[tab].description}</p>
-        </div>
-        <div className="servicios-head__actions">
-          <BotonExportar label="Exportar" title="Exportar vista actual" opciones={exportOptions} disabled={loading} />
-          <button type="button" className="servicios-btn" onClick={openNew} disabled={saving}>
-            {SECTION_META[tab].addLabel}
-          </button>
-        </div>
-      </div>
+  const currentRows = tab === "servicios" ? serviciosFiltrados : tab === "insumos" ? insumosFiltrados : stockFiltrado;
 
-      {error && <div className="servicios-alert servicios-alert--error">{error}</div>}
-      {notice && <div className="servicios-alert servicios-alert--ok">{notice}</div>}
+  const tableConfig = useMemo(() => {
+    if (tab === "servicios") {
+      return {
+        gridCols: "minmax(190px,1.35fr) minmax(130px,.9fr) minmax(180px,1fr) minmax(120px,.72fr) minmax(115px,.72fr) 78px 86px 112px",
+        empty: "No hay servicios para los filtros actuales.",
+        columns: [
+          { key: "nombre", label: "Servicio" },
+          { key: "categoria", label: "Categoría" },
+          { key: "composicion", label: "Composición" },
+          { key: "costo", label: "Costo estimado", align: "right" },
+          { key: "precio", label: "Precio", align: "right" },
+          { key: "iva", label: "IVA", align: "center" },
+          { key: "estado", label: "Estado", align: "center" },
+          { key: "acciones", label: "Acciones", align: "center" },
+        ],
+      };
+    }
 
-      <div className="servicios-toolbar">
-        <label className="servicios-search">
-          <span>Buscar</span>
-          <input
-            maxLength={100}
-            value={currentFilters.buscar}
-            onChange={(e) => updateFilter("buscar", upper(e.target.value).slice(0, 100))}
-            placeholder={tab === "servicios" ? "BUSCAR SERVICIO, CÓDIGO O CATEGORÍA" : tab === "insumos" ? "BUSCAR INSUMO, CÓDIGO O CATEGORÍA" : "BUSCAR EN STOCK"}
-          />
-        </label>
+    if (tab === "insumos") {
+      return {
+        gridCols: "minmax(190px,1.35fr) minmax(140px,.95fr) 88px minmax(110px,.72fr) minmax(110px,.72fr) 78px 86px 112px",
+        empty: "No hay insumos para los filtros actuales.",
+        columns: [
+          { key: "nombre", label: "Insumo" },
+          { key: "categoria", label: "Categoría" },
+          { key: "unidad", label: "Unidad", align: "center" },
+          { key: "costo", label: "Costo", align: "right" },
+          { key: "precio", label: "Precio", align: "right" },
+          { key: "iva", label: "IVA", align: "center" },
+          { key: "estado", label: "Estado", align: "center" },
+          { key: "acciones", label: "Acciones", align: "center" },
+        ],
+      };
+    }
 
-        <label className="servicios-filter">
-          <span>Categoría</span>
-          <select value={currentFilters.categoria} onChange={(e) => updateFilter("categoria", e.target.value)}>
-            <option value="">TODAS LAS CATEGORÍAS</option>
-            {activeCategoryList.map((category) => (
-              <option key={categoryId(category)} value={categoryId(category)}>{category.nombre}{Number(category.activo) === 1 ? "" : " (BAJA)"}</option>
-            ))}
-          </select>
-        </label>
+    return {
+      gridCols: "minmax(200px,1.45fr) minmax(145px,1fr) 88px 98px minmax(115px,.75fr) 86px 112px",
+      empty: "No hay registros de Stock para los filtros actuales.",
+      columns: [
+        { key: "nombre", label: "Stock" },
+        { key: "categoria", label: "Categoría" },
+        { key: "unidad", label: "Unidad", align: "center" },
+        { key: "cantidad", label: "Cantidad", align: "center" },
+        { key: "costo", label: "Costo", align: "right" },
+        { key: "estado", label: "Estado", align: "center" },
+        { key: "acciones", label: "Acciones", align: "center" },
+      ],
+    };
+  }, [tab]);
 
-        <label className="servicios-filter">
-          <span>Estado</span>
-          <select value={currentFilters.estado} onChange={(e) => updateFilter("estado", e.target.value)}>
-            <option value="todos">TODOS</option>
-            <option value="1">ACTIVOS</option>
-            <option value="0">DADOS DE BAJA</option>
-          </select>
-        </label>
-
-        <button
-          type="button"
-          className="servicios-btn servicios-btn--ghost servicios-toolbar__categories"
-          onClick={() => setCategoryModal({ open: true, kind: tab })}
+  const renderSkeletonRow = (idx) => (
+    <div
+      key={`servicios-skel-${idx}`}
+      className="mov-gridTable mov-gridTable--row mov-row--skeleton"
+      style={{ gridTemplateColumns: tableConfig.gridCols }}
+      role="row"
+      aria-hidden="true"
+    >
+      {tableConfig.columns.map((column, columnIndex) => (
+        <div
+          key={column.key}
+          className={[
+            "mov-gridCell",
+            column.key === "acciones" ? "mov-gridCell--actions" : "",
+            column.align === "right" ? "is-right" : "",
+            column.align === "center" ? "is-center" : "",
+          ].filter(Boolean).join(" ")}
+          role="cell"
+          data-label={column.label}
         >
-          Gestionar categorías
+          {column.key === "acciones" ? (
+            <div className="mov-skelActions"><span className="mov-skelIcon" /><span className="mov-skelIcon" /><span className="mov-skelIcon" /></div>
+          ) : (
+            <span className="mov-skeletonBar" style={{ width: `${48 + ((idx + columnIndex) % 4) * 11}%` }} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderActions = (item, activo) => {
+    const edit = () => {
+      if (tab === "servicios") return openEditServicio(item);
+      if (tab === "insumos") return setInsumoModal({ open: true, item });
+      return setStockModal({ open: true, item });
+    };
+    const toggle = () => {
+      if (tab === "servicios") return toggleServicio(item);
+      if (tab === "insumos") return toggleInsumo(item);
+      return toggleStock(item);
+    };
+    const kind = tab === "servicios" ? "servicio" : tab === "insumos" ? "insumo" : "stock";
+
+    return (
+      <div className="mov-actionsInline">
+        <button type="button" className="mov-iconBtn" title="Editar" aria-label="Editar" onClick={edit}>
+          <FontAwesomeIcon icon={faPenToSquare} />
+        </button>
+        <button type="button" className="mov-iconBtn" title={activo ? "Dar de baja" : "Reactivar"} aria-label={activo ? "Dar de baja" : "Reactivar"} onClick={toggle}>
+          <FontAwesomeIcon icon={activo ? faBan : faRotateLeft} />
+        </button>
+        <button type="button" className="mov-iconBtn mov-iconBtn--danger" title="Eliminar" aria-label="Eliminar" onClick={() => setDeleteModal({ open: true, kind, item })}>
+          <FontAwesomeIcon icon={faTrashCan} />
         </button>
       </div>
+    );
+  };
 
-      {loading ? (
-        <div className="servicios-loading">Cargando módulo Servicios…</div>
-      ) : (
-        <>
-          {tab === "servicios" && (
-            <div className="servicios-card servicios-table-card">
-              <div className="servicios-card-title"><div><h2>Servicios</h2><span>{serviciosFiltrados.length} registro(s)</span></div></div>
-              <div className="servicios-table-wrap">
-                <table>
-                  <thead><tr><th>Servicio</th><th>Categoría</th><th>Composición</th><th>Costo estimado</th><th>Precio</th><th>IVA</th><th>Estado</th><th className="servicios-actions-col">Acciones</th></tr></thead>
-                  <tbody>
-                    {serviciosFiltrados.length === 0 ? <tr><td colSpan="8" className="servicios-empty">NO HAY SERVICIOS PARA LOS FILTROS ACTUALES.</td></tr> : serviciosFiltrados.map((item) => {
-                      const activo = Number(item.activo) === 1;
-                      return (
-                        <tr key={item.id_servicio} className={activo ? "" : "is-row-inactive"}>
-                          <td><strong>{item.nombre}</strong><small>{item.codigo || "SIN CÓDIGO"}</small></td>
-                          <td>{item.categoria_nombre || "SIN CATEGORÍA"}</td>
-                          <td>
-                            <span className="servicios-composition-summary">
-                              {Number(item.cantidad_insumos || 0)} insumo(s) · {Number(item.cantidad_productos_stock || 0)} de Stock
-                            </span>
-                          </td>
-                          <td>{money(item.costo_estimado)}</td>
-                          <td>{money(item.precio_venta)}</td>
-                          <td>{formatIva(item.iva_pct)}</td>
-                          <td><span className={`servicios-status ${activo ? "is-active" : "is-inactive"}`}>{activo ? "ACTIVO" : "BAJA"}</span></td>
-                          <td><div className="servicios-row-actions">
-                            <button type="button" className="servicios-action-icon" title="Editar" aria-label="Editar" onClick={() => openEditServicio(item)}>
-                              <FontAwesomeIcon icon={faPenToSquare} />
-                            </button>
-                            <button type="button" className="servicios-action-icon" title={activo ? "Dar de baja" : "Reactivar"} aria-label={activo ? "Dar de baja" : "Reactivar"} onClick={() => toggleServicio(item)}>
-                              <FontAwesomeIcon icon={activo ? faBan : faRotateLeft} />
-                            </button>
-                            <button type="button" className="servicios-action-icon is-danger" title="Eliminar" aria-label="Eliminar" onClick={() => setDeleteModal({ open: true, kind: "servicio", item })}>
-                              <FontAwesomeIcon icon={faTrashCan} />
-                            </button>
-                          </div></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+  const renderRow = (item) => {
+    const activo = Number(item.activo) === 1;
+    const id = tab === "servicios" ? item.id_servicio : tab === "insumos" ? item.id_insumo : item.id_stock;
+    const values = tab === "servicios" ? {
+      nombre: <span className="servicios-nameCell"><strong>{item.nombre}</strong><small>{item.codigo || "SIN CÓDIGO"}</small></span>,
+      categoria: item.categoria_nombre || "SIN CATEGORÍA",
+      composicion: `${Number(item.cantidad_insumos || 0)} insumo(s) · ${Number(item.cantidad_productos_stock || 0)} de Stock`,
+      costo: money(item.costo_estimado),
+      precio: money(item.precio_venta),
+      iva: formatIva(item.iva_pct),
+    } : tab === "insumos" ? {
+      nombre: <span className="servicios-nameCell"><strong>{item.nombre}</strong><small>{item.codigo || "SIN CÓDIGO"}</small></span>,
+      categoria: item.categoria_nombre || "SIN CATEGORÍA",
+      unidad: item.unidad_simbolo || item.unidad_nombre || "—",
+      costo: money(item.costo_unitario),
+      precio: item.precio_venta == null ? "—" : money(item.precio_venta),
+      iva: formatIva(item.iva_pct),
+    } : {
+      nombre: <span className="servicios-nameCell"><strong>{item.nombre}</strong><small>{item.codigo || "SIN CÓDIGO"}</small></span>,
+      categoria: item.categoria_nombre || "SIN CATEGORÍA",
+      unidad: item.unidad_simbolo || item.unidad_nombre || "—",
+      cantidad: integer(item.stock_actual),
+      costo: money(item.costo_unitario),
+    };
+
+    return (
+      <div
+        key={`${tab}-${id}`}
+        className={`mov-gridTable mov-gridTable--row ${activo ? "" : "servicios-row--inactive"}`.trim()}
+        style={{ gridTemplateColumns: tableConfig.gridCols }}
+        role="row"
+      >
+        {tableConfig.columns.map((column) => {
+          if (column.key === "acciones") {
+            return <div key={column.key} className="mov-gridCell mov-gridCell--actions is-center" role="cell" data-label={column.label}>{renderActions(item, activo)}</div>;
+          }
+          if (column.key === "estado") {
+            return (
+              <div key={column.key} className="mov-gridCell is-center" role="cell" data-label={column.label}>
+                <span className={`mov-chip ${activo ? "mov-chip--ok" : "mov-chip--neutral"}`}>{activo ? "ACTIVO" : "BAJA"}</span>
+              </div>
+            );
+          }
+          return (
+            <div
+              key={column.key}
+              className={["mov-gridCell", column.align === "right" ? "is-right" : "", column.align === "center" ? "is-center" : ""].filter(Boolean).join(" ")}
+              role="cell"
+              data-label={column.label}
+            >
+              <span className="mov-ellipsissss">{values[column.key] ?? "—"}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const secondaryActions = (className = "") => (
+    <div className={className}>
+      <BotonExportar label="Exportar" title="Exportar vista actual" opciones={exportOptions} disabled={loading || currentRows.length === 0} align="right" />
+      <button type="button" className="mov-btn mov-btn--ghost servicios-categoriesBtn" onClick={() => setCategoryModal({ open: true, kind: tab })} disabled={saving}>
+        <FontAwesomeIcon icon={faTags} /> Gestionar categorías
+      </button>
+    </div>
+  );
+
+  return (
+    <section className="mov-page servicios-page">
+      {error && <div className="mov-alert" role="alert">{error}</div>}
+      {notice && <div className="servicios-alert servicios-alert--ok" role="status">{notice}</div>}
+
+      <section className="mov-card mov-card--table servicios-mainCard">
+        <div className="mov-card__head">
+          <div className="mov-card__headLeft">
+            <div className="title-mov servicios-titleBlock">
+              <div className="servicios-titleBlock__copy">
+                <div className="mov-card__title">{inventoryMode ? "Inventario e insumos" : "Servicios"}</div>
+                <div className="mov-card__hint">Mostrando <b>{currentRows.length}</b> registro(s)</div>
+              </div>
+
+              {inventoryMode && (
+                <div className="servicios-inventoryTabs" role="tablist" aria-label="Inventario e insumos">
+                  <button
+                    type="button"
+                    className={`servicios-inventoryTab ${tab === "insumos" ? "is-active" : ""}`}
+                    role="tab"
+                    aria-selected={tab === "insumos"}
+                    onClick={() => setTab("insumos")}
+                  >
+                    Insumos
+                  </button>
+                  <button
+                    type="button"
+                    className={`servicios-inventoryTab ${tab === "stock" ? "is-active" : ""}`}
+                    role="tab"
+                    aria-selected={tab === "stock"}
+                    onClick={() => setTab("stock")}
+                  >
+                    Stock
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="mov-headFilters servicios-headFilters">
+              <div className="cc-filter cc-filter--search servicios-searchFilter">
+                <div className={`cc-floatingField cc-floatingField--search ${currentFilters.buscar ? "is-active" : ""}`}>
+                  <div className="cc-searchInput">
+                    <div className="cc-searchInput__fieldWrap">
+                      <input
+                        className="cc-input cc-input--floating servicios-searchInput"
+                        maxLength={100}
+                        value={currentFilters.buscar}
+                        onChange={(e) => updateFilter("buscar", upper(e.target.value).slice(0, 100))}
+                        aria-label="Buscar"
+                      />
+                      <span className="cc-floatingLabel"><FontAwesomeIcon icon={faMagnifyingGlass} /> Búsqueda</span>
+                      {currentFilters.buscar && (
+                        <button type="button" className="cc-clearSearch cc-clearSearch--inside" title="Limpiar búsqueda" aria-label="Limpiar búsqueda" onClick={() => updateFilter("buscar", "")}>
+                          <FontAwesomeIcon icon={faTimes} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="cc-filter servicios-filterCompact">
+                <div className={`cc-floatingField ${currentFilters.categoria ? "is-active" : ""}`}>
+                  <select className="servicios-globalSelect" value={currentFilters.categoria} onChange={(e) => updateFilter("categoria", e.target.value)} aria-label="Categoría">
+                    <option value="">TODAS</option>
+                    {activeCategoryList.map((category) => (
+                      <option key={categoryId(category)} value={categoryId(category)}>{category.nombre}{Number(category.activo) === 1 ? "" : " (BAJA)"}</option>
+                    ))}
+                  </select>
+                  <span className="cc-floatingLabel cc-floatingLabel--active">Categoría</span>
+                </div>
+              </div>
+
+              <div className="cc-filter servicios-filterCompact servicios-filterEstado">
+                <div className="cc-floatingField is-active">
+                  <select className="servicios-globalSelect" value={currentFilters.estado} onChange={(e) => updateFilter("estado", e.target.value)} aria-label="Estado">
+                    <option value="todos">TODOS</option>
+                    <option value="1">ACTIVOS</option>
+                    <option value="0">DADOS DE BAJA</option>
+                  </select>
+                  <span className="cc-floatingLabel cc-floatingLabel--active">Estado</span>
+                </div>
               </div>
             </div>
-          )}
+          </div>
 
-          {tab === "insumos" && (
-            <div className="servicios-card servicios-table-card">
-              <div className="servicios-card-title"><div><h2>Insumos</h2><span>{insumosFiltrados.length} registro(s) · independientes de Stock</span></div></div>
-              <div className="servicios-table-wrap">
-                <table>
-                  <thead><tr><th>Insumo</th><th>Categoría</th><th>Unidad</th><th>Costo</th><th>Precio</th><th>IVA</th><th>Estado</th><th className="servicios-actions-col">Acciones</th></tr></thead>
-                  <tbody>
-                    {insumosFiltrados.length === 0 ? <tr><td colSpan="8" className="servicios-empty">NO HAY INSUMOS PARA LOS FILTROS ACTUALES.</td></tr> : insumosFiltrados.map((item) => {
-                      const activo = Number(item.activo) === 1;
-                      return (
-                        <tr key={item.id_insumo} className={activo ? "" : "is-row-inactive"}>
-                          <td><strong>{item.nombre}</strong><small>{item.codigo || "SIN CÓDIGO"}</small></td>
-                          <td>{item.categoria_nombre || "SIN CATEGORÍA"}</td>
-                          <td>{item.unidad_simbolo || item.unidad_nombre}</td>
-                          <td>{money(item.costo_unitario)}</td>
-                          <td>{item.precio_venta == null ? "—" : money(item.precio_venta)}</td>
-                          <td>{formatIva(item.iva_pct)}</td>
-                          <td><span className={`servicios-status ${activo ? "is-active" : "is-inactive"}`}>{activo ? "ACTIVO" : "BAJA"}</span></td>
-                          <td><div className="servicios-row-actions">
-                            <button type="button" className="servicios-action-icon" title="Editar" aria-label="Editar" onClick={() => setInsumoModal({ open: true, item })}>
-                              <FontAwesomeIcon icon={faPenToSquare} />
-                            </button>
-                            <button type="button" className="servicios-action-icon" title={activo ? "Dar de baja" : "Reactivar"} aria-label={activo ? "Dar de baja" : "Reactivar"} onClick={() => toggleInsumo(item)}>
-                              <FontAwesomeIcon icon={activo ? faBan : faRotateLeft} />
-                            </button>
-                            <button type="button" className="servicios-action-icon is-danger" title="Eliminar" aria-label="Eliminar" onClick={() => setDeleteModal({ open: true, kind: "insumo", item })}>
-                              <FontAwesomeIcon icon={faTrashCan} />
-                            </button>
-                          </div></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+          <div className="mov-card__actions servicios-headActions">
+            {secondaryActions("servicios-headSecondary")}
+            <button type="button" className="mov-btn mov-btn--primary servicios-addBtn" onClick={openNew} disabled={saving}>
+              <FontAwesomeIcon icon={faPlus} /> {SECTION_META[tab].addLabel}
+            </button>
+          </div>
+        </div>
 
-          {tab === "stock" && (
-            <div className="servicios-card servicios-table-card">
-              <div className="servicios-card-title"><div><h2>Stock</h2><span>{stockFiltrado.length} registro(s) · catálogo independiente de Insumos</span></div></div>
-              <div className="servicios-table-wrap">
-                <table>
-                  <thead><tr><th>Stock</th><th>Categoría</th><th>Unidad</th><th>Cantidad</th><th>Costo</th><th>Estado</th><th className="servicios-actions-col">Acciones</th></tr></thead>
-                  <tbody>
-                    {stockFiltrado.length === 0 ? <tr><td colSpan="7" className="servicios-empty">NO HAY REGISTROS DE STOCK PARA LOS FILTROS ACTUALES.</td></tr> : stockFiltrado.map((item) => {
-                      const activo = Number(item.activo) === 1;
-                      return (
-                        <tr key={item.id_stock} className={activo ? "" : "is-row-inactive"}>
-                          <td><strong>{item.nombre}</strong><small>{item.codigo || "SIN CÓDIGO"}</small></td>
-                          <td>{item.categoria_nombre || "SIN CATEGORÍA"}</td>
-                          <td>{item.unidad_simbolo || item.unidad_nombre}</td>
-                          <td><strong className="servicios-stock-value">{integer(item.stock_actual)}</strong></td>
-                          <td>{money(item.costo_unitario)}</td>
-                          <td><span className={`servicios-status ${activo ? "is-active" : "is-inactive"}`}>{activo ? "ACTIVO" : "BAJA"}</span></td>
-                          <td><div className="servicios-row-actions">
-                            <button type="button" className="servicios-action-icon" title="Editar" aria-label="Editar" onClick={() => setStockModal({ open: true, item })}>
-                              <FontAwesomeIcon icon={faPenToSquare} />
-                            </button>
-                            <button type="button" className="servicios-action-icon" title={activo ? "Dar de baja" : "Reactivar"} aria-label={activo ? "Dar de baja" : "Reactivar"} onClick={() => toggleStock(item)}>
-                              <FontAwesomeIcon icon={activo ? faBan : faRotateLeft} />
-                            </button>
-                            <button type="button" className="servicios-action-icon is-danger" title="Eliminar" aria-label="Eliminar" onClick={() => setDeleteModal({ open: true, kind: "stock", item })}>
-                              <FontAwesomeIcon icon={faTrashCan} />
-                            </button>
-                          </div></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+        <div className={`mov-gridTable mov-gridTable--head ${hasTableScroll ? "has-y-scroll" : ""}`} style={{ gridTemplateColumns: tableConfig.gridCols }} role="row">
+          {tableConfig.columns.map((column) => (
+            <div key={column.key} className={["mov-gridCell", "mov-gridCell--head", column.align === "right" ? "is-right" : "", column.align === "center" ? "is-center" : ""].filter(Boolean).join(" ")} role="columnheader">
+              {column.label}
             </div>
-          )}
-        </>
-      )}
+          ))}
+        </div>
+
+        <div className="mov-tableWrap servicios-tableWrap" role="rowgroup" ref={tableWrapRef}>
+          <div className="mov-gridBody mov-gridBody--relative">
+            {loading ? (
+              <div className="mov-skeletonWrap" aria-busy="true" aria-label="Cargando registros">
+                {Array.from({ length: SKELETON_ROWS }).map((_, idx) => renderSkeletonRow(idx))}
+              </div>
+            ) : currentRows.length > 0 ? (
+              currentRows.map(renderRow)
+            ) : (
+              <div className="cc-emptyState servicios-emptyState">
+                <FontAwesomeIcon icon={faBoxOpen} className="cc-emptyIcon" />
+                <div className="cc-emptyText">{tableConfig.empty}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {secondaryActions("servicios-bottomActions")}
+      </section>
 
       <ModalServicio
         open={serviceModal.open}

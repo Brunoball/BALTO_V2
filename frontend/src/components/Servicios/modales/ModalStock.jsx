@@ -70,20 +70,21 @@ export default function ModalStock({
   };
 
   return (
-    <div className="servicios-modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
-      <form className="servicios-modal" onSubmit={submit}>
-        <div className="servicios-modal__head">
+    <div className="gm-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
+      <form className="gm-modal-container gm-modal-v2 servicios-modal" onSubmit={submit}>
+        <div className="gm-modal-header servicios-modal__head">
           <div>
             <span>{item ? "EDITAR" : "AGREGAR"}</span>
             <h2>{item ? "Editar producto" : "Agregar producto"}</h2>
           </div>
-          <button type="button" className="servicios-icon-btn" onClick={onClose} aria-label="Cerrar">×</button>
+          <button type="button" className="gm-modal-close" onClick={onClose} aria-label="Cerrar">×</button>
         </div>
 
         <div className="servicios-form-grid">
           <label className="servicios-field">
             Código
             <input
+              className="gm-input"
               maxLength={60}
               value={form.codigo}
               onChange={(e) => set("codigo", cleanCode(e.target.value))}
@@ -94,6 +95,7 @@ export default function ModalStock({
           <label className="servicios-field servicios-field--wide">
             Nombre
             <input
+              className="gm-input"
               required
               autoFocus
               maxLength={150}
@@ -105,7 +107,7 @@ export default function ModalStock({
 
           <label className="servicios-field">
             Categoría
-            <select value={form.id_categoria} onChange={handleCategoria}>
+            <select className="gm-input gm-select" value={form.id_categoria} onChange={handleCategoria}>
               <option value="__ADD__">+ AGREGAR CATEGORÍA</option>
               <option value="">SIN CATEGORÍA</option>
               {categorias.filter((c) => Number(c.activo) === 1).map((c) => (
@@ -116,7 +118,7 @@ export default function ModalStock({
 
           <label className="servicios-field">
             Unidad
-            <select required value={form.id_unidad} onChange={(e) => set("id_unidad", e.target.value)}>
+            <select className="gm-input gm-select" required value={form.id_unidad} onChange={(e) => set("id_unidad", e.target.value)}>
               <option value="">SELECCIONAR</option>
               {unidades
                 .filter((u) => Number(u.activo) === 1 && String(u.codigo || "").toUpperCase() !== "SERVICIO")
@@ -131,6 +133,7 @@ export default function ModalStock({
           <label className="servicios-field servicios-field--wide">
             Descripción
             <textarea
+              className="gm-input servicios-textarea"
               rows={3}
               maxLength={1000}
               value={form.descripcion}
@@ -143,6 +146,7 @@ export default function ModalStock({
           <label className="servicios-field">
             Stock actual
             <input
+              className="gm-input"
               required
               inputMode="numeric"
               maxLength={10}
@@ -156,6 +160,7 @@ export default function ModalStock({
           <label className="servicios-field">
             Costo unitario
             <input
+              className="gm-input"
               inputMode="decimal"
               value={form.costo_unitario}
               onChange={(e) => set("costo_unitario", decimalText(e.target.value, 2))}
@@ -169,8 +174,8 @@ export default function ModalStock({
         </div>
 
         <div className="servicios-modal__actions">
-          <button type="button" className="servicios-btn servicios-btn--ghost" onClick={onClose} disabled={saving}>Cancelar</button>
-          <button type="submit" className="servicios-btn" disabled={saving || form.stock_actual === ""}>
+          <button type="button" className="gm-action-btn gm-action-btn--cancel" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button type="submit" className="gm-action-btn gm-action-btn--save" disabled={saving || form.stock_actual === ""}>
             {saving ? "Guardando..." : item ? "Guardar cambios" : "Agregar producto"}
           </button>
         </div>
