@@ -4,143 +4,38 @@ import path from 'node:path';
 function parseEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
 
-  const out = {};
+  const values = {};
   const content = fs.readFileSync(filePath, 'utf8');
+
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;
 
-    const idx = line.indexOf('=');
-    if (idx < 1) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
 
-    const key = line.slice(0, idx).trim().replace(/^\uFEFF/, '');
-    let value = line.slice(idx + 1).trim();
+    const key = line.slice(0, eq).trim().replace(/^\uFEFF/, '');
+    let value = line.slice(eq + 1).trim();
+
     if (
       (value.startsWith('"') && value.endsWith('"')) ||
       (value.startsWith("'") && value.endsWith("'"))
     ) {
       value = value.slice(1, -1);
     }
-    out[key] = value;
-  }
-  return out;
-}
 
-function applyValues(values) {
-  // Los archivos .env.playwright son la fuente de verdad de la corrida.
-  // Esto evita que una variable PW_* vieja de PowerShell (por ejemplo
-  // PW_SKIP_WEBSERVER=1) cambie silenciosamente el comportamiento al ejecutar
-  // solamente `npx playwright test ...`. Las variables no declaradas en estos
-  // archivos conservan normalmente el valor heredado del proceso.
-  for (const [key, value] of Object.entries(values)) {
-    process.env[key] = value;
-  }
-}
-
-function productionHost(host) {
-  const normalized = String(host || '').toLowerCase();
-  return normalized === 'app.balto.com.ar' || normalized === 'www.app.balto.com.ar';
-}
-
-function resolveTarget(apiURL) {
-  try {
-    return productionHost(new URL(apiURL).hostname) ? 'production' : 'staging';
-  } catch {
-    return 'staging';
-  }
-}
-
-const root = process.cwd();
-const commonFile = path.join(root, '.env.playwright');
-const selectorFile = path.join(root, '.env.playwright.entorno');
-const commonValues = parseEnvFile(commonFile);
-
-const VALID_PROFILES = new Set(['STOCK', 'SERVICIOS', 'PRODUCCION']);
-
-function unquote(value) {
-  const text = String(value ?? '').trim();
-  if (text.length >= 2) {
-    const first = text[0];
-    const last = text[text.length - 1];
-    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
-      return text.slice(1, -1);
-    }
-  }
-  return text;
-}
-
-function readSelectedProfile() {
-  if (!fs.existsSync(selectorFile)) {
-    throw new Error(
-      'Falta .env.playwright.entorno. Dejá una sola línea activa: PW_ENTORNO=STOCK, SERVICIOS o PRODUCCION.'
-    );
+    values[key] = value;
   }
 
-  const selected = fs
-    .readFileSync(selectorFile, 'utf8')
-    .replace(/^\uFEFF/, '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith('#'))
-    .map((line) => line.match(/^PW_ENTORNO\s*=\s*(.+)$/i))
-    .filter(Boolean)
-    .map((match) => unquote(match[1]).trim().toUpperCase());
-
-  if (selected.length !== 1) {
-    throw new Error(
-      `.env.playwright.entorno debe tener UNA sola línea PW_ENTORNO activa. Encontradas: ${selected.length}.`
-    );
-  }
-
-  if (!VALID_PROFILES.has(selected[0])) {
-    throw new Error(
-      `PW_ENTORNO inválido: "${selected[0]}". Usá STOCK, SERVICIOS o PRODUCCION.`
-    );
-  }
-
-  return selected[0];
+  return values;
 }
-
-if (!fs.existsSync(commonFile)) {
-  throw new Error('Falta .env.playwright en la raíz de frontend.');
-}
-
-// .env.playwright contiene los tres perfiles y la configuración común.
-// Primero cargamos todo tal como está escrito.
-applyValues(commonValues);
-
-const selectedProfile = readSelectedProfile();
-const selectedPrefix = `PW_${selectedProfile}_`;
-
-// El perfil seleccionado manda. Cualquier PW_<PERFIL>_XYZ pasa a PW_XYZ.
-// Esto permite agregar nuevas opciones por perfil sin volver a tocar este helper.
-for (const [key, value] of Object.entries(commonValues)) {
-  if (!key.startsWith(selectedPrefix)) continue;
-  const suffix = key.slice(selectedPrefix.length);
-  if (!suffix) continue;
-  process.env[`PW_${suffix}`] = value;
-}
-
-process.env.PW_ENTORNO = selectedProfile;
-
-// Cuando el frontend es local, debe compilar apuntando a la misma API elegida
-// por Playwright. Así STOCK y SERVICIOS pueden compartir el front local sin
-// cambiar config.jsx ni escribir variables en PowerShell.
-if (process.env.PW_API_URL) {
-  process.env.REACT_APP_API_URL = process.env.PW_API_URL;
-}
-
-const preliminaryApiURL =
-  process.env.PW_API_URL || 'https://balto.3devsnet.com/api/routes';
-const selectedTarget = resolveTarget(preliminaryApiURL);
-
-// Se conserva esta propiedad por compatibilidad con el resto de la suite,
-// pero ya no se leen .env.playwright.staging.local/production.local.
-const profileFile = commonFile;
 
 function bool(value, fallback = false) {
   if (value === undefined || value === null || value === '') return fallback;
-  return ['1', 'true', 'yes', 'si', 'sí', 'on'].includes(String(value).trim().toLowerCase());
+
+  return ['1', 'true', 'yes', 'si', 'sí', 'on'].includes(
+    String(value).trim().toLowerCase(),
+  );
 }
 
 function integer(value, fallback) {
@@ -148,28 +43,87 @@ function integer(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function resolveFrontendRoot() {
+  const cwd = process.cwd();
+
+  const candidates = [
+    cwd,
+    path.join(cwd, 'frontend'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, 'playwright.config.js'))) {
+      return candidate;
+    }
+  }
+
+  return cwd;
+}
+
+function isProductionApi(apiURL) {
+  try {
+    const host = new URL(apiURL).hostname.toLowerCase();
+    return host === 'app.balto.com.ar' || host === 'www.app.balto.com.ar';
+  } catch {
+    return false;
+  }
+}
+
+const root = resolveFrontendRoot();
+const envFile = path.join(root, '.env.playwright');
+
+if (!fs.existsSync(envFile)) {
+  throw new Error(`Falta .env.playwright en: ${envFile}`);
+}
+
+const values = parseEnvFile(envFile);
+
+// .env.playwright es la única fuente de verdad del testing.
+for (const [key, value] of Object.entries(values)) {
+  process.env[key] = value;
+}
+
+if (process.env.PW_API_URL) {
+  process.env.REACT_APP_API_URL = process.env.PW_API_URL;
+}
+
+const startFrontend = bool(process.env.PW_START_FRONTEND, true);
+
 export const ENV = Object.freeze({
-  target: selectedTarget,
-  profileFile,
-  baseURL: process.env.PW_BASE_URL || 'http://127.0.0.1:3000',
-  apiURL: process.env.PW_API_URL || 'https://balto.3devsnet.com/api/routes',
-  user: process.env.PW_USER || '',
-  password: process.env.PW_PASSWORD || '',
+  profileFile: envFile,
+
+  baseURL: String(process.env.PW_BASE_URL || 'http://127.0.0.1:3000').trim(),
+  apiURL: String(
+    process.env.PW_API_URL || 'https://balto.3devsnet.com/api/routes',
+  ).trim(),
+
+  user: String(process.env.PW_USER || '').trim(),
+  password: String(process.env.PW_PASSWORD || ''),
+
   allowMutations: bool(process.env.PW_ALLOW_MUTATIONS, false),
   allowProduction: bool(process.env.PW_ALLOW_PRODUCTION, false),
   allowArca: bool(process.env.PW_ALLOW_ARCA, false),
+
   arcaClientName: String(process.env.PW_ARCA_CLIENT_NAME || '').trim(),
   arcaClientCuit: String(process.env.PW_ARCA_CLIENT_CUIT || '').replace(/\D/g, ''),
+
   expectedTenantId: String(process.env.PW_EXPECTED_TENANT_ID || '').trim(),
   expectedTenantName: String(process.env.PW_EXPECTED_TENANT_NAME || '').trim(),
-  skipWebServer: bool(process.env.PW_SKIP_WEBSERVER, false),
-  startCommand: process.env.PW_START_COMMAND || 'npm start',
-  cleanup: true,
+
+  startFrontend,
+  startBackend: bool(process.env.PW_START_BACKEND, false),
+  skipWebServer: bool(process.env.PW_SKIP_WEBSERVER, !startFrontend),
+
+  startCommand: String(process.env.PW_START_COMMAND || 'npm start').trim(),
+
+  cleanup: bool(process.env.PW_CLEANUP, true),
   skipTiendaNube: bool(process.env.PW_SKIP_TIENDA_NUBE, true),
+
   timeoutMs: integer(process.env.PW_TIMEOUT_MS, 60_000),
-  expectTimeoutMs: integer(process.env.PW_EXPECT_TIMEOUT_MS, 12_000),
+  expectTimeoutMs: integer(process.env.PW_EXPECT_TIMEOUT_MS, 15_000),
   slowMoMs: integer(process.env.PW_SLOW_MO_MS, 0),
-  runLabel: process.env.PW_RUN_LABEL || '',
+
+  runLabel: String(process.env.PW_RUN_LABEL || '').trim(),
 });
 
 export const AUTH_FILE = path.join(root, 'tests', '.auth', 'user.json');
@@ -177,115 +131,65 @@ export const AUTH_FILE = path.join(root, 'tests', '.auth', 'user.json');
 export function assertCredentialsConfigured() {
   if (!ENV.user || !ENV.password) {
     throw new Error(
-      `Faltan usuario o contraseña para el perfil ${process.env.PW_ENTORNO || ENV.target}. Revisá PW_${process.env.PW_ENTORNO || 'ENTORNO'}_USER y PW_${process.env.PW_ENTORNO || 'ENTORNO'}_PASSWORD en .env.playwright.`
+      'Faltan PW_USER o PW_PASSWORD en frontend/.env.playwright.',
     );
   }
 }
 
 export function assertSafeMutationConfiguration() {
   if (!ENV.allowMutations) {
-    throw new Error('Las pruebas mutables requieren PW_ALLOW_MUTATIONS=1.');
-  }
-
-  let host = '';
-  try {
-    host = new URL(ENV.apiURL).hostname.toLowerCase();
-  } catch {
-    throw new Error(`PW_API_URL no es una URL válida: ${ENV.apiURL}`);
-  }
-
-  const looksProduction = productionHost(host);
-  if (looksProduction && !ENV.allowProduction) {
     throw new Error(
-      'Bloqueado: las pruebas mutables apuntan a producción, pero el perfil production no habilitó PW_ALLOW_PRODUCTION=1.'
+      'Las pruebas mutables requieren PW_ALLOW_MUTATIONS=1 en .env.playwright.',
     );
   }
 
-  if (looksProduction && !ENV.expectedTenantId && !ENV.expectedTenantName) {
+  if (isProductionApi(ENV.apiURL) && !ENV.allowProduction) {
     throw new Error(
-      'Bloqueado: para mutar producción debés definir PW_PRODUCCION_EXPECTED_TENANT_ID o PW_PRODUCCION_EXPECTED_TENANT_NAME en .env.playwright.'
+      'Bloqueado: PW_API_URL apunta a producción y PW_ALLOW_PRODUCTION no está habilitado.',
     );
   }
 }
 
 function normalizeTenantName(value) {
-  return String(value || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('es-AR');
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 }
 
-export async function assertExpectedTenant(page) {
-  if (!page || (!ENV.expectedTenantId && !ENV.expectedTenantName)) return;
+export function assertExpectedTenant(tenant) {
+  if (!tenant || typeof tenant !== 'object') return;
 
-  // Al comenzar cada test, Playwright crea una página about:blank. En ese
-  // documento el acceso directo a window.localStorage lanza SecurityError.
-  // Leemos el storageState del contexto, que contiene el localStorage
-  // restaurado por tests/.auth/user.json sin depender de la URL de la página.
-  const storageState = await page.context().storageState();
-
-  let preferredOrigin = '';
-  try {
-    preferredOrigin = new URL(ENV.baseURL).origin;
-  } catch {
-    preferredOrigin = '';
-  }
-
-  const orderedOrigins = [...(storageState.origins || [])].sort((a, b) => {
-    if (a.origin === preferredOrigin) return -1;
-    if (b.origin === preferredOrigin) return 1;
-    return 0;
-  });
-
-  let rawUsuario = '';
-  let sourceOrigin = '';
-  for (const originEntry of orderedOrigins) {
-    const item = (originEntry.localStorage || []).find((entry) => entry.name === 'usuario');
-    if (item?.value) {
-      rawUsuario = item.value;
-      sourceOrigin = originEntry.origin;
-      break;
-    }
-  }
-
-  let usuario = null;
-  if (rawUsuario) {
-    try {
-      usuario = JSON.parse(rawUsuario);
-    } catch {
-      usuario = null;
-    }
-  }
-
-  if (!usuario || typeof usuario !== 'object') {
-    const available = orderedOrigins
-      .map((originEntry) => {
-        const keys = (originEntry.localStorage || []).map((entry) => entry.name).join(', ');
-        return `${originEntry.origin}: ${keys || '(ninguna)'}`;
-      })
-      .join(' | ');
-
-    throw new Error(
-      `No se pudo verificar el tenant: localStorage.usuario no existe o no es JSON válido en el storageState. Orígenes y claves: ${available || '(sin orígenes)'}.`
-    );
-  }
-
-  const actualId = String(
-    usuario.idTenant ?? usuario.id_tenant ?? usuario.tenant_id ?? usuario.tenantId ?? ''
-  ).trim();
-  const actualName = String(
-    usuario.tenant_nombre ?? usuario.nombre_tenant ?? usuario.tenantName ?? ''
+  const realId = String(
+    tenant.id ??
+    tenant.tenant_id ??
+    tenant.id_tenant ??
+    tenant.idTenant ??
+    '',
   ).trim();
 
-  if (ENV.expectedTenantId && actualId !== ENV.expectedTenantId) {
+  const realName = String(
+    tenant.nombre ??
+    tenant.name ??
+    tenant.razon_social ??
+    tenant.tenant ??
+    '',
+  ).trim();
+
+  if (ENV.expectedTenantId && realId && realId !== ENV.expectedTenantId) {
     throw new Error(
-      `Bloqueado: la sesión pertenece al tenant ${actualId || '(sin id)'}, pero PW_EXPECTED_TENANT_ID=${ENV.expectedTenantId}. Origen: ${sourceOrigin || '(desconocido)'}.`
+      `Tenant incorrecto. Esperado ID ${ENV.expectedTenantId}; recibido ${realId}.`,
     );
   }
 
   if (
     ENV.expectedTenantName &&
-    normalizeTenantName(actualName) !== normalizeTenantName(ENV.expectedTenantName)
+    realName &&
+    normalizeTenantName(realName) !== normalizeTenantName(ENV.expectedTenantName)
   ) {
     throw new Error(
-      `Bloqueado: la sesión pertenece a "${actualName || '(sin nombre)'}", pero PW_EXPECTED_TENANT_NAME="${ENV.expectedTenantName}". Origen: ${sourceOrigin || '(desconocido)'}.`
+      `Tenant incorrecto. Esperado "${ENV.expectedTenantName}"; recibido "${realName}".`,
     );
   }
 }
