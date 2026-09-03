@@ -33,6 +33,7 @@ import {
   API_URL,
   getUsuarioAuditData,
   notifyStockListsUpdated,
+  stockBarcodeGet,
   stockGetParams,
   stockPostPayload,
 } from "./api/stockApi";
@@ -72,6 +73,24 @@ const PRECIOS_MASIVOS_LOADING_THRESHOLD = 10;
 const STOCK_CHANGE_CHECK_MS = 2500;
 const OPTIMISTIC_PRODUCT_GRACE_MS = 20000;
 const VARIANT_MUTATION_GRACE_MS = 180000;
+const BARCODE_SCANNER_IDLE_MS = 180;
+
+function normalizarCodigoEscaneado(value) {
+  return String(value ?? "")
+    .replace(/[\r\n\t]/g, "")
+    .trim();
+}
+
+function pareceCodigoDeBarras(value) {
+  const codigo = normalizarCodigoEscaneado(value);
+  if (!codigo || codigo.length < 3) return false;
+
+  return (
+    /^BL-[PV]-\d+$/i.test(codigo) ||
+    /^\d{4,191}$/.test(codigo) ||
+    (/\d/.test(codigo) && /^[A-Z0-9._\/-]{4,191}$/i.test(codigo))
+  );
+}
 
 function renderStockChip(value) {
   const stockNum = Number(value || 0);
@@ -99,6 +118,8 @@ const Stock = () => {
 
   const [busqueda, setBusqueda] = useState("");
   const [busquedaConsulta, setBusquedaConsulta] = useState("");
+  const [codigoBarraConsulta, setCodigoBarraConsulta] = useState("");
+  const [codigoBarraScanVersion, setCodigoBarraScanVersion] = useState(0);
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
   const [mostrarDadosDeBaja, setMostrarDadosDeBaja] = useState(false);
   const [categoriaDropdownAbierto, setCategoriaDropdownAbierto] = useState(false);
@@ -152,6 +173,7 @@ const Stock = () => {
   const [variantesPorProducto, setVariantesPorProducto] = useState({});
   const [loadingVariantesPorProducto, setLoadingVariantesPorProducto] = useState({});
   const [errorVariantesPorProducto, setErrorVariantesPorProducto] = useState({});
+  const [varianteEscaneadaPendiente, setVarianteEscaneadaPendiente] = useState(null);
 
   const refreshTimersRef = useRef([]);
   const imagenesTemporalesRef = useRef({});
@@ -162,6 +184,10 @@ const Stock = () => {
   const impactoEliminarRequestRef = useRef(0);
   const impactoEliminarVarianteRequestRef = useRef(0);
   const productosRequestRef = useRef(0);
+  const buscadorStockRef = useRef(null);
+  const scannerBufferRef = useRef("");
+  const scannerLastKeyAtRef = useRef(0);
+  const scannerTimerRef = useRef(null);
   const categoriaFiltroDropdownRef = useRef(null);
   const tablaScrollRef = useRef(null);
   const tablaScrollSnapshotRef = useRef({
@@ -343,6 +369,103 @@ const Stock = () => {
     }
   }, [cancelarRestauracionScrollTabla]);
 
+  const aplicarCodigoEscaneado = useCallback((value) => {
+    const codigo = normalizarCodigoEscaneado(value);
+    if (codigo.length < 3) return false;
+
+    descartarPosicionScrollTabla();
+    setCategoriaFiltro("");
+    setMostrarDadosDeBaja(false);
+    setVariantesAbiertas({});
+    setVarianteEscaneadaPendiente(null);
+    setPaginaActual(1);
+    setBusqueda(codigo);
+    setBusquedaConsulta(codigo);
+    setCodigoBarraConsulta(codigo);
+    setCodigoBarraScanVersion((version) => version + 1);
+    return true;
+  }, [descartarPosicionScrollTabla]);
+
+  // Captura una lectora HID aunque el buscador no tenga foco. Las lectoras
+  // escriben los caracteres muy seguidos y normalmente finalizan con Enter o
+  // Tab; para las que no mandan una tecla final se usa un breve tiempo ocioso.
+  useEffect(() => {
+    const limpiarCaptura = () => {
+      if (scannerTimerRef.current) {
+        window.clearTimeout(scannerTimerRef.current);
+        scannerTimerRef.current = null;
+      }
+      scannerBufferRef.current = "";
+      scannerLastKeyAtRef.current = 0;
+    };
+
+    const finalizarCaptura = () => {
+      const codigo = normalizarCodigoEscaneado(scannerBufferRef.current);
+      limpiarCaptura();
+      if (codigo.length >= 3) aplicarCodigoEscaneado(codigo);
+    };
+
+    const programarFinal = () => {
+      if (scannerTimerRef.current) window.clearTimeout(scannerTimerRef.current);
+      scannerTimerRef.current = window.setTimeout(finalizarCaptura, BARCODE_SCANNER_IDLE_MS);
+    };
+
+    const esCampoEditable = (target) => {
+      if (!(target instanceof Element)) return false;
+      return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+    };
+
+    const handleScannerKeyDown = (event) => {
+      if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+
+      const target = event.target;
+      if (target === buscadorStockRef.current) return;
+      if (esCampoEditable(target)) {
+        limpiarCaptura();
+        return;
+      }
+
+      if (event.key === "Enter" || event.key === "Tab") {
+        if (scannerBufferRef.current) {
+          event.preventDefault();
+          finalizarCaptura();
+        }
+        return;
+      }
+
+      if (event.key.length !== 1) return;
+
+      const ahora = Date.now();
+      if (scannerLastKeyAtRef.current && ahora - scannerLastKeyAtRef.current > 500) {
+        scannerBufferRef.current = "";
+      }
+
+      scannerBufferRef.current += event.key;
+      scannerLastKeyAtRef.current = ahora;
+      programarFinal();
+    };
+
+    const handleScannerPaste = (event) => {
+      const target = event.target;
+      if (target === buscadorStockRef.current || esCampoEditable(target)) return;
+
+      const codigo = normalizarCodigoEscaneado(event.clipboardData?.getData("text") || "");
+      if (codigo.length < 3) return;
+      event.preventDefault();
+      limpiarCaptura();
+      aplicarCodigoEscaneado(codigo);
+    };
+
+    window.addEventListener("keydown", handleScannerKeyDown, true);
+    window.addEventListener("paste", handleScannerPaste, true);
+
+    return () => {
+      window.removeEventListener("keydown", handleScannerKeyDown, true);
+      window.removeEventListener("paste", handleScannerPaste, true);
+      limpiarCaptura();
+    };
+  }, [aplicarCodigoEscaneado]);
+
   useLayoutEffect(() => {
     if (loading || !tablaScrollSnapshotRef.current?.restaurar) return undefined;
     programarRestauracionScrollTabla();
@@ -355,6 +478,10 @@ const Stock = () => {
     const valorNormalizado = busqueda.trim();
     const timer = window.setTimeout(() => {
       setBusquedaConsulta((prev) => (prev === valorNormalizado ? prev : valorNormalizado));
+      setCodigoBarraConsulta((prev) => {
+        const siguiente = pareceCodigoDeBarras(valorNormalizado) ? valorNormalizado : "";
+        return prev === siguiente ? prev : siguiente;
+      });
     }, 350);
 
     return () => window.clearTimeout(timer);
@@ -1094,6 +1221,105 @@ const Stock = () => {
     }
 
     try {
+      const codigoActivo = normalizarCodigoEscaneado(codigoBarraConsulta);
+      const resolverComoCodigo = Boolean(
+        codigoActivo && codigoActivo === normalizarCodigoEscaneado(busquedaConsulta)
+      );
+
+      if (resolverComoCodigo) {
+        try {
+          const codigoProductoInterno = codigoActivo.match(/^BL-P-(\d+)$/i);
+          const codigoVarianteInterno = codigoActivo.match(/^BL-V-(\d+)$/i);
+          let resultadoCodigo = null;
+          let productoId = 0;
+          let varianteId = 0;
+
+          if (codigoProductoInterno) {
+            productoId = Number(codigoProductoInterno[1] || 0);
+          } else if (codigoVarianteInterno) {
+            varianteId = Number(codigoVarianteInterno[1] || 0);
+            const varianteParams = new URLSearchParams({
+              action: "stock_variante_obtener",
+              id: String(varianteId),
+              _r: String(Date.now()),
+            });
+            const varianteData = await stockGetParams(varianteParams, { strict: false });
+            if (productosRequestRef.current !== requestId) return;
+            if (varianteData?.exito === false) {
+              throw new Error(varianteData?.mensaje || "No se encontró la variante del código escaneado.");
+            }
+
+            productoId = Number(
+              varianteData?.variante?.id_stock_producto ??
+                varianteData?.data?.variante?.id_stock_producto ??
+                varianteData?.data?.id_stock_producto ??
+                0
+            );
+          } else {
+            resultadoCodigo = await stockBarcodeGet({
+              op: "buscar",
+              codigo: codigoActivo,
+              _r: String(Date.now()),
+            });
+            if (productosRequestRef.current !== requestId) return;
+
+            productoId = Number(
+              resultadoCodigo?.producto?.id_stock_producto ??
+                resultadoCodigo?.variante?.id_stock_producto ??
+                resultadoCodigo?.data?.producto?.id_stock_producto ??
+                resultadoCodigo?.data?.variante?.id_stock_producto ??
+                0
+            );
+            varianteId = Number(
+              resultadoCodigo?.variante?.id_stock_variante ??
+                resultadoCodigo?.data?.variante?.id_stock_variante ??
+                0
+            );
+          }
+
+          if (productoId <= 0) {
+            throw new Error("El código fue leído, pero no tiene un producto asociado.");
+          }
+
+          const productoParams = new URLSearchParams({
+            action: "stock_producto_obtener",
+            id: String(productoId),
+            _r: String(Date.now()),
+          });
+          const productoData = await stockGetParams(productoParams, { strict: false });
+          if (productosRequestRef.current !== requestId) return;
+
+          if (productoData?.exito === false) {
+            throw new Error(productoData?.mensaje || "No se pudo obtener el producto del código escaneado.");
+          }
+
+          const productoEncontrado = extractProductoFromApiResponse(productoData);
+          if (!productoEncontrado) {
+            throw new Error("El código fue leído, pero no se pudo cargar su producto.");
+          }
+
+          const productosNormalizados = prepararProductosParaMostrar([productoEncontrado]);
+          if (productosRequestRef.current !== requestId) return;
+
+          setProductosRaw(productosNormalizados);
+          if (!preservarImagenes) {
+            rearmarMiniaturasProductos(productosNormalizados, Date.now());
+          }
+          setTotalProductosServidor(productosNormalizados.length);
+          setTotalPaginasServidor(1);
+          if (paginaActual !== 1) setPaginaActual(1);
+
+          setVarianteEscaneadaPendiente(
+            varianteId > 0 ? { productoId, varianteId, codigo: codigoActivo } : null
+          );
+          return;
+        } catch {
+          // Si no era un código registrado (por ejemplo, era un SKU), se conserva
+          // la búsqueda tradicional por nombre/SKU/variante como segunda opción.
+          if (productosRequestRef.current !== requestId) return;
+        }
+      }
+
       const params = new URLSearchParams({
         action: "stock_productos_listar",
         activo: mostrarDadosDeBaja ? "0" : "1",
@@ -1141,7 +1367,7 @@ const Stock = () => {
         setLoading(false);
       }
     }
-  }, [busquedaConsulta, capturarPosicionScrollTabla, categoriaFiltro, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina, prepararProductosParaMostrar, rearmarMiniaturasProductos]);
+  }, [busquedaConsulta, capturarPosicionScrollTabla, categoriaFiltro, codigoBarraConsulta, codigoBarraScanVersion, mostrarDadosDeBaja, orden, paginaActual, productosPorPagina, prepararProductosParaMostrar, rearmarMiniaturasProductos]);
 
 
   const cargarVariantesProducto = useCallback(async (productoId, opciones = {}) => {
@@ -1275,6 +1501,26 @@ const Stock = () => {
     setLoadingVariantesPorProducto({});
     setVariantesAbiertas({});
   }, [categoriaFiltro, mostrarDadosDeBaja]);
+
+  useEffect(() => {
+    const productoId = Number(varianteEscaneadaPendiente?.productoId || 0);
+    if (productoId <= 0) return;
+
+    let cancelado = false;
+    setVariantesAbiertas((prev) => ({ ...prev, [productoId]: true }));
+
+    Promise.resolve(cargarVariantesProducto(productoId)).finally(() => {
+      if (!cancelado) {
+        setVarianteEscaneadaPendiente((actual) =>
+          Number(actual?.productoId || 0) === productoId ? null : actual
+        );
+      }
+    });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [cargarVariantesProducto, varianteEscaneadaPendiente]);
 
   useEffect(() => {
     fetchProductos();
@@ -1531,14 +1777,34 @@ const Stock = () => {
 
   const handleBusqueda = (e) => {
     descartarPosicionScrollTabla();
+    setCodigoBarraConsulta("");
+    setVarianteEscaneadaPendiente(null);
     setBusqueda(e.target.value);
     setPaginaActual(1);
+  };
+
+  const handleBusquedaKeyDown = (e) => {
+    if (e.key !== "Enter") return;
+
+    const valor = normalizarCodigoEscaneado(busqueda);
+    if (!valor) return;
+
+    e.preventDefault();
+    if (pareceCodigoDeBarras(valor)) {
+      aplicarCodigoEscaneado(valor);
+      return;
+    }
+
+    setCodigoBarraConsulta("");
+    setBusquedaConsulta(valor);
   };
 
   const limpiarBusqueda = () => {
     descartarPosicionScrollTabla();
     setBusqueda("");
     setBusquedaConsulta("");
+    setCodigoBarraConsulta("");
+    setVarianteEscaneadaPendiente(null);
     setPaginaActual(1);
   };
 
@@ -2543,10 +2809,13 @@ const Stock = () => {
                     <div className="cc-searchInput">
                       <div className="cc-searchInput__fieldWrap">
                         <input
+                          ref={buscadorStockRef}
                           className="cc-input cc-input--floating"
                           value={busqueda}
                           onChange={handleBusqueda}
-                          placeholder="Buscar por nombre, SKU o variante..."
+                          onKeyDown={handleBusquedaKeyDown}
+                          autoComplete="off"
+                          placeholder="Buscar por nombre, SKU, variante o código de barras..."
                         />
                         <span className="cc-floatingLabel">
                           <FontAwesomeIcon icon={faMagnifyingGlass} /> Búsqueda

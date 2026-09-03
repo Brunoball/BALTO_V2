@@ -12,6 +12,7 @@ export default function BuscadorSelector({
   onChange,
   getValue = (row) => row?.id,
   getLabel = (row) => row?.nombre || "",
+  label = "Selección",
   placeholder = "SELECCIONAR",
   searchPlaceholder = "BUSCAR...",
   emptyText = "NO SE ENCONTRARON RESULTADOS",
@@ -60,7 +61,7 @@ export default function BuscadorSelector({
   };
 
   return (
-    <div className={`servicios-searchable-select ${open ? "is-open" : ""}`} ref={rootRef}>
+    <div className={`gm-field servicios-searchable-select ${open ? "is-open" : ""}`} ref={rootRef}>
       <button
         type="button"
         className="gm-input gm-select servicios-searchable-select__trigger"
@@ -70,22 +71,25 @@ export default function BuscadorSelector({
         onClick={() => !disabled && setOpen((prev) => !prev)}
       >
         <span>{selected ? getLabel(selected) : placeholder}</span>
-        <span className="servicios-searchable-select__chevron" aria-hidden="true">⌄</span>
       </button>
+      <span className="gm-label gm-label--up">{label}</span>
 
       {open && (
         <div className="servicios-searchable-select__menu">
           <div className="servicios-searchable-select__search-wrap">
-            <input
-              className="gm-input"
-              ref={searchRef}
-              type="search"
-              maxLength={120}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={searchPlaceholder}
-              aria-label={searchPlaceholder}
-            />
+            <label className="gm-field">
+              <input
+                className="gm-input"
+                ref={searchRef}
+                type="search"
+                maxLength={120}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder=" "
+                aria-label={searchPlaceholder}
+              />
+              <span className="gm-label">{searchPlaceholder.replace(/\.+$/, "")}</span>
+            </label>
           </div>
 
           <div className="servicios-searchable-select__options" role="listbox">

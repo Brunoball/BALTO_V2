@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   cleanCode,
   clampText,
   decimalText,
 } from "../utils/serviciosFormUtils";
+import useServiciosGlobalModal from "./useServiciosGlobalModal";
 
 
 const IVA_OPTIONS = [
@@ -34,7 +36,8 @@ export default function ModalInsumo({
   saving,
   onClose,
   onSave,
-  onOpenCategorias,
+  onToast,
+  onOpenAgregarCategoria,
 }) {
   const [form, setForm] = useState(initialForm);
 
@@ -58,12 +61,28 @@ export default function ModalInsumo({
     setForm({ ...initialForm, id_unidad: defaultUnit ? String(defaultUnit.id_unidad) : "" });
   }, [open, item, unidades]);
 
+  const { overlayRef, cerrarDesdeFondo } = useServiciosGlobalModal({
+    open,
+    busy: saving,
+    onClose,
+  });
+
   if (!open) return null;
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const submit = async (event) => {
     event.preventDefault();
+
+    if (!String(form.nombre || "").trim()) {
+      onToast?.("error", "Completá el nombre del insumo.", 4200);
+      return;
+    }
+    if (!form.id_unidad) {
+      onToast?.("error", "Seleccioná una unidad para el insumo.", 4200);
+      return;
+    }
+
     await onSave({
       ...form,
       id_insumo: item?.id_insumo || item?.id_articulo,
@@ -75,132 +94,172 @@ export default function ModalInsumo({
   const handleCategoria = (event) => {
     const value = event.target.value;
     if (value === "__ADD__") {
-      onOpenCategorias?.();
+      onOpenAgregarCategoria?.((categoryId) => {
+        set("id_categoria", String(categoryId || ""));
+      });
       return;
     }
     set("id_categoria", value);
   };
 
-  return (
-    <div className="gm-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
-      <form className="gm-modal-container gm-modal-v2 servicios-modal" onSubmit={submit}>
-        <div className="gm-modal-header servicios-modal__head">
-          <div>
-            <span>{item ? "EDITAR" : "AGREGAR"}</span>
-            <h2>{item ? "Editar insumo" : "Agregar insumo"}</h2>
+  return createPortal(
+    <div
+      ref={overlayRef}
+      className="gm-modal-overlay"
+      data-servicios-modal-overlay="true"
+      onMouseDown={cerrarDesdeFondo}
+    >
+      <form
+        className="gm-modal-container gm-modal-container--small gm-modal-v2 servicios-modal servicios-modal--catalog"
+        onSubmit={submit}
+        noValidate
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="servicios-insumo-modal-title"
+      >
+        <header className="gm-modal-header">
+          <div className="gm-modal-head-left">
+            <h2 className="gm-modal-title" id="servicios-insumo-modal-title">{item ? "Editar insumo" : "Agregar insumo"}</h2>
+            <p className="gm-modal-subtitle">Completá los datos generales, la unidad y los valores comerciales.</p>
           </div>
-          <button type="button" className="gm-modal-close" onClick={onClose} aria-label="Cerrar">×</button>
+          <button type="button" className="gm-modal-close" onClick={onClose} disabled={saving} aria-label="Cerrar">✕</button>
+        </header>
+
+        <div className="gm-modal-content servicios-modal__content">
+          <section className="gm-section servicios-form-section">
+            <div className="gm-section-head">
+              <span className="gm-section-dot" />
+              <span>Datos del insumo</span>
+            </div>
+            <div className="gm-section-body">
+              <div className="servicios-form-grid">
+                <label className="gm-field servicios-field--span-4">
+                  <input
+                    className="gm-input"
+                    maxLength={60}
+                    value={form.codigo}
+                    onChange={(e) => set("codigo", cleanCode(e.target.value))}
+                    placeholder=" "
+                    aria-label="Código"
+                  />
+                  <span className="gm-label">Código</span>
+                </label>
+
+                <label className="gm-field servicios-field--span-8">
+                  <input
+                    className="gm-input"
+                    required
+                    autoFocus
+                    maxLength={150}
+                    value={form.nombre}
+                    onChange={(e) => set("nombre", clampText(e.target.value, 150))}
+                    placeholder=" "
+                    aria-label="Nombre"
+                  />
+                  <span className="gm-label">Nombre</span>
+                </label>
+
+                <label className="gm-field servicios-field--span-6">
+                  <select className="gm-input gm-select" value={form.id_categoria} onChange={handleCategoria} aria-label="Categoría">
+                    <option value="__ADD__">+ AGREGAR CATEGORÍA</option>
+                    <option value="">SIN CATEGORÍA</option>
+                    {categorias.filter((c) => Number(c.activo) === 1).map((c) => (
+                      <option key={c.id_categoria} value={c.id_categoria}>{c.nombre}</option>
+                    ))}
+                  </select>
+                  <span className="gm-label gm-label--up">Categoría</span>
+                </label>
+
+                <label className="gm-field servicios-field--span-6">
+                  <select className="gm-input gm-select" required value={form.id_unidad} onChange={(e) => set("id_unidad", e.target.value)} aria-label="Unidad">
+                    <option value="">SELECCIONAR</option>
+                    {unidades
+                      .filter((u) => Number(u.activo) === 1 && String(u.codigo || "").toUpperCase() !== "SERVICIO")
+                      .map((u) => (
+                        <option key={u.id_unidad} value={u.id_unidad}>
+                          {String(u.nombre || "").toUpperCase()} ({u.simbolo})
+                        </option>
+                      ))}
+                  </select>
+                  <span className="gm-label gm-label--up">Unidad</span>
+                </label>
+
+                <label className="gm-field servicios-field--wide">
+                  <textarea
+                    className="gm-input servicios-textarea"
+                    rows={3}
+                    maxLength={1000}
+                    value={form.descripcion}
+                    onChange={(e) => set("descripcion", clampText(e.target.value, 1000))}
+                    placeholder=" "
+                    aria-label="Descripción"
+                  />
+                  <span className="gm-label">Descripción</span>
+                  <small className="servicios-field__counter">{form.descripcion.length}/1000</small>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section className="gm-section servicios-form-section">
+            <div className="gm-section-head">
+              <span className="gm-section-dot" />
+              <span>Valores comerciales</span>
+            </div>
+            <div className="gm-section-body">
+              <div className="servicios-form-grid">
+                <label className="gm-field servicios-field--span-4">
+                  <input
+                    className="gm-input"
+                    inputMode="decimal"
+                    value={form.costo_unitario}
+                    onChange={(e) => set("costo_unitario", decimalText(e.target.value, 2))}
+                    placeholder=" "
+                    aria-label="Costo unitario"
+                  />
+                  <span className="gm-label">Costo unitario</span>
+                </label>
+
+                <label className="gm-field servicios-field--span-4">
+                  <input
+                    className="gm-input"
+                    inputMode="decimal"
+                    value={form.precio_venta}
+                    onChange={(e) => set("precio_venta", decimalText(e.target.value, 2))}
+                    placeholder=" "
+                    aria-label="Precio de venta opcional"
+                  />
+                  <span className="gm-label">Precio de venta (opcional)</span>
+                </label>
+
+                <label className="gm-field servicios-field--span-4">
+                  <select className="gm-input gm-select" value={form.iva_pct} onChange={(e) => set("iva_pct", e.target.value)} aria-label="IVA">
+                    {!isStandardIva(form.iva_pct) && form.iva_pct !== "" && (
+                      <option value={form.iva_pct}>{String(form.iva_pct).replace(".", ",")} % (ACTUAL)</option>
+                    )}
+                    {IVA_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                  <span className="gm-label gm-label--up">IVA %</span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <div className="gm-info-box">
+            Los insumos pertenecen al catálogo de Servicios. El Stock se administra por separado y no cambia al crear, editar o eliminar un insumo.
+          </div>
         </div>
 
-        <div className="servicios-form-grid">
-          <label className="servicios-field">
-            Código
-            <input
-              className="gm-input"
-              maxLength={60}
-              value={form.codigo}
-              onChange={(e) => set("codigo", cleanCode(e.target.value))}
-              placeholder="INS-001"
-            />
-          </label>
-
-          <label className="servicios-field servicios-field--wide">
-            Nombre
-            <input
-              className="gm-input"
-              required
-              autoFocus
-              maxLength={150}
-              value={form.nombre}
-              onChange={(e) => set("nombre", clampText(e.target.value, 150))}
-              placeholder="EJ.: TORNILLO 8 MM"
-            />
-          </label>
-
-          <label className="servicios-field">
-            Categoría
-            <select className="gm-input gm-select" value={form.id_categoria} onChange={handleCategoria}>
-              <option value="__ADD__">+ AGREGAR CATEGORÍA</option>
-              <option value="">SIN CATEGORÍA</option>
-              {categorias.filter((c) => Number(c.activo) === 1).map((c) => (
-                <option key={c.id_categoria} value={c.id_categoria}>{c.nombre}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="servicios-field">
-            Unidad
-            <select className="gm-input gm-select" required value={form.id_unidad} onChange={(e) => set("id_unidad", e.target.value)}>
-              <option value="">SELECCIONAR</option>
-              {unidades
-                .filter((u) => Number(u.activo) === 1 && String(u.codigo || "").toUpperCase() !== "SERVICIO")
-                .map((u) => (
-                  <option key={u.id_unidad} value={u.id_unidad}>
-                    {String(u.nombre || "").toUpperCase()} ({u.simbolo})
-                  </option>
-                ))}
-            </select>
-          </label>
-
-          <label className="servicios-field servicios-field--wide">
-            Descripción
-            <textarea
-              className="gm-input servicios-textarea"
-              rows={3}
-              maxLength={1000}
-              value={form.descripcion}
-              onChange={(e) => set("descripcion", clampText(e.target.value, 1000))}
-              placeholder="DETALLE DEL INSUMO"
-            />
-            <small>{form.descripcion.length}/1000</small>
-          </label>
-
-          <label className="servicios-field">
-            Costo unitario
-            <input
-              className="gm-input"
-              inputMode="decimal"
-              value={form.costo_unitario}
-              onChange={(e) => set("costo_unitario", decimalText(e.target.value, 2))}
-              placeholder="0.00"
-            />
-          </label>
-
-          <label className="servicios-field">
-            Precio de venta
-            <input
-              className="gm-input"
-              inputMode="decimal"
-              value={form.precio_venta}
-              onChange={(e) => set("precio_venta", decimalText(e.target.value, 2))}
-              placeholder="OPCIONAL"
-            />
-          </label>
-
-          <label className="servicios-field">
-            IVA %
-            <select className="gm-input gm-select" value={form.iva_pct} onChange={(e) => set("iva_pct", e.target.value)}>
-              {!isStandardIva(form.iva_pct) && form.iva_pct !== "" && (
-                <option value={form.iva_pct}>{String(form.iva_pct).replace(".", ",")} % (ACTUAL)</option>
-              )}
-              {IVA_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="servicios-modal__note">
-          Los insumos pertenecen al catálogo de Servicios. El Stock se administra por separado y no cambia al crear, editar o eliminar un insumo.
-        </div>
-
-        <div className="servicios-modal__actions">
+        <footer className="gm-modal-footer gm-view-footer-actions">
           <button type="button" className="gm-action-btn gm-action-btn--cancel" onClick={onClose} disabled={saving}>Cancelar</button>
           <button type="submit" className="gm-action-btn gm-action-btn--save" disabled={saving}>
             {saving ? "Guardando..." : item ? "Guardar cambios" : "Agregar insumo"}
           </button>
-        </div>
+        </footer>
       </form>
-    </div>
+    </div>,
+    document.body
   );
 }

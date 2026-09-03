@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import "../Global/Global_css/Global_Section.css";
 import "../Global/Global_css/GlobalResponsiveV2.css";
@@ -9,6 +9,7 @@ import "../Global/Global_css/GlobalsModalsV2.css";
 import "./Servicios.css";
 import BotonExportar from "../Global/Boton_Exportar/BotonExportar";
 import ModalEliminar from "../Global/Modales/ModalEliminar";
+import Toast from "../Global/Toast";
 import useTableScrollGutter from "../Global/useTableScrollGutter.jsx";
 import {
   actualizarCategoriaInsumoServicios,
@@ -51,6 +52,7 @@ import {
   reactivarStockServicios,
 } from "./api/serviciosApi";
 import ModalCategorias from "./modales/ModalCategorias";
+import ModalAgregarCategoria from "./modales/ModalAgregarCategoria";
 import ModalInsumo from "./modales/ModalInsumo";
 import ModalServicio from "./modales/ModalServicio";
 import ModalStock from "./modales/ModalStock";
@@ -70,6 +72,11 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 const EMPTY_FILTERS = { buscar: "", categoria: "", estado: "todos" };
+const STATUS_FILTER_TABS = [
+  { value: "todos", label: "Todos" },
+  { value: "1", label: "Activos" },
+  { value: "0", label: "Dados de baja" },
+];
 const SKELETON_ROWS = 10;
 const includesText = (value, q) => upper(value).includes(q);
 const SECTION_META = {
@@ -77,16 +84,19 @@ const SECTION_META = {
     title: "Servicios",
     description: "Administrá los servicios y definí los insumos o productos de Stock que necesita cada uno.",
     addLabel: "Agregar servicio",
+    searchPlaceholder: "Buscar por servicio, código o categoría...",
   },
   insumos: {
     title: "Insumos",
     description: "Administrá los insumos utilizados por los servicios de manera independiente del Stock.",
     addLabel: "Agregar insumo",
+    searchPlaceholder: "Buscar por insumo, código o categoría...",
   },
   stock: {
     title: "Stock",
     description: "Administrá los productos y existencias de Stock de manera independiente de los Insumos.",
     addLabel: "Agregar producto",
+    searchPlaceholder: "Buscar por producto, código o categoría...",
   },
 };
 
@@ -101,8 +111,7 @@ export default function Servicios() {
   const [tab, setTab] = useState(() => inventoryMode ? "insumos" : "servicios");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [toast, setToast] = useState(null);
 
   const [unidades, setUnidades] = useState([]);
   const [categoriasServicios, setCategoriasServicios] = useState([]);
@@ -122,17 +131,34 @@ export default function Servicios() {
   const [insumoModal, setInsumoModal] = useState({ open: false, item: null });
   const [stockModal, setStockModal] = useState({ open: false, item: null });
   const [categoryModal, setCategoryModal] = useState({ open: false, kind: "servicios" });
+  const [quickCategoryModal, setQuickCategoryModal] = useState({
+    open: false,
+    kind: "servicios",
+    item: null,
+    selectOnCreate: false,
+  });
   const [deleteModal, setDeleteModal] = useState({ open: false, kind: null, item: null });
+  const quickCategoryApplyRef = useRef(null);
   const [tableWrapRef, hasTableScroll] = useTableScrollGutter();
 
-  const flash = useCallback((message) => {
-    setNotice(message);
-    window.setTimeout(() => setNotice(""), 3200);
+  const mostrarToast = useCallback((tipo, mensaje, duracion = 3000) => {
+    const texto = String(mensaje || "").trim();
+    if (!texto) return;
+
+    setToast({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      tipo,
+      mensaje: texto,
+      duracion,
+    });
   }, []);
+
+  const flash = useCallback((message) => {
+    mostrarToast("exito", message, 3000);
+  }, [mostrarToast]);
 
   const cargar = useCallback(async () => {
     setLoading(true);
-    setError("");
     try {
       const [u, cs, ci, cst, s, i, st] = await Promise.all([
         listarUnidadesServicios(),
@@ -152,11 +178,11 @@ export default function Servicios() {
       setInsumos(i?.insumos || []);
       setStock(st?.stock || []);
     } catch (e) {
-      setError(e?.message || "No se pudo cargar el módulo Servicios.");
+      mostrarToast("error", e?.message || "No se pudo cargar el módulo Servicios.", 4500);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [mostrarToast]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -205,16 +231,17 @@ export default function Servicios() {
     });
   }, [stock, filters.stock]);
 
-  const execute = async (fn, successMessage) => {
+  const execute = async (fn, successMessage, { notificar = true } = {}) => {
     setSaving(true);
-    setError("");
     try {
       const result = await fn();
-      if (successMessage) flash(successMessage);
+      if (notificar && successMessage) flash(successMessage);
       await cargar();
       return result;
     } catch (e) {
-      setError(e?.message || "No se pudo completar la operación.");
+      if (notificar) {
+        mostrarToast("error", e?.message || "No se pudo completar la operación.", 4500);
+      }
       throw e;
     } finally {
       setSaving(false);
@@ -232,12 +259,11 @@ export default function Servicios() {
   };
 
   const openEditServicio = async (item) => {
-    setError("");
     try {
       const result = await obtenerServicioServicios(item.id_servicio);
       setServiceModal({ open: true, item: result?.servicio || item });
     } catch (e) {
-      setError(e?.message || "No se pudo cargar el servicio.");
+      mostrarToast("error", e?.message || "No se pudo cargar el servicio.", 4500);
     }
   };
 
@@ -275,6 +301,95 @@ export default function Servicios() {
     () => Number(item.activo) === 1 ? darBajaStockServicios(item.id_stock) : reactivarStockServicios(item.id_stock),
     Number(item.activo) === 1 ? "Registro de stock dado de baja." : "Registro de stock reactivado."
   ).catch(() => {});
+
+  const openQuickCategory = useCallback((kind, onCreated = null, item = null) => {
+    const selectOnCreate = typeof onCreated === "function";
+    quickCategoryApplyRef.current = selectOnCreate ? onCreated : null;
+    setQuickCategoryModal({ open: true, kind, item, selectOnCreate });
+  }, []);
+
+  const closeQuickCategory = useCallback(() => {
+    if (saving) return;
+    quickCategoryApplyRef.current = null;
+    setQuickCategoryModal((prev) => ({ ...prev, open: false, item: null, selectOnCreate: false }));
+  }, [saving]);
+
+  const quickCategoryConfig = useMemo(() => {
+    if (quickCategoryModal.kind === "servicios") {
+      return {
+        titulo: "Agregar categoría de servicio",
+        subtitulo: "La nueva categoría quedará seleccionada en el servicio actual.",
+        editTitulo: "Editar categoría de servicio",
+        editSubtitulo: "Actualizá los datos de la categoría seleccionada.",
+        create: crearCategoriaServicios,
+        update: (id, body) => actualizarCategoriaServicios({ id_servicio_categoria: id, ...body }),
+        list: listarCategoriasServicios,
+        getId: (category) => category?.id_servicio_categoria ?? category?.id,
+      };
+    }
+
+    if (quickCategoryModal.kind === "stock") {
+      return {
+        titulo: "Agregar categoría de Stock",
+        subtitulo: "La nueva categoría quedará seleccionada en el producto actual.",
+        editTitulo: "Editar categoría de Stock",
+        editSubtitulo: "Actualizá los datos de la categoría seleccionada.",
+        create: crearCategoriaStockServicios,
+        update: (id, body) => actualizarCategoriaStockServicios({ id_stock_categoria: id, ...body }),
+        list: listarCategoriasStockServicios,
+        getId: (category) => category?.id_stock_categoria ?? category?.id,
+      };
+    }
+
+    return {
+      titulo: "Agregar categoría de insumo",
+      subtitulo: "La nueva categoría quedará seleccionada en el insumo actual.",
+      editTitulo: "Editar categoría de insumo",
+      editSubtitulo: "Actualizá los datos de la categoría seleccionada.",
+      create: crearCategoriaInsumoServicios,
+      update: (id, body) => actualizarCategoriaInsumoServicios({ id_categoria: id, ...body }),
+      list: listarCategoriasInsumosServicios,
+      getId: (category) => category?.id_categoria ?? category?.id,
+    };
+  }, [quickCategoryModal.kind]);
+
+  const saveQuickCategory = async (body) => {
+    setSaving(true);
+    try {
+      const editingId = quickCategoryConfig.getId(quickCategoryModal.item);
+      const result = editingId
+        ? await quickCategoryConfig.update(editingId, body)
+        : await quickCategoryConfig.create(body);
+      const response = await quickCategoryConfig.list({ activo: "todos" });
+      const categories = response?.categorias || [];
+
+      if (quickCategoryModal.kind === "servicios") setCategoriasServicios(categories);
+      if (quickCategoryModal.kind === "insumos") setCategoriasInsumos(categories);
+      if (quickCategoryModal.kind === "stock") setCategoriasStock(categories);
+
+      const responseCategory = result?.categoria || result?.data?.categoria || result;
+      const responseId = quickCategoryConfig.getId(responseCategory);
+      const normalizedName = upper(body.nombre).trim();
+      const responseMatch = categories.find(
+        (category) => String(quickCategoryConfig.getId(category) || "") === String(responseId || "")
+      );
+      const matchingCategory = categories
+        .filter((category) => Number(category.activo) === 1 && upper(category.nombre).trim() === normalizedName)
+        .sort((a, b) => Number(quickCategoryConfig.getId(b) || 0) - Number(quickCategoryConfig.getId(a) || 0))[0];
+      const createdId = quickCategoryConfig.getId(responseMatch || matchingCategory);
+
+      if (!editingId && createdId) quickCategoryApplyRef.current?.(String(createdId));
+      quickCategoryApplyRef.current = null;
+      setQuickCategoryModal((prev) => ({ ...prev, open: false, item: null, selectOnCreate: false }));
+      flash(editingId ? "Categoría actualizada correctamente." : "Categoría agregada correctamente.");
+      return result;
+    } catch (error) {
+      mostrarToast("error", error?.message || "No se pudo agregar la categoría.", 4500);
+      throw error;
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const categoryConfig = useMemo(() => {
     if (categoryModal.kind === "servicios") {
@@ -316,8 +431,6 @@ export default function Servicios() {
     };
   }, [categoryModal.kind, categoriasServicios, categoriasInsumos, categoriasStock]);
 
-  const createCategory = (body) => execute(() => categoryConfig.create(body), "Categoría agregada correctamente.");
-  const updateCategory = (id, body) => execute(() => categoryConfig.update(id, body), "Categoría actualizada correctamente.");
   const toggleCategory = (category) => execute(
     () => categoryConfig.toggle(category),
     Number(category.activo) === 1 ? "Categoría dada de baja." : "Categoría reactivada."
@@ -332,12 +445,14 @@ export default function Servicios() {
     const { kind, item } = deleteModal;
     if (!kind || !item) return;
 
-    if (kind === "servicio") await execute(() => eliminarServicioServicios(item.id_servicio), "Servicio eliminado definitivamente.");
-    if (kind === "insumo") await execute(() => eliminarInsumoServicios(item.id_insumo), "Insumo eliminado definitivamente.");
-    if (kind === "stock") await execute(() => eliminarStockServicios(item.id_stock), "Registro de stock eliminado definitivamente.");
-    if (kind === "categoria-servicios") await execute(() => eliminarCategoriaServicios(item.id_servicio_categoria), "Categoría eliminada correctamente.");
-    if (kind === "categoria-insumos") await execute(() => eliminarCategoriaInsumoServicios(item.id_categoria), "Categoría eliminada correctamente.");
-    if (kind === "categoria-stock") await execute(() => eliminarCategoriaStockServicios(item.id_stock_categoria), "Categoría eliminada correctamente.");
+    const opcionesModalGlobal = { notificar: false };
+
+    if (kind === "servicio") await execute(() => eliminarServicioServicios(item.id_servicio), null, opcionesModalGlobal);
+    if (kind === "insumo") await execute(() => eliminarInsumoServicios(item.id_insumo), null, opcionesModalGlobal);
+    if (kind === "stock") await execute(() => eliminarStockServicios(item.id_stock), null, opcionesModalGlobal);
+    if (kind === "categoria-servicios") await execute(() => eliminarCategoriaServicios(item.id_servicio_categoria), null, opcionesModalGlobal);
+    if (kind === "categoria-insumos") await execute(() => eliminarCategoriaInsumoServicios(item.id_categoria), null, opcionesModalGlobal);
+    if (kind === "categoria-stock") await execute(() => eliminarCategoriaStockServicios(item.id_stock_categoria), null, opcionesModalGlobal);
 
     setDeleteModal({ open: false, kind: null, item: null });
   };
@@ -632,7 +747,7 @@ export default function Servicios() {
 
   const secondaryActions = (className = "") => (
     <div className={className}>
-      <BotonExportar label="Exportar" title="Exportar vista actual" opciones={exportOptions} disabled={loading || currentRows.length === 0} align="right" />
+      <BotonExportar className="servicios-exportAction" label="Exportar" title="Exportar vista actual" opciones={exportOptions} disabled={loading || currentRows.length === 0} align="right" />
       <button type="button" className="mov-btn mov-btn--ghost servicios-categoriesBtn" onClick={() => setCategoryModal({ open: true, kind: tab })} disabled={saving}>
         <FontAwesomeIcon icon={faTags} /> Gestionar categorías
       </button>
@@ -641,16 +756,25 @@ export default function Servicios() {
 
   return (
     <section className="mov-page servicios-page">
-      {error && <div className="mov-alert" role="alert">{error}</div>}
-      {notice && <div className="servicios-alert servicios-alert--ok" role="status">{notice}</div>}
+      {toast && (
+        <Toast
+          key={toast.id}
+          tipo={toast.tipo}
+          mensaje={toast.mensaje}
+          duracion={toast.duracion}
+          onClose={() => setToast(null)}
+        />
+      )}
 
       <section className="mov-card mov-card--table servicios-mainCard">
         <div className="mov-card__head">
           <div className="mov-card__headLeft">
             <div className="title-mov servicios-titleBlock">
               <div className="servicios-titleBlock__copy">
-                <div className="mov-card__title">{inventoryMode ? "Inventario e insumos" : "Servicios"}</div>
-                <div className="mov-card__hint">Mostrando <b>{currentRows.length}</b> registro(s)</div>
+                <div className="mov-card__title">{inventoryMode ? "" : "Servicios"}</div>
+                {!inventoryMode && (
+                  <div className="mov-card__hint">Mostrando <b>{currentRows.length}</b> registro(s)</div>
+                )}
               </div>
 
               {inventoryMode && (
@@ -679,7 +803,7 @@ export default function Servicios() {
 
             <div className="mov-headFilters servicios-headFilters">
               <div className="cc-filter cc-filter--search servicios-searchFilter">
-                <div className={`cc-floatingField cc-floatingField--search ${currentFilters.buscar ? "is-active" : ""}`}>
+                <div className="cc-floatingField cc-floatingField--search is-active">
                   <div className="cc-searchInput">
                     <div className="cc-searchInput__fieldWrap">
                       <input
@@ -687,6 +811,7 @@ export default function Servicios() {
                         maxLength={100}
                         value={currentFilters.buscar}
                         onChange={(e) => updateFilter("buscar", upper(e.target.value).slice(0, 100))}
+                        placeholder={SECTION_META[tab].searchPlaceholder}
                         aria-label="Buscar"
                       />
                       <span className="cc-floatingLabel"><FontAwesomeIcon icon={faMagnifyingGlass} /> Búsqueda</span>
@@ -712,15 +837,22 @@ export default function Servicios() {
                 </div>
               </div>
 
-              <div className="cc-filter servicios-filterCompact servicios-filterEstado">
-                <div className="cc-floatingField is-active">
-                  <select className="servicios-globalSelect" value={currentFilters.estado} onChange={(e) => updateFilter("estado", e.target.value)} aria-label="Estado">
-                    <option value="todos">TODOS</option>
-                    <option value="1">ACTIVOS</option>
-                    <option value="0">DADOS DE BAJA</option>
-                  </select>
-                  <span className="cc-floatingLabel cc-floatingLabel--active">Estado</span>
-                </div>
+              <div className="mov-tabs servicios-statusTabs" role="tablist" aria-label="Filtrar por estado">
+                {STATUS_FILTER_TABS.map((statusTab) => {
+                  const isActive = currentFilters.estado === statusTab.value;
+                  return (
+                    <button
+                      key={statusTab.value}
+                      type="button"
+                      className={`mov-tab servicios-statusTab ${isActive ? "is-active" : ""}`}
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => updateFilter("estado", statusTab.value)}
+                    >
+                      {statusTab.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -770,7 +902,8 @@ export default function Servicios() {
         saving={saving}
         onClose={() => setServiceModal({ open: false, item: null })}
         onSave={saveServicio}
-        onOpenCategorias={() => setCategoryModal({ open: true, kind: "servicios" })}
+        onToast={mostrarToast}
+        onOpenAgregarCategoria={(onCreated) => openQuickCategory("servicios", onCreated)}
       />
 
       <ModalInsumo
@@ -781,7 +914,8 @@ export default function Servicios() {
         saving={saving}
         onClose={() => setInsumoModal({ open: false, item: null })}
         onSave={saveInsumo}
-        onOpenCategorias={() => setCategoryModal({ open: true, kind: "insumos" })}
+        onToast={mostrarToast}
+        onOpenAgregarCategoria={(onCreated) => openQuickCategory("insumos", onCreated)}
       />
 
       <ModalStock
@@ -792,7 +926,8 @@ export default function Servicios() {
         saving={saving}
         onClose={() => setStockModal({ open: false, item: null })}
         onSave={saveStock}
-        onOpenCategorias={() => setCategoryModal({ open: true, kind: "stock" })}
+        onToast={mostrarToast}
+        onOpenAgregarCategoria={(onCreated) => openQuickCategory("stock", onCreated)}
       />
 
       <ModalCategorias
@@ -803,17 +938,34 @@ export default function Servicios() {
         getCount={categoryConfig.getCount}
         saving={saving}
         onClose={() => setCategoryModal((prev) => ({ ...prev, open: false }))}
-        onCreate={createCategory}
-        onUpdate={updateCategory}
+        onAdd={() => openQuickCategory(categoryModal.kind)}
+        onEdit={(category) => openQuickCategory(categoryModal.kind, null, category)}
         onToggle={toggleCategory}
         onDelete={deleteCategory}
         nota={categoryConfig.nota}
+      />
+
+      <ModalAgregarCategoria
+        open={quickCategoryModal.open}
+        titulo={quickCategoryModal.item ? quickCategoryConfig.editTitulo : quickCategoryConfig.titulo}
+        subtitulo={quickCategoryModal.item
+          ? quickCategoryConfig.editSubtitulo
+          : quickCategoryModal.selectOnCreate
+            ? quickCategoryConfig.subtitulo
+            : "Completá los datos para incorporarla al catálogo."}
+        initialValues={quickCategoryModal.item}
+        submitLabel={quickCategoryModal.item ? "Guardar cambios" : "Agregar categoría"}
+        saving={saving}
+        onClose={closeQuickCategory}
+        onSave={saveQuickCategory}
+        onToast={mostrarToast}
       />
 
       <ModalEliminar
         open={deleteModal.open}
         row={deleteModal.item}
         loading={saving}
+        onToast={mostrarToast}
         onClose={closeDeleteModal}
         onConfirm={confirmDelete}
         title={deleteModalCopy.title}
